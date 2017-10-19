@@ -4,22 +4,26 @@
 \alias{generateHarmonics}
 \title{Generate harmonics}
 \usage{
-generateHarmonics(pitch, attackLen = 50, nonlinBalance = 0, nonlinDep = 0,
-  jitterDep = 0, jitterLen = 1, vibratoFreq = 100, vibratoDep = 0,
-  shimmerDep = 0, creakyBreathy = 0, rolloff = -18, rolloffOct = -2,
-  rolloffKHz = -6, rolloffParab = 0, rolloffParabHarm = 3,
-  rolloffLip = 6, rolloff_perAmpl = 12, temperature = 0,
-  pitchDriftDep = 0.5, pitchDriftFreq = 0.125,
-  randomWalk_trendStrength = 0.5, shortestEpoch = 300, subFreq = 100,
-  subDep = 0, amDep = 0, amFreq = 30, amplAnchors = NA, overlap = 75,
-  samplingRate = 16000, pitchFloor = 75, pitchCeiling = 3500,
-  pitchSamplingRate = 3500, throwaway = -120)
+generateHarmonics(pitch, glottisAnchors = 0, attackLen = 50,
+  nonlinBalance = 0, nonlinDep = 50, jitterDep = 0, jitterLen = 1,
+  vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0, creakyBreathy = 0,
+  rolloff = -9, rolloffOct = -3, rolloffKHz = -3, rolloffParab = 0,
+  rolloffParabHarm = 3, rolloff_perAmpl = 3, temperature = 0.025,
+  pitchDriftDep = 0.5, pitchDriftFreq = 0.125, amplDriftDep = 5,
+  subDriftDep = 4, rolloffDriftDep = 3, randomWalk_trendStrength = 0.5,
+  shortestEpoch = 300, subFreq = 100, subDep = 0, amplAnchors = NA,
+  overlap = 75, samplingRate = 16000, pitchFloor = 75,
+  pitchCeiling = 3500, pitchSamplingRate = 3500, throwaway = -80)
 }
 \arguments{
 \item{pitch}{a contour of fundamental frequency (numeric vector). NB: for
 computational efficiency, provide the pitch contour at a reduced sampling
 rate pitchSamplingRate, eg 3500 points/s. The pitch contour will be
 upsampled before synthesis.}
+
+\item{glottisAnchors}{anchors for specifying the proportion of a glottal
+cycle with closed glottis, % (0 = no modification, 100 = closed phase as
+long as open phase); numeric vector or dataframe specifying time and value}
 
 \item{attackLen}{duration of fade-in / fade-out at each end of syllables and
 noise (ms)}
@@ -69,10 +73,6 @@ exponential decay.}
 \item{rolloffParabHarm}{the number of harmonics affected by
 \code{rolloffParab}}
 
-\item{rolloffLip}{the effect of lip radiation on source spectrum, dB/oct
-(the default of +6 dB/oct produces a high-frequency boost when the mouth is
-open)}
-
 \item{rolloff_perAmpl}{as amplitude goes down from max to
 \code{throwaway}, \code{rolloff} increases by \code{rolloff_perAmpl}
 dB/octave. The effect is to make loud parts brighter by increasing energy
@@ -104,11 +104,6 @@ strength of subharmonics fades as they move away from harmonics in f0
 stack. Low values produce narrow sidebands, high values produce uniformly
 strong subharmonics}
 
-\item{amDep}{amplitude modulation depth, %. 0: no change; 100: amplitude
-modulation with amplitude range equal to the dynamic range of the sound}
-
-\item{amFreq}{amplitude modulation frequency, Hz}
-
 \item{amplAnchors}{a numeric vector of amplitude envelope (0 to 1) or a
 dataframe specifying the time (ms) and value of amplitude anchors}
 
@@ -135,10 +130,12 @@ Returns one continuous, unfiltered, voiced syllable consisting of several
 sine waves.
 }
 \examples{
-pitch=soundgen:::getSmoothContour(len = 3500,
+pitch = soundgen:::getSmoothContour(len = 3500,
   anchors = data.frame('time' = c(0, 1), 'value' = c(200, 300)))
 plot(pitch)
-sound = soundgen:::generateHarmonics(pitch, samplingRate = 16000)
-# playme(sound, samplingRate = 16000) # no formants yet
+sound1 = soundgen:::generateHarmonics(pitch, samplingRate = 16000)
+#' # playme(sound1, samplingRate = 16000) # no formants yet
+sound2 = soundgen:::generateHarmonics(pitch, samplingRate = 16000, glottisAnchors = c(0, 300))
+#' # playme(sound2, samplingRate = 16000) # pauses between glottal cycles
 }
 \keyword{internal}

@@ -5,9 +5,9 @@
 \title{Generate noise}
 \usage{
 generateNoise(len, noiseAnchors = data.frame(time = c(0, 300), value = c(-120,
-  -120)), rolloffNoise = -6, attackLen = 10, windowLength_points = 1024,
-  samplingRate = 16000, overlap = 75, throwaway = -120,
-  filterNoise = NA)
+  -120)), rolloffNoise = -4, attackLen = 10, flatSpectrum = 1200,
+  windowLength_points = 1024, samplingRate = 16000, overlap = 75,
+  throwaway = -120, filterNoise = NA)
 }
 \arguments{
 \item{len}{length of output}
@@ -26,6 +26,9 @@ no breathing, 0 = as strong as the voiced (harmonic) part}
 
 \item{attackLen}{duration of fade-in / fade-out at each end of syllables and
 noise (ms)}
+
+\item{flatSpectrum}{keep spectrum flat up to ... Hz (ie rolloffNoise applies
+only above this frequency)}
 
 \item{windowLength_points}{the length of fft window, points}
 
@@ -46,8 +49,8 @@ Internal soundgen function.
 }
 \details{
 Generates white noise of length \code{len} and with spectrum defined by
-exponential decay \code{rolloffNoise} and/or a specified filter
-\code{filterNoise}. Algorithm: paints a spectrum with desired
+linear decay \code{rolloffNoise} above \code{flatSpectrum} and/or a specified
+filter \code{filterNoise}. Algorithm: paints a spectrum with desired
 characteristics, sets phase to zero, and generates a time sequence via
 inverse FFT. Noise can then be used as an additional source to be added to
 the glottal source AFTER the glottal source has been formant-filtered, or
@@ -69,17 +72,18 @@ filterNoise = soundgen:::getSpectralEnvelope(
   nr = windowLength_points / 2, nc = 1, samplingRate = samplingRate,
  formants = list('f1' = data.frame(time = 0, freq = 7000,
                                    amp = 50, width = 2000)))
-noise = soundgen:::generateNoise(len = samplingRate, rolloffNoise = -12,
+noise = soundgen:::generateNoise(len = samplingRate, rolloffNoise = -4,
   samplingRate = samplingRate, filterNoise = filterNoise)
-# plot (filterNoise, type = 'l')
+# plot(filterNoise, type = 'l')
 # playme(noise, samplingRate = samplingRate)
 
 # low-frequency, wind-like noise
 filterNoise = soundgen:::getSpectralEnvelope(
-  nr = windowLength_points / 2, nc = 1, rolloffLip = 0,
+  nr = windowLength_points / 2, nc = 1, lipRad = 0,
   samplingRate = samplingRate, formants = list('f1' = data.frame(
     time = 0, freq = 150, amp = 30, width = 90)))
 noise = soundgen:::generateNoise(len = samplingRate, rolloffNoise = -12,
   samplingRate = samplingRate, filterNoise = filterNoise)
+# playme(noise, samplingRate = samplingRate)
 }
 \keyword{internal}

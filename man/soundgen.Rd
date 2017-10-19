@@ -6,24 +6,24 @@
 \usage{
 soundgen(repeatBout = 1, nSyl = 1, sylLen = 300, pauseLen = 200,
   pitchAnchors = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135,
-  100)), pitchAnchorsGlobal = NA, temperature = 0.025,
+  100)), pitchAnchorsGlobal = NA, glottisAnchors = 0, temperature = 0.025,
   tempEffects = list(sylLenDep = 0.02, formDrift = 0.3, formDisp = 0.2,
-  pitchDriftDep = 0.5, pitchDriftFreq = 0.125, pitchAnchorsDep = 0.05,
-  noiseAnchorsDep = 0.1, amplAnchorsDep = 0.1), maleFemale = 0,
-  creakyBreathy = 0, nonlinBalance = 0, nonlinDep = 50, jitterLen = 1,
-  jitterDep = 3, vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0,
-  attackLen = 50, rolloff = -12, rolloffOct = -12, rolloffKHz = -6,
-  rolloffParab = 0, rolloffParabHarm = 3, rolloffLip = 6,
-  formants = list(f1 = list(time = 0, freq = 860, amp = 30, width = 120), f2 =
-  list(time = 0, freq = 1280, amp = 40, width = 120), f3 = list(time = 0, freq =
-  2900, amp = 25, width = 200)), formantDep = 1, formantDepStoch = 30,
-  vocalTract = 15.5, subFreq = 100, subDep = 100, shortestEpoch = 300,
-  amDep = 0, amFreq = 30, amShape = 0, noiseAnchors = data.frame(time =
-  c(0, 300), value = c(-120, -120)), formantsNoise = NA, rolloffNoise = -14,
-  mouthAnchors = data.frame(time = c(0, 1), value = c(0.5, 0.5)),
-  amplAnchors = NA, amplAnchorsGlobal = NA, samplingRate = 16000,
-  windowLength = 50, overlap = 75, addSilence = 100, pitchFloor = 50,
-  pitchCeiling = 3500, pitchSamplingRate = 3500, throwaway = -120,
+  pitchDriftDep = 0.5, pitchDriftFreq = 0.125, amplDriftDep = 5, subDriftDep =
+  4, rolloffDriftDep = 3, pitchAnchorsDep = 0.05, noiseAnchorsDep = 0.1,
+  amplAnchorsDep = 0.1), maleFemale = 0, creakyBreathy = 0,
+  nonlinBalance = 0, nonlinDep = 50, jitterLen = 1, jitterDep = 3,
+  vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0, attackLen = 50,
+  rolloff = -9, rolloffOct = -3, rolloffKHz = -3, rolloffParab = 0,
+  rolloffParabHarm = 3, lipRad = 6, rolloffLip = NULL, noseRad = 4,
+  mouthOpenThres = 0, formants = c(860, 1430, 2900), formantDep = 1,
+  formantDepStoch = 20, vocalTract = NA, subFreq = 100, subDep = 100,
+  shortestEpoch = 300, amDep = 0, amFreq = 30, amShape = 0,
+  noiseAnchors = data.frame(time = c(0, 300), value = c(-80, -80)),
+  formantsNoise = NA, rolloffNoise = -4, mouthAnchors = data.frame(time =
+  c(0, 1), value = c(0.5, 0.5)), amplAnchors = NA, amplAnchorsGlobal = NA,
+  samplingRate = 16000, windowLength = 50, overlap = 75,
+  addSilence = 100, pitchFloor = 1, pitchCeiling = 3500,
+  pitchSamplingRate = 3500, throwaway = -80,
   invalidArgAction = c("adjust", "abort", "ignore")[1], plot = FALSE,
   play = FALSE, savePath = NA, ...)
 }
@@ -39,13 +39,17 @@ Details)}
 \item{pauseLen}{average duration of pauses between syllables, ms}
 
 \item{pitchAnchors}{a numeric vector of f0 values in Hz (assuming equal time
-steps) or a dataframe specifying the time (ms) and value (Hz) of each
-anchor. These anchors are used to create a smooth contour of fundamental
-frequency f0 (pitch) within one syllable (see Examples)}
+steps) or a dataframe specifying the time (ms or 0 to 1) and value (Hz) of
+each anchor. These anchors are used to create a smooth contour of
+fundamental frequency f0 (pitch) within one syllable (see Examples)}
 
 \item{pitchAnchorsGlobal}{unlike \code{pitchAnchors}, these anchors are used
 to create a smooth contour of average f0 across multiple syllables. The
 values are in semitones relative to the existing pitch, i.e. 0 = no change}
+
+\item{glottisAnchors}{anchors for specifying the proportion of a glottal
+cycle with closed glottis, % (0 = no modification, 100 = closed phase as
+long as open phase); numeric vector or dataframe specifying time and value}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
@@ -53,13 +57,16 @@ in sound generation}
 \item{tempEffects}{a list of scale factors regulating the effect of
 temperature on particular parameters. To change, specify just those pars
 that you want to modify, don't rewrite the whole list (defaults are
-hard-coded). \code{sylLenDep}: random variation of the duration of
-syllables and pauses; \code{formDrift}: the amount of random drift of
-formants; \code{formDisp}: irregularity of the dispersion of stochastic
-formants; \code{pitchDriftDep}: amount of slow random drift of f0;
-\code{pitchDriftFreq}: frequency of slow random drift of f0;
-\code{pitchAnchorsDep, noiseAnchorsDep, amplAnchorsDep}: random
-fluctuations of user-specified pitch / noise / amplitude anchors}
+hard-coded). \code{sylLenDep}: duration of syllables and pauses;
+\code{formDrift}: formant frequencies; \code{formDisp}: dispersion of
+stochastic formants; \code{pitchDriftDep}: amount of slow random drift of
+f0; \code{pitchDriftFreq}: frequency of slow random drift of f0;
+\code{amplDriftDep}: drift of amplitude mirroring pitch drift;
+\code{subDriftDep}: drift of subharmonic frequency and bandwidth mirroring
+pitch drift; \code{rolloffDriftDep}: drift of rolloff mirroring pitch
+drift; \code{pitchAnchorsDep, noiseAnchorsDep, amplAnchorsDep}: random
+fluctuations of user-specified pitch / noise / amplitude anchors;
+\code{glottisAnchorsDep}: proportion of glottal cycle with closed glottis}
 
 \item{maleFemale}{hyperparameter for shifting f0 contour, formants, and
 vocalTract to make the speaker appear more male (-1...0) or more female
@@ -113,9 +120,18 @@ exponential decay.}
 \item{rolloffParabHarm}{the number of harmonics affected by
 \code{rolloffParab}}
 
-\item{rolloffLip}{the effect of lip radiation on source spectrum, dB/oct
+\item{lipRad}{the effect of lip radiation on source spectrum, dB/oct
 (the default of +6 dB/oct produces a high-frequency boost when the mouth is
 open)}
+
+\item{rolloffLip}{same as lipRad (deprecated since soundgen 1.1.0)}
+
+\item{noseRad}{the effect of radiation through the nose on source
+spectrum, dB/oct (the alternative to \code{lipRad} when the mouth is
+closed)}
+
+\item{mouthOpenThres}{open the lips (switch from nose radiation to lip
+radiation) when the mouth is more than \code{mouthOpenThres} open, 0 to 1}
 
 \item{formants}{either a character string like "aaui" referring to default
 presets for speaker "M1" or a list of formant times, frequencies,
@@ -131,7 +147,8 @@ the highest specified formant, dB (only if temperature > 0)}
 
 \item{vocalTract}{the length of vocal tract, cm. Used for calculating formant
 dispersion (for adding extra formants) and formant transitions as the mouth
-opens and closes}
+opens and closes. If \code{NULL} or \code{NA}, the length is estimated
+based on specified formant frequencies (if any)}
 
 \item{subFreq}{target frequency of subharmonics, Hz (lower than f0, adjusted
 dynamically so f0 is always a multiple of subFreq)}

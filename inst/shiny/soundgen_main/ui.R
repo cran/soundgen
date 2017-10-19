@@ -1,5 +1,5 @@
 ui = fluidPage(
-  # headerPanel('soundgen 1.0.0'),
+  # headerPanel('soundgen 1.1.0'),
 
   fluidRow(
     column(6,
@@ -45,12 +45,12 @@ ui = fluidPage(
                                                numericInput('samplingRate', 'Sampling rate, Hz', value=permittedValues['samplingRate','default'], min=permittedValues['samplingRate', 'low'], max=permittedValues['samplingRate', 'high'], step=permittedValues['samplingRate','step']),
                                                shinyBS:::bsPopover(id='samplingRate', title=NULL, content='The number of points per second of audio. Higher = better quality; lower = faster. Can be any integer, not necessarily a power of two.', placement="right", trigger="hover"),
                                                numericInput('windowLength', 'FFT window length, ms', value=permittedValues['windowLength','default'], min=permittedValues['windowLength', 'low'], max=permittedValues['windowLength', 'high'], step=permittedValues['windowLength','step']),
-                                               shinyBS:::bsPopover(id='samplingRate', title=NULL, content='The length of window for performing FFT - inverse FFT when filtering the source.', placement="right", trigger="hover"),
+                                               shinyBS:::bsPopover(id='windowLength', title=NULL, content='The length of window for performing FFT - inverse FFT when filtering the source.', placement="right", trigger="hover"),
                                                numericInput('pitchSamplingRate', 'Pitch sampling rate, Hz', value=3500, min=100, max=44000, step=100),
                                                shinyBS:::bsPopover(id='pitchSamplingRate', title=NULL, content='The number of considered F0 values per second of audio. Should be >= pitchCeiling for best quality', placement="right", trigger="hover"),
-                                               numericInput('throwaway', 'Dynamic range, dB', value=-120, min=-200, max=-40, step=10),
+                                               numericInput('throwaway', 'Dynamic range, dB', value=permittedValues['throwaway', 'default'], min=permittedValues['throwaway', 'low'], max=permittedValues['throwaway', 'high'], step=permittedValues['throwaway', 'step']),
                                                shinyBS:::bsPopover(id='throwaway', title=NULL, content='Discard everything below this amplitude', placement="right", trigger="hover"),
-                                               sliderInput('pitchFloorCeiling', 'Synthesized pitch range, Hz', value=c(permittedValues['pitch', 'low'],permittedValues['pitch', 'high']), min=25, max=8000, step=25),
+                                               sliderInput('pitchFloorCeiling', 'Synthesized pitch range, Hz', value=c(permittedValues['pitch', 'low'], permittedValues['pitch', 'high']), min=1, max=8000, step=10),
                                                shinyBS:::bsPopover(id='pitchFloorCeiling', title=NULL, content='Sets the bounds of fundamental frequency for synthesis', placement="right", trigger="hover"), width=6
                                              ),
                                              mainPanel(
@@ -152,7 +152,7 @@ ui = fluidPage(
                        ),
 
                        navbarMenu("Source",
-                                  tabPanel("Rolloff",
+                                  tabPanel("Glottal",
                                            sidebarLayout(
                                              sidebarPanel(
                                                sliderInput('rolloff', 'Source rolloff, dB/octave', value=permittedValues['rolloff','default'], min=permittedValues['rolloff', 'low'], max=permittedValues['rolloff', 'high'], step=permittedValues['rolloff','step']),
@@ -165,7 +165,9 @@ ui = fluidPage(
                                                                         sliderInput('rolloffParab', 'Parabolic rolloff adjustment, dB/octave', value=permittedValues['rolloffParab','default'], min=permittedValues['rolloffParab', 'low'], max=permittedValues['rolloffParab', 'high'], step=permittedValues['rolloffParab','step']),
                                                                         shinyBS:::bsPopover(id='rolloffParab', title=NULL, content='Parabolic boost to the first ... harmonics, dB', placement="right", trigger="hover"),
                                                                         sliderInput('rolloffParabHarm', 'Harmonics boosted', value=permittedValues['rolloffParabHarm','default'], min=permittedValues['rolloffParabHarm', 'low'], max=permittedValues['rolloffParabHarm', 'high'], step=permittedValues['rolloffParabHarm','step']),
-                                                                        shinyBS:::bsPopover(id='rolloffParabHarm', title=NULL, content='Apply a parabolic boost to ... harmonics. See manual for demo', placement="right", trigger="hover")
+                                                                        shinyBS:::bsPopover(id='rolloffParabHarm', title=NULL, content='Apply a parabolic boost to ... harmonics. See manual for demo', placement="right", trigger="hover"),
+                                                                        sliderInput('glottisAnchors', 'Closed glottis, %', value=permittedValues['glottisAnchors', 'default'], min=permittedValues['glottisAnchors', 'low'], max=permittedValues['glottisAnchors', 'high'], step=permittedValues['glottisAnchors','step']),
+                                                                        shinyBS:::bsPopover(id='glottisAnchors', title=NULL, content='Proportion of time glottis is closed relative to F0 period; adds silences between glottal cycles', placement="right", trigger="hover")
                                                ), width=6
                                              ),
                                              mainPanel(
@@ -232,16 +234,23 @@ ui = fluidPage(
                                                                         tags$textarea(id="formants", label='Exact formants', rows=10, cols=20, value=NA, placeholder ="list()")
                                                ),
                                                shinyBS::bsCollapsePanel("Advanced",
+                                                                        checkboxInput(inputId = 'estimateVTL', label = 'Estimate vocal tract length from formants?', value = TRUE),
+                                                                        shinyBS:::bsPopover(id='estimateVTL', title=NULL, content='If TRUE, user-specified formants trump user-specified vocal tract length', placement="right", trigger="hover"),
                                                                         sliderInput('vocalTract', 'The length of vocal tract, cm', value=permittedValues['vocalTract', 'default'], min=permittedValues['vocalTract', 'low'], max=permittedValues['vocalTract', 'high'], step=permittedValues['vocalTract', 'step']),
                                                                         shinyBS:::bsPopover(id='vocalTract', title=NULL, content='Affects default formant dispersion at temperature>0', placement="right", trigger="hover"),
                                                                         sliderInput('formantDepStoch', 'Added formants, dB', value=permittedValues['formantDepStoch','default'], min=permittedValues['formantDepStoch', 'low'], max=permittedValues['formantDepStoch', 'high'], step=permittedValues['formantDepStoch','step']),
                                                                         shinyBS:::bsPopover(id='formantDepStoch', title=NULL, content='Amplitude of extra formants added on top of user-specified ones based on the length of vocal tract', placement="right", trigger="hover"),
-                                                                        sliderInput('rolloffLip', 'Lip radiation, dB/oct', value=permittedValues['rolloffLip','default'], min=permittedValues['rolloffLip', 'low'], max=permittedValues['rolloffLip', 'high'], step=permittedValues['rolloffLip','step']),
-                                                                        shinyBS:::bsPopover(id='rolloffLip', title=NULL, content='Rolloff due to lip radiation', placement="right", trigger="hover")
+                                                                        sliderInput('lipRad', 'Lip radiation, dB/oct', value=permittedValues['lipRad','default'], min=permittedValues['lipRad', 'low'], max=permittedValues['lipRad', 'high'], step=permittedValues['lipRad','step']),
+                                                                        shinyBS:::bsPopover(id='lipRad', title=NULL, content='Rolloff due to lip radiation', placement="right", trigger="hover"),
+                                                                        sliderInput('noseRad', 'Nose radiation, dB/oct', value=permittedValues['noseRad','default'], min=permittedValues['noseRad', 'low'], max=permittedValues['noseRad', 'high'], step=permittedValues['noseRad','step']),
+                                                                        shinyBS:::bsPopover(id='noseRad', title=NULL, content='Rolloff due to nose radiation: added instead of lip radiation when the mouth is closed', placement="right", trigger="hover")
                                                ), width=6
                                              ),
                                              mainPanel(
-                                               plotOutput('plotFormants'), width=6
+                                               plotOutput('plotFormants'),
+                                               fluidRow(
+                                                 radioButtons(inputId='formants_spectrogram_or_spectrum', label="Filter preview (voiced)", choices=c("Spectrogram"="spectrogram", "Spectrum"="spectrum"), selected='spectrum', inline=TRUE, width=NULL)
+                                               ), width=6
                                              )
                                            )
                                   ),
@@ -251,7 +260,10 @@ ui = fluidPage(
                                              sidebarPanel(
                                                actionButton(inputId = "mouth_flatten", label = "Flatten mouth opening contour"),
                                                shinyBS:::bsPopover(id='mouth_flatten', title=NULL, content='Revert to a flat mouth opening contour with opening degree equal at the first (left) anchor', placement="right", trigger="hover"),
-                                               tableOutput("mouth_anchors"), width=6
+                                               tableOutput("mouth_anchors"),
+                                               sliderInput('mouthOpenThres', 'Open lips at', value=permittedValues['mouthOpenThres','default'], min=permittedValues['mouthOpenThres', 'low'], max=permittedValues['mouthOpenThres', 'high'], step=permittedValues['mouthOpenThres','step']),
+                                               shinyBS:::bsPopover(id='mouthOpenThres', title=NULL, content='The degree of mouth opening at which lips separate and start to radiate', placement="right", trigger="hover"),
+                                               width=6
                                              ),
                                              mainPanel(
                                                plotOutput('plotMouth', click = "plotMouth_click", dblclick = dblclickOpts(id = "plotMouth_dblclick")), width=6
@@ -272,7 +284,10 @@ ui = fluidPage(
                                                ), width=6
                                              ),
                                              mainPanel(
-                                               plotOutput('plotConsonant'), width=6
+                                               plotOutput('plotConsonant'),
+                                               fluidRow(
+                                                 radioButtons(inputId='formantsNoise_spectrogram_or_spectrum', label="Filter preview (unvoiced)", choices=c("Spectrogram"="spectrogram", "Spectrum"="spectrum"), selected='spectrum', inline=TRUE, width=NULL)
+                                               ), width=6
                                              )
                                            )
                                   )
@@ -293,7 +308,7 @@ ui = fluidPage(
              plotOutput('spectrogram')
            ),
            fluidRow(
-             radioButtons(inputId='spectrogram_or_spectrum', label="Show", choices=c("Spectrogram"="spectrogram", "Spectrum"="spectrum"), selected='spectrogram', inline=TRUE, width=NULL)
+             radioButtons(inputId='spectrogram_or_spectrum', label="Generated sound", choices=c("Spectrogram"="spectrogram", "Spectrum"="spectrum"), selected='spectrogram', inline=TRUE, width=NULL)
            ),
            fluidRow(
              sliderInput('specWindowLength', 'Window length, ms', value=permittedValues['specWindowLength','default'], min=permittedValues['specWindowLength', 'low'], max=permittedValues['specWindowLength', 'high'], step=permittedValues['specWindowLength','step'])
@@ -332,13 +347,8 @@ ui = fluidPage(
            shinyBS::bsCollapsePanel("Export R code",
                                     tags$style(type="text/css", "textarea {width:100%; font-size:50%}"), # NB: this little hack ties the width of the following textarea to the width of the panel in which it is embedded; see http://stackoverflow.com/questions/32640875/r-shiny-tie-textarea-width-to-wellpanel-width
                                     tags$textarea(id="mycall", label='Copy-paste function call', rows=10, cols=20, value="", placeholder ="soundgen()")
-           )
-    )
-  ),
-
-  fluidRow(
-    column(12,
-           HTML('SoundGen 1.0.0 beta, August 2017. Load/detach library(shinyBS) to show/hide tips. Project web page <a href="http://cogsci.se/soundgen.html">http://cogsci.se/soundgen.html</a>. Contact me at andrey.anikin / at / lucs.lu.se. Thank you!')
+           ),
+           actionButton("about", "About")
     )
   )
 )

@@ -112,115 +112,6 @@ playme = function(sound, samplingRate = 16000) {
 }
 
 
-#' Prepare a list of formants
-#'
-#' Internal soundgen function.
-#'
-#' Takes a string of phonemes entered WITHOUT ANY BREAKS. Recognized phonemes in
-#' the human preset dictionary: vowels "a" "o" "i" "e" "u" "0" (schwa);
-#' consonants "s" "x" "j".
-#' @param phonemeString a string of characters from the dictionary of phoneme
-#'   presets, e.g., uaaaaii (short u - longer a - medium-long i)
-#' @param speaker name of the preset dictionary to use
-#' @return Returns a list of formant values, which can be fed directly into
-#'   \code{\link{getSpectralEnvelope}}
-#' @keywords internal
-#' @examples
-#' formants = soundgen:::convertStringToFormants(
-#'   phonemeString = 'aaeuiiiii', speaker = 'M1')
-#' formants = soundgen:::convertStringToFormants(
-#'   phonemeString = 'aaeuiiiii', speaker = 'Chimpanzee')
-convertStringToFormants = function(phonemeString, speaker = 'M1') {
-  availablePresets = names(presets[[speaker]]$Formants$vowels)
-  if (length(availablePresets) < 1) {
-    warning(paste0('No phoneme presets found for speaker ', speaker,
-                  '. Defaulting to M1'))
-    speaker = 'M1'
-    availablePresets = names(presets[[speaker]]$Formants$vowels)
-  }
-  input_phonemes = strsplit(phonemeString, "")[[1]]
-  valid_phonemes = input_phonemes[input_phonemes %in% availablePresets]
-  unique_phonemes = unique(valid_phonemes)
-  if (length(valid_phonemes) < 1)
-    return(NA)
-
-  # for each input vowel, look up the corresponding formant values
-  # in the presets dictionary and append to formants
-  vowels = list()
-  formantNames = character()
-  for (v in 1:length(unique_phonemes)) {
-    vowels[[v]] = presets[[speaker]]$Formants$vowels[unique_phonemes[v]][[1]]
-    formantNames = c(formantNames, names(vowels[[v]]))
-  }
-  formantNames = sort(unique(formantNames))
-  names(vowels) = unique_phonemes
-
-  # make sure we have filled in info on all formants from the entire
-  # sequence of vowels for each individual vowel
-  for (v in 1:length(vowels)) {
-    absentFormants = formantNames[!formantNames %in% names(vowels[[v]])]
-    for (f in absentFormants) {
-      closestFreq = unlist(sapply(vowels, function(x) x[f]))
-      names_stripped = substr(names(closestFreq),
-                              nchar(names(closestFreq)) - 3,
-                              nchar(names(closestFreq)))
-      closestFreq = closestFreq[which(names_stripped == 'freq')]
-      closestFreq = as.numeric(na.omit(closestFreq))[1]
-      # NB: instead of the last [1], ideally we should specify some intelligent
-      # way to pick up the closest vowel with this missing formant, not just the
-      # first one, but that's only a problem in long sequences of vowels with
-      # really different numbers of formants (nasalization)
-      vowels[[v]] [[f]] = data.frame(
-        'time' = 0,
-        'freq' = closestFreq,
-        'amp' = 0,
-        'width' = 100
-      )
-      # NB: width must be positive, otherwise dgamma crashes in
-      # getSpectralEnvelope()
-    }
-  }
-
-  # initialize a common list of exact formants
-  formants = list()
-  for (f in 1:length(formantNames)) {
-    formants[[f]] = data.frame(
-      'time' = vector(),
-      'freq' = vector(),
-      'amp' = vector(),
-      'width' = vector()
-    )
-  }
-  names(formants) = formantNames
-
-  # for each vowel, append its formants to the common list
-  for (v in 1:length(valid_phonemes)) {
-    vowel = vowels[[valid_phonemes[v]]]
-    for (f in 1:length(vowel)) {
-      formantName = names(vowel)[f]
-      formants[[formantName]] = rbind(formants[[formantName]],
-                                      vowel[[f]])
-    }
-  }
-
-  # specify time stamps by dividing the sound equally into vowels in valid_phonemes
-  time_stamps = seq(0, 1, length.out = length(valid_phonemes))
-  for (f in 1:length(formants)) {
-    if (nrow(formants[[f]]) > 0) {
-      formants[[f]]$time = time_stamps
-    }
-  }
-
-  # remove formants with amplitude 0 at all time points
-  all_zeroes = sapply(formants, function(f) {
-    sum(f$amp == 0) == length(f) # all values are 0
-  })
-  formants = formants [which(!all_zeroes), drop = FALSE]
-  return (formants)
-}
-
-
-
 #' Find zero crossing
 #'
 #' Internal soundgen function.
@@ -440,6 +331,7 @@ fadeInOut = function(ampl,
                      do_fadeOut = TRUE,
                      length_fade = 1000) {
   if ((!do_fadeIn & !do_fadeOut) | length_fade < 2) return(ampl)
+  length_fade = round(length_fade)  # just in case of non-integers
 
   length_fade = min(length_fade, length(ampl))
   fadeIn = seq(0, 1, length.out = length_fade)
@@ -463,16 +355,16 @@ fadeInOut = function(ampl,
 #'
 #' Returns a vector of indices giving the borders between "glottal cycles",
 #' assuming that we know the true f0 at each time point (as we do in synthesized
-#' sounds) and that maximum amplitude gives us the center of a glottal cycle.
-#' The first index is always 1.
+#' sounds). The first index is always 1.
 #' @param pitch a vector of fundamental frequency values
 #' @param samplingRate sampling rate at which f0 values are provided
 #' @keywords internal
 #' @examples
 #' # 100 ms of audio with f0 steadily increasing from 150 to 200 Hz
-#' soundgen:::getGlottalCycles (seq(150, 200, length.out = 350),
+#' soundgen:::getGlottalCycles(seq(150, 200, length.out = 350),
 #'   samplingRate = 3500)
-getGlottalCycles = function (pitch, samplingRate = 44100) {
+getGlottalCycles = function (pitch, samplingRate) {
+  if (length(pitch) < 2) return(1)
   glottalCycles = numeric()
   i = 1 # the first border is the first time point
   while (i < length(pitch)) {
@@ -480,7 +372,7 @@ getGlottalCycles = function (pitch, samplingRate = 44100) {
     # take steps proportionate to the current F0
     i = i + max(2, floor(samplingRate / pitch[i]))
   }
-  return (glottalCycles)
+  return(glottalCycles)
 }
 
 
@@ -730,4 +622,192 @@ wiggleAnchors = function(df,
   }
 
   return(df)
+}
+
+
+#' Get amplitude envelope
+#'
+#' Internal soundgen function
+#'
+#' Returns the smoothed amplitude envelope of a waveform on the original scale.
+#' @inheritParams flatEnv
+#' @param method 'peak' for peak amplitude per window, 'rms' for root mean
+#'   square amplitude, 'mean' for mean (for DC offset removal)
+#' @examples
+#' a = rnorm(500) * seq(1, 0, length.out = 500)
+#' plot(soundgen:::getEnv(a, 20))
+getEnv = function(sound,
+                  windowLength_points,
+                  method = c('rms', 'peak', 'mean')[1]) {
+  len = length(sound)
+  if (method == 'peak') sound_abs = abs(sound)  # avoid repeated calculations
+
+  if (windowLength_points >= len / 2) {
+    # short sound relative to window - just take beginning and end (2 points)
+    s = c(1, len)
+  } else {
+    s = c(1,
+          seq(from = floor(windowLength_points / 2),
+              to = length(sound) - floor(windowLength_points / 2),
+              by = windowLength_points),
+          length(sound))
+  }
+  # s is a sequence of starting indices for windows over which we average
+  envShort = rep(NA, length(s) - 1)
+  for (i in 1:(length(s) - 1)) {
+    seg = s[i] : s[i+1]
+    if (method == 'peak') {
+      # get moving peak amplitude
+      envShort[i] = max(sound_abs[seg])
+    } else if (method == 'rms') {
+      # get moving RMS amplitude
+      envShort[i] = sqrt(mean(sound[seg] ^ 2))
+    } else if (method == 'mean') {
+      envShort[i] = mean(sound[seg])
+    }
+  }
+
+  # upsample and smooth
+  env = getSmoothContour(
+    anchors = data.frame(time = seq(0, 1, length.out = length(envShort)),
+                         value = envShort),
+    len = length(sound)
+  )
+  return(env)
+}
+
+
+
+
+#' Flat envelope
+#'
+#' Flattens the amplitude envelope of a waveform. This is achieved by dividing
+#' the waveform by some function of its smoothed rolling amplitude (peak or root
+#' mean square).
+#' @param sound input vector oscillating about zero
+#' @param windowLength the length of smoothing window, ms
+#' @param samplingRate the sampling rate, Hz. Only needed if the length of
+#'   smoothing window is specified in ms rather than points
+#' @param method 'peak' for peak amplitude per window, 'rms' for root mean
+#'   square amplitude
+#' @param windowLength_points the length of smoothing window, points. If
+#'   specified, overrides both \code{windowLength} and \code{samplingRate}
+#' @param killDC if TRUE, dynamically removes DC offset or similar deviations of
+#'   average waveform from zero
+#' @param throwaway parts of sound quieter than \code{throwaway} dB will not be
+#'   amplified
+#' @param plot if TRUE, plots the original sound, smoothed envelope, and
+#'   flattened sound
+#' @export
+#' @examples
+#' a = rnorm(500) * seq(1, 0, length.out = 500)
+#' b = flatEnv(a, plot = TRUE, killDC = TRUE, method = 'peak',
+#'             windowLength_points = 5)         # too short
+#' c = flatEnv(a, plot = TRUE, killDC = TRUE,
+#'             windowLength_points = 250)       # too long
+#' d = flatEnv(a, plot = TRUE, killDC = TRUE,
+#'             windowLength_points = 50)        # about right
+flatEnv = function(sound,
+                   windowLength = 200,
+                   samplingRate = 16000,
+                   method = c('rms', 'peak')[1],
+                   windowLength_points = NULL,
+                   killDC = FALSE,
+                   throwaway = -80,
+                   plot = FALSE) {
+  if (!is.numeric(windowLength_points)) {
+    if (is.numeric(windowLength)) {
+      if (is.numeric(samplingRate)) {
+        windowLength_points = windowLength / 1000 * samplingRate
+      } else {
+        stop(paste('Please, specify either windowLength (ms) plus samplingRate (Hz)',
+                   'or the length of smoothing window in points (windowLength_points)'))
+      }
+    }
+  }
+
+  m = max(abs(sound))       # original scale (eg -1 to +1 gives m = 1)
+  soundNorm = sound / m    # normalize
+  throwaway_lin = 2 ^ (throwaway / 10)  # from dB to linear
+  # get smoothed amplitude envelope
+  env = getEnv(sound = soundNorm,
+               windowLength_points = windowLength_points,
+               method = method)
+  # don't amplify very quiet sections
+  env[env < throwaway_lin] = 1
+  # flatten amplitude envelope
+  soundFlat = soundNorm / env
+  # re-normalize to original scale
+  soundFlat = soundFlat / max(abs(soundFlat)) * m
+  # remove DC offset
+  if (killDC) {
+    sound_norm = killDC(sound = soundFlat,
+                        windowLength_points = windowLength_points,
+                        plot = FALSE)
+  }
+
+  if (plot) {
+    op = par('mfrow')
+    par(mfrow = c(1, 2))
+    plot(sound, type = 'l', main = 'Original')
+    points(env * m, type = 'l', lty = 1, col = 'blue')
+    plot(soundFlat, type = 'l', main = 'Flattened')
+    par(mfrow = op)
+  }
+  return(soundFlat)
+}
+
+
+#' Kill envelope
+#'
+#' Removes DC offset or similar disbalance in a waveform dynamically, by
+#' subtracting a smoothed ~moving average. Simplified compared to a true moving
+#' average, but very fast (a few ms per second of 44100 audio).
+#' @inheritParams flatEnv
+#' @param plot if TRUE, plots the original sound, smoothed moving average, and
+#'   modified sound
+#' @examples
+#' # remove static DC offset
+#' a = rnorm(500) + .3
+#' b = soundgen:::killDC(a, windowLength_points = 500, plot = TRUE)
+#'
+#' # remove trend
+#' a = rnorm(500) + seq(0, 1, length.out = 500)
+#' b = soundgen:::killDC(a, windowLength_points = 100, plot = TRUE)
+#'
+#' # can also be used as a high-pass filter
+#' a = rnorm(500) + sin(1:500 / 50)
+#' b = soundgen:::killDC(a, windowLength_points = 25, plot = TRUE)
+killDC = function(sound,
+                   windowLength = 200,
+                   samplingRate = 16000,
+                   windowLength_points = NULL,
+                   plot = FALSE) {
+  if (!is.numeric(windowLength_points)) {
+    if (is.numeric(windowLength)) {
+      if (is.numeric(samplingRate)) {
+        windowLength_points = windowLength / 1000 * samplingRate
+      } else {
+        stop(paste('Please, specify either windowLength (ms) plus samplingRate (Hz)',
+                   'or the length of smoothing window in points (windowLength_points)'))
+      }
+    }
+  }
+
+  env = getEnv(sound = sound,
+               windowLength_points = windowLength_points,
+               method = 'mean')
+  soundNorm = sound - env
+
+  if (plot) {
+    op = par('mfrow')
+    par(mfrow = c(1, 2))
+    plot(sound, type = 'l', main = 'Original')
+    points(env, type = 'l', lty = 1, col = 'blue')
+    points(rep(0, length(sound)), type = 'l', lty = 2)
+    plot(soundNorm, type = 'l', main = 'Env removed')
+    points(rep(0, length(sound)), type = 'l', col = 'blue')
+    par(mfrow = op)
+  }
+  return(soundNorm)
 }

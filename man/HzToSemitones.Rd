@@ -4,13 +4,15 @@
 \alias{HzToSemitones}
 \title{Convert Hz to semitones}
 \usage{
-HzToSemitones(h)
+HzToSemitones(h, ref = 0.5109875)
 }
 \arguments{
 \item{h}{vector or matrix of frequencies (Hz)}
+
+\item{ref}{frequency of the reference value (defaults to C-5, 0.51 Hz)}
 }
 \description{
-Converts from Hz to semitones above C0 (~16.4 Hz). This may not seem very
+Converts from Hz to semitones above C-5 (~0.5109875 Hz). This may not seem very
 useful, but note that (1) this gives you a nice logarithmic scale for
 generating natural pitch transitions, (2) with the added benefit of getting
 musical notation for free from \code{notesDict} (see examples).

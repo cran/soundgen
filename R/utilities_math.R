@@ -2,28 +2,30 @@
 
 #' Convert Hz to semitones
 #'
-#' Converts from Hz to semitones above C0 (~16.4 Hz). This may not seem very
+#' Converts from Hz to semitones above C-5 (~0.5109875 Hz). This may not seem very
 #' useful, but note that (1) this gives you a nice logarithmic scale for
 #' generating natural pitch transitions, (2) with the added benefit of getting
 #' musical notation for free from \code{notesDict} (see examples).
 #' @param h vector or matrix of frequencies (Hz)
+#' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
 #' @examples
 #' s = HzToSemitones(c(440, 293, 115))
 #' # to convert to musical notation
 #' notesDict$note[1 + round(s)]
 #' # note the "1 +": semitones ABOVE C0, i.e. notesDict[1, ] is C0
-HzToSemitones = function(h) {
-  return(log2(h / 16.3516) * 12)
+HzToSemitones = function(h, ref = 0.5109875) {
+  return(log2(h / ref) * 12)
 }
 
 #' Convert semitones to Hz
 #'
-#' Converts from semitones above C0 (~16.4 Hz) to Hz. See \code{\link{HzToSemitones}}
+#' Converts from semitones above C-5 (~0.5109875 Hz) to Hz. See \code{\link{HzToSemitones}}
 #' @param s vector or matrix of frequencies (semitones above C0)
+#' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
-semitonesToHz = function(s) {
-  return(16.3516 * 2 ^ (s / 12))
+semitonesToHz = function(s, ref = 0.5109875) {
+  return(ref * 2 ^ (s / 12))
 }
 
 
@@ -182,7 +184,7 @@ getEntropy = function(x, type = c('weiner', 'shannon')[1], normalize = FALSE) {
 #' @examples
 #' soundgen:::rnorm_bounded(n = 3, mean = 10, sd = 5, low = 7, high = NULL,
 #'   roundToInteger = c(TRUE, FALSE, FALSE))
-#' soundgen:::rnorm_bounded(n = 3, mean = c(10, 50, 100), sd = c(5, 0, 20),
+#' soundgen:::rnorm_bounded(n = 9, mean = c(10, 50, 100), sd = c(5, 0, 20),
 #'   roundToInteger = TRUE) # vectorized
 rnorm_bounded = function(n = 1,
                          mean = 0,
@@ -190,6 +192,10 @@ rnorm_bounded = function(n = 1,
                          low = NULL,
                          high = NULL,
                          roundToInteger = FALSE) {
+  if (length(mean) < n) mean = spline(mean, n = n)$y
+  if (length(sd) < n) sd = spline(sd, n = n)$y
+  sd[sd < 0] = 0
+
   if (any(mean > high | mean < low)) {
     warning(paste('Some of the specified means are outside the low/high bounds!',
             'Mean =', paste(mean, collapse = ', '),
@@ -198,9 +204,6 @@ rnorm_bounded = function(n = 1,
     mean[mean < low] = low
     mean[mean > high] = high
   }
-
-  if (length(mean) < n) mean = rep(mean[1], n)
-  if (length(sd) < n) sd = rep(sd[1], n)
 
   if (sum(sd != 0) == 0) {
     out = mean
@@ -627,9 +630,11 @@ isCentral.localMax = function(x, threshold) {
 #' @return Returns a vector of length \code{len} and range from 0 to 1
 #' @param len the length of output vector
 #' @param samplingRate the sampling rate of the output vector, Hz
-#' @param freq the frequency of amplitude modulation, Hz
-#' @param shape 0 = ~sine, -1 = clicks, +1 = notches (NB: vice versa in soundgen!)
-#' @param spikiness the larger, the more quickly the shape of filter leaves
+#' @param freq the frequency of amplitude modulation, Hz (numeric vector)
+#' @param shape 0 = ~sine, -1 = clicks, +1 = notches (NB: vice versa in
+#'   soundgen!); numeric vector of length 1 or the same length as \code{freq}
+#' @param spikiness the larger, the more quickly the shape of filter leaves;
+#'   numeric vector of length 1 or the same length as \code{freq}
 #'   sine-like approximation as shape deviates from 0
 #' @examples
 #' for (shape in c(0, -.1, .1, -1, 1)) {
@@ -641,13 +646,45 @@ getSigmoid = function(len,
                       freq = 5,
                       shape = 0,
                       spikiness = 1) {
-  from = -exp(-shape * spikiness)
-  to = exp(shape * spikiness)
-  slope = exp(abs(shape)) * 5  # close to sine
+  # print(c(len, freq))
+  if (length(freq) > 1 | length(shape) > 1 | length(spikiness) > 1) {
+    # get preliminary frequency contour to estimate how many cycles are needed
+    freqContour_prelim = getSmoothContour(anchors = freq, len = 100, valueFloor = 0.001, method = 'spline')
+    # plot(freqContour_prelim, type = 'l')
+    n = ceiling(len / samplingRate / mean(1 / freqContour_prelim))
 
-  a = seq(from = from, to = to, length.out = samplingRate / freq / 2)
-  b = 1 / (1 + exp(-a * slope))
-  b = zeroOne(b)
-  out = rep(c(b, rev(b)), length.out = len)
+    # get actual contours
+    freqContour = getSmoothContour(anchors = freq, len = n, valueFloor = 0.001, method = 'spline')
+    shapeContour = getSmoothContour(anchors = shape, len = n, method = 'spline')
+    spikinessContour = getSmoothContour(anchors = spikiness, len = n, method = 'spline')
+
+    # set up par vectors
+    from = -exp(-shapeContour * spikinessContour)
+    to = exp(shapeContour * spikinessContour)
+    slope = exp(abs(shapeContour)) * 5  # close to sine
+
+    # create one cycle at a time
+    out = vector()
+    i = 1
+    while (length(out) < len) {
+      a = seq(from = from[i], to = to[i], length.out = samplingRate / freqContour[i] / 2)
+      b = 1 / (1 + exp(-a * slope[i]))
+      b = zeroOne(b)  # plot(b, type = 'l')
+      out = c(out, b, rev(b))
+      i = ifelse(i + 1 > n, n, i + 1)  # repeat the last value if we run out of cycles
+    }
+    out = out[1:len]
+  } else {
+    # if pars are static, we can take a shortcut (~50 times faster)
+    from = -exp(-shape * spikiness)
+    to = exp(shape * spikiness)
+    slope = exp(abs(shape)) * 5  # close to sine
+    a = seq(from = from, to = to, length.out = samplingRate / freq / 2)
+    b = 1 / (1 + exp(-a * slope))
+    b = zeroOne(b)  # plot(b, type = 'l')
+    out = rep(c(b, rev(b)), length.out = len)
+  }
+  # plot(out, type = 'l')
   return(out)
 }
+

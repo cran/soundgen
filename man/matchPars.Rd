@@ -86,9 +86,10 @@ for more information.
 playback = c(TRUE, FALSE)[2]  # set to TRUE to play back the audio from examples
 
 target = soundgen(repeatBout = 3, sylLen = 120, pauseLen = 70,
-  pitchAnchors = data.frame(time = c(0, 1), value = c(300, 200)),
+  pitchAnchors = c(300, 200),
   rolloff = -5, play = playback)  # we hope to reproduce this sound
 
+\dontrun{
 # Match pars based on acoustic analysis alone, without any optimization.
 # This *MAY* match temporal structure, pitch, and stationary formants
 m1 = matchPars(target = target,
@@ -97,7 +98,6 @@ m1 = matchPars(target = target,
                verbose = playback)
 cand1 = do.call(soundgen, c(m1$pars, list(play = playback, temperature = 0)))
 
-\dontrun{
 # Try to improve the match by optimizing rolloff
 # (this may take a few minutes to run, and the results may vary)
 m2 = matchPars(target = target,
