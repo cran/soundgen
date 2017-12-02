@@ -7,20 +7,18 @@
 soundgen(repeatBout = 1, nSyl = 1, sylLen = 300, pauseLen = 200,
   pitchAnchors = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135,
   100)), pitchAnchorsGlobal = NA, glottisAnchors = 0, temperature = 0.025,
-  tempEffects = list(sylLenDep = 0.02, formDrift = 0.3, formDisp = 0.2,
-  pitchDriftDep = 0.5, pitchDriftFreq = 0.125, amplDriftDep = 5, subDriftDep =
-  4, rolloffDriftDep = 3, pitchAnchorsDep = 0.05, noiseAnchorsDep = 0.1,
-  amplAnchorsDep = 0.1), maleFemale = 0, creakyBreathy = 0,
-  nonlinBalance = 0, nonlinDep = 50, jitterLen = 1, jitterDep = 3,
+  tempEffects = list(), maleFemale = 0, creakyBreathy = 0,
+  nonlinBalance = 0, nonlinDep = 50, jitterLen = 1, jitterDep = 1,
   vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0, attackLen = 50,
   rolloff = -9, rolloffOct = -3, rolloffKHz = -3, rolloffParab = 0,
   rolloffParabHarm = 3, lipRad = 6, rolloffLip = NULL, noseRad = 4,
   mouthOpenThres = 0, formants = c(860, 1430, 2900), formantDep = 1,
   formantDepStoch = 20, vocalTract = NA, subFreq = 100, subDep = 100,
   shortestEpoch = 300, amDep = 0, amFreq = 30, amShape = 0,
-  noiseAnchors = data.frame(time = c(0, 300), value = c(-80, -80)),
-  formantsNoise = NA, rolloffNoise = -4, mouthAnchors = data.frame(time =
-  c(0, 1), value = c(0.5, 0.5)), amplAnchors = NA, amplAnchorsGlobal = NA,
+  noiseAnchors = NULL, formantsNoise = NA, rolloffNoise = -4,
+  mouthAnchors = data.frame(time = c(0, 1), value = c(0.5, 0.5)),
+  amplAnchors = NA, amplAnchorsGlobal = NA, interpol = c("approx",
+  "spline", "loess")[3], discontThres = 0.05, jumpThres = 0.01,
   samplingRate = 16000, windowLength = 50, overlap = 75,
   addSilence = 100, pitchFloor = 1, pitchCeiling = 3500,
   pitchSamplingRate = 3500, throwaway = -80,
@@ -56,17 +54,17 @@ in sound generation}
 
 \item{tempEffects}{a list of scale factors regulating the effect of
 temperature on particular parameters. To change, specify just those pars
-that you want to modify, don't rewrite the whole list (defaults are
-hard-coded). \code{sylLenDep}: duration of syllables and pauses;
-\code{formDrift}: formant frequencies; \code{formDisp}: dispersion of
-stochastic formants; \code{pitchDriftDep}: amount of slow random drift of
-f0; \code{pitchDriftFreq}: frequency of slow random drift of f0;
-\code{amplDriftDep}: drift of amplitude mirroring pitch drift;
-\code{subDriftDep}: drift of subharmonic frequency and bandwidth mirroring
-pitch drift; \code{rolloffDriftDep}: drift of rolloff mirroring pitch
-drift; \code{pitchAnchorsDep, noiseAnchorsDep, amplAnchorsDep}: random
-fluctuations of user-specified pitch / noise / amplitude anchors;
-\code{glottisAnchorsDep}: proportion of glottal cycle with closed glottis}
+that you want to modify (default is 1 for all of them). \code{sylLenDep}:
+duration of syllables and pauses; \code{formDrift}: formant frequencies;
+\code{formDisp}: dispersion of stochastic formants; \code{pitchDriftDep}:
+amount of slow random drift of f0; \code{pitchDriftFreq}: frequency of slow
+random drift of f0; \code{amplDriftDep}: drift of amplitude mirroring pitch
+drift; \code{subDriftDep}: drift of subharmonic frequency and bandwidth
+mirroring pitch drift; \code{rolloffDriftDep}: drift of rolloff mirroring
+pitch drift; \code{pitchAnchorsDep, noiseAnchorsDep, amplAnchorsDep}:
+random fluctuations of user-specified pitch / noise / amplitude anchors;
+\code{glottisAnchorsDep}: proportion of glottal cycle with closed glottis;
+\code{specDep}: rolloff, nonlinear effects, attack}
 
 \item{maleFemale}{hyperparameter for shifting f0 contour, formants, and
 vocalTract to make the speaker appear more male (-1...0) or more female
@@ -100,8 +98,9 @@ cycles (0 to 100\% of original amplitude of each cycle)}
 \item{attackLen}{duration of fade-in / fade-out at each end of syllables and
 noise (ms)}
 
-\item{rolloff}{basic rolloff at a constant rate of \code{rolloff} db/octave
-(exponential decay). See \code{\link{getRolloff}} for more details}
+\item{rolloff}{basic rolloff from lower to upper harmonics, db/octave
+(exponential decay). All rolloff parameters are vectorized. See
+\code{\link{getRolloff}} for more details}
 
 \item{rolloffOct}{basic rolloff changes from lower to upper
 harmonics (regardless of f0) by \code{rolloffOct} dB/oct. For
@@ -115,7 +114,7 @@ steeper basic rolloff as f0 goes up by 1000 Hz}
 first \code{rolloffParabHarm} harmonics. The middle harmonic
 of the first \code{rolloffParabHarm} harmonics is amplified or
 dampened by \code{rolloffParab} dB relative to the basic
-exponential decay.}
+exponential decay}
 
 \item{rolloffParabHarm}{the number of harmonics affected by
 \code{rolloffParab}}
@@ -168,7 +167,7 @@ modulation with amplitude range equal to the dynamic range of the sound}
 
 \item{amShape}{amplitude modulation shape (-1 to +1, defaults to 0)}
 
-\item{noiseAnchors}{a numeric vector of noise amplitudes (-120 dB = none, 0
+\item{noiseAnchors}{a numeric vector of noise amplitudes (throwaway dB = none, 0
 dB = as loud as voiced component) or a dataframe specifying the time (ms)
 and amplitude (dB) of anchors for generating the noise component such as
 aspiration, hissing, etc}
@@ -180,7 +179,7 @@ component, approximating aspiration noise [h]}
 
 \item{rolloffNoise}{rolloff of noise, dB/octave. It is analogous to
 \code{rolloff}, but while \code{rolloff} applies to the harmonic component,
-\code{rolloffNoise} applies to the noise component}
+\code{rolloffNoise} applies to the noise component (vectorized)}
 
 \item{mouthAnchors}{a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
 i.e. no modification) or a dataframe specifying the time (ms) and value of
@@ -192,6 +191,16 @@ dataframe specifying the time (ms) and value of amplitude anchors}
 \item{amplAnchorsGlobal}{a numeric vector of global amplitude envelope
 spanning multiple syllables or a dataframe specifying the time (ms) and
 value (0 to 1) of each anchor}
+
+\item{interpol}{the method of smoothing envelopes based on provided anchors:
+'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
+= polynomial local smoothing function}
+
+\item{discontThres, jumpThres}{if two anchors are closer in time than
+\code{discontThres}, the contour is broken into segments with a linear
+transition between these anchors; if anchors are closer than
+\code{jumpThres}, a new section starts with no transition at all (e.g. for
+adding pitch jumps)}
 
 \item{samplingRate}{sampling frequency, Hz}
 
@@ -208,7 +217,7 @@ values reduce processing time. A rule of thumb is to set this to
 the same value as \code{pitchCeiling}}
 
 \item{throwaway}{discard harmonics and noise that are quieter than this
-number (in dB, defaults to -120) to save computational resources}
+number (in dB, defaults to -80) to save computational resources}
 
 \item{invalidArgAction}{what to do if an argument is invalid or outside the
 range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'

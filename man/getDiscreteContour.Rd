@@ -5,23 +5,23 @@
 \title{Discrete smooth contour from anchors}
 \usage{
 getDiscreteContour(len, anchors = data.frame(time = c(0, 1), value = c(1, 1)),
-  method = c("spline", "loess")[2], valueFloor = NULL,
+  interpol = c("spline", "loess")[2], valueFloor = NULL,
   valueCeiling = NULL, ylim = NULL, plot = FALSE, ...)
 }
 \arguments{
 \item{len}{the number of syllables (equivalently, the length of generated
 contour)}
 
-\item{anchors}{a dataframe of anchors with specified time and amplitude.
-\code{achors$time} can be in ms (with len=NULL) or in arbitrary units, eg 0
-to 1 (with duration determined by len, which must then be provided in ms).
-So anchors$time is assumed to be in ms if len=NULL and relative if len is
-specified. \code{anchors$value} can be on any scale.}
+\item{anchors}{a numeric vector of values or a list/dataframe with one column
+(value) or two columns (time and value). \code{achors$time} can be in ms
+(with len=NULL) or in arbitrary units, eg 0 to 1 (with duration determined
+by len, which must then be provided in ms). So anchors$time is assumed to
+be in ms if len=NULL and relative if len is specified. \code{anchors$value}
+can be on any scale.}
 
-\item{method}{smoothing method: 'spline' or 'loess' (default). Consider
-'spline' if you have a lot of anchors and not much patience, since it is
-much faster than 'loess', but it may produce weird results when there are
-only a few anchors}
+\item{interpol}{the method of smoothing envelopes based on provided anchors:
+'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
+= polynomial local smoothing function}
 
 \item{valueFloor}{lower/upper bounds for the contour}
 
@@ -45,7 +45,7 @@ Intended for plotting variation in parameters across syllables.
 }
 \examples{
 # for a bout consisting of 10 syllables
-soundgen:::getDiscreteContour(len = 10, method = 'spline', plot = TRUE,
+soundgen:::getDiscreteContour(len = 10, interpol = 'spline', plot = TRUE,
   ylab = 'Semitones', anchors = data.frame(time = c(0, .2, .6, 1),
   value = c(0, -3, 1, 0)))
 }

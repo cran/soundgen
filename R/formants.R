@@ -12,11 +12,12 @@
 #'   windowLength_points is the size of window for Fourier transform
 #' @param nc the number of time steps for Fourier transform
 #' @inheritParams soundgen
-#' @param formants either a character string like "aaui" referring to default
-#'   presets for speaker "M1" or a list of formant times, frequencies,
-#'   amplitudes, and bandwidths. \code{formants = NA} defaults to schwa. Time
-#'   stamps for formants and mouthOpening can be specified in ms or an any other
-#'   arbitrary scale.
+#' @param formants a character string like "aaui" referring to default presets
+#'   for speaker "M1"; a vector of formant frequencies; or a list of formant
+#'   times, frequencies, amplitudes, and bandwidths, with a single value of each
+#'   for static or multiple values of each for moving formants. \code{formants =
+#'   NA} defaults to schwa. Time stamps for formants and mouthOpening can be
+#'   specified in ms or an any other arbitrary scale.
 #' @param formDrift scale factor regulating the effect of temperature on the
 #'   depth of random drift of all formants (user-defined and stochastic): the
 #'   higher, the more formants drift at a given temperature
@@ -279,7 +280,7 @@ getSpectralEnvelope = function(nr,
 
     # adjust formants for mouth opening
     if (!is.null(vocalTract) && is.finite(vocalTract)) {
-      # is.finite() returns F for NaN, NA, ±inf, etc
+      # is.finite() returns F for NaN, NA, inf, etc
       adjustment_hz = (mouthOpening_upsampled - 0.5) * speedSound /
         (4 * vocalTract) # speedSound = 35400 cm/s, speed of sound in warm
       # air. The formula for mouth opening is adapted from Moore (2016)
@@ -484,6 +485,7 @@ getSpectralEnvelope = function(nr,
 #' each formant specified explicitly.
 #' @param formants either a character string like "aoiu" or a list with an entry
 #'   for each formant
+#' @keywords internal
 #' @examples
 #' formants = soundgen:::reformatFormants('aau')
 #' formants = soundgen:::reformatFormants(c(500, 1500, 2500))
@@ -509,6 +511,9 @@ reformatFormants = function(formants) {
     }
   }
   if (is.list(formants)) {
+    if (is.null(names(formants))) {
+      names(formants) = paste0('f', 1:length(formants))
+    }
     for (f in 1:length(formants)) {
       formant = formants[[f]]
       if (is.list(formant) && 'freq' %in% names(formant)) {
@@ -553,6 +558,7 @@ reformatFormants = function(formants) {
 #' Khodai-Joopari & Clermont (2002), "Comparison of formulae for estimating
 #' formant bandwidths".
 #' @param f a vector of formant frequencies, Hz
+#' @keywords internal
 #' @examples
 #' f = 1:5000
 #' plot(f, soundgen:::getBandwidth(f), type = 'l',
@@ -577,6 +583,7 @@ getBandwidth = function(f) {
 #' @param method method of calculating formant dispersion: \code{fast} for
 #'   simple averaging of inter-formant difference, \code{accurate} for fitting a
 #'   linear regression to formant frequencies
+#' @keywords internal
 #' @examples
 #' nIter = 100  # nIter = 10000 for better results
 #' speedSound = 35400
@@ -712,6 +719,10 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
 #' Estimates the length of vocal tract based on formant frequencies, assuming
 #' that the vocal tract can be modeled as a tube open as both ends.
 #' @inheritParams getSpectralEnvelope
+#' @param formants a character string like "aaui" referring to default presets
+#'   for speaker "M1"; a vector of formant frequencies; or a list of formant
+#'   times, frequencies, amplitudes, and bandwidths, with a single value of each
+#'   for static or multiple values of each for moving formants.
 #' @param checkFormat if TRUE, expands shorthand format specifications into the
 #'   canonical form of a list with four components: time, frequency, amplitude
 #'   and bandwidth for each format (as returned by the internal function
@@ -753,4 +764,151 @@ estimateVTL = function(formants, speedSound = 35400, checkFormat = TRUE) {
     vocalTract = NA
   }
   return(vocalTract)
+}
+
+
+#' Add formants
+#'
+#' A spectral filter that either adds or removes formants from a sound - that
+#' is, amplifies or dampens certain frequency bands, as in human vowels. See
+#' \code{\link{soundgen}} and \code{\link{getSpectralEnvelope}} for more
+#' information. With \code{action = 'remove'} this function can perform inverse
+#' filtering to remove formants and obtain raw glottal output, provided that you
+#' can specify the correct formant structure.
+#'
+#' Algorithm: converts input from a time series (time domain) to a spectrogram
+#' (frequency domain) through short-term Fourier transform (STFT), multiples by
+#' the spectral filter containing the specified formants, and transforms back to
+#' a time series via inverse STFT. This is a subroutine in
+#' \code{\link{soundgen}}, but it can also be used on any existing sound.
+#' @param sound numeric vector with \code{samplingRate}
+#' @param action 'add' = add formants to the sound, 'remove' = remove formants
+#'   (inverse filtering)
+#' @param formDrift,formDisp scaling factors for the effect of temperature on
+#'   formant drift and dispersal, respectively
+#' @param windowLength_points length of FFT window, points
+#' @inheritParams soundgen
+#' @export
+#' @examples
+#' sound = runif(16000)  # white noise
+#' # playme(sound)
+#' # spectrogram(sound, samplingRate = 16000)
+#'
+#' # add F1 = 900, F2 = 1300 Hz
+#' sound_filtered = addFormants(sound, formants = c(900, 1300))
+#' # playme(sound_filtered)
+#' # spectrogram(sound_filtered, samplingRate = 16000)
+#'
+#' # ...and remove them again (assuming we know what the formants are)
+#' sound_inverse_filt = addFormants(sound_filtered,
+#'                                  formants = c(900, 1300),
+#'                                  action = 'remove')
+#' # playme(sound_inverse_filt)
+#' # spectrogram(sound_inverse_filt, samplingRate = 16000)
+addFormants = function(sound,
+                       formants,
+                       action = c('add', 'remove')[1],
+                       vocalTract = NA,
+                       formantDep = 1,
+                       formantDepStoch = 20,
+                       lipRad = 6,
+                       noseRad = 4,
+                       mouthOpenThres = 0,
+                       mouthAnchors = NA,
+                       temperature = 0.025,
+                       formDrift = 0.3,
+                       formDisp = 0.2,
+                       samplingRate = 16000,
+                       windowLength_points = 800,
+                       overlap = 75) {
+  formants = reformatFormants(formants)
+  # prepare vocal tract filter (formants + some spectral noise + lip radiation)
+  if (sum(sound) == 0) {
+    # otherwise fft glitches
+    soundFiltered = sound
+  } else {
+    # for very short sounds, make sure the analysis window is no more
+    #   than half the sound's length
+    windowLength_points = min(windowLength_points, floor(length(sound) / 2))
+    step = seq(1,
+               max(1, (length(sound) - windowLength_points)),
+               windowLength_points - (overlap * windowLength_points / 100))
+    nc = length(step) # number of windows for fft
+    nr = windowLength_points / 2 # number of frequency bins for fft
+
+    # are formants moving or stationary?
+    if (is.list(formants)) {
+      movingFormants = max(sapply(formants, function(x) sapply(x, length))) > 1
+    } else {
+      movingFormants = FALSE
+    }
+    if (is.list(mouthAnchors) && sum(mouthAnchors$value != .5) > 0) {
+      movingFormants = TRUE
+    }
+    nInt = ifelse(movingFormants, nc, 1)
+
+    # prepare the filter
+    spectralEnvelope = getSpectralEnvelope(
+      nr = nr,
+      nc = nInt,
+      formants = formants,
+      formantDep = formantDep,
+      formantDepStoch = formantDepStoch,
+      lipRad = lipRad,
+      noseRad = noseRad,
+      mouthOpenThres = mouthOpenThres,
+      mouthAnchors = mouthAnchors,
+      temperature = temperature,
+      formDrift = formDrift,
+      formDisp = formDisp,
+      samplingRate = samplingRate,
+      vocalTract = vocalTract
+    )
+    # image(t(spectralEnvelope))
+
+    # fft and filtering
+    # NB: stft is supposed to be renamed to stdft in seewave 2.0.6
+    z = seewave::stft(
+      wave = as.matrix(sound),
+      f = samplingRate,
+      wl = windowLength_points,
+      zp = 0,
+      step = step,
+      wn = 'hamming',
+      fftw = FALSE,
+      scale = TRUE,
+      complex = TRUE
+    )
+
+    if (action == 'add') {
+      if (movingFormants) {
+        z = z * spectralEnvelope
+      } else {
+        z = apply (z, 2, function(x)
+          x * spectralEnvelope)
+      }
+    } else if (action == 'remove') {
+      if (movingFormants) {
+        z = z / spectralEnvelope
+      } else {
+        z = apply (z, 2, function(x)
+          x / spectralEnvelope)
+      }
+    }
+
+    # inverse fft
+    soundFiltered = as.numeric(
+      seewave::istft(
+        z,
+        f = samplingRate,
+        ovlp = overlap,
+        wl = windowLength_points,
+        output = "matrix"
+      )
+    )
+    soundFiltered = soundFiltered / max(soundFiltered) # normalize
+  }
+  # spectrogram(soundFiltered, samplingRate = samplingRate)
+  # playme(soundFiltered, samplingRate = samplingRate)
+  return(soundFiltered)
 }

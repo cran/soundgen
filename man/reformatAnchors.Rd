@@ -4,11 +4,13 @@
 \alias{reformatAnchors}
 \title{Reformat anchors}
 \usage{
-reformatAnchors(anchors)
+reformatAnchors(anchors, normalizeTime = TRUE)
 }
 \arguments{
 \item{anchors}{a numeric vector of values or a list/dataframe with one column
 (value) or two columns (time and value)}
+
+\item{normalizeTime}{if TRUE, normalizes anchors$time values to range from 0 to 1}
 }
 \description{
 Internal soundgen function.
@@ -23,11 +25,17 @@ therefore processed directly in soundgen()
 soundgen:::reformatAnchors(150)
 soundgen:::reformatAnchors(c(150, 200, 220))
 soundgen:::reformatAnchors(anchors = list(value=c(150, 200, 220)))
-soundgen:::reformatAnchors(anchors = list(time = c(0, .1, 1),
+soundgen:::reformatAnchors(anchors = list(time = c(0, 10, 100),
                                           value = c(150, 200, 220)))
 # returns NA
 soundgen:::reformatAnchors('aha')
 # returns NA with a warning
 soundgen:::reformatAnchors(anchors = list(time = c(0, .1, 1),
                                           freq = c(150, 200, 220)))
+\dontrun{
+# throws an error
+soundgen:::reformatAnchors(anchors = list(time = c(0, .8, .7, 1),
+                                          value = c(150, 200, 150, 220)))
 }
+}
+\keyword{internal}

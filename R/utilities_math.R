@@ -60,6 +60,7 @@ listDepth = function(x) ifelse(is.list(x), 1L + max(sapply(x, listDepth)), 0L)
 zeroOne = function(x) {
   x = x - min(x)
   x = x / max(x)
+  return(x)
 }
 
 #' log01
@@ -179,6 +180,7 @@ getEntropy = function(x, type = c('weiner', 'shannon')[1], normalize = FALSE) {
 #' @param low,high exclusive lower and upper bounds ((vectors of length 1 or n))
 #' @param roundToInteger boolean vector of length 1 or n. If TRUE, the
 #'   corresponding value is rounded to the nearest integer.
+#' @inheritParams soundgen
 #' @return A vector of length n.
 #' @keywords internal
 #' @examples
@@ -186,24 +188,23 @@ getEntropy = function(x, type = c('weiner', 'shannon')[1], normalize = FALSE) {
 #'   roundToInteger = c(TRUE, FALSE, FALSE))
 #' soundgen:::rnorm_bounded(n = 9, mean = c(10, 50, 100), sd = c(5, 0, 20),
 #'   roundToInteger = TRUE) # vectorized
+#' # in case of conflicts between mean and bounds, either adjust the mean:
+#' soundgen:::rnorm_bounded(n = 3, mean = 10, sd = .1,
+#'   low = c(15, 0, 0), high = c(100, 100, 8), invalidArgAction = 'adjust')
+#' #... or ignore the boundaries
+#' soundgen:::rnorm_bounded(n = 3, mean = 10, sd = .1,
+#'   low = c(15, 0, 0), high = c(100, 100, 8), invalidArgAction = 'ignore')
 rnorm_bounded = function(n = 1,
                          mean = 0,
                          sd = 1,
                          low = NULL,
                          high = NULL,
-                         roundToInteger = FALSE) {
+                         roundToInteger = FALSE,
+                         invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
   if (length(mean) < n) mean = spline(mean, n = n)$y
   if (length(sd) < n) sd = spline(sd, n = n)$y
+  if (any(!is.finite(sd))) sd = mean / 10
   sd[sd < 0] = 0
-
-  if (any(mean > high | mean < low)) {
-    warning(paste('Some of the specified means are outside the low/high bounds!',
-            'Mean =', paste(mean, collapse = ', '),
-            'Low =', paste(low, collapse = ', '),
-            'High = ', paste(high, collapse = ', ')))
-    mean[mean < low] = low
-    mean[mean > high] = high
-  }
 
   if (sum(sd != 0) == 0) {
     out = mean
@@ -222,8 +223,25 @@ rnorm_bounded = function(n = 1,
   if (length(low) == 1) low = rep(low, n)
   if (length(high) == 1) high = rep(high, n)
 
+
+  if (any(mean > high | mean < low)) {
+    warning(paste('Some of the specified means are outside the low/high bounds!',
+                  'Mean =', paste(mean, collapse = ', '),
+                  'Low =', paste(low, collapse = ', '),
+                  'High = ', paste(high, collapse = ', ')))
+    if (invalidArgAction == 'abort') {
+      stop('Aborting rnorm_bounded()')
+    } else if (invalidArgAction == 'adjust') {
+      mean[mean < low] = low[mean < low]
+      mean[mean > high] = high[mean > high]
+    } else if (invalidArgAction == 'ignore') {
+      low = rep(-Inf, n)
+      high = rep(Inf, n)
+    }
+  }
+
   out = rnorm(n, mean, sd)
-  out[roundToInteger] = round (out[roundToInteger], 0)
+  out[roundToInteger] = round(out[roundToInteger], 0)
   for (i in 1:n) {
     while (out[i] < low[i] | out[i] > high[i]) {
       out[i] = rnorm(1, mean[i], sd[i]) # repeat until a suitable value is generated
@@ -412,13 +430,17 @@ getIntegerRandomWalk = function(rw,
 #' # trimmed on the left
 #' soundgen:::matchLengths(3:7, len = 3, padDir = 'left')
 #' # padded with zeros on the left
-#' soundgen:::matchLengths(3:7, len = 30, padDir = 'left')
+#' soundgen:::matchLengths(3:7, len = 10, padDir = 'left')
+#' #' # trimmed on the right
+#' soundgen:::matchLengths(3:7, len = 3, padDir = 'right')
+#' # padded with zeros on the right
+#' soundgen:::matchLengths(3:7, len = 10, padDir = 'right')
 matchLengths = function(myseq,
                         len,
                         padDir = c('left', 'right', 'central')[3],
                         padWith = 0) {
   #  padDir specifies where to cut/add zeros ('left' / 'right' / 'central')
-  if (length(myseq) == len) return (myseq)
+  if (length(myseq) == len) return(myseq)
 
   if (padDir == 'central') {
     if (length(myseq) < len) {
@@ -438,7 +460,7 @@ matchLengths = function(myseq,
     }
   } else if (padDir == 'right') {
     if (length(myseq) > len) {
-      myseq = myseq [1:(length(myseq) - len)]
+      myseq = myseq [1:len]
     } else {
       myseq = c(myseq, rep(padWith, (len - length(myseq))))
     }
@@ -500,7 +522,7 @@ matchColumns = function (matrix_short, nCol, padWith = 0) {
 #' v3 = rep(100, 15)
 #' addVectors(v1, v3, insertionPoint = -4)
 #' addVectors(v2, v3, insertionPoint = 7)
-addVectors = function(v1, v2, insertionPoint) {
+addVectors = function(v1, v2, insertionPoint = 1) {
   if (!is.numeric(v1)) stop(paste('Non-numeric v1:', head(v1)))
   if (!is.numeric(v2)) stop(paste('Non-numeric v2:', head(v2)))
   v1[is.na(v1)] = 0
@@ -525,7 +547,10 @@ addVectors = function(v1, v2, insertionPoint) {
     v2 = c(v2, rep(0, -len_dif))
   }
 
-  return (v1 + v2)
+  # add and normalize
+  out = v1 + v2
+  out = out / max(abs(out))
+  return (out)
 }
 
 
@@ -636,6 +661,7 @@ isCentral.localMax = function(x, threshold) {
 #' @param spikiness the larger, the more quickly the shape of filter leaves;
 #'   numeric vector of length 1 or the same length as \code{freq}
 #'   sine-like approximation as shape deviates from 0
+#' @keywords internal
 #' @examples
 #' for (shape in c(0, -.1, .1, -1, 1)) {
 #'   s = soundgen:::getSigmoid(shape = shape, len = 1000, samplingRate = 500,  freq = 2)

@@ -305,50 +305,6 @@ upsample = function(pitch_per_gc, samplingRate = 16000) {
 }
 
 
-#' Fade-in and fade-out
-#'
-#' Internal soundgen function.
-#'
-#' Applies linear fade-in and fade-out of length 'length_fade' points to one or
-#' both ends of input vector.
-#' @param ampl numeric vector such as a waveform
-#' @param do_fadeIn,do_fadeOut (logical) perform linear fade-in / fade-out?
-#' @param length_fade the length of affected region, in points (expects an
-#'   integer > 1, otherwise just returns the original vector with no
-#'   modifications)
-#' @return Returns a numeric vector of the same length as input
-#' @keywords internal
-#' @examples
-#' ampl = sin(1:1000)
-#' plot(soundgen:::fadeInOut(ampl, length_fade = 100), type = 'l')
-#' plot(soundgen:::fadeInOut(ampl, length_fade = 300,
-#'   do_fadeOut = FALSE), type = 'l')
-#' # if the vector is shorter than twice the specified length_fade,
-#' # fade-in/out regions overlap
-#' plot(soundgen:::fadeInOut(ampl, length_fade = 700), type = 'l')
-fadeInOut = function(ampl,
-                     do_fadeIn = TRUE,
-                     do_fadeOut = TRUE,
-                     length_fade = 1000) {
-  if ((!do_fadeIn & !do_fadeOut) | length_fade < 2) return(ampl)
-  length_fade = round(length_fade)  # just in case of non-integers
-
-  length_fade = min(length_fade, length(ampl))
-  fadeIn = seq(0, 1, length.out = length_fade)
-  if (do_fadeIn) {
-    ampl[1:length_fade] = ampl[1:length_fade] * fadeIn
-  }
-
-  if (do_fadeOut) {
-    fadeOut = rev(fadeIn)
-    ampl[(length(ampl) - length_fade + 1):length(ampl)] =
-      ampl[(length(ampl) - length_fade + 1):length(ampl)] * fadeOut
-  }
-
-  return (ampl)
-}
-
-
 #' Divide f0 contour into glottal cycles
 #'
 #' Internal soundgen function.
@@ -401,7 +357,9 @@ getGlottalCycles = function (pitch, samplingRate) {
 #' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
 #'   pauseLen = 55, temperature = 0.2, plot = TRUE)
 #' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
-#'   pauseLen = 55, temperature = 0, plot = TRUE)
+#'   pauseLen = 55, temperature = 0)
+#' soundgen:::divideIntoSyllables (nSyl = 3, sylLen = 100,
+#'   pauseLen = 25, temperature = 0.5)
 divideIntoSyllables = function (nSyl,
                                 sylLen,
                                 pauseLen,
@@ -492,6 +450,7 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #'   bound on "time"=0, low bound on "value"=1
 #' @param wiggleAllRows should the first and last time anchors be wiggled? (TRUE
 #'   for breathing, FALSE for other anchors)
+#' @inheritParams soundgen
 #' @return Modified original dataframe.
 #' @keywords internal
 #' @examples
@@ -526,7 +485,9 @@ wiggleAnchors = function(df,
                          temp_coef,
                          low,
                          high,
-                         wiggleAllRows = FALSE) {
+                         wiggleAllRows = FALSE,
+                         invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
+  if (temperature == 0 | temp_coef == 0) return(df)
   if (any(is.na(df))) return(NA)
   if (class(df) != 'data.frame') df = as.data.frame(df)
 
@@ -549,7 +510,8 @@ wiggleAnchors = function(df,
         mean = as.numeric(df[1, idx]),
         sd = as.numeric(df[1, idx] * temperature * temp_coef),
         low = low[idx],
-        high = high[idx]))
+        high = high[idx],
+        invalidArgAction = invalidArgAction))
       if (class(newAnchor) == 'try-error') {
         stop(paste('Failed to add an anchor to df:', paste(df, collapse = ', ')))
       } else {
@@ -608,7 +570,8 @@ wiggleAnchors = function(df,
       sd = as.numeric(ranges[i] * temperature * temp_coef),
       low = low[i],
       high = high[i],
-      roundToInteger = FALSE
+      roundToInteger = FALSE,
+      invalidArgAction = invalidArgAction
     ))
     if (class(w) == 'try-error') {
       warning(paste('Failed to wiggle column', i, 'of df:',
@@ -620,6 +583,9 @@ wiggleAnchors = function(df,
   if (is.numeric(orig)) {
     df[c(1, nrow(df)), 1] = orig
   }
+
+  # make sure the anchors are still in the right time order
+  df = df[order(df$time), ]
 
   return(df)
 }
@@ -633,6 +599,7 @@ wiggleAnchors = function(df,
 #' @inheritParams flatEnv
 #' @param method 'peak' for peak amplitude per window, 'rms' for root mean
 #'   square amplitude, 'mean' for mean (for DC offset removal)
+#' @keywords internal
 #' @examples
 #' a = rnorm(500) * seq(1, 0, length.out = 500)
 #' plot(soundgen:::getEnv(a, 20))
@@ -675,8 +642,6 @@ getEnv = function(sound,
   )
   return(env)
 }
-
-
 
 
 #' Flat envelope
@@ -766,6 +731,7 @@ flatEnv = function(sound,
 #' @inheritParams flatEnv
 #' @param plot if TRUE, plots the original sound, smoothed moving average, and
 #'   modified sound
+#' @keywords internal
 #' @examples
 #' # remove static DC offset
 #' a = rnorm(500) + .3
@@ -810,4 +776,130 @@ killDC = function(sound,
     par(mfrow = op)
   }
   return(soundNorm)
+}
+
+
+#' Fade
+#'
+#' Applies fade-in and/or fade-out of variable length, shape, and steepness. The
+#' resulting effect softens the attack and release of a waveform.
+#' @param x zero-centered (!) numeric vector such as a waveform
+#' @param fadeIn,fadeOut length of segments for fading in and out, interpreted
+#'   as points if \code{samplingRate = NULL} and as ms otherwise (0 = no fade)
+#' @param samplingRate sampling rate of the input vector, Hz
+#' @param shape controls the type of fade function: 'lin' = linear, 'exp' =
+#'   exponential, 'log' = logarithmic, 'cos' = cosine, 'logistic' = logistic
+#'   S-curve
+#' @param steepness scaling factor regulating the steepness of fading curves if
+#'   the shape is 'exp', 'log', or 'logistic' (0 = linear, >1 = steeper than
+#'   default)
+#' @param plot if TRUE, produces an oscillogram of the waveform after fading
+#' @return Returns a numeric vector of the same length as input
+#' @export
+#' @examples
+#' #' # Fading a real sound: say we want fast attack and slow release
+#' s = soundgen(attack = 0, windowLength = 10,
+#'              sylLen = 500, addSilence = 0)
+#' # playme(s)
+#' # plot(s, type = 'l')
+#' s1 = fade(s, fadeIn = 10, fadeOut = 350,
+#'           samplingRate = 16000, shape = 'cos')
+#' # playme(s1)
+#' # plot(s1, type = 'l')
+#'
+#'
+#' # Illustration of fade shapes
+#' x = runif(5000, min = -1, max = 1)  # make sure to zero-center input!!!
+#' # plot(x, type = 'l')
+#' y = fade(x, fadeIn = 1000, fadeOut = 0, plot = TRUE)
+#' y = fade(x,
+#'          fadeIn = 1000,
+#'          fadeOut = 1500,
+#'          shape = 'exp',
+#'          plot = TRUE)
+#' y = fade(x,
+#'          fadeIn = 1500,
+#'          fadeOut = 500,
+#'          shape = 'log',
+#'          plot = TRUE)
+#' y = fade(x,
+#'          fadeIn = 1500,
+#'          fadeOut = 500,
+#'          shape = 'log',
+#'          steepness = 6,
+#'          plot = TRUE)
+#' y = fade(x,
+#'          fadeIn = 1000,
+#'          fadeOut = 1500,
+#'          shape = 'cos',
+#'          plot = TRUE)
+#' y = fade(x,
+#'          fadeIn = 1500,
+#'          fadeOut = 500,
+#'          shape = 'logistic',
+#'          steepness = 4,
+#'          plot = TRUE)
+fade = function(x,
+                fadeIn = 1000,
+                fadeOut = 1000,
+                samplingRate = NULL,
+                shape = c('lin', 'exp', 'log', 'cos', 'logistic')[1],
+                steepness = 1,
+                plot = FALSE) {
+  if ((!is.numeric(fadeIn) || fadeIn < 1) &
+      (!is.numeric(fadeOut) || fadeOut < 1)) {
+    return(x)
+  }
+
+  if (steepness < 0) {
+    steepness = 1
+    warning('steepness must be non-negative; resetting to 1')
+  } else if (steepness == 0) {
+    shape = 'lin'
+  }
+
+  if (is.numeric(samplingRate)) {
+    fadeIn = round(fadeIn * samplingRate / 1000)
+    fadeOut = round(fadeOut * samplingRate / 1000)
+  }
+
+  # round fading window just in case of non-integers, shorten if needed
+  fadeIn = min(length(x), round(fadeIn))
+  fadeOut = min(length(x), round(fadeOut))
+
+  time_in = seq(0, 1, length.out = fadeIn)
+  time_out = seq(1, 0, length.out = fadeOut)
+  if (shape == 'lin') {
+    fi = time_in
+    fo = time_out
+  } else if (shape == 'exp') {
+    fi = zeroOne(exp(time_in * steepness / 3))
+    fo = zeroOne(exp(time_out * steepness / 3))
+  } else if (shape == 'log') {
+    fi = 1 - rev(zeroOne(exp(time_in * steepness / 3)))
+    fo = 1 - rev(zeroOne(exp(time_out * steepness / 3)))
+  } else if (shape == 'cos') {
+    fi = (1 - cos(time_in * pi)) / 2
+    fo = (1 - cos(time_out * pi)) / 2
+  } else if (shape == 'logistic') {
+    fi = zeroOne(1 - 1 / (1 + exp(steepness * (time_in - .5))))
+    fo = zeroOne(1 - 1 / (1 + exp(steepness * (time_out - .5))))
+  }
+  # plot(fi, type = 'l')
+  # plot(fo, type = 'l')
+
+  if (fadeIn > 0) {
+    x[1:fadeIn] = x[1:fadeIn] * fi
+  }
+  if (fadeOut > 0) {
+    x[(length(x) - fadeOut + 1):length(x)] =
+      x[(length(x) - fadeOut + 1):length(x)] * fo
+  }
+
+  if (plot) {
+    plot(x, type = 'l', xlab = '', ylab = '')
+    abline(v = fadeIn, col = 'blue')
+    abline(v = length(x) - fadeOut, col = 'blue')
+  }
+  return(x)
 }

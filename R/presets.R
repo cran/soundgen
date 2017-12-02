@@ -24,15 +24,15 @@ permittedValues = matrix(c(
   'repeatBout', 1, 1, 20, 1,  # default, low, high, step
   'nSyl', 1, 1, 10, 1,
   'sylLen', 300, 20, 5000, 10,
-  'pauseLen', 200, 20, 1000, 10,
+  'pauseLen', 200, 0, 1000, 10,
   'temperature', .025, 0, 1, .025,
   'maleFemale', 0, -1, 1, 0.1,
   'creakyBreathy', 0, -1, 1, 0.1,
   'nonlinBalance', 0, 0, 100, 1,
   'nonlinDep', 50, 0, 100, 1,
-  'jitterDep', 3, 0, 24, 0.1,
+  'jitterDep', 1, 0, 24, 0.1,
   'jitterLen', 1, 1, 100, 1,
-  'vibratoFreq', 5, 3, 10, .5,
+  'vibratoFreq', 5, 1, 10, .5,
   'vibratoDep', 0, 0, 3, 0.125,
   'shimmerDep', 0, 0, 100, 1,
   'attackLen', 50, 0, 200, 10,
@@ -94,7 +94,7 @@ defaults = list(
   creakyBreathy = 0,
   nonlinBalance = 0,
   nonlinDep = 50,
-  jitterDep = 3,
+  jitterDep = 1,
   jitterLen = 1,
   vibratoFreq = 5,
   vibratoDep = 0,
@@ -139,7 +139,20 @@ defaults = list(
   formants = c(860, 1430, 2900),
   formantsNoise = NA,
   vowelString = NA,
-  vocalTract = NA
+  vocalTract = NA,
+  sylLenDep = 1,
+  formDrift = .3,
+  formDisp = .2,
+  pitchDriftDep = .5,
+  pitchDriftFreq = .125,
+  amplDriftDep = 5,
+  subDriftDep = 4,
+  rolloffDriftDep = 3,
+  pitchAnchorsDep = .05,
+  noiseAnchorsDep = .1,
+  amplAnchorsDep = .1,
+  glottisAnchorsDep = .1,
+  specDep = .1
 )
 # devtools::use_data(defaults, overwrite = TRUE)
 
@@ -280,13 +293,13 @@ presets = list(
   ),
 
   Chimpanzee = list(
-    Bark_alarm = 'soundgen(sylLen = 160, pitchAnchors = c(232, 185), nonlinBalance = 100, jitterDep = 2.8, attackLen = 61, rolloff = -19, formants = c(400, 1000), vocalTract = 23, subFreq = 125, subDep = 60, noiseAnchors = list(time = c(0, 63, 344), value = c(-80, -10, -80)), rolloffNoise = -14)',
+    Bark_alarm = 'soundgen(sylLen = 160, pitchAnchors = c(232, 185), nonlinBalance = 100, jitterDep = 2.8, attackLen = 61, rolloff = -19, formants = c(400, 1000), vocalTract = 14, subFreq = 125, subDep = 60, noiseAnchors = list(time = c(0, 63, 344), value = c(-80, -10, -80)), rolloffNoise = -6)',
 
-    Scream_conflict = 'soundgen(sylLen = 740, pitchAnchors = list(time = c(0, 0.3, 0.9, 1), value = c(1200, 1547, 1487, 1154)), formants = NULL, temperature = 0.05, nonlinBalance = 100, jitterDep = 0.3, rolloff = -6, rolloffOct = 0, subFreq = 75, subDep = 130)',
+    Scream_conflict = 'soundgen(sylLen = 740, pitchAnchors = list(time = c(0, 0.3, 0.9, 1), value = c(1200, 1547, 1487, 1154)), formants = NULL, vocalTract = 14, temperature = 0.05, nonlinBalance = 100, jitterDep = 0.3, rolloff = -6, rolloffOct = 0, subFreq = 75, subDep = 130)',
 
     Grunt_excited = 'soundgen(nSyl = 6, sylLen = 100, pauseLen = 220, pitchAnchors = c(216, 164), pitchAnchorsGlobal = list(time = c(0, 0.4, 1), value = c(0, 1, -8.4)), temperature = 0.15, nonlinBalance = 100, jitterDep = 3.1, attackLen = 10, formants = list(f1 = c(410, 250), f2 = c(990, 650)), vocalTract = 20.5, subDep = 0, noiseAnchors = list(time = c(-8, 22, 298), value = c(-80, -41, -80)), rolloffNoise = -7, amplAnchors = c(119, 89), amplAnchorsGlobal = list(time = c(0, 0.35, 1), value = c(60, 80, 31)))',
 
-    Hoot_excited = 'soundgen(sylLen = 730, pitchAnchors = list(time = c(0, 0.52, 1), value = c(440, 405, 440)), nonlinBalance = 100, jitterDep = 0.4,  attackLen = 0, rolloff = -9, rolloffOct = -3, rolloffParabHarm = 1, formants = list(f1 = c(250, 450), f2 = 800, f3 = 1600), vocalTract = 25.5, subFreq = 190, subDep = 0, noiseAnchors = list(time = c(-19, 26, 173, 738), value = c(-44, -4, -37, -39)))',
+    Hoot_excited = 'soundgen(sylLen = 730, pitchAnchors = list(time = c(0, 0.21, 0.79, 1), value = c(440, 469, 402, 440)), temperature = 0.075, nonlinBalance = 100, jitterDep = 0.4, shimmerDep = 11, attackLen = 0, rolloff = -6, formants = c(400, 850, 2600, 3700, 5500), subDep = 0, noiseAnchors = list(time = c(-19, 26, 173, 738), value = c(-44, -4, -37, -39)), mouthAnchors = list(time = c(0, 0.12, 1), value = c(0.01, 0.5, 0.5)))',
 
     Laugh_playing = 'soundgen(nSyl = 6, sylLen = 120, pauseLen = 120, pitchAnchors = c(127, 102), temperature = 0.05, rolloff = -12, rolloffParab = 15, rolloffParabHarm = 1, formants = c(400, 900, 1500), vocalTract = 23, noiseAnchors = list(time = c(-6, 30, 110, 168, 219), value = c(-42, -63, -62, -61, -80)), rolloffNoise = -20, amplAnchorsGlobal = list(time = c(0, 0.35, 1), value = c(59, 80, 31)))',
 
@@ -326,7 +339,7 @@ presets = list(
 
     Duck = 'soundgen(repeatBout = 5, sylLen = 110, pauseLen = 170, pitchAnchors = c(119, 110), temperature = 0.1, rolloff = -3, rolloffOct = -2, formants = c(1600, 2700, 5600, 6400), noiseAnchors = -13, mouthAnchors = c(0.34, 0.57, 0.35))',
 
-    Elephant = 'soundgen(sylLen = 510, pitchAnchors = list(time = c(0, 0.36, 1), value = c(450, 485, 328)), nonlinBalance = 50, jitterDep = 0.3, rolloff = -3, rolloffOct = 0, rolloffKHz = 0, formants = NULL, formantDep = 0.5, vocalTract = 37.5, subFreq = 75, subDep = 40, shortestEpoch = 50, noiseAnchors = -19, amplAnchors = c(80, 80, 61))',
+    Elephant = 'soundgen(sylLen = 510, pitchAnchors = list(time = c(0, 0.36, 1), value = c(450, 485, 328)), nonlinBalance = 50, jitterDep = 0.3, rolloff = -3, rolloffOct = -2, rolloffKHz = 0, formants = NULL, formantDepStoch = 0, subFreq = 75, subDep = 40, shortestEpoch = 50, noiseAnchors = list(time = c(0, 510), value = c(-19, -19)), amplAnchors = list(time = c(0, 0.5, 1), value = c(80, 80, 61)))',
 
     Seagull = 'soundgen(nSyl = 8, sylLen = 200, pauseLen = 140, pitchAnchors = list(time = c(0, 0.71, 1), value = c(977, 1530, 826)), nonlinBalance = 100, jitterDep = 0, rolloff = -6, rolloffParabHarm = 6, rolloffKHz = 0, formants = c(2500, 4500), subFreq = 525, subDep = 220, noiseAnchors = list(time = c(0, 44, 141, 201), value = c(-11, -12, -80, -12)), samplingRate = 24000)',
 

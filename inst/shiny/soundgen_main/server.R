@@ -1,3 +1,9 @@
+formantsPerVowel = data.frame(  # Ladefoged 2012 "Vowels & consonants, 3rd ed.", p. 43
+  phoneme = c('bee', 'bid', 'bed', 'bad', 'bod', 'bud', 'bawd', 'hood', 'hoo'),
+  f1 = c(250, 380, 550, 650, 720, 620, 570, 430, 300),
+  f2 = c(2300, 1950, 1800, 1750, 1100, 1200, 850, 1050, 880)
+)
+
 server = function(input, output, session) {
   # clean-up of www/ folder: remove all files except temp.wav
   files = list.files('www/')
@@ -17,10 +23,12 @@ server = function(input, output, session) {
                           'amplAnchors' = defaults$amplAnchors,
                           'amplAnchorsGlobal' = defaults$amplAnchorsGlobal,
                           'formants' = defaults$formants,
+                          'formantsPicked' = c(NA, NA),
                           'formantsNoise' = NA,
                           'updateDur' = TRUE,
                           'loaded_presets' = list(),
-                          'sylDur_previous' = defaults$sylLen
+                          'sylDur_previous' = defaults$sylLen,
+                          updateVTL = FALSE
   )
 
   durTotal = reactive({
@@ -48,9 +56,11 @@ server = function(input, output, session) {
   # The right order is crucial
   reset_all = reactive({
     # print('running reset_all()')
+    myPars$formantsPicked = c(NA, NA)
     myPars$updateDur = FALSE # to prevent duration-related settings in myPars
     # from being updated by event listener observeEvent(input$sylLen)
     # when a new preset is loaded
+    myPars$updateVTL = FALSE
 
     # first reset everything to defaults
     for (v in rownames(permittedValues)[1:which(rownames(permittedValues) == 'rolloffNoise')]) {
@@ -89,7 +99,7 @@ server = function(input, output, session) {
       for (anchor in c('pitchAnchors', 'pitchAnchorsGlobal', 'glottisAnchors',
                        'amplAnchors', 'amplAnchorsGlobal', 'mouthAnchors')) {
         if (!is.null(preset[[anchor]]) && !is.na(preset[[anchor]])) {
-          preset[[anchor]] = reformatAnchors(preset[[anchor]])
+          preset[[anchor]] = soundgen:::reformatAnchors(preset[[anchor]])
         }
       }
       if (is.numeric(preset$noiseAnchors) && length(preset$noiseAnchors) > 0) {
@@ -113,6 +123,13 @@ server = function(input, output, session) {
       }
 
       # special cases
+      if (is.numeric(preset$sylLen)) {
+        # update "previous" sylLen for scaling the syllable
+        myPars$sylDur_previous = preset$sylLen
+      } else {
+        myPars$sylDur_previous = defaults$sylLen
+      }
+
       if (!is.null(preset$pitchAnchors)) {
         if (any(is.na(preset$pitchAnchors))) {
           updateCheckboxInput(session, 'generateVoiced', value = FALSE)
@@ -172,6 +189,18 @@ server = function(input, output, session) {
         updateSliderInput(session, inputId = 'glottisAnchors', value = mean(preset$glottisAnchors$value))
       }
     }
+
+    # update VTL if preset contains formants, but does not contain an explicit VTL value
+    if (!is.null(preset$formants) &&
+        any(!is.na(preset$formants)) &&
+        !is.numeric(preset$vocalTract)) {
+      v = estimateVTL(preset$formants)
+      if (is.numeric(v)) {
+        if (v < permittedValues['vocalTract', 'low']) v = permittedValues['vocalTract', 'low']
+        if (v > permittedValues['vocalTract', 'high']) v = permittedValues['vocalTract', 'high']
+        updateSliderInput(session, inputId = 'vocalTract', value = v)
+      }
+    }
   })
 
   observeEvent(input$callType, {
@@ -219,7 +248,8 @@ server = function(input, output, session) {
       try({
         converted = soundgen:::convertStringToFormants(input$vowelString,
                                                        speaker = input$speaker)
-        if (sum(unlist(converted)) > 0) { # if the converted formant list is not empty
+        if (!class(converted) == 'logical' &&  # not NA
+            sum(unlist(converted)) > 0) { # if the converted formant list is not empty
           myPars$formants = converted
           # (...otherwise don't change myPars$formants to prevent crashing)
         }
@@ -261,11 +291,14 @@ server = function(input, output, session) {
     if (myPars$updateDur == TRUE) {
       # doesn't run if updateDur == FALSE (set to F in reset_all())
       scale_coef = input$sylLen / myPars$sylDur_previous
-      myPars$noiseAnchors$time[myPars$noiseAnchors$time > 0] =
-        round(myPars$noiseAnchors$time[myPars$noiseAnchors$time > 0] * scale_coef)
-      # rescale positive time anchors, but not negative ones
-      # (ie the length of pre-syllable aspiration does not
-      # vary as the syllable length changes - just doesn't seem to make sense)
+      # rescale positive time anc<hors up to sylLen, but not later, and not negative ones
+      # (ie the length of pre- and post-syllable aspiration does not
+      # vary as the syllable length changes)
+      idx1 = which(myPars$noiseAnchors$time > 0 & myPars$noiseAnchors$time <= myPars$sylDur_previous)
+      myPars$noiseAnchors$time[idx1] = round(myPars$noiseAnchors$time[idx1] * scale_coef)
+      idx2 = which(myPars$noiseAnchors$time > myPars$sylDur_previous)
+      myPars$noiseAnchors$time[idx2] = myPars$noiseAnchors$time[idx2] + input$sylLen - myPars$sylDur_previous
+
       updateSliderInput(session, inputId = 'noiseTime',
                         value = range(myPars$noiseAnchors$time))
       myPars$sylDur_previous = input$sylLen  # track the previous value
@@ -276,6 +309,25 @@ server = function(input, output, session) {
   vocalTract = reactive({
     ifelse(input$estimateVTL, NA, input$vocalTract)
   })
+
+  observeEvent({
+    input$estimateVTL
+    myPars$formants}, {
+      if (myPars$updateVTL && input$estimateVTL) {
+        v = estimateVTL(myPars$formants)
+        if (is.numeric(v)) {
+          if (v < permittedValues['vocalTract', 'low']) v = permittedValues['vocalTract', 'low']
+          if (v > permittedValues['vocalTract', 'high']) v = permittedValues['vocalTract', 'high']
+          updateSliderInput(session, inputId = 'vocalTract', value = v)
+        }
+      }
+    myPars$updateVTL = TRUE
+  })
+
+  # observeEvent(input$estimateVTL, {
+  #   vocalTract_est()
+  # })
+
 
   ## P I T C H
   observeEvent(input$pitchFloorCeiling, {
@@ -329,7 +381,7 @@ server = function(input, output, session) {
 
       closest_point_in_time = which.min(abs(myPars$pitchAnchors$time - click_x))
       delta_x = abs(myPars$pitchAnchors$time[closest_point_in_time] - click_x)
-      # if the click is near (within ±5% of the time range) an existing anchor
+      # if the click is near (within 5% of the time range) an existing anchor
       # point, we update the pitch of this anchor according to click location (and
       # the time as well, unless it is the first or the last anchor)
       if (delta_x < 0.05) {
@@ -357,6 +409,7 @@ server = function(input, output, session) {
     if (is.list(myPars$pitchAnchors)) {
       ref = as.data.frame(myPars[['pitchAnchors']])
       ref$time = ref$time * input$sylLen
+      ref$value = semitonesToHz(ref$value)
       closestPoint = nearPoints(ref, input$plotIntonation_dblclick,
                                 xvar = 'time', yvar = 'value',
                                 threshold = 100000, maxpoints = 1)
@@ -432,7 +485,7 @@ server = function(input, output, session) {
 
       closest_point_in_time = which.min(abs(myPars$pitchAnchorsGlobal$time - click_x))
       delta_x = abs(myPars$pitchAnchorsGlobal$time[closest_point_in_time] - click_x)
-      # if the click is near (within ±20% of the time range) an existing anchor
+      # if the click is near (within 20% of the time range) an existing anchor
       # point, we update the pitch of this anchor according to click location (and
       # the time as well, unless it is the first or the last anchor)
       if (delta_x < 0.2) {
@@ -507,6 +560,7 @@ server = function(input, output, session) {
     br_ylim_high = permittedValues['noiseAmpl', 'high']
     nTicks = length(seq(br_ylim_low, br_ylim_high, by = 20)) - 1
     getSmoothContour(anchors = myPars$noiseAnchors,
+                     normalizeTime = FALSE,
                      xlim = c(br_xlim_low, br_xlim_high),
                      ylim = c(br_ylim_low, br_ylim_high),
                      voiced = input$sylLen,
@@ -530,13 +584,13 @@ server = function(input, output, session) {
 
     closest_point_in_time = which.min(abs(myPars$noiseAnchors$time - click_x))
     delta_x = abs(myPars$noiseAnchors$time[closest_point_in_time] - click_x)
-    # if the click is near (within ±5% of the time range) an existing anchor
+    # if the click is near (within 5% of the time range) an existing anchor
     # point, we update the ampl of this anchor according to click location and time
     if (delta_x < 0.05 * durSyl_withNoise()) {
       myPars$noiseAnchors$value[closest_point_in_time] = click_y
       myPars$noiseAnchors$time[closest_point_in_time] = click_x
     } else { # otherwise, we simply add the new point as another anchor
-      myPars[['noiseAnchors']] = data.frame (
+      myPars[['noiseAnchors']] = data.frame(
         'time' = c(myPars$noiseAnchors$time, click_x),
         'value' = c(myPars$noiseAnchors$value, click_y)
       ) # convoluted, but otherwise problems with unwanted dataframe-list conversion, etc
@@ -614,7 +668,7 @@ server = function(input, output, session) {
 
     closest_point_in_time = which.min(abs(myPars$mouthAnchors$time - click_x))
     delta_x = abs(myPars$mouthAnchors$time[closest_point_in_time] - click_x)
-    # if the click is near (within ±5% of the time range) an existing anchor
+    # if the click is near (within 5% of the time range) an existing anchor
     # point, we update the pitch of this anchor according to click location and time
     if (delta_x < 0.05) {
       myPars$mouthAnchors$value[closest_point_in_time] = click_y
@@ -688,7 +742,7 @@ server = function(input, output, session) {
 
     closest_point_in_time = which.min(abs(myPars$amplAnchors$time - click_x))
     delta_x = abs(myPars$amplAnchors$time[closest_point_in_time] - click_x)
-    # if the click is near (within ±5% of the time range) an existing anchor point,
+    # if the click is near (within 5% of the time range) an existing anchor point,
     # we update the anchor according to click location and time
     if (delta_x < 0.05) {
       myPars$amplAnchors$value[closest_point_in_time] = click_y
@@ -766,7 +820,7 @@ server = function(input, output, session) {
 
     closest_point_in_time = which.min(abs(myPars$amplAnchorsGlobal$time - click_x))
     delta_x = abs(myPars$amplAnchorsGlobal$time[closest_point_in_time] - click_x)
-    # if the click is near (within ±5% of the time range) an existing anchor
+    # if the click is near (within 5% of the time range) an existing anchor
     # point, we update the pitch of this anchor according to click location and time
     if (delta_x < 0.05) {
       myPars$amplAnchorsGlobal$value[closest_point_in_time] = click_y
@@ -898,8 +952,9 @@ server = function(input, output, session) {
       )
       lta = apply(s, 1, mean)
       freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
-      plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz', ylab = 'Power, dB')
-    } else {
+      plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
+           ylab = 'Power, dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
+    } else if (input$formants_spectrogram_or_spectrum == 'spectrogram') {
       getSpectralEnvelope(nr = nr,
                           nc = 100,
                           formants = myPars$formants,
@@ -914,8 +969,48 @@ server = function(input, output, session) {
                           duration = durSyl_withNoise(),
                           xlab = 'Time, ms',
                           ylab = 'Frequency, kHz',
+                          ylim = input$spec_ylim,
                           colorTheme = input$spec_colorTheme
       )
+    } else if (input$formants_spectrogram_or_spectrum == 'formantPicker') {
+      plot(formantsPerVowel$f1, formantsPerVowel$f2, type = 'n',
+           xlab = 'F1, Hz', ylab = 'F2, Hz',
+           xlim = c(100, 1000), ylim = c(400, 2900))
+      text(formantsPerVowel$f1, formantsPerVowel$f2,
+           labels = formantsPerVowel$phoneme, col = 'blue')
+      mtext(paste('F1 = ', myPars$formantsPicked[1]), side = 3, line = 1)
+      mtext(paste('F2 = ', myPars$formantsPicked[2]), side = 3, line = 0)
+      if(!any(is.na(myPars$formantsPicked))) {
+        points(myPars$formantsPicked[1], myPars$formantsPicked[2],
+               pch = 4, cex = 2, lwd = 5, col = rgb(1, 0, 0, alpha = .5))
+      }
+    }
+  })
+
+  observeEvent(input$plotFormants_click, {
+    if (input$formants_spectrogram_or_spectrum == 'formantPicker') {
+      # prevent VTL from being calculated based on these formants, since f1-f2 are not enough
+      updateCheckboxInput(session, inputId = 'estimateVTL', value = FALSE)
+      myPars$updateVTL = FALSE
+      myPars$formantsPicked = round(c(input$plotFormants_click$x, input$plotFormants_click$y))
+      myPars$formants = myPars$formantsPicked
+      updateTextInput(session, inputId = 'formants',
+                      value = paste0('list(f1 = ', myPars$formantsPicked[1],
+                                    ', f2 = ', myPars$formantsPicked[2], ')'))
+      updateTextInput(session, inputId = 'vowelString',
+                      value = '')
+
+    }
+  })
+
+  observeEvent(input$plotFormants_dblclick, {
+    if (input$formants_spectrogram_or_spectrum == 'formantPicker') {
+      myPars$formantsPicked = c(NA, NA)
+      myPars$formants = NA
+      updateTextInput(session, inputId = 'formants',
+                      value = '')
+      updateTextInput(session, inputId = 'vowelString',
+                      value = '')
     }
   })
 
@@ -981,13 +1076,14 @@ server = function(input, output, session) {
                                 mouthAnchors = myPars$mouthAnchors,
                                 vocalTract = input$vocalTract,
                                 temperature = input$temperature,
-                                formantDepStoch = input$formantDepStoch,
+                                formantDepStoch = 0,
                                 samplingRate = input$samplingRate,
                                 plot = FALSE
         )
         lta = apply(s, 1, mean)
-        freqs = seq(1, round(samplingRate / 2), length.out = nr)
-        plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz', ylab = 'Power, dB')
+        freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
+        plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
+             ylab = 'Power, dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
       } else {
         getSpectralEnvelope(nr = nr,
                             nc = 100,
@@ -997,12 +1093,13 @@ server = function(input, output, session) {
                             mouthAnchors = myPars$mouthAnchors,
                             vocalTract = input$vocalTract,
                             temperature = input$temperature,
-                            formantDepStoch = input$formantDepStoch,
+                            formantDepStoch = 0,
                             samplingRate = input$samplingRate,
                             plot = TRUE,
                             duration = durSyl_withNoise(),
                             xlab = 'Time, ms',
                             ylab = 'Frequency, kHz',
+                            xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000,
                             colorTheme = input$spec_colorTheme
         )
       }

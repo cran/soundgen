@@ -34,9 +34,9 @@
 #' noise = soundgen:::generateNoise(len = samplingRate,
 #'   rolloffNoise = 0, samplingRate = samplingRate)
 #' # playme(noise, samplingRate = samplingRate)
-#' # 1 s of noise with rolloff -6 dB
+#' # 1 s of noise with rolloff changing from 0 to -6 dB
 #' noise = soundgen:::generateNoise(len = samplingRate,
-#'   rolloffNoise = -6, samplingRate = samplingRate)
+#'   rolloffNoise = c(0, -6), samplingRate = samplingRate)
 #'
 #' # To create a sibilant [s], specify a single strong, broad formant at ~7 kHz:
 #' windowLength_points = 1024
@@ -60,7 +60,7 @@
 generateNoise = function(len,
                          noiseAnchors = data.frame(
                            time = c(0, 300),
-                           value = c(-120, -120)
+                           value = c(-80, -80)
                          ),
                          rolloffNoise = -4,
                          attackLen = 10,
@@ -68,12 +68,13 @@ generateNoise = function(len,
                          windowLength_points = 1024,
                          samplingRate = 16000,
                          overlap = 75,
-                         throwaway = -120,
+                         throwaway = -80,
                          filterNoise = NA) {
   # convert anchors to a smooth contour of breathing amplitudes
   breathingStrength = getSmoothContour(
     len = len,
     anchors = noiseAnchors,
+    normalizeTime = FALSE,
     valueFloor = permittedValues['noiseAmpl', 'low'],
     valueCeiling = permittedValues['noiseAmpl', 'high'],
     samplingRate = samplingRate,
@@ -83,7 +84,6 @@ generateNoise = function(len,
 
   # convert anchor amplitudes from dB to linear multipliers
   breathingStrength = 10 ^ (breathingStrength / 20)
-
   if (sum(is.na(breathingStrength)) > 0) {
     return(rep(0, len))
   }
@@ -100,31 +100,47 @@ generateNoise = function(len,
   flatBins = round(flatSpectrum / bin)
   nc = length(step)
   if (is.na(filterNoise[1])) {
-    filterNoise = matrix(rep(1, nr), ncol = 1)
-    filterRowIdx = rep(1, nc)
+    filterNoise = matrix(1, nrow = nr, ncol = nc)
   } else {
-    filterRowIdx = round(seq(1, ncol(filterNoise), length.out = nc))
+    if (nrow(filterNoise) != nr | ncol(filterNoise) != nc) {
+      # message('Incorrect dimensions of filterNoise. Interpolating...')
+      filterRowIdx = round(seq(1, nrow(filterNoise), length.out = nr))
+      filterColIdx = round(seq(1, ncol(filterNoise), length.out = nc))
+      filterNoise = filterNoise[filterRowIdx, filterColIdx]
+    }
   }
   # modify the exact filter (if provided) by adding the specified
   #   basic linear rolloff
   idx = (flatBins + 1):nr  # the bins that will be modified
-  mult = 10 ^ (rolloffNoise / 20 * (idx - flatBins) / binsPerKHz)  # plot(mult)
-  # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1: spectrum of turbulent noise
-  filterNoise[(flatBins + 1):nr, ] = apply(
-    filterNoise[(flatBins + 1):nr, , drop = FALSE],
-    2,
-    function(x) x * mult
-  )
+  if (length(rolloffNoise) > 1) {
+    rolloffNoise = getSmoothContour(anchors = rolloffNoise,
+                                    len = nc)
+    mult = matrix(apply(
+      matrix(1:nc, ncol = 1),
+      1,
+      function(x) 10 ^ (rolloffNoise[x] / 20 * (idx - flatBins) / binsPerKHz)
+    ), nrow = length(idx), ncol = nc)
+    # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1: spectrum of turbulent noise
+  } else {
+    a = 10 ^ (rolloffNoise / 20 * (idx - flatBins) / binsPerKHz)
+    mult = matrix(rep(a, nc),
+                  ncol = nc)
+  }
+  # image(t(mult))
+
+  filterNoise[idx, ] = filterNoise[idx, ] * mult
+  # image(t(filterNoise))
   # plot(filterNoise[, 1], type = 'l')
   # plot(log10(filterNoise[, 1]) * 20, type = 'l')
 
-  # instead of synthesizing the time series and then doing fft-ifft,
+  ## instead of synthesizing the time series and then doing fft-ifft,
   #   we can simply synthesize spectral noise, convert to complex
   #   (setting imaginary=0), and then do inverse FFT just once
-  z1 = matrix(as.complex(runif(nr * nc)), nrow = nr, ncol = nc)  # set up spectrum
-  z1_filtered = apply(matrix(1:ncol(z1)), 1, function(x) {
-    z1[, x] * filterNoise[, filterRowIdx[x]]
-  })  # multiply by filter
+  # set up spectrum with white noise
+  z1 = matrix(as.complex(runif(nr * nc)), nrow = nr, ncol = nc)
+  # multiply by filter
+  z1_filtered = z1 * filterNoise
+  # do inverse FFT
   breathing = as.numeric (
     seewave::istft(
       z1_filtered,
@@ -133,15 +149,18 @@ generateNoise = function(len,
       wl = windowLength_points,
       output = "matrix"
     )
-  )  # inverse FFT
+  )
   breathing = matchLengths(breathing, len = len)  # pad with 0s or trim
   breathing = breathing / max(breathing) * breathingStrength # normalize
-  breathing = fadeInOut(
-    breathing,
-    do_fadeIn = TRUE,
-    do_fadeOut = TRUE,
-    length_fade = floor(attackLen * samplingRate / 1000)
-  )  # add attack
+  # add attack
+  if (is.numeric(attackLen) && attackLen > 0) {
+    l = floor(attackLen * samplingRate / 1000)
+    breathing = fade(
+      breathing,
+      fadeIn = l,
+      fadeOut = l
+    )
+  }
   # plot(breathing, type = 'l')
   # playme(breathing, samplingRate = samplingRate)
   # spectrogram(breathing, samplingRate = samplingRate)
@@ -176,14 +195,6 @@ generateNoise = function(len,
 #'   dB/octave. The effect is to make loud parts brighter by increasing energy
 #'   in higher frequencies
 #' @keywords internal
-#' @examples
-#' pitch = soundgen:::getSmoothContour(len = 3500,
-#'   anchors = data.frame('time' = c(0, 1), 'value' = c(200, 300)))
-#' plot(pitch)
-#' sound1 = soundgen:::generateHarmonics(pitch, samplingRate = 16000)
-#' #' # playme(sound1, samplingRate = 16000) # no formants yet
-#' sound2 = soundgen:::generateHarmonics(pitch, samplingRate = 16000, glottisAnchors = c(0, 300))
-#' #' # playme(sound2, samplingRate = 16000) # pauses between glottal cycles
 generateHarmonics = function(pitch,
                              glottisAnchors = 0,
                              attackLen = 50,
@@ -350,8 +361,8 @@ generateHarmonics = function(pitch,
     pitch_per_gc = pitch_per_gc,
     nHarmonics = nHarmonics,
     rolloff = (rolloff + rolloffAmpl) * rw ^ rolloffDriftDep,
-    rolloffOct = rolloffOct * rw ^ rolloffDriftDep,
-    rolloffKHz = rolloffKHz * rw,
+    rolloffOct = rolloffOct,
+    rolloffKHz = rolloffKHz,
     rolloffParab = rolloffParab,
     rolloffParabHarm = rolloffParabHarm,
     samplingRate = samplingRate,
@@ -404,11 +415,15 @@ generateHarmonics = function(pitch,
       r[[e]] = rolloff_source[[e]]
       r[[e]] = as.list(as.data.frame(r[[e]]))
       for (i in 1:length(r[[e]])) {
-        r[[e]][[i]] = matrix(r[[e]][[i]], ncol = 1, dimnames = list(rownames(rolloff_source[[e]])))
+        r[[e]][[i]] = matrix(r[[e]][[i]],
+                             ncol = 1,
+                             dimnames = list(rownames(rolloff_source[[e]])))
       }
     }
     r = unlist(r, recursive = FALSE)  # get rid of epochs
-    glottisClosed_per_gc = getSmoothContour(anchors = glottisAnchors, len = nGC, valueFloor = 0)
+    glottisClosed_per_gc = getSmoothContour(anchors = glottisAnchors,
+                                            len = nGC,
+                                            valueFloor = 0)
     waveform = generateGC(pitch_per_gc = pitch_per_gc,
                           glottisClosed_per_gc = glottisClosed_per_gc,
                           rolloff_per_gc = r,
@@ -444,8 +459,10 @@ generateHarmonics = function(pitch,
 
   # add attack
   if (attackLen > 0) {
-    waveform = fadeInOut(waveform,
-                         length_fade = floor(attackLen * samplingRate / 1000))
+    l = floor(attackLen * samplingRate / 1000)
+    waveform = fade(waveform,
+                    fadeIn = l,
+                    fadeOut = l)
     # plot(waveform, type = 'l')
   }
 
@@ -483,6 +500,7 @@ generateHarmonics = function(pitch,
 #'   first harmonic)
 #' @param samplingRate the sampling rate of generated sound, Hz
 #' @return Returns a waveform as a non-normalized numeric vector centered at zero.
+#' @keywords internal
 #' @examples
 #' pitch_per_gc = seq(100, 150, length.out = 25)
 #' glottisClosed_per_gc = seq(0, 300, length.out = 25)
@@ -536,6 +554,7 @@ generateGC = function(pitch_per_gc,
 #' @param epochs a dataframe specifying the beginning and end of each epoch
 #' @param samplingRate the sampling rate of generated sound, Hz
 #' @return Returns a waveform as a non-normalized numeric vector centered at zero.
+#' @keywords internal
 #' @examples
 #' pitch_per_gc = seq(100, 150, length.out = 90)
 #' epochs = data.frame (start = c(1, 51),
@@ -546,7 +565,7 @@ generateGC = function(pitch_per_gc,
 #' rownames(m2) = 1:nrow(m2)
 #' rolloff_source = list(m1, m2)
 #' s = soundgen:::generateEpoch(pitch_per_gc, epochs,
-#'                              rolloff_source,  samplingRate = 16000)
+#'                              rolloff_source, samplingRate = 16000)
 #' # plot(s, type = 'l')
 #' # playme(s)
 generateEpoch = function(pitch_per_gc,
@@ -721,7 +740,7 @@ fart = function(glottisAnchors = c(350, 700),
 #' # a drum-like sound
 #' s = beat(nSyl = 1, sylLen = 200,
 #'                  pitchAnchors = c(200, 100), play = play)
-#' plot(s, type = 'l')
+#' # plot(s, type = 'l')
 #'
 #' # a dry, muted drum
 #' s = beat(nSyl = 1, sylLen = 200,
@@ -742,11 +761,14 @@ beat = function(nSyl = 10,
                 fadeOut = TRUE,
                 play = FALSE) {
   len = sylLen * samplingRate / 1000
-  pitchContour = getSmoothContour(anchors = pitchAnchors, len = len, valueFloor = 0, thisIsPitch = TRUE)
+  pitchContour = getSmoothContour(anchors = pitchAnchors,
+                                  len = len,
+                                  valueFloor = 0,
+                                  thisIsPitch = TRUE)
   int = cumsum(pitchContour)
   beat = sin(2 * pi * int / samplingRate)
   if (fadeOut) {
-    beat = fadeInOut(beat, length_fade = length(beat), do_fadeIn = FALSE)
+    beat = fade(beat, fadeOut = length(beat))
   }
   # plot(beat, type = 'l')
   # spectrogram(beat, samplingRate, ylim = c(0, 1))
