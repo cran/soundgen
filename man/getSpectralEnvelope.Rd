@@ -4,8 +4,9 @@
 \alias{getSpectralEnvelope}
 \title{Spectral envelope}
 \usage{
-getSpectralEnvelope(nr, nc, formants = NA, formantDep = 1, lipRad = 6,
-  noseRad = 4, mouthAnchors = NA, mouthOpenThres = 0.2,
+getSpectralEnvelope(nr, nc, formants = NA, formantDep = 1,
+  formantWidth = 1, lipRad = 6, noseRad = 4, mouthAnchors = NA,
+  interpol = c("approx", "spline", "loess")[3], mouthOpenThres = 0.2,
   openMouthBoost = 0, vocalTract = NULL, temperature = 0.05,
   formDrift = 0.3, formDisp = 0.2, formantDepStoch = 20,
   smoothLinearFactor = 1, samplingRate = 16000, speedSound = 35400,
@@ -28,6 +29,8 @@ specified in ms or an any other arbitrary scale.}
 \item{formantDep}{scale factor of formant amplitude (1 = no change relative
 to amplitudes in \code{formants})}
 
+\item{formantWidth}{= scale factor of formant bandwidth (1 = no change)}
+
 \item{lipRad}{the effect of lip radiation on source spectrum, dB/oct
 (the default of +6 dB/oct produces a high-frequency boost when the mouth is
 open)}
@@ -39,6 +42,11 @@ closed)}
 \item{mouthAnchors}{a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
 i.e. no modification) or a dataframe specifying the time (ms) and value of
 mouth opening}
+
+\item{interpol}{the method of smoothing envelopes based on provided mouth
+anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
+(default) = polynomial local smoothing function. NB: this does NOT affect
+the smoothing of formant anchors}
 
 \item{mouthOpenThres}{open the lips (switch from nose radiation to lip
 radiation) when the mouth is more than \code{mouthOpenThres} open, 0 to 1}
@@ -127,6 +135,12 @@ e = getSpectralEnvelope(nr = 512, nc = 50,
 e = getSpectralEnvelope(nr = 512, nc = 50,
   vocalTract = 16, plot = TRUE, lipRad = 6, noseRad = 4,
   mouthAnchors = data.frame(time = c(0, .5, 1), value = c(0, 0, .5)))
+
+# scale formant amplitude and/or bandwidth
+e = getSpectralEnvelope(nr = 512, nc = 50,
+  formants = soundgen:::convertStringToFormants('a'),
+  formantWidth = 2, formantDep = .5,
+  temperature = 0, plot = TRUE)
 
 # manual specification of formants
 e = getSpectralEnvelope(nr = 512, nc = 50, plot = TRUE, samplingRate = 16000,

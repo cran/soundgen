@@ -1,4 +1,4 @@
-# TODO: rename seewave function stft() to stdft() when seewave is updated to 2.0.6 (stft is only used in formants.R)
+# TODO: rename seewave function stft() to stdft() when seewave is updated to 2.0.6 (stft is only used in formants.R);
 
 #' @import stats graphics utils grDevices
 #' @encoding UTF-8
@@ -103,6 +103,7 @@ NULL
 #'   to amplitudes in \code{formants})
 #' @param formantDepStoch the amplitude of additional stochastic formants added above
 #'   the highest specified formant, dB (only if temperature > 0)
+#' @param formantWidth = scale factor of formant bandwidth (1 = no change)
 #' @param vocalTract the length of vocal tract, cm. Used for calculating formant
 #'   dispersion (for adding extra formants) and formant transitions as the mouth
 #'   opens and closes. If \code{NULL} or \code{NA}, the length is estimated
@@ -138,9 +139,11 @@ NULL
 #' @param amplAnchorsGlobal a numeric vector of global amplitude envelope
 #'   spanning multiple syllables or a dataframe specifying the time (ms) and
 #'   value (0 to 1) of each anchor
-#' @param interpol the method of smoothing envelopes based on provided anchors:
-#'   'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
-#'   = polynomial local smoothing function
+#' @param interpol the method of smoothing envelopes based on provided pitch,
+#'   amplitude, and mouth anchors: 'approx' = linear interpolation, 'spline' =
+#'   cubic spline, 'loess' (default) = polynomial local smoothing function. NB:
+#'   this does not affect noiseAnchors, glottalAnchors, and the smoothing of
+#'   formants
 #' @param discontThres,jumpThres if two anchors are closer in time than
 #'   \code{discontThres}, the contour is broken into segments with a linear
 #'   transition between these anchors; if anchors are closer than
@@ -244,6 +247,7 @@ soundgen = function(repeatBout = 1,
                     formants = c(860, 1430, 2900),
                     formantDep = 1,
                     formantDepStoch = 20,
+                    formantWidth = 1,
                     vocalTract = NA,
                     subFreq = 100,
                     subDep = 100,
@@ -251,7 +255,7 @@ soundgen = function(repeatBout = 1,
                     amDep = 0,
                     amFreq = 30,
                     amShape = 0,
-                    noiseAnchors = NULL, # data.frame(time = c(0, 300), value = c(-80, -80)),
+                    noiseAnchors = NULL,
                     formantsNoise = NA,
                     rolloffNoise = -4,
                     mouthAnchors = data.frame(time = c(0, 1),
@@ -638,6 +642,8 @@ soundgen = function(repeatBout = 1,
                glottisAnchors = glottisAnchors_per_syl)
         ))
         )
+        # update the actual syllable duration (varies if there is strong jitter etc)
+        dur_syl = length(syllable) / samplingRate * 1000
       }
       # spectrogram(syllable, samplingRate = samplingRate)
       # playme(syllable, samplingRate = samplingRate)
@@ -670,14 +676,19 @@ soundgen = function(repeatBout = 1,
           sum(noiseAnchors$value > throwaway) > 0) {
         # adjust noiseAnchors$time to match the actual syllable duration
         noiseAnchors_syl[[s]] = noiseAnchors
-        noiseAnchors_syl[[s]]$time[noiseAnchors_syl[[s]]$time > 0] =
-          noiseAnchors_syl[[s]]$time[noiseAnchors_syl[[s]]$time > 0] *
-          dur_syl / sylLen
+        idx_mid = which(noiseAnchors_syl[[s]]$time > 0 &  # not before syl
+                          noiseAnchors_syl[[s]]$time < sylLen)  # not after syl
+        idx_after = which(noiseAnchors_syl[[s]]$time >= sylLen)  # after syl
+        noiseAnchors_syl[[s]]$time[idx_mid] =
+          noiseAnchors_syl[[s]]$time[idx_mid] * dur_syl / sylLen
+        noiseAnchors_syl[[s]]$time[idx_after] =
+          noiseAnchors_syl[[s]]$time[idx_after] - sylLen + dur_syl
         # negative time anchors are not changed: the pre-aspiration length
         # is constant, regardless of the actual syllable duration.
-        # However, positive time anchors are proportional to the actual
+        # Time anchors from 0 to sylLen are proportional to the actual
         # syllable duration re the average expected duration (which the user
         # sees in the UI when choosing time anchors)
+        # Time anchors beyond sylLen are scaled to preserve post-aspiration len
         unvoicedDur_syl = round(diff(range(noiseAnchors_syl[[s]]$time)) *
                                   samplingRate / 1000)
 
@@ -696,11 +707,13 @@ soundgen = function(repeatBout = 1,
             nc = nInt,
             formants = formantsNoise,
             formantDep = formantDep,
+            formantWidth = formantWidth,
             formantDepStoch = 0,  # formantDepStoch,
             lipRad = lipRad,
             noseRad = noseRad,
             mouthOpenThres = mouthOpenThres,
             mouthAnchors = mouthAnchors,
+            interpol = interpol,
             temperature = temperature,
             formDrift = tempEffects$formDrift,
             formDisp = tempEffects$formDisp,
@@ -785,21 +798,29 @@ soundgen = function(repeatBout = 1,
     }
 
     # add formants
-    soundFiltered = addFormants(sound = sound,
-                           formants = formants,
-                           vocalTract = vocalTract,
-                           formantDep = formantDep,
-                           formantDepStoch = formantDepStoch,
-                           lipRad = lipRad,
-                           noseRad = noseRad,
-                           mouthOpenThres = mouthOpenThres,
-                           mouthAnchors = mouthAnchors,
-                           temperature = temperature,
-                           formDrift = tempEffects$formDrift,
-                           formDisp = tempEffects$formDisp,
-                           samplingRate = samplingRate,
-                           windowLength_points = windowLength_points,
-                           overlap = overlap)
+    if (length(sound) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+      soundFiltered = addFormants(
+        sound = sound,
+        formants = formants,
+        vocalTract = vocalTract,
+        formantDep = formantDep,
+        formantWidth = formantWidth,
+        formantDepStoch = formantDepStoch,
+        lipRad = lipRad,
+        noseRad = noseRad,
+        mouthOpenThres = mouthOpenThres,
+        mouthAnchors = mouthAnchors,
+        interpol = interpol,
+        temperature = temperature,
+        formDrift = tempEffects$formDrift,
+        formDisp = tempEffects$formDisp,
+        samplingRate = samplingRate,
+        windowLength_points = windowLength_points,
+        overlap = overlap
+      )
+    } else {
+      soundFiltered = sound
+    }
     # spectrogram(soundFiltered, samplingRate = samplingRate)
     # playme(soundFiltered, samplingRate = samplingRate)
 

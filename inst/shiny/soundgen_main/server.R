@@ -294,10 +294,12 @@ server = function(input, output, session) {
       # rescale positive time anc<hors up to sylLen, but not later, and not negative ones
       # (ie the length of pre- and post-syllable aspiration does not
       # vary as the syllable length changes)
-      idx1 = which(myPars$noiseAnchors$time > 0 & myPars$noiseAnchors$time <= myPars$sylDur_previous)
+      idx1 = which(myPars$noiseAnchors$time > 0 &
+                     myPars$noiseAnchors$time < myPars$sylDur_previous)
+      idx2 = which(myPars$noiseAnchors$time >= myPars$sylDur_previous)
       myPars$noiseAnchors$time[idx1] = round(myPars$noiseAnchors$time[idx1] * scale_coef)
-      idx2 = which(myPars$noiseAnchors$time > myPars$sylDur_previous)
-      myPars$noiseAnchors$time[idx2] = myPars$noiseAnchors$time[idx2] + input$sylLen - myPars$sylDur_previous
+      myPars$noiseAnchors$time[idx2] = myPars$noiseAnchors$time[idx2] +
+        input$sylLen - myPars$sylDur_previous
 
       updateSliderInput(session, inputId = 'noiseTime',
                         value = range(myPars$noiseAnchors$time))
@@ -942,11 +944,12 @@ server = function(input, output, session) {
                               nc = 100,
                               formants = myPars$formants,
                               formantDep = input$formantDep,
+                              formantDepStoch = input$formantDepStoch,
+                              formantWidth = input$formantWidth,
                               lipRad = input$lipRad,
                               mouthAnchors = myPars$mouthAnchors,
                               vocalTract = vocalTract(),
                               temperature = input$temperature,
-                              formantDepStoch = input$formantDepStoch,
                               samplingRate = input$samplingRate,
                               plot = FALSE
       )
@@ -959,11 +962,12 @@ server = function(input, output, session) {
                           nc = 100,
                           formants = myPars$formants,
                           formantDep = input$formantDep,
+                          formantDepStoch = input$formantDepStoch,
+                          formantWidth = input$formantWidth,
                           lipRad = input$lipRad,
                           mouthAnchors = myPars$mouthAnchors,
                           vocalTract = vocalTract(),
                           temperature = input$temperature,
-                          formantDepStoch = input$formantDepStoch,
                           samplingRate = input$samplingRate,
                           plot = TRUE,
                           duration = durSyl_withNoise(),
@@ -1072,11 +1076,12 @@ server = function(input, output, session) {
                                 nc = 100,
                                 formants = myPars$formantsNoise,
                                 formantDep = input$formantDep,
+                                formantDepStoch = 0,
+                                formantWidth = input$formantWidth,
                                 lipRad = input$lipRad,
                                 mouthAnchors = myPars$mouthAnchors,
                                 vocalTract = input$vocalTract,
                                 temperature = input$temperature,
-                                formantDepStoch = 0,
                                 samplingRate = input$samplingRate,
                                 plot = FALSE
         )
@@ -1089,11 +1094,12 @@ server = function(input, output, session) {
                             nc = 100,
                             formants = myPars$formantsNoise,
                             formantDep = input$formantDep,
+                            formantDepStoch = 0,
+                            formantWidth = formantWidth,
                             lipRad = input$lipRad,
                             mouthAnchors = myPars$mouthAnchors,
                             vocalTract = input$vocalTract,
                             temperature = input$temperature,
-                            formantDepStoch = 0,
                             samplingRate = input$samplingRate,
                             plot = TRUE,
                             duration = durSyl_withNoise(),
@@ -1160,6 +1166,7 @@ server = function(input, output, session) {
       formants = myPars$formants,
       formantDep = input$formantDep,
       formantDepStoch = input$formantDepStoch,
+      formantWidth = input$formantWidth,
       vocalTract = vocalTract(),
       subFreq = input$subFreq,
       subDep = input$subDep,

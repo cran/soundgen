@@ -1,8 +1,8 @@
 Package: soundgen
 Type: Package
 Title: Parametric Voice Synthesis
-Version: 1.1.1
-Date: 2017-12-02
+Version: 1.1.2
+Date: 2018-01-23
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
@@ -21,7 +21,7 @@ RoxygenNote: 6.0.1
 Suggests: knitr, rmarkdown, shinyBS
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2017-12-02 16:15:44 UTC; allgoodguys
+Packaged: 2018-01-23 17:15:54 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2017-12-02 16:32:56 UTC
+Date/Publication: 2018-01-23 18:13:04 UTC

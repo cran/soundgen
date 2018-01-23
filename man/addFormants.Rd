@@ -5,8 +5,9 @@
 \title{Add formants}
 \usage{
 addFormants(sound, formants, action = c("add", "remove")[1],
-  vocalTract = NA, formantDep = 1, formantDepStoch = 20, lipRad = 6,
-  noseRad = 4, mouthOpenThres = 0, mouthAnchors = NA,
+  vocalTract = NA, formantDep = 1, formantDepStoch = 20,
+  formantWidth = 1, lipRad = 6, noseRad = 4, mouthOpenThres = 0,
+  mouthAnchors = NA, interpol = c("approx", "spline", "loess")[3],
   temperature = 0.025, formDrift = 0.3, formDisp = 0.2,
   samplingRate = 16000, windowLength_points = 800, overlap = 75)
 }
@@ -33,6 +34,8 @@ to amplitudes in \code{formants})}
 \item{formantDepStoch}{the amplitude of additional stochastic formants added above
 the highest specified formant, dB (only if temperature > 0)}
 
+\item{formantWidth}{= scale factor of formant bandwidth (1 = no change)}
+
 \item{lipRad}{the effect of lip radiation on source spectrum, dB/oct
 (the default of +6 dB/oct produces a high-frequency boost when the mouth is
 open)}
@@ -47,6 +50,11 @@ radiation) when the mouth is more than \code{mouthOpenThres} open, 0 to 1}
 \item{mouthAnchors}{a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
 i.e. no modification) or a dataframe specifying the time (ms) and value of
 mouth opening}
+
+\item{interpol}{the method of smoothing envelopes based on provided mouth
+anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
+(default) = polynomial local smoothing function. NB: this does NOT affect
+the smoothing of formant anchors}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
