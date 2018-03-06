@@ -1,10 +1,6 @@
-# TODO: rename seewave function stft() to stdft() when seewave is updated to 2.0.6 (stft is only used in formants.R);
-
 #' @import stats graphics utils grDevices
 #' @encoding UTF-8
 NULL
-
-
 
 #' Generate a sound
 #'
@@ -16,16 +12,16 @@ NULL
 #' syllable and across multiple syllables. Suggested application: synthesis of
 #' animal or human non-linguistic vocalizations. For more information, see
 #' \url{http://cogsci.se/soundgen.html} and the vignette on sound generation.
-#' @param repeatBout the number of times the whole bout should be repeated
-#' @param nSyl the number of syllables in the bout. Intonation, amplitude, and
-#'   formants contours span multiple syllables, but not multiple bouts (see
-#'   Details)
+#' @param repeatBout number of times the whole bout should be repeated
+#' @param nSyl number of syllables in the bout. Intonation, amplitude, and
+#'   formants contours span multiple syllables, but not multiple bouts
 #' @param sylLen average duration of each syllable, ms
-#' @param pauseLen average duration of pauses between syllables, ms
-#' @param pitchAnchors a numeric vector of f0 values in Hz (assuming equal time
-#'   steps) or a dataframe specifying the time (ms or 0 to 1) and value (Hz) of
-#'   each anchor. These anchors are used to create a smooth contour of
-#'   fundamental frequency f0 (pitch) within one syllable (see Examples)
+#' @param pauseLen average duration of pauses between syllables, ms (can be
+#'   negative between bouts: force with invalidArgAction = 'ignore')
+#' @param pitchAnchors a numeric vector of f0 values in Hz or a dataframe
+#'   specifying the time (ms or 0 to 1) and value (Hz) of each anchor. These
+#'   anchors are used to create a smooth contour of fundamental frequency f0
+#'   (pitch) within one syllable
 #' @param pitchAnchorsGlobal unlike \code{pitchAnchors}, these anchors are used
 #'   to create a smooth contour of average f0 across multiple syllables. The
 #'   values are in semitones relative to the existing pitch, i.e. 0 = no change
@@ -34,7 +30,7 @@ NULL
 #'   long as open phase); numeric vector or dataframe specifying time and value
 #' @param temperature hyperparameter for regulating the amount of stochasticity
 #'   in sound generation
-#' @param tempEffects a list of scale factors regulating the effect of
+#' @param tempEffects a list of scaling coefficients regulating the effect of
 #'   temperature on particular parameters. To change, specify just those pars
 #'   that you want to modify (default is 1 for all of them). \code{sylLenDep}:
 #'   duration of syllables and pauses; \code{formDrift}: formant frequencies;
@@ -49,9 +45,9 @@ NULL
 #'   \code{specDep}: rolloff, nonlinear effects, attack
 #' @param maleFemale hyperparameter for shifting f0 contour, formants, and
 #'   vocalTract to make the speaker appear more male (-1...0) or more female
-#'   (0...+1)
+#'   (0...+1); 0 = no change
 #' @param creakyBreathy hyperparameter for a rough adjustment of voice quality
-#'   from creaky (-1) to breathy (+1)
+#'   from creaky (-1) to breathy (+1); 0 = no change
 #' @param nonlinBalance hyperparameter for regulating the (approximate)
 #'   proportion of sound with different regimes of pitch effects (none /
 #'   subharmonics only / subharmonics and jitter). 0\% = no noise; 100\% = the
@@ -59,16 +55,19 @@ NULL
 #' @param nonlinDep hyperparameter for regulating the intensity of
 #'   subharmonics and jitter, 0 to 100\% (50\% = jitter and subharmonics are as
 #'   specified, <50\% weaker, >50\% stronger). Ignored if temperature = 0
+#' @param nonlinRandomWalk a numeric vector specifying the timing of nonliner
+#'   regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer
 #' @param jitterLen duration of stable periods between pitch jumps, ms. Use a
 #'   low value for harsh noise, a high value for irregular vibrato or shaky
-#'   voice
-#' @param jitterDep cycle-to-cycle random pitch variation, semitones
-#' @param vibratoFreq the rate of regular pitch modulation, or vibrato, Hz
-#' @param vibratoDep the depth of vibrato, semitones
+#'   voice (vectorized)
+#' @param jitterDep cycle-to-cycle random pitch variation, semitones (vectorized)
+#' @param vibratoFreq the rate of regular pitch modulation, or vibrato, Hz (vectorized)
+#' @param vibratoDep the depth of vibrato, semitones (vectorized)
 #' @param shimmerDep random variation in amplitude between individual glottal
-#'   cycles (0 to 100\% of original amplitude of each cycle)
+#'   cycles (0 to 100\% of original amplitude of each cycle) (vectorized)
 #' @param attackLen duration of fade-in / fade-out at each end of syllables and
-#'   noise (ms)
+#'   noise (ms): a vector of length 1 (symmetric) or 2 (separately for fade-in
+#'   and fade-out)
 #' @param rolloff basic rolloff from lower to upper harmonics, db/octave
 #'   (exponential decay). All rolloff parameters are vectorized. See
 #'   \code{\link{getRolloff}} for more details
@@ -88,7 +87,6 @@ NULL
 #' @param lipRad the effect of lip radiation on source spectrum, dB/oct
 #'   (the default of +6 dB/oct produces a high-frequency boost when the mouth is
 #'   open)
-#' @param rolloffLip same as lipRad (deprecated since soundgen 1.1.0)
 #' @param noseRad the effect of radiation through the nose on source
 #'   spectrum, dB/oct (the alternative to \code{lipRad} when the mouth is
 #'   closed)
@@ -116,34 +114,33 @@ NULL
 #'   strong subharmonics
 #' @param shortestEpoch minimum duration of each epoch with unchanging
 #'   subharmonics regime, in ms
-#' @param amDep amplitude modulation depth, %. 0: no change; 100: amplitude
+#' @param amDep amplitude modulation depth, \%. 0: no change; 100: amplitude
 #'   modulation with amplitude range equal to the dynamic range of the sound
-#' @param amFreq amplitude modulation frequency, Hz
+#' @param amFreq amplitude modulation frequency, Hz (vectorized)
 #' @param amShape amplitude modulation shape (-1 to +1, defaults to 0)
+#'   (vectorized)
 #' @param noiseAnchors a numeric vector of noise amplitudes (throwaway dB = none, 0
 #'   dB = as loud as voiced component) or a dataframe specifying the time (ms)
 #'   and amplitude (dB) of anchors for generating the noise component such as
 #'   aspiration, hissing, etc
 #' @param formantsNoise the same as \code{formants}, but for the
-#'   noise component instead of the harmonic component. If NA (default), the
-#'   noise component will be filtered through the same formants as the harmonic
+#'   unvoiced component instead of the voiced component. If NA (default), the
+#'   unvoiced component will be filtered through the same formants as the voiced
 #'   component, approximating aspiration noise [h]
-#' @param rolloffNoise rolloff of noise, dB/octave. It is analogous to
-#'   \code{rolloff}, but while \code{rolloff} applies to the harmonic component,
-#'   \code{rolloffNoise} applies to the noise component (vectorized)
+#' @param rolloffNoise linear rolloff of the excitation source for the unvoiced
+#'   component, dB/kHz (vectorized)
 #' @param mouthAnchors a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
 #'   i.e. no modification) or a dataframe specifying the time (ms) and value of
 #'   mouth opening
-#' @param amplAnchors a numeric vector of amplitude envelope (0 to 1) or a
-#'   dataframe specifying the time (ms) and value of amplitude anchors
+#' @param amplAnchors a numeric vector of amplitude envelope (dB) or a dataframe
+#'   specifying the time (ms) and value of amplitude anchors (0 = max amplitude)
 #' @param amplAnchorsGlobal a numeric vector of global amplitude envelope
 #'   spanning multiple syllables or a dataframe specifying the time (ms) and
-#'   value (0 to 1) of each anchor
-#' @param interpol the method of smoothing envelopes based on provided pitch,
-#'   amplitude, and mouth anchors: 'approx' = linear interpolation, 'spline' =
-#'   cubic spline, 'loess' (default) = polynomial local smoothing function. NB:
-#'   this does not affect noiseAnchors, glottalAnchors, and the smoothing of
-#'   formants
+#'   value (dB) of each anchor; 0 = no change
+#' @param interpol the method of smoothing envelopes based on provided anchors:
+#'   'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
+#'   = polynomial local smoothing function. NB: this does not affect
+#'   noiseAnchors, glottalAnchors, and the smoothing of formants
 #' @param discontThres,jumpThres if two anchors are closer in time than
 #'   \code{discontThres}, the contour is broken into segments with a linear
 #'   transition between these anchors; if anchors are closer than
@@ -154,9 +151,10 @@ NULL
 #' @param overlap FFT window overlap, \%
 #' @param addSilence silence before and after the bout, ms
 #' @param pitchFloor,pitchCeiling lower & upper bounds of f0
-#' @param pitchSamplingRate sampling frequency of the pitch contour only, Hz. Low
-#'   values reduce processing time. A rule of thumb is to set this to
-#'   the same value as \code{pitchCeiling}
+#' @param pitchSamplingRate sampling frequency of the pitch contour only, Hz.
+#'   Low values reduce processing time. A rule of thumb is to set this to the
+#'   same value as \code{pitchCeiling} for optimal speed and to
+#'   \code{samplingRate} for optimal quality
 #' @param throwaway discard harmonics and noise that are quieter than this
 #'   number (in dB, defaults to -80) to save computational resources
 #' @param invalidArgAction what to do if an argument is invalid or outside the
@@ -185,7 +183,7 @@ NULL
 #' # names(presets$Chimpanzee)  # calls per speaker
 #' s1 = eval(parse(text = presets$Chimpanzee$Scream_conflict))  # screaming chimp
 #' # playme(s1)
-#' s2 = eval(parse(text = presets$F1$Scream_conflict))
+#' s2 = eval(parse(text = presets$F1$Scream))
 #' # playme(s2)
 #' \dontrun{
 #' # unless temperature is 0, the sound is different every time
@@ -211,9 +209,21 @@ NULL
 #' # Jitter and mouth opening (bark, dog-like)
 #' sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
 #'   nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
-#'   pitchAnchors = data.frame(time = c(0, 0.52, 1), value = c(559, 785, 557)),
-#'   mouthAnchors = data.frame(time = c(0, 0.5, 1), value = c(0, 0.5, 0)),
+#'   pitchAnchors = c(559, 785, 557),
+#'   mouthAnchors = c(0, 0.5, 0),
 #'   vocalTract = 5, play = playback)
+#'
+#' # Use nonlinRandomWalk to crease reproducible examples of sounds with
+#' nonlinear effects. For ex., to make a sound with no effect in the first
+#' third, subharmonics in the second third, and jitter in the final third of the
+#' total duration:
+#' a = c(rep(0, 100), rep(1, 100), rep(2, 100))
+#' s = soundgen(sylLen = 800, pitchAnchors = 300, temperature = 0.001,
+#'              subFreq = 100, subDep = 70, jitterDep = 1,
+#'              nonlinRandomWalk = a, plot = T, ylim = c(0, 4))
+#'
+#' # See the vignette on sound generation for more examples and in-depth
+#' # explanation of the arguments to soundgen()
 #' }
 soundgen = function(repeatBout = 1,
                     nSyl = 1,
@@ -229,6 +239,7 @@ soundgen = function(repeatBout = 1,
                     creakyBreathy = 0,
                     nonlinBalance = 0,
                     nonlinDep = 50,
+                    nonlinRandomWalk = NULL,
                     jitterLen = 1,
                     jitterDep = 1,
                     vibratoFreq = 5,
@@ -241,7 +252,6 @@ soundgen = function(repeatBout = 1,
                     rolloffParab = 0,
                     rolloffParabHarm = 3,
                     lipRad = 6,
-                    rolloffLip = NULL,
                     noseRad = 4,
                     mouthOpenThres = 0,
                     formants = c(860, 1430, 2900),
@@ -279,10 +289,10 @@ soundgen = function(repeatBout = 1,
                     savePath = NA,
                     ...) {
   # deprecated pars
-  if (!missing(rolloffLip)) {
-    lipRad = rolloffLip
-    message('rolloffLip is deprecated; use lipRad instead')
-  }
+  # if (!missing(rolloffLip)) {
+  #   lipRad = rolloffLip
+  #   message('rolloffLip is deprecated; use lipRad instead')
+  # }
 
   # check that values of numeric arguments are valid and within range
   for (p in rownames(permittedValues)[1:which(
@@ -309,6 +319,25 @@ soundgen = function(repeatBout = 1,
       }
     }
   }
+  if (any(pauseLen < 0) && nSyl > 1) {
+    stop(paste(
+      'Negative pauseLen is allowed between bouts, but not between syllables.',
+      'Use repeatBout instead of nSyl if you need syllables to overlap'
+    ))
+  }
+
+  ## stochastic rounding of the number of syllables and repeatBouts
+  #   (eg for nSyl = 2.5, we'll have 2 or 3 syllables with equal probs)
+  #   NB: this is very useful for morphing
+  idx_nonInt_nSyl = which(!is.integer(nSyl))
+  if (any(idx_nonInt_nSyl)) {
+    nSyl[idx_nonInt_nSyl] = floor(nSyl[idx_nonInt_nSyl]) +
+      rbinom(1, 1, nSyl[idx_nonInt_nSyl] - floor(nSyl[idx_nonInt_nSyl]))
+  }
+  if (!is.integer(repeatBout)) {
+    repeatBout = floor(repeatBout) +
+      rbinom(1, 1, repeatBout - floor(repeatBout))
+  }
 
   # check and, if necessary, reformat anchors to dataframes
   for (anchor in c('pitchAnchors', 'pitchAnchorsGlobal', 'glottisAnchors',
@@ -317,9 +346,27 @@ soundgen = function(repeatBout = 1,
   }
   if (is.numeric(noiseAnchors) && length(noiseAnchors) > 0) {
     noiseAnchors = data.frame(
-      time = seq(0, sylLen, length.out = max(2, length(noiseAnchors))),
+      time = seq(0, sylLen[1], length.out = max(2, length(noiseAnchors))),
       value = noiseAnchors
     )
+  }
+
+  # check amplitude anchors and make all values negative
+  if (is.list(amplAnchors) && any(amplAnchors$value > 0)) {
+    amplAnchors$value = amplAnchors$value + throwaway
+    message(paste('The recommended range for amplAnchors is (throwaway, 0).',
+                  'If positive, values are transformed by adding throwaway'))
+  }
+
+  # for amplAnchorsGlobal, make the first value 0
+  if (is.list(amplAnchorsGlobal) && any(amplAnchorsGlobal$value != 0)) {
+    amplAnchorsGlobal$value = amplAnchorsGlobal$value - amplAnchorsGlobal$value[1]
+  }
+
+  # make sure sylLen and pauseLen are vectors of appropriate length
+  sylLen = getSmoothContour(anchors = sylLen, len = nSyl)
+  if (nSyl > 1) {
+    pauseLen = getSmoothContour(anchors = pauseLen, len = nSyl - 1)
   }
 
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
@@ -350,13 +397,6 @@ soundgen = function(repeatBout = 1,
   formantsNoise = reformatFormants(formantsNoise)
 
   ## adjust parameters according to the specified hyperparameters
-  if (!is.list(noiseAnchors)) {
-    noiseAnchors = data.frame(
-      time = c(0, sylLen),
-      value = c(throwaway, throwaway)
-    )
-  }
-
   # effects of creakyBreathy hyper
   if (creakyBreathy < 0) {
     # for creaky voice
@@ -367,7 +407,7 @@ soundgen = function(repeatBout = 1,
   } else if (creakyBreathy > 0) {
     # for breathy voice, add breathing
     if (!is.list(noiseAnchors)) {
-      noiseAnchors = data.frame(time = c(0, sylLen + 100),
+      noiseAnchors = data.frame(time = c(0, sylLen[1] + 100),
                                 value = c(throwaway, throwaway))
     }
     noiseAnchors$value = noiseAnchors$value + creakyBreathy * (-throwaway)
@@ -383,15 +423,25 @@ soundgen = function(repeatBout = 1,
   }
   # adjust rolloff for both creaky and breathy voices
   rolloff = rolloff - creakyBreathy * 10
-  rolloff[rolloff < permittedValues['rolloff', 'low']] =
-    permittedValues['rolloff', 'low']
-  rolloff[rolloff > permittedValues['rolloff', 'high']] =
-    permittedValues['rolloff', 'high']
-  rolloffOct = rolloffOct - creakyBreathy * 5
-  rolloffOct[rolloffOct < permittedValues['rolloffOct', 'low']] =
-    permittedValues['rolloffOct', 'low']
-  rolloffOct[rolloffOct > permittedValues['rolloffOct', 'high']] =
-    permittedValues['rolloffOct', 'high']
+  if (invalidArgAction != 'ignore') {
+    rolloff[rolloff < permittedValues['rolloff', 'low']] =
+      permittedValues['rolloff', 'low']
+    rolloff[rolloff > permittedValues['rolloff', 'high']] =
+      permittedValues['rolloff', 'high']
+    rolloffOct = rolloffOct - creakyBreathy * 5
+    rolloffOct[rolloffOct < permittedValues['rolloffOct', 'low']] =
+      permittedValues['rolloffOct', 'low']
+    rolloffOct[rolloffOct > permittedValues['rolloffOct', 'high']] =
+      permittedValues['rolloffOct', 'high']
+  }
+
+  # reformat noiseAnchors
+  if (!is.list(noiseAnchors)) {
+    noiseAnchors = data.frame(
+      time = c(0, sylLen[1]),
+      value = c(throwaway, throwaway)
+    )
+  }
 
   # effects of nonlinDep hyper
   subFreq = 2 * (subFreq - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50
@@ -425,17 +475,6 @@ soundgen = function(repeatBout = 1,
     }
     # vocalTract varies by 25% from the average
     vocalTract = vocalTract * (1 - .25 * maleFemale)
-  }
-
-  ## stochastic rounding of the number of syllables and repeatBouts
-  #   (eg for nSyl = 2.5, we'll have 2 or 3 syllables with equal probs)
-  #   NB: this is very useful for morphing
-  if (!is.integer(nSyl)) {
-    nSyl = floor(nSyl) + rbinom(1, 1, nSyl - floor(nSyl))
-  }
-  if (!is.integer(repeatBout)) {
-    repeatBout = floor(repeatBout) +
-      rbinom(1, 1, repeatBout - floor(repeatBout))
   }
 
   # prepare a list of pars for calling generateHarmonics()
@@ -476,6 +515,7 @@ soundgen = function(repeatBout = 1,
     'subDep' = subDep,
     'nonlinBalance' = nonlinBalance,
     'nonlinDep' = nonlinDep,
+    'nonlinRandomWalk' = nonlinRandomWalk,
     'pitchFloor' = pitchFloor,
     'pitchCeiling' = pitchCeiling,
     'pitchSamplingRate' = pitchSamplingRate,
@@ -520,6 +560,26 @@ soundgen = function(repeatBout = 1,
     class(glottisAnchors) == 'data.frame' &&
     any(glottisAnchors$value > 0)
 
+  # For polysyllabic vocalizations, calculate amplitude envelope correction
+  # per voiced syllable
+  if (!is.na(amplAnchorsGlobal) &&
+      any(amplAnchorsGlobal$value != 0)) {
+    amplEnvelope = getSmoothContour(
+      anchors = amplAnchorsGlobal,
+      len = nSyl,
+      interpol = interpol,
+      discontThres = discontThres,
+      jumpThres = jumpThres,
+      valueFloor = throwaway,
+      valueCeiling = -throwaway,
+      samplingRate = samplingRate
+    )
+    # convert from dB to linear multiplier
+    amplEnvelope = 10 ^ (amplEnvelope / 20)
+  } else {
+    amplEnvelope = rep(1, nSyl)
+  }
+
   # START OF BOUT GENERATION
   for (b in 1:repeatBout) {
     # syllable segmentation
@@ -541,6 +601,13 @@ soundgen = function(repeatBout = 1,
     noiseAnchors_syl = list()
 
     for (s in 1:nrow(syllables)) {
+      # scale noise anchors for polysyllabic sounds with lengh(sylLen) > 1
+      noiseAnchors_syl[[s]] = scaleNoiseAnchors(
+        noiseAnchors = noiseAnchors,
+        sylLen_old = sylLen[1],
+        sylLen_new = syllables$dur[s]
+      )
+
       # wiggle par values for this particular syllable, making sure
       #   they are within the permitted range for each variable
       pitchAnchors_per_syl = pitchAnchors
@@ -577,9 +644,9 @@ soundgen = function(repeatBout = 1,
         }
         if (wiggleNoise) {
           noiseAnchors_syl[[s]] = wiggleAnchors(
-            df = noiseAnchors,
+            df = noiseAnchors_syl[[s]],
             temperature = temperature,
-            low = c(-Inf, permittedValues['noiseAmpl', 'low']),
+            low = c(-Inf, throwaway),
             high = c(+Inf, permittedValues['noiseAmpl', 'high']),
             wiggleAllRows = TRUE,
             temp_coef = tempEffects$noiseAnchorsDep,
@@ -590,8 +657,8 @@ soundgen = function(repeatBout = 1,
           amplAnchors_per_syl = wiggleAnchors(
             df = amplAnchors_per_syl,
             temperature = temperature,
-            low = c(0, 0),
-            high = c(1,-throwaway),
+            low = c(0, throwaway),
+            high = c(1, 0),
             temp_coef = tempEffects$amplAnchorsDep,
             invalidArgAction = invalidArgAction
           )
@@ -640,10 +707,8 @@ soundgen = function(repeatBout = 1,
           list(pitch = pitchContour_syl,
                amplAnchors = amplAnchors_per_syl,
                glottisAnchors = glottisAnchors_per_syl)
-        ))
+        )) * amplEnvelope[s]  # correction of amplitude per syllable
         )
-        # update the actual syllable duration (varies if there is strong jitter etc)
-        dur_syl = length(syllable) / samplingRate * 1000
       }
       # spectrogram(syllable, samplingRate = samplingRate)
       # playme(syllable, samplingRate = samplingRate)
@@ -654,89 +719,45 @@ soundgen = function(repeatBout = 1,
       #   stop('The new syllable contains NA values!')
       # }
 
-      # generate pause for all but the last syllable
+      # generate a pause for all but the last syllable
       if (s < nrow(syllables)) {
-        pause = rep(0, floor((syllables[s + 1, 1] - syllables[s, 2]) *
+        pause = rep(0, floor((syllables[s + 1, 'start'] - syllables[s, 'end']) *
                                samplingRate / 1000))
       } else {
         pause = numeric()
       }
 
-      # add syllable and pause to the growing sound
+      # add syllable and pause to the growing bout
       voiced = c(voiced, syllable, pause)
 
-      # update syllable timing info, b/c with temperature > 0 there will be deviations
+      # update syllable timing info, b/c with temperature > 0, jitter etc
+      # there may be deviations from the target duration
       if (s < nrow(syllables)) {
         correction = length(voiced) / samplingRate * 1000 - syllables[s + 1, 'start']
-        syllables[(s + 1):nrow(syllables), ] = syllables[(s + 1):nrow(syllables), ] + correction
+        syllables[(s + 1):nrow(syllables), c('start', 'end')] =
+          syllables[(s + 1):nrow(syllables), c('start', 'end')] + correction
       }
 
       # generate the unvoiced part, but don't add it to the sound just yet
       if (!is.na(noiseAnchors) &&
-          sum(noiseAnchors$value > throwaway) > 0) {
-        # adjust noiseAnchors$time to match the actual syllable duration
-        noiseAnchors_syl[[s]] = noiseAnchors
-        idx_mid = which(noiseAnchors_syl[[s]]$time > 0 &  # not before syl
-                          noiseAnchors_syl[[s]]$time < sylLen)  # not after syl
-        idx_after = which(noiseAnchors_syl[[s]]$time >= sylLen)  # after syl
-        noiseAnchors_syl[[s]]$time[idx_mid] =
-          noiseAnchors_syl[[s]]$time[idx_mid] * dur_syl / sylLen
-        noiseAnchors_syl[[s]]$time[idx_after] =
-          noiseAnchors_syl[[s]]$time[idx_after] - sylLen + dur_syl
-        # negative time anchors are not changed: the pre-aspiration length
-        # is constant, regardless of the actual syllable duration.
-        # Time anchors from 0 to sylLen are proportional to the actual
-        # syllable duration re the average expected duration (which the user
-        # sees in the UI when choosing time anchors)
-        # Time anchors beyond sylLen are scaled to preserve post-aspiration len
-        unvoicedDur_syl = round(diff(range(noiseAnchors_syl[[s]]$time)) *
-                                  samplingRate / 1000)
-
-        # calculate noise spectrum
-        if (is.null(formantsNoise) || is.na(formantsNoise[1])) {
-          spectralEnvelopeNoise = NA
-        } else {
-          movingFormants = max(unlist(lapply(formantsNoise, length))) > 1 |
-            sum(mouthAnchors$value != .5) > 0 # are noise formants moving, as opposed to constant?
-          nInt = ifelse(movingFormants,
-                        round(diff(range(noiseAnchors_syl[[s]]$time)) / 10),
-                        1) # the number of different noise spectra,
-          # allowing one column (noise spectrum) per 10 ms of audio
-          spectralEnvelopeNoise = getSpectralEnvelope(
-            nr = windowLength_points / 2,
-            nc = nInt,
-            formants = formantsNoise,
-            formantDep = formantDep,
-            formantWidth = formantWidth,
-            formantDepStoch = 0,  # formantDepStoch,
-            lipRad = lipRad,
-            noseRad = noseRad,
-            mouthOpenThres = mouthOpenThres,
-            mouthAnchors = mouthAnchors,
-            interpol = interpol,
-            temperature = temperature,
-            formDrift = tempEffects$formDrift,
-            formDisp = tempEffects$formDisp,
-            samplingRate = samplingRate,
-            vocalTract = vocalTract
-          )
-          # image(t(spectralEnvelopeNoise))
-        }
-
+          any(noiseAnchors$value > throwaway)) {
+        rolloffNoise_syl = rnorm(
+          n = length(rolloffNoise),
+          mean = rolloffNoise,
+          sd = abs(rolloffNoise) * temperature * tempEffects$specDep
+        )
         # synthesize the unvoiced part
         unvoiced[[s]] = generateNoise(
-          len = unvoicedDur_syl,
+          len = round(diff(range(noiseAnchors_syl[[s]]$time)) * samplingRate / 1000),
           noiseAnchors = noiseAnchors_syl[[s]],
-          rolloffNoise = rnorm(n = length(rolloffNoise),
-                               mean = rolloffNoise,
-                               sd = abs(rolloffNoise) * temperature * tempEffects$specDep),
+          rolloffNoise = rolloffNoise_syl,
           attackLen = attackLen,
           samplingRate = samplingRate,
           windowLength_points = windowLength_points,
           overlap = overlap,
           throwaway = throwaway,
-          filterNoise = spectralEnvelopeNoise
-        )
+          filterNoise = NA # spectralEnvelopeNoise
+        ) * amplEnvelope[s]  # correction of amplitude per syllable
         # plot(unvoiced[[s]], type = 'l')
       }
     }
@@ -745,95 +766,125 @@ soundgen = function(repeatBout = 1,
     # playme(voiced, samplingRate = samplingRate)
     # END OF SYLLABLE GENERATION
 
-    ## calculate updated syllable timing for inserting unvoiced segments
-    syllableStartIdx = round(syllables[, 'start'] * samplingRate / 1000)
-    syllableStartIdx[1] = 1
-    # if noise is added before the voiced part of each syllable
-    #   (negative time anchors) or starts later than the voiced part,
-    #   we need to shift noise insertion points
-    if (!is.na(noiseAnchors) && noiseAnchors$time[1] != 0) {
-      shift = -round(noiseAnchors$time[1] * samplingRate / 1000)
-      if (noiseAnchors$time[1] < 0) {
-        # only the first syllableStartIdx is shifted, because that changes
-        # the sound length and the remaining syllableStartIdx, if any,
-        # are already shifted appropriately
-        syllableStartIdx[1] = syllableStartIdx[1] - shift
+    ## Add unvoiced fragments together
+    sound_unvoiced = rep(0, length(voiced))
+    if (length(unvoiced) > 0) {
+      for (s in 1:length(unvoiced)) {
+        # calculate where syllable s begins
+        syllableStartIdx = round(syllables[s, 'start'] * samplingRate / 1000)
+        if (s == 1) syllableStartIdx = 1  # instead of 0
+
+        # calculate where unvoiced is to be inserted
+        insertionIdx = syllableStartIdx +
+          noiseAnchors_syl[[s]]$time[1] * samplingRate / 1000
+        sound_unvoiced = addVectors(sound_unvoiced,
+                                    unvoiced[[s]],
+                                    insertionPoint = insertionIdx,
+                                    normalize = FALSE)
+
+        # update syllable timing if inserting before the bout
+        # (increasing its length)
+        if (insertionIdx < 0) {
+          syllables[, c('start', 'end')] =
+            syllables[, c('start', 'end')] - insertionIdx / samplingRate * 1000
+        }
+      }
+    }
+
+    ## Merging voiced and unvoiced components and adding formants
+    formantPars = list(
+      vocalTract = vocalTract,
+      formantDep = formantDep,
+      formantWidth = formantWidth,
+      lipRad = lipRad,
+      noseRad = noseRad,
+      mouthOpenThres = mouthOpenThres,
+      mouthAnchors = mouthAnchors,
+      interpol = interpol,
+      temperature = temperature,
+      formDrift = tempEffects$formDrift,
+      formDisp = tempEffects$formDisp,
+      samplingRate = samplingRate,
+      windowLength_points = windowLength_points,
+      overlap = overlap
+    )
+    if (length(unvoiced) > 0) {
+      if (is.null(formantsNoise) || is.na(formantsNoise)) {
+        # OPTION 1: mix voiced + unvoiced, then apply the same format filter
+        sound = addVectors(
+          voiced,
+          sound_unvoiced,
+          insertionPoint = -syllables$start[1] * samplingRate / 1000,
+          normalize = FALSE
+        )
+
+        if (length(sound) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+          soundFiltered = do.call(addFormants, c(
+            formantPars,
+            list(sound = sound,
+                 formants = formants,
+                 formantDepStoch = formantDepStoch,
+                 normalize = FALSE)
+          ))
+        } else {
+          soundFiltered = sound
+        }
       } else {
-        syllableStartIdx = syllableStartIdx - shift # shift for each syllable
+        # OPTION 2: apply different formant filters to voiced and unvoiced, then mix
+        # add formants to voiced
+        if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+          voicedFiltered = do.call(addFormants, c(
+            formantPars,
+            list(sound = voiced,
+                 formants = formants,
+                 formantDepStoch = formantDepStoch,
+                 normalize = FALSE)
+          ))
+        } else {
+          voicedFiltered = voiced
+        }
+        # add formants to unvoiced
+        if (length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+          # add extra stochastic formants to unvoiced only if vocalTract is user-specified
+          fds = ifelse(
+            is.numeric(vocalTract), formantDepStoch, 0
+          )
+          unvoicedFiltered = do.call(addFormants, c(
+            formantPars,
+            list(sound = sound_unvoiced,
+                 formants = formantsNoise,
+                 formantDepStoch = fds,
+                 normalize = FALSE)
+          ))
+        } else {
+          unvoicedFiltered = sound_unvoiced
+        }
+        # mix filtered version of the voiced and unvoiced components
+        soundFiltered = addVectors(
+          voicedFiltered,
+          unvoicedFiltered,
+          insertionPoint = -syllables$start[1] * samplingRate / 1000,
+          normalize = FALSE
+        )
       }
-    }
-
-    # if the unvoiced noise is of type "breathing" (the same formants as in
-    #   the voiced part), we mix voiced+unvoiced BEFORE filtering the sound,
-    #   otherwise we filter first and then mix voiced+unvoiced
-    sound = voiced
-    if (length(unvoiced) > 0 && (is.null(formantsNoise) || is.na(formantsNoise))) {
-      for (s in 1:length(unvoiced)) {
-        sound = addVectors(sound, unvoiced[[s]],
-                           insertionPoint = syllableStartIdx[s])
-      }
-    }
-    # plot(sound, type = 'l')
-    # spectrogram(sound, samplingRate = samplingRate)
-    # playme(sound, samplingRate = samplingRate)
-
-    # for polysyllabic vocalizations, apply amplitude envelope (if specified)
-    #   over the entire bout and normalize to -1...+1
-    if (!is.na(amplAnchorsGlobal) &&
-        length(which(amplAnchorsGlobal$value < -throwaway)) > 0) {
-      amplEnvelope = getSmoothContour(
-        anchors = amplAnchorsGlobal,
-        len = length(sound),
-        interpol = interpol,
-        discontThres = discontThres,
-        jumpThres = jumpThres,
-        valueFloor = 0,
-        valueCeiling = -throwaway,
-        samplingRate = samplingRate
-      )
-      # convert from dB to linear multiplier
-      amplEnvelope = 10 ^ (amplEnvelope / 20)
-      # plot(amplEnvelope)
-      sound = sound * amplEnvelope
-    }
-
-    # add formants
-    if (length(sound) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-      soundFiltered = addFormants(
-        sound = sound,
-        formants = formants,
-        vocalTract = vocalTract,
-        formantDep = formantDep,
-        formantWidth = formantWidth,
-        formantDepStoch = formantDepStoch,
-        lipRad = lipRad,
-        noseRad = noseRad,
-        mouthOpenThres = mouthOpenThres,
-        mouthAnchors = mouthAnchors,
-        interpol = interpol,
-        temperature = temperature,
-        formDrift = tempEffects$formDrift,
-        formDisp = tempEffects$formDisp,
-        samplingRate = samplingRate,
-        windowLength_points = windowLength_points,
-        overlap = overlap
-      )
     } else {
-      soundFiltered = sound
-    }
-    # spectrogram(soundFiltered, samplingRate = samplingRate)
-    # playme(soundFiltered, samplingRate = samplingRate)
-
-    # add the separately filtered noise back into the sound
-    # at the appropriate time points AFTER filtering the sound
-    if (length(unvoiced) > 0 && is.list(formantsNoise)) {
-      for (s in 1:length(unvoiced)) {
-        soundFiltered = addVectors(soundFiltered, unvoiced[[s]],
-                                   insertionPoint = syllableStartIdx[s])
+      # no unvoiced component - just add formants to voiced
+      if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+        soundFiltered = do.call(addFormants, c(
+          formantPars,
+          list(sound = voiced,
+               formants = formants,
+               formantDepStoch = formantDepStoch,
+               normalize = FALSE)
+        ))
+      } else {
+        soundFiltered = voiced
       }
-    } # plot(soundFiltered, type = 'l')
+    }
+    # plot(soundFiltered, type = 'l')
 
     # trill - rapid regular amplitude modulation
+    # (affects both voiced and unvoiced)
     if (any(amDep > 0)) {
       # trill = 1 - sin(2 * pi * (1:length(soundFiltered)) /
       #                  samplingRate * amFreq) * amDep / 100
@@ -856,11 +907,17 @@ soundgen = function(repeatBout = 1,
     if (b == 1) {
       bout = soundFiltered
     } else {
-      bout = c(bout,
-               rep(0, pauseLen * samplingRate / 1000),
-               soundFiltered)
+      bout = addVectors(
+        bout,
+        soundFiltered,
+        insertionPoint = length(bout) + round(pauseLen[1] * samplingRate / 1000),
+        normalize = FALSE
+      )
     }
   }
+
+  # normalize
+  bout = bout / max(abs(bout))
 
   # add some silence before and after the entire bout
   if (is.numeric(addSilence)) {
@@ -875,7 +932,7 @@ soundgen = function(repeatBout = 1,
   if (!is.na(savePath)) {
     seewave::savewav(bout, filename = savePath, f = samplingRate)
   }
-  if(plot) {
+  if (plot) {
     spectrogram(bout, samplingRate = samplingRate, ...)
   }
   return(bout)

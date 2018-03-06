@@ -5,12 +5,13 @@
 \title{Generate harmonics}
 \usage{
 generateHarmonics(pitch, glottisAnchors = 0, attackLen = 50,
-  nonlinBalance = 0, nonlinDep = 50, jitterDep = 0, jitterLen = 1,
-  vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0, creakyBreathy = 0,
-  rolloff = -9, rolloffOct = -3, rolloffKHz = -3, rolloffParab = 0,
-  rolloffParabHarm = 3, rolloff_perAmpl = 3, temperature = 0.025,
-  pitchDriftDep = 0.5, pitchDriftFreq = 0.125, amplDriftDep = 5,
-  subDriftDep = 4, rolloffDriftDep = 3, randomWalk_trendStrength = 0.5,
+  nonlinBalance = 0, nonlinDep = 50, nonlinRandomWalk = NULL,
+  jitterDep = 0, jitterLen = 1, vibratoFreq = 5, vibratoDep = 0,
+  shimmerDep = 0, creakyBreathy = 0, rolloff = -9, rolloffOct = -3,
+  rolloffKHz = -3, rolloffParab = 0, rolloffParabHarm = 3,
+  rolloff_perAmpl = 3, temperature = 0.025, pitchDriftDep = 0.5,
+  pitchDriftFreq = 0.125, amplDriftDep = 5, subDriftDep = 4,
+  rolloffDriftDep = 3, randomWalk_trendStrength = 0.5,
   shortestEpoch = 300, subFreq = 100, subDep = 0, amplAnchors = NA,
   overlap = 75, samplingRate = 16000, pitchFloor = 75,
   pitchCeiling = 3500, pitchSamplingRate = 3500, throwaway = -80)
@@ -26,7 +27,8 @@ cycle with closed glottis, % (0 = no modification, 100 = closed phase as
 long as open phase); numeric vector or dataframe specifying time and value}
 
 \item{attackLen}{duration of fade-in / fade-out at each end of syllables and
-noise (ms)}
+noise (ms): a vector of length 1 (symmetric) or 2 (separately for fade-in
+and fade-out)}
 
 \item{nonlinBalance}{hyperparameter for regulating the (approximate)
 proportion of sound with different regimes of pitch effects (none /
@@ -37,21 +39,24 @@ entire sound has jitter + subharmonics. Ignored if temperature = 0}
 subharmonics and jitter, 0 to 100\% (50\% = jitter and subharmonics are as
 specified, <50\% weaker, >50\% stronger). Ignored if temperature = 0}
 
-\item{jitterDep}{cycle-to-cycle random pitch variation, semitones}
+\item{nonlinRandomWalk}{a numeric vector specifying the timing of nonliner
+regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer}
+
+\item{jitterDep}{cycle-to-cycle random pitch variation, semitones (vectorized)}
 
 \item{jitterLen}{duration of stable periods between pitch jumps, ms. Use a
 low value for harsh noise, a high value for irregular vibrato or shaky
-voice}
+voice (vectorized)}
 
-\item{vibratoFreq}{the rate of regular pitch modulation, or vibrato, Hz}
+\item{vibratoFreq}{the rate of regular pitch modulation, or vibrato, Hz (vectorized)}
 
-\item{vibratoDep}{the depth of vibrato, semitones}
+\item{vibratoDep}{the depth of vibrato, semitones (vectorized)}
 
 \item{shimmerDep}{random variation in amplitude between individual glottal
-cycles (0 to 100\% of original amplitude of each cycle)}
+cycles (0 to 100\% of original amplitude of each cycle) (vectorized)}
 
 \item{creakyBreathy}{hyperparameter for a rough adjustment of voice quality
-from creaky (-1) to breathy (+1)}
+from creaky (-1) to breathy (+1); 0 = no change}
 
 \item{rolloff}{basic rolloff from lower to upper harmonics, db/octave
 (exponential decay). All rolloff parameters are vectorized. See
@@ -105,8 +110,8 @@ strength of subharmonics fades as they move away from harmonics in f0
 stack. Low values produce narrow sidebands, high values produce uniformly
 strong subharmonics}
 
-\item{amplAnchors}{a numeric vector of amplitude envelope (0 to 1) or a
-dataframe specifying the time (ms) and value of amplitude anchors}
+\item{amplAnchors}{a numeric vector of amplitude envelope (dB) or a dataframe
+specifying the time (ms) and value of amplitude anchors (0 = max amplitude)}
 
 \item{overlap}{FFT window overlap, \%}
 
@@ -116,9 +121,10 @@ dataframe specifying the time (ms) and value of amplitude anchors}
 
 \item{pitchCeiling}{lower & upper bounds of f0}
 
-\item{pitchSamplingRate}{sampling frequency of the pitch contour only, Hz. Low
-values reduce processing time. A rule of thumb is to set this to
-the same value as \code{pitchCeiling}}
+\item{pitchSamplingRate}{sampling frequency of the pitch contour only, Hz.
+Low values reduce processing time. A rule of thumb is to set this to the
+same value as \code{pitchCeiling} for optimal speed and to
+\code{samplingRate} for optimal quality}
 
 \item{throwaway}{discard harmonics and noise that are quieter than this
 number (in dB, defaults to -80) to save computational resources}

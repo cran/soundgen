@@ -54,8 +54,8 @@
 #' @param sylPlot a list of graphical parameters for displaying the syllables
 #' @param burstPlot a list of graphical parameters for displaying the bursts
 #' @param col,xlab,ylab,main main plotting parameters
-#' @param width,height,units parameters passed to \code{\link[grDevices]{jpeg}}
-#'   if the plot is saved
+#' @param width,height,units,res parameters passed to
+#'   \code{\link[grDevices]{jpeg}} if the plot is saved
 #' @param ... other graphical parameters passed to \code{\link[graphics]{plot}}
 #' @return If \code{summary = TRUE}, returns only a summary of the number and
 #'   spacing of syllables and vocal bursts. If \code{summary = FALSE}, returns a
@@ -118,6 +118,7 @@ segment = function(x,
                    width = 900,
                    height = 500,
                    units = 'px',
+                   res = NA,
                    sylPlot = list(
                      lty = 1,
                      lwd = 2,
@@ -224,7 +225,7 @@ segment = function(x,
       last_char = substr(savePath, nchar(savePath), nchar(savePath))
       if(last_char != '/') savePath = paste0(savePath, '/')
       jpeg(filename = paste0(savePath, plotname, ".jpg"),
-           width = width, height = height, units = units)
+           width = width, height = height, units = units, res = res)
     }
     plot(x = envelope$time, y = envelope$value, type = 'l', col = col,
          xlab = xlab, ylab = ylab, main = main, ...)
@@ -280,6 +281,8 @@ segment = function(x,
 #'
 #' @param myfolder full path to target folder
 #' @inheritParams segment
+#' @param savePlots if TRUE, saves plots as .jpg files
+#' @param htmlPlots if TRUE, saves an html file with clickable plots
 #' @param verbose,reportEvery if TRUE, reports progress every \code{reportEvery}
 #'   files and estimated time left
 #' @return If \code{summary} is TRUE, returns a dataframe with one row per audio
@@ -302,6 +305,7 @@ segment = function(x,
 #' abline(a=0, b=1, col='red')
 #' }
 segmentFolder = function (myfolder,
+                          htmlPlots = TRUE,
                           shortestSyl = 40,
                           shortestPause = 40,
                           sylThres = 0.9,
@@ -315,6 +319,7 @@ segmentFolder = function (myfolder,
                           overlap = 80,
                           summary = TRUE,
                           plot = FALSE,
+                          savePlots = FALSE,
                           savePath = NA,
                           verbose = TRUE,
                           reportEvery = 10,
@@ -325,6 +330,7 @@ segmentFolder = function (myfolder,
                           width = 900,
                           height = 500,
                           units = 'px',
+                          res = NA,
                           sylPlot = list(
                             lty = 1,
                             lwd = 2,
@@ -336,21 +342,28 @@ segmentFolder = function (myfolder,
                             col = 'red'
                           ),
                           ...) {
+  # deprecated pars
+  if (!missing(savePath)) {
+    message('savePath is deprecated; use savePlots = TRUE instead')
+  }
+
   time_start = proc.time()  # timing
   # open all .wav files in folder
   filenames = list.files(myfolder, pattern = "*.wav", full.names = TRUE)
   filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
   myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude unnecessary args
-  myPars = myPars[!names(myPars) %in% c('myfolder', 'verbose', 'reportEvery',
-                                        'sylPlot', 'burstPlot')]  # otherwise flattens lists
+  myPars = myPars[!names(myPars) %in% c(
+    'myfolder', 'htmlPlots', 'verbose', 'savePlots',
+    'reportEvery', 'sylPlot', 'burstPlot')]  # otherwise flattens lists
   # exclude ...
   myPars = myPars[1:(length(myPars)-1)]
   # add back sylPlot and burstPlot
   myPars$sylPlot = sylPlot
   myPars$burstPlot = burstPlot
-  result = list()
+  if (savePlots) myPars$savePath = myfolder
 
+  result = list()
   for (i in 1:length(filenames)) {
     result[[i]] = do.call(segment, c(filenames[i], myPars, ...))
     if (verbose) {
@@ -372,6 +385,10 @@ segmentFolder = function (myfolder,
   } else {
     output = result
     names(output) = filenames
+  }
+
+  if (htmlPlots & savePlots) {
+    htmlPlots(myfolder, myfiles = filenames)
   }
 
   return (output)

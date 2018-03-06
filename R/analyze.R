@@ -103,8 +103,8 @@
 #' @param pitchPlot a list of graphical parameters for displaying the final
 #'   pitch contour. Set to \code{NULL} or \code{NA} to suppress
 #' @param xlab,ylab,main plotting parameters
-#' @param width,height,units parameters passed to \code{\link[grDevices]{jpeg}}
-#'   if the plot is saved
+#' @param width,height,units,res parameters passed to
+#'   \code{\link[grDevices]{jpeg}} if the plot is saved
 #' @param ... other graphical parameters passed to \code{\link{spectrogram}}
 #' @return If \code{summary = TRUE}, returns a dataframe with one row and three
 #'   column per acoustic variable (mean / median / SD). If \code{summary =
@@ -117,10 +117,9 @@
 #'   measures.
 #' @export
 #' @examples
-#' sound = soundgen(sylLen = 300, pitchAnchors = list(
-#'   time = c(0, .5, 1), value = c(900, 400, 2300)),
+#' sound = soundgen(sylLen = 300, pitchAnchors = c(900, 400, 2300),
 #'   noiseAnchors = list(time = c(0, 300), value = c(-40, 00)),
-#'   temperature = 0, addSilence = 0, overlap = 0)
+#'   temperature = 0.001, addSilence = 0)
 #' # playme(sound, 16000)
 #' a = analyze(sound, samplingRate = 16000, plot = TRUE)
 #'
@@ -128,10 +127,10 @@
 #' sound1 = soundgen(sylLen = 900, pitchAnchors = list(
 #'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
 #'   noiseAnchors = list(time = c(0, 300), value = c(-40, 00)),
-#'   temperature = 0, addSilence = 0)
+#'   temperature = 0.001, addSilence = 0)
 #' # improve the quality of postprocessing:
 #' a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
-#' median(a1$pitch, na.rm = TRUE)  # 586 Hz
+#' median(a1$pitch, na.rm = TRUE)  # 578 Hz
 #' # (can vary, since postprocessing is stochastic)
 #' # compare to the true value:
 #' median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
@@ -141,7 +140,7 @@
 #' sound2 = soundgen(sylLen = 900, pitchAnchors = list(
 #'   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
 #'   noiseAnchors = list(time = c(0, 900), value = c(-40, 20)),
-#'   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0)
+#'   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0.001)
 #' # playme(sound2, 16000)
 #' a2 = analyze(sound2, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
 #' # many candidates are off, but the overall contour should be mostly accurate
@@ -222,6 +221,7 @@ analyze = function(x,
                    width = 900,
                    height = 500,
                    units = 'px',
+                   res = NA,
                    ...) {
   ## preliminaries
   # deprecated args
@@ -440,7 +440,7 @@ analyze = function(x,
                'sound',
                plotname)
     jpeg(filename = paste0(savePath, f, ".jpg"),
-         width = width, height = height, units = 'px')
+         width = width, height = height, units = units, res = res)
   }
   frameBank = getFrameBank(
     sound = sound,
@@ -841,13 +841,15 @@ analyze = function(x,
 }
 
 
-#' Analyze sound
+#' Analyze folder
 #'
 #' Acoustic analysis of all .wav files in a folder.
 #' @param myfolder full path to target folder
 #' @param verbose if TRUE, reports progress and estimated time left
 #' @inheritParams analyze
 #' @inheritParams spectrogram
+#' @param savePlots if TRUE, saves plots as .jpg files
+#' @param htmlPlots if TRUE, saves an html file with clickable plots
 #' @return If \code{summary} is TRUE, returns a dataframe with one row per audio
 #'   file. If \code{summary} is FALSE, returns a list of detailed descriptives.
 #' @export
@@ -868,6 +870,7 @@ analyze = function(x,
 #' abline(a=0, b=1, col='red')
 #' }
 analyzeFolder = function(myfolder,
+                         htmlPlots = TRUE,
                          verbose = TRUE,
                          samplingRate = NULL,
                          silence = 0.04,
@@ -914,6 +917,7 @@ analyzeFolder = function(myfolder,
                          smoothVars = c('pitch', 'dom'),
                          summary = TRUE,
                          plot = FALSE,
+                         savePlots = FALSE,
                          savePath = NA,
                          plotSpec = TRUE,
                          specPlot = NULL,
@@ -934,6 +938,7 @@ analyzeFolder = function(myfolder,
                          width = 900,
                          height = 500,
                          units = 'px',
+                         res = NA,
                          ...) {
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav", full.names = TRUE)
@@ -945,6 +950,9 @@ analyzeFolder = function(myfolder,
   if (!missing(specPlot)) {
     message('specPlot is deprecated; pass its arguments directly to the main function or set plotSpec = FALSE to remove the spectrogram')
   }
+  if (!missing(savePath)) {
+    message('savePath is deprecated; use savePlots = TRUE instead')
+  }
 
   # as.list(match.call()) also works, but we want to get default args as well,
   # since plot should default to TRUE for analyze() and FALSE for analyzeFolder(),
@@ -952,13 +960,15 @@ analyzeFolder = function(myfolder,
   # See https://stackoverflow.com/questions/14397364/match-call-with-default-arguments
   myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude some args
-  myPars = myPars[!names(myPars) %in% c('myfolder' , 'verbose', 'specPlot',
-                                        'pitchPlot', 'candPlot')]
+  myPars = myPars[!names(myPars) %in% c(
+    'myfolder' , 'htmlPlots', 'verbose', 'savePlots',
+    'specPlot', 'pitchPlot', 'candPlot')]
   # exclude ...
   myPars = myPars[1:(length(myPars)-1)]
   # add plot pars correctly, without flattening the lists
   myPars$pitchPlot = pitchPlot
   myPars$candPlot = candPlot
+  if (savePlots) myPars$savePath = myfolder
 
   result = list()
   for (i in 1:length(filenames)) {
@@ -980,6 +990,10 @@ analyzeFolder = function(myfolder,
   } else {
     output = result
     names(output) = filenames
+  }
+
+  if (htmlPlots & savePlots) {
+    htmlPlots(myfolder, myfiles = filenames)
   }
 
   return (output)

@@ -4,8 +4,8 @@
 \alias{generateNoise}
 \title{Generate noise}
 \usage{
-generateNoise(len, noiseAnchors = data.frame(time = c(0, 300), value = c(-80,
-  -80)), rolloffNoise = -4, attackLen = 10, flatSpectrum = 1200,
+generateNoise(len, noiseAnchors = data.frame(time = c(0, 300), value = c(0,
+  0)), rolloffNoise = -4, attackLen = 10, flatSpectrum = 1200,
   windowLength_points = 1024, samplingRate = 16000, overlap = 75,
   throwaway = -80, filterNoise = NA)
 }
@@ -20,12 +20,12 @@ breathing = 500 - (-100) = 600 ms). noiseAnchors$value: the amount of
 aspiration noise at the given time anchors (to be smoothed). throwaway =
 no breathing, 0 = as strong as the voiced (harmonic) part}
 
-\item{rolloffNoise}{rolloff of noise, dB/octave. It is analogous to
-\code{rolloff}, but while \code{rolloff} applies to the harmonic component,
-\code{rolloffNoise} applies to the noise component (vectorized)}
+\item{rolloffNoise}{linear rolloff of the excitation source for the unvoiced
+component, dB/kHz (vectorized)}
 
 \item{attackLen}{duration of fade-in / fade-out at each end of syllables and
-noise (ms)}
+noise (ms): a vector of length 1 (symmetric) or 2 (separately for fade-in
+and fade-out)}
 
 \item{flatSpectrum}{keep spectrum flat up to ... Hz (ie rolloffNoise applies
 only above this frequency)}

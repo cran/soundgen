@@ -57,7 +57,7 @@
 #'   real numbers.
 #' @examples
 #' # synthesize a sound 1 s long, with gradually increasing hissing noise
-#' sound = soundgen(sylLen = 1000, temperature = 0, noiseAnchors = list(
+#' sound = soundgen(sylLen = 1000, temperature = 0.001, noiseAnchors = list(
 #'   time = c(0, 1300), value = c(-120, 0)), formantsNoise = list(
 #'   f1 = list(freq = 5000, width = 10000)))
 #' # playme(sound, samplingRate = 16000)
@@ -297,7 +297,7 @@ spectrogram = function(x,
         sound,
         type = "l", xaxs = "i", yaxs = "i",
         xlab = xlab, ylab = '', main = '', ...)
-      axis(side = 1, labels = TRUE)
+      axis(side = 1, labels = TRUE, ...)
       abline(h = 0, lty = 2)
       par(mar = c(0, 4.1, 2.1, 2.1), xaxt = 'n', yaxt = 's')
       xlab = ''
@@ -319,6 +319,85 @@ spectrogram = function(x,
     return (t(Z))  # before denoising
   } else if (output == 'processed') {
     return (t(Z1))  # denoised spectrum / spectralDerivative
+  }
+}
+
+
+#' Save spectrograms per folder
+#'
+#' Creates spectrograms of all .wav files in a folder and save them as .jpeg
+#' files in the same folder. This is a lot faster than running
+#' \code{\link{analyzeFolder}} if you don't need pitch tracking. By default it
+#' also creates an html file with a list of audio files and their spectrograms
+#' in the same folder. If you open it in a browser that supports playing .wav
+#' files (e.g. Firefox or Chrome), you can view the spetrograms and click on
+#' them to play each sound. Unlike \code{\link{analyzeFolder}},
+#' spectrogramFolder supports plotting both a spectrogram and an oscillogram if
+#' \code{osc = TRUE}.
+#' @inheritParams spectrogram
+#' @inheritParams analyzeFolder
+#' @param myfolder full path to the folder containing .wav files
+#' @param htmlPlots if TRUE, saves an html file with clickable plots
+#' @param ... other parameters passed to \code{\link{spectrogram}}
+#' @export
+#' @examples
+#' \dontrun{
+#' spectrogramFolder('~/Downloads/temp',
+#'                   windowLength = 40, overlap = 75,  # spectrogram pars
+#'                   width = 1500, height = 900        # passed to jpeg()
+#'                   )
+#' # note that the folder now also contains an html file with clickable plots
+#' }
+spectrogramFolder = function(myfolder,
+                             htmlPlots = TRUE,
+                             verbose = TRUE,
+                             windowLength = 50,
+                             step = NULL,
+                             overlap = 50,
+                             wn = 'gaussian',
+                             zp = 0,
+                             ylim = NULL,
+                             osc = TRUE,
+                             xlab = 'Time, ms',
+                             ylab = 'kHz',
+                             width = 900,
+                             height = 500,
+                             units = 'px',
+                             res = NA,
+                             ...) {
+  time_start = proc.time()  # timing
+  filenames = list.files(myfolder, pattern = "*.wav", full.names = TRUE)
+  # in order to provide more accurate estimates of time to completion,
+  # check the size of all files in the target folder
+  filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
+
+  for (i in 1:length(filenames)) {
+    # strip .wav extension
+    f = substr(as.character(filenames[i]), 1, nchar(as.character(filenames[i])) - 4)
+    jpeg(filename = paste0(f, ".jpg"),
+         width = width, height = height,
+         units = units, res = res)
+    do.call(spectrogram, list(
+      x = filenames[i],
+      windowLength = windowLength,
+      step = step,
+      overlap = overlap,
+      wn = wn,
+      zp = zp,
+      ylim = ylim,
+      osc = osc,
+      xlab = xlab,
+      ylab = ylab,
+      main = basename(f),
+      ...))
+    dev.off()
+    if (verbose) {
+      reportTime(i = i, nIter = length(filenames),
+                 time_start = time_start, jobs = filesizes)
+    }
+  }
+  if (htmlPlots) {
+    htmlPlots(myfolder, myfiles = filenames)
   }
 }
 
@@ -389,6 +468,12 @@ getFrameBank = function(sound,
                         zp,
                         filter = NULL) {
   # # normalize to range from no less than -1 to no more than +1
+  if (!is.numeric(sound)) {
+    return(NA)
+  }
+  if (any(is.na(sound))) {
+    sound[is.na(sound)] = 0
+  }
   if (any(sound != 0)) {
     sound = sound - mean(sound)
     sound = sound / max(abs(max(sound)), abs(min(sound)))

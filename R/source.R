@@ -60,7 +60,7 @@
 generateNoise = function(len,
                          noiseAnchors = data.frame(
                            time = c(0, 300),
-                           value = c(-80, -80)
+                           value = c(0, 0)
                          ),
                          rolloffNoise = -4,
                          attackLen = 10,
@@ -152,15 +152,18 @@ generateNoise = function(len,
   )
   breathing = matchLengths(breathing, len = len)  # pad with 0s or trim
   breathing = breathing / max(breathing) * breathingStrength # normalize
+
   # add attack
-  if (is.numeric(attackLen) && attackLen > 0) {
+  if (is.numeric(attackLen) && any(attackLen > 0)) {
     l = floor(attackLen * samplingRate / 1000)
+    if (length(l) == 1) l = c(l, l)
     breathing = fade(
       breathing,
-      fadeIn = l,
-      fadeOut = l
+      fadeIn = l[1],
+      fadeOut = l[2]
     )
   }
+
   # plot(breathing, type = 'l')
   # playme(breathing, samplingRate = samplingRate)
   # spectrogram(breathing, samplingRate = samplingRate)
@@ -200,6 +203,7 @@ generateHarmonics = function(pitch,
                              attackLen = 50,
                              nonlinBalance = 0,
                              nonlinDep = 50,
+                             nonlinRandomWalk = NULL,
                              jitterDep = 0,
                              jitterLen = 1,
                              vibratoFreq = 5,
@@ -231,7 +235,15 @@ generateHarmonics = function(pitch,
                              throwaway = -80) {
   ## PRE-SYNTHESIS EFFECTS (NB: the order in which effects are added is NOT arbitrary!)
   # vibrato (performed on pitch, not pitch_per_gc!)
-  if (vibratoDep > 0) {
+  if (any(vibratoDep > 0)) {
+    if (length(vibratoFreq) > 1) {
+      vibratoFreq = getSmoothContour(anchors = vibratoFreq,
+                                     len = length(pitch))
+    }
+    if (length(vibratoDep) > 1) {
+      vibratoDep = getSmoothContour(anchors = vibratoDep,
+                                     len = length(pitch))
+    }
     vibrato = 2 ^ (sin(2 * pi * (1:length(pitch)) * vibratoFreq /
                          pitchSamplingRate) * vibratoDep / 12)
     # plot(vibrato[], type = 'l')
@@ -244,51 +256,60 @@ generateHarmonics = function(pitch,
   nGC = length(pitch_per_gc)
 
   # generate a short amplitude contour to adjust rolloff per glottal cycle
-  if (!is.na(amplAnchors) &&
-      length(which(amplAnchors$value < -throwaway)) > 0) {
+  if (!is.na(amplAnchors) && any(amplAnchors$value != 0)) {
     amplContour = getSmoothContour(
       anchors = amplAnchors,
       len = nGC,
-      valueFloor = 0,
-      valueCeiling = -throwaway,
+      valueFloor = throwaway,
+      valueCeiling = 0,
       samplingRate = samplingRate
     )
     # plot(amplContour, type='l')
-    amplContour = amplContour / abs(throwaway) - 1
+    amplContour = (amplContour + abs(throwaway)) / abs(throwaway) - 1
     rolloffAmpl = amplContour * rolloff_perAmpl
   } else {
     rolloffAmpl = rep(0, nGC)
   }
 
   # get a random walk for intra-syllable variation
-  if (temperature > 0 && nonlinBalance < 100) {
+  if (temperature > 0 &&
+      (nonlinBalance < 100 | !is.null(nonlinRandomWalk))) {
     rw = getRandomWalk(
       len = nGC,
       rw_range = temperature,
       trend = c(randomWalk_trendStrength, -randomWalk_trendStrength),
       rw_smoothing = .3
     ) # plot(rw, type = 'l')
-    rw_0_100 = zeroOne(rw) * 100
-    # plot (rw_0_100, type = 'l')
-    rw_bin = getIntegerRandomWalk(
-      rw_0_100,
-      nonlinBalance = nonlinBalance,
-      minLength = ceiling(shortestEpoch / 1000 * pitch_per_gc)
-    )
-    # minLength is shortestEpoch / period_ms, where
-    #   period_ms = 1000 / pitch_per_gc
     rw = rw - mean(rw) + 1 # change mean(rw) to 1
+    if (is.null(nonlinRandomWalk)) {
+      rw_0_100 = zeroOne(rw) * 100
+      # plot(rw_0_100, type = 'l')
+      rw_bin = getIntegerRandomWalk(
+        rw_0_100,
+        nonlinBalance = nonlinBalance,
+        minLength = ceiling(shortestEpoch / 1000 * pitch_per_gc)
+        # minLength is shortestEpoch / period_ms, where
+        #   period_ms = 1000 / pitch_per_gc
+      )
+    } else {
+      # interpolate or downsample user-provided random walk by simple repetition,
+      # so that its new length = nGC (overrides shortestEpoch)
+      rw_bin = approx(nonlinRandomWalk, n = nGC, method = 'constant')$y
+      # plot(rw_bin)
+    }
     vocalFry_on = (rw_bin > 0) # when is vocal fry on? For ex., rw_bin==1
     #   sets vocal fry on only in regime 1, while rw_bin>0 sets vocal fry on
     #   in regimes 1 and 2 (i.e. together with jitter)
     jitter_on = shimmer_on = (rw_bin == 2)
   } else {
     rw = rep(1, nGC)
-    vocalFry_on = jitter_on = shimmer_on = rep(1, nGC)
+    vocalFry_on = jitter_on = shimmer_on = rep(TRUE, nGC)
   }
 
   # calculate jitter (random variation of F0)
-  if (jitterDep > 0 & nonlinBalance > 0) {
+  if (any(jitterDep > 0) & any(jitter_on)) {
+    if (length(jitterDep) > 1) jitterDep = getSmoothContour(jitterDep, len = nGC)
+    if (length(jitterLen) > 1) jitterLen = getSmoothContour(jitterLen, len = nGC)
     ratio = pitch_per_gc * jitterLen / 1000 # the number of gc that make
     #   up one jitter period (vector of length nGC)
     idx = 1
@@ -374,7 +395,8 @@ generateHarmonics = function(pitch,
   # image(t(log(rolloff_source)))
 
   # add shimmer (random variation in amplitude)
-  if (shimmerDep > 0 & nonlinBalance > 0) {
+  if (any(shimmerDep > 0) & any(shimmer_on)) {
+    if (length(shimmerDep) > 1) shimmerDep = getSmoothContour(shimmerDep, len = nGC)
     shimmer = 2 ^ (rnorm (
       n = ncol(rolloff_source),
       mean = 0,
@@ -390,7 +412,9 @@ generateHarmonics = function(pitch,
 
   # add vocal fry (subharmonics)
   if (!synthesize_per_gc &&  # can't add subharmonics if doing one gc at a time (one f0 period)
-      subDep > 0 & nonlinBalance > 0) {
+      any(subDep > 0) & any(vocalFry_on)) {
+    if (length(subFreq) > 1) subFreq = getSmoothContour(subFreq, len = nGC)
+    if (length(subDep) > 1) subDep = getSmoothContour(subDep, len = nGC, valueFloor = .001)
     vocalFry = getVocalFry(
       rolloff = rolloff_source,
       pitch_per_gc = pitch_per_gc,
@@ -443,26 +467,26 @@ generateHarmonics = function(pitch,
 
   ## POST-SYNTHESIS EFFECTS
   # apply amplitude envelope and normalize to be on the same scale as breathing
-  if (!is.na(amplAnchors) &&
-      length(which(amplAnchors$value < -throwaway)) > 0) {
+  if (!is.na(amplAnchors) && any(amplAnchors$value != 0)) {
     amplEnvelope = getSmoothContour(
       anchors = amplAnchors,
       len = length(waveform),
-      valueFloor = 0,
+      valueFloor = throwaway,
       samplingRate = samplingRate
     )
-    # plot (amplEnvelope, type = 'l')
+    # plot(amplEnvelope, type = 'l')
     # convert from dB to linear multiplier
     amplEnvelope = 10 ^ (amplEnvelope / 20)
     waveform = waveform * amplEnvelope
   }
 
   # add attack
-  if (attackLen > 0) {
+  if (is.numeric(attackLen) && any(attackLen > 0)) {
     l = floor(attackLen * samplingRate / 1000)
+    if (length(l) == 1) l = c(l, l)
     waveform = fade(waveform,
-                    fadeIn = l,
-                    fadeOut = l)
+                    fadeIn = l[1],
+                    fadeOut = l[2])
     # plot(waveform, type = 'l')
   }
 
@@ -475,7 +499,6 @@ generateHarmonics = function(pitch,
     waveform = waveform * drift_upsampled ^ amplDriftDep
     # plot(drift_upsampled, type = 'l')
   }
-  waveform = waveform / max(waveform)
   # playme(waveform, samplingRate = samplingRate)
   # spectrogram(waveform, samplingRate = samplingRate)
   return(waveform)
@@ -732,6 +755,7 @@ fart = function(glottisAnchors = c(350, 700),
 #' to be very short.
 #' @inheritParams soundgen
 #' @param nSyl the number of syllables to generate
+#' @param pauseLen average duration of pauses between syllables, ms
 #' @param fadeOut if TRUE, a linear fade-out is applied to the entire syllable
 #' @return Returns a non-normalized waveform centered at zero.
 #' @export

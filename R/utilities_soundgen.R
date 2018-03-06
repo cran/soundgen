@@ -112,6 +112,86 @@ playme = function(sound, samplingRate = 16000) {
 }
 
 
+
+#' HTML for clickable plots
+#'
+#' Internal soundgen function
+#'
+#' Writes an html file for displaying clickable plots in a browser.
+#' @param myfolder full path to target folder, without a '/' at the end
+#' @param myfiles a list of full names of files (with paths and extensions)
+#' @keywords internal
+#' @examples
+#' \dontrun{
+#' htmlPlots(myfolder = '~/Downloads/temp',
+#'           myfiles = c('~/Downloads/temp/myfile1.wav',
+#'                       '~/Downloads/temp/myfile2.wav'))
+#' }
+htmlPlots = function(myfolder, myfiles) {
+  # a list of basenames without extension
+  basenames = basename(myfiles)
+  basenames_stripped = as.character(sapply(
+    basenames,
+    function(x) substr(x, 1, nchar(x) - 4)
+  )
+  )
+  n = paste0(basenames_stripped, collapse = "', '")
+  n = paste0("var mylist = ['", n, "'];")
+
+  # create an html file to display nice, clickable spectrograms
+  out_html = file(paste0(myfolder,'/00_clickable_plots.html'))
+  writeLines(
+    c("<!DOCTYPE html>",
+      "<html>",
+      "<head>",
+      "<title>Labels</title>",
+      "<meta charset='UTF-8'>",
+      "<style>",
+      "table { width:100%; float:center; }",
+      "table, th, td { border: 1px solid black; border-collapse: collapse; }",
+      "th, td { padding: 5px; text-align: center; }",
+      "table#t01 tr:nth-child(even) { background-color: #eee; }",
+      "table#t01 tr:nth-child(odd) { background-color:#fff; }",
+      "table#t01 th	{ background-color: black; color: white; }",
+      "</style>",
+      "<script>",
+      n,
+      "</script>",
+      "</head>",
+      "<body>",
+      "<div id='instruction' style='font-size:200%; padding:5px; text-align:center'>Plots of all files in a folder</div>",
+      "<div id='container'> </div>",
+      "<script>",
+      "var sound = [];",
+      "var image = [];",
+      "var table = document.createElement('table'), tr, td, row, cell;",
+      "for (row = 0; row < mylist.length; row++) {",
+      "  sound[row] = mylist[row] + '.wav';",
+      "  image[row] = mylist[row] + '.jpg';",
+      "  tr = document.createElement('tr');",
+      "  td = document.createElement('td');",
+      "  tr.appendChild(td);",
+      "  td.innerHTML = '<img src=\"' + image[row] + '\">';",
+      "  var mysound = sound[row];",
+      "  td.onclick = (function(mysound) {",
+      "    return function() {",
+      "      var audioElement = document.createElement('audio');",
+      "      audioElement.setAttribute('src', mysound);",
+      "      audioElement.play();",
+      "    };",
+      "  })(sound[row]);",
+      "  table.appendChild(tr);",
+      "}",
+      "document.getElementById('container').appendChild(table);",
+      "</script>",
+      "</body>",
+      "</html>",
+      "),"),
+    out_html)
+  close(out_html)
+}
+
+
 #' Find zero crossing
 #'
 #' Internal soundgen function.
@@ -339,10 +419,11 @@ getGlottalCycles = function (pitch, samplingRate) {
 #' Stochastic generation of syllable structure of a bout. Calls
 #' \code{\link{rnorm_bounded}} to vary the duration of each new syllable and of
 #' pauses between syllables. Total bout duration will also vary, unless
-#' temperature is zero.
+#' temperature is zero. However, the output will always contain exactly
+#' \code{nSyl} syllables.
 #' @param nSyl the desired number of syllables
-#' @param sylLen the desired mean syllable duration, in ms
-#' @param pauseLen the desired mean pause between syllables, in ms
+#' @param sylLen the desired mean syllable duration, in ms (vectorized)
+#' @param pauseLen the desired mean pause between syllables, in ms (vectorized)
 #' @param sylDur_min,sylDur_max the lower and upper bounds on possible syllable
 #'   duration, in ms
 #' @param pauseDur_min,pauseDur_max the lower and upper bounds on possible pause
@@ -354,12 +435,17 @@ getGlottalCycles = function (pitch, samplingRate) {
 #' @return Returns a matrix with a list of start-end points for syllables
 #' @keywords internal
 #' @examples
+#' soundgen:::divideIntoSyllables (nSyl = 1, sylLen = 180)
 #' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
 #'   pauseLen = 55, temperature = 0.2, plot = TRUE)
 #' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
 #'   pauseLen = 55, temperature = 0)
 #' soundgen:::divideIntoSyllables (nSyl = 3, sylLen = 100,
 #'   pauseLen = 25, temperature = 0.5)
+#'
+#' # sylLen and pauseLen are vectorized:
+#' soundgen:::divideIntoSyllables (nSyl = 15, sylLen = 100:200,
+#'   pauseLen = c(80, 25, 80), temperature = 0.05, plot = TRUE)
 divideIntoSyllables = function (nSyl,
                                 sylLen,
                                 pauseLen,
@@ -369,34 +455,45 @@ divideIntoSyllables = function (nSyl,
                                 pauseDur_max = 1000,
                                 temperature = 0.025,
                                 plot = FALSE) {
-  out = matrix(ncol = 2, nrow = 0)
-  colnames(out) = c('start', 'end')
   if (nSyl == 1) {
-    out = rbind(out, c(0, sylLen))
+    # no variation for a single syllable
+    out = data.frame(start = 0, end = sylLen)
   } else {
-    # generate random lengths while respecting the constraints
-    c = 0
-    while (nrow(out) < nSyl) {
-      duration_ms_loop = rnorm_bounded(
-        n = 1,
-        mean = sylLen,
-        low = sylDur_min,
-        high = sylDur_max,
-        sd = sylLen * temperature
-      )
-      pause_ms_loop = rnorm_bounded(
-        n = 1,
-        mean = pauseLen,
-        low = pauseDur_min,
-        high = pauseDur_max,
-        sd = pauseLen * temperature
-      )
-      start = 1 + c # start time of syllable, in ms
-      end = start + duration_ms_loop # end time of syllable, in ms
-      out = rbind(out, c(start, end))
-      c = end + pause_ms_loop
+    # up- or downsample durations to nSyl
+    if (length(sylLen) > 1 & length(sylLen) != nSyl) {
+      sylLen = getSmoothContour(anchors = sylLen, len = nSyl)
+    }
+    if (length(pauseLen) > 1 & length(pauseLen) != (nSyl - 1)) {
+      pauseLen = getSmoothContour(anchors = pauseLen, len = nSyl - 1)
+    }
+
+    # generate random lengths of syllabels and pauses under constraints
+    syls = rnorm_bounded(
+      n = nSyl,
+      mean = sylLen,
+      low = sylDur_min,
+      high = sylDur_max,
+      sd = sylLen * temperature
+    )
+    pauses = rnorm_bounded(
+      n = nSyl - 1,
+      mean = pauseLen,
+      low = pauseDur_min,
+      high = pauseDur_max,
+      sd = pauseLen * temperature
+    )
+
+    out = data.frame(start = rep(0, nSyl), end = rep(0, nSyl))
+    for (i in 1:nSyl) {
+      if (i == 1) {
+        out$start[i] = 0
+      } else {
+        out$start[i] = out$end[i - 1] + pauses[i - 1]  # start time of syllable, in ms
+      }
+      out$end[i] = out$start[i] + syls[i] # end time of syllable, in ms
     }
   }
+  out$dur = out$end - out$start
 
   if (plot) {
     # for the UI
@@ -902,4 +999,38 @@ fade = function(x,
     abline(v = length(x) - fadeOut, col = 'blue')
   }
   return(x)
+}
+
+
+#' Scale noise anchors
+#'
+#' Internal soundgen function.
+#'
+#' Scales a dataframe containing noise anchors so as to preserve the timing of
+#' positive anchors relative to the new syllable duration. Negative time anchors
+#' are not changed: the pre-aspiration length is constant, regardless of the
+#' actual syllable duration. Time anchors from 0 to sylLen are proportional to
+#' the actual syllable duration re the average expected duration (which the user
+#' sees in the UI when choosing time anchors). Time anchors beyond sylLen are
+#' scaled to preserve post-aspiration duration.
+#' @param noiseAnchors dataframe of noise anchors
+#' @param sylLen_old syllable length relative to which the timing of noise anchors is
+#' specified
+#' @param sylLen_new the new syllable length
+#' @keywords internal
+#' @examples
+#' noiseAnchors = data.frame(time = c(-20, 50, 120),
+#'                             value = c(-50, -10, -60))
+#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 100, sylLen_new = 200)
+#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 100, sylLen_new = 50)
+#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 200, sylLen_new = 300)
+scaleNoiseAnchors = function(noiseAnchors, sylLen_old, sylLen_new) {
+  idx_mid = which(noiseAnchors$time > 0 &             # not before syl
+                    noiseAnchors$time < sylLen_old)   # not after syl
+  idx_after = which(noiseAnchors$time >= sylLen_old)  # after syl
+  noiseAnchors$time[idx_mid] =
+    noiseAnchors$time[idx_mid] * sylLen_new / sylLen_old
+  noiseAnchors$time[idx_after] =
+    noiseAnchors$time[idx_after] - sylLen_old + sylLen_new
+  return(noiseAnchors)
 }
