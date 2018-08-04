@@ -71,7 +71,7 @@
 #' # broad-band instead of narrow-band
 #' spectrogram(sound, samplingRate = 16000, windowLength = 5)
 #'
-#' # focus only on values in the upper 5% for each frequency bin
+#' # focus only on values in the upper 5% of power for each frequency bin
 #' spectrogram(sound, samplingRate = 16000, qTime = 0.95)
 #'
 #' # detect 10% of the noisiest frames based on entropy and remove the pattern
@@ -316,9 +316,9 @@ spectrogram = function(x,
   }
 
   if (output == 'original') {
-    return (t(Z))  # before denoising
+    return(t(Z))  # before denoising
   } else if (output == 'processed') {
-    return (t(Z1))  # denoised spectrum / spectralDerivative
+    return(t(Z1))  # denoised spectrum / spectralDerivative
   }
 }
 

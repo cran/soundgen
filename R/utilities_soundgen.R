@@ -14,29 +14,33 @@
 #'   of each iteration. If not NULL, estimated time left takes into account
 #'   whether the jobs ahead will take more or less time than the jobs already
 #'   completed
+#' @param reportEvery report progress every n iterations
 #' @keywords internal
 #' @examples
 #' time_start = proc.time()
-#' for (i in 1:5) {
-#'   Sys.sleep(i ^ 2 / 100)
-#'   soundgen:::reportTime(i = i, nIter = 5, time_start = time_start, jobs = (1:5) ^ 2 / 10)
+#' for (i in 1:20) {
+#'   Sys.sleep(i ^ 2 / 10000)
+#'   soundgen:::reportTime(i = i, nIter = 20, time_start = time_start,
+#'   jobs = (1:20) ^ 2, reportEvery = 5)
 #' }
-reportTime = function(i, nIter, time_start, jobs = NULL) {
+reportTime = function(i, nIter, time_start, jobs = NULL, reportEvery = 1) {
   time_diff = as.numeric((proc.time() - time_start)[3])
   if (i == nIter) {
     time_total = convert_sec_to_hms(time_diff)
     print(paste0('Completed ', i, ' iterations in ', time_total, '.'))
   } else {
-    if (is.null(jobs)) {
-      # simply count iterations
-      time_left = time_diff / i * (nIter - i)
-    } else {
-      # take into account the expected time for each iteration
-      speed = time_diff / sum(jobs[1:i])
-      time_left = speed * sum(jobs[min((i + 1), nIter):nIter])
+    if (i %% reportEvery == 0) {
+      if (is.null(jobs)) {
+        # simply count iterations
+        time_left = time_diff / i * (nIter - i)
+      } else {
+        # take into account the expected time for each iteration
+        speed = time_diff / sum(jobs[1:i])
+        time_left = speed * sum(jobs[min((i + 1), nIter):nIter])
+      }
+      time_left_hms = convert_sec_to_hms(time_left)
+      print(paste0('Done ', i, ' / ', nIter, '; Estimated time left: ', time_left_hms))
     }
-    time_left_hms = convert_sec_to_hms(time_left)
-    print(paste0('Done ', i, ' / ', nIter, '; Estimated time left: ', time_left_hms))
   }
 }
 
@@ -277,11 +281,11 @@ findZeroCrossing = function(ampl, location) {
 #' vignette on sound generation), but it can also be useful for joining two
 #' separately generated sounds without audible artifacts.
 #' @param ampl1,ampl2 two numeric vectors (waveforms) to be joined
-#' @param samplingRate the sampling rate of input vectors, Hz
-#' @param crossLen the length of overlap, in ms (doesn't need to be specified
-#'   if crossLenPoints is not NULL)
-#' @param crossLenPoints (optional) the length of overlap, in points (defaults to
-#'   NULL)
+#' @param crossLenPoints (optional) the length of overlap in points
+#' @param crossLen the length of overlap in ms (overrides crossLenPoints)
+#' @param samplingRate the sampling rate of input vectors, Hz (needed only if
+#'   crossLen is given in ms rather than points)
+#' @inheritParams fade
 #' @export
 #' @return Returns a numeric vector.
 #' @examples
@@ -293,12 +297,35 @@ findZeroCrossing = function(ampl, location) {
 #' sound = crossFade(sound1, sound2, crossLenPoints = 5)
 #' plot(sound, type = 'b') # a nice, smooth transition
 #' length(sound) # but note that cross-fading costs us ~60 points
-#' #  because of trimming to zero crossings
-crossFade = function (ampl1,
-                      ampl2,
-                      samplingRate,
-                      crossLen = 15,
-                      crossLenPoints = NULL) {
+#' #  because of trimming to zero crossings and then overlapping
+#'
+#' \dontrun{
+#' # Actual sounds, alternative shapes of fade-in/out
+#' sound3 = soundgen(formants = 'a', pitchAnchors = 200,
+#'                   addSilence = 0, attackLen = c(50, 0))
+#' sound4 = soundgen(formants = 'u', pitchAnchors = 200,
+#'                   addSilence = 0, attackLen = c(0, 50))
+#'
+#' # simple concatenation (with a click)
+#' playme(c(sound3, sound4), 16000)
+#'
+#' # concatentation from zc to zc (no click, but a rough transition)
+#' playme(crossFade(sound3, sound4, crossLen = 0), 16000)
+#'
+#' # linear crossFade over 35 ms - brief, but smooth
+#' playme(crossFade(sound3, sound4, crossLen = 35, samplingRate = 16000), 16000)
+#'
+#' # s-shaped cross-fade over 300 ms (shortens the sound by ~300 ms)
+#' playme(crossFade(sound3, sound4, samplingRate = 16000,
+#'                  crossLen = 300, shape = 'cos'), 16000)
+#' }
+crossFade = function(ampl1,
+                     ampl2,
+                     crossLenPoints = 240,
+                     crossLen = NULL,
+                     samplingRate = NULL,
+                     shape = c('lin', 'exp', 'log', 'cos', 'logistic')[1],
+                     steepness = 1) {
   # cut to the nearest zero crossings
   zc1 = findZeroCrossing(ampl1, location = length(ampl1))
   if (!is.na(zc1)) {
@@ -317,13 +344,11 @@ crossFade = function (ampl1,
   # check whether there is enough data to cross-fade. Note that ampl1 or ampl2
   # may even become shorter than crossLenPoints after we shortened them to the
   # nearest zero crossing
-  if (is.null(crossLenPoints)) {
-    crossLenPoints = min(floor(crossLen * samplingRate / 1000),
-                        length(ampl1) - 1,
-                        length(ampl2) - 1)
-  } else {
-    crossLenPoints = min(crossLenPoints, length(ampl1) - 1, length(ampl2) - 1)
+  if (is.null(crossLenPoints) |
+      (!is.null(crossLen) & !is.null(samplingRate))) {
+    crossLenPoints = floor(crossLen * samplingRate / 1000)
   }
+  crossLenPoints = min(crossLenPoints, length(ampl1) - 1, length(ampl2) - 1)
 
   # concatenate or cross-fade
   if (crossLenPoints < 2) {
@@ -332,7 +357,12 @@ crossFade = function (ampl1,
     ampl = c(ampl1, ampl2)
   } else {
     # for segments that are long enough, cross-fade properly
-    multipl = seq(0, 1, length.out = crossLenPoints)
+    # multipl = seq(0, 1, length.out = crossLenPoints)
+    multipl = fade(rep(1, crossLenPoints),
+                   fadeIn = crossLenPoints,
+                   fadeOut = 0,
+                   shape = shape,
+                   steepness = steepness)
     idx1 = length(ampl1) - crossLenPoints
     cross = rev(multipl) * ampl1[(idx1 + 1):length(ampl1)] +
       multipl * ampl2[1:crossLenPoints]
@@ -672,7 +702,7 @@ wiggleAnchors = function(df,
     ))
     if (class(w) == 'try-error') {
       warning(paste('Failed to wiggle column', i, 'of df:',
-                 paste(df, collapse = ', ')))
+                    paste(df, collapse = ', ')))
     } else {
       df[, i] = w
     }
@@ -750,8 +780,8 @@ getEnv = function(sound,
 #' @param windowLength the length of smoothing window, ms
 #' @param samplingRate the sampling rate, Hz. Only needed if the length of
 #'   smoothing window is specified in ms rather than points
-#' @param method 'peak' for peak amplitude per window, 'rms' for root mean
-#'   square amplitude
+#' @param method 'hil' for Hilbert envelope, 'rms' for root mean square
+#'   amplitude, 'peak' for peak amplitude per window
 #' @param windowLength_points the length of smoothing window, points. If
 #'   specified, overrides both \code{windowLength} and \code{samplingRate}
 #' @param killDC if TRUE, dynamically removes DC offset or similar deviations of
@@ -763,16 +793,23 @@ getEnv = function(sound,
 #' @export
 #' @examples
 #' a = rnorm(500) * seq(1, 0, length.out = 500)
-#' b = flatEnv(a, plot = TRUE, killDC = TRUE, method = 'peak',
+#' b = flatEnv(a, plot = TRUE, killDC = TRUE,
 #'             windowLength_points = 5)         # too short
 #' c = flatEnv(a, plot = TRUE, killDC = TRUE,
 #'             windowLength_points = 250)       # too long
 #' d = flatEnv(a, plot = TRUE, killDC = TRUE,
 #'             windowLength_points = 50)        # about right
+#'
+#' \dontrun{
+#' s = soundgen(sylLen = 1000, amplAnchors = c(0, -40, 0), plot = TRUE, osc = TRUE)
+#' # playme(s)
+#' s_flat = flatEnv(s, plot = TRUE, windowLength = 50)
+#' # playme(s_flat)
+#' }
 flatEnv = function(sound,
                    windowLength = 200,
                    samplingRate = 16000,
-                   method = c('rms', 'peak')[1],
+                   method = c('hil', 'rms', 'peak')[1],
                    windowLength_points = NULL,
                    killDC = FALSE,
                    throwaway = -80,
@@ -790,15 +827,30 @@ flatEnv = function(sound,
 
   m = max(abs(sound))       # original scale (eg -1 to +1 gives m = 1)
   soundNorm = sound / m    # normalize
-  throwaway_lin = 2 ^ (throwaway / 10)  # from dB to linear
+  throwaway_lin = 10 ^ (throwaway / 20)  # from dB to linear
   # get smoothed amplitude envelope
-  env = getEnv(sound = soundNorm,
-               windowLength_points = windowLength_points,
-               method = method)
+  if (method == 'hil') {
+    env = seewave::env(
+      soundNorm,
+      f = samplingRate,
+      envt = 'hil',
+      ssmooth = windowLength_points,
+      fftw = FALSE,
+      plot = FALSE
+    )
+    env = as.numeric(env)
+  } else {
+    env = getEnv(sound = soundNorm,
+                 windowLength_points = windowLength_points,
+                 method = method)
+  }
+  env = env / max(abs(env))
+
   # don't amplify very quiet sections
-  env[env < throwaway_lin] = 1
+  env_cut = env
+  env_cut[env_cut < throwaway_lin] = 1
   # flatten amplitude envelope
-  soundFlat = soundNorm / env
+  soundFlat = soundNorm / env_cut
   # re-normalize to original scale
   soundFlat = soundFlat / max(abs(soundFlat)) * m
   # remove DC offset
@@ -842,10 +894,10 @@ flatEnv = function(sound,
 #' a = rnorm(500) + sin(1:500 / 50)
 #' b = soundgen:::killDC(a, windowLength_points = 25, plot = TRUE)
 killDC = function(sound,
-                   windowLength = 200,
-                   samplingRate = 16000,
-                   windowLength_points = NULL,
-                   plot = FALSE) {
+                  windowLength = 200,
+                  samplingRate = 16000,
+                  windowLength_points = NULL,
+                  plot = FALSE) {
   if (!is.numeric(windowLength_points)) {
     if (is.numeric(windowLength)) {
       if (is.numeric(samplingRate)) {
@@ -923,7 +975,7 @@ killDC = function(sound,
 #'          fadeIn = 1500,
 #'          fadeOut = 500,
 #'          shape = 'log',
-#'          steepness = 6,
+#'          steepness = 8,
 #'          plot = TRUE)
 #' y = fade(x,
 #'          fadeIn = 1000,
@@ -1013,24 +1065,83 @@ fade = function(x,
 #' the actual syllable duration re the average expected duration (which the user
 #' sees in the UI when choosing time anchors). Time anchors beyond sylLen are
 #' scaled to preserve post-aspiration duration.
-#' @param noiseAnchors dataframe of noise anchors
+#' @param noiseTime vector of time points at which noiseAnchors are defined
 #' @param sylLen_old syllable length relative to which the timing of noise anchors is
 #' specified
 #' @param sylLen_new the new syllable length
 #' @keywords internal
 #' @examples
-#' noiseAnchors = data.frame(time = c(-20, 50, 120),
-#'                             value = c(-50, -10, -60))
-#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 100, sylLen_new = 200)
-#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 100, sylLen_new = 50)
-#' soundgen:::scaleNoiseAnchors(noiseAnchors, sylLen_old = 200, sylLen_new = 300)
-scaleNoiseAnchors = function(noiseAnchors, sylLen_old, sylLen_new) {
-  idx_mid = which(noiseAnchors$time > 0 &             # not before syl
-                    noiseAnchors$time < sylLen_old)   # not after syl
-  idx_after = which(noiseAnchors$time >= sylLen_old)  # after syl
-  noiseAnchors$time[idx_mid] =
-    noiseAnchors$time[idx_mid] * sylLen_new / sylLen_old
-  noiseAnchors$time[idx_after] =
-    noiseAnchors$time[idx_after] - sylLen_old + sylLen_new
-  return(noiseAnchors)
+#' noiseTime = c(-20, 50, 120)
+#' soundgen:::scaleNoiseAnchors(noiseTime, sylLen_old = 100, sylLen_new = 200)
+#' soundgen:::scaleNoiseAnchors(noiseTime, sylLen_old = 100, sylLen_new = 50)
+#' soundgen:::scaleNoiseAnchors(noiseTime, sylLen_old = 200, sylLen_new = 300)
+scaleNoiseAnchors = function(noiseTime, sylLen_old, sylLen_new) {
+  idx_mid = which(noiseTime > 0 &             # not before syl
+                    noiseTime < sylLen_old)   # not after syl
+  idx_after = which(noiseTime >= sylLen_old)  # after syl
+  noiseTime[idx_mid] = noiseTime[idx_mid] * sylLen_new / sylLen_old
+  noiseTime[idx_after] = noiseTime[idx_after] - sylLen_old + sylLen_new
+  return(noiseTime)
+}
+
+
+#' Wiggle glottal cycles
+#'
+#' Internal soundgen function
+#'
+#' Helper function for preparing a vector of multiplication factors for adding
+#' jitter and shimmer per glottal cycle. Generates a random anchors for each
+#' jitter/shimmer period and draws a smooth contour between them by spline
+#' interpolation.
+#' @param dep a vector of any length specifying the strengh of applied effect as
+#'   2 ^ rnorm(..., 0, dep))
+#' @param len a vector of any length specifying the period of applied effect in
+#'   ms
+#' @param nGC number of glottal cycles
+#' @param pitch_per_gc vector of length nGC specifying pitch per glottal cycle,
+#'   Hz
+#' @param rw vector of length nGC specifying a random walk around 1 to multiply
+#'   the effect with
+#' @param effect_on vector of length nGC specifying glottal cycles to which the
+#'   effect should be applied (0 = off, 1 = on)
+#' @examples
+#' plot(soundgen:::wiggleGC(dep = 5 / 12, len = c(3, 50), nGC = 100,
+#'               pitch_per_gc = rnorm(100, 150, 10),
+#'               rw = rep(1, 100), effect_on = rep(1, 100)),
+#'      type = 'b')
+#' plot(soundgen:::wiggleGC(dep = 5 / 12, len = c(3, 50), nGC = 100,
+#'               pitch_per_gc = rnorm(100, 150, 10),
+#'               rw = rep(1, 100),
+#'               effect_on = c(rep(1, 30), rep(0, 20), rep(1, 50))),
+#'      type = 'b')
+#' plot(soundgen:::wiggleGC(dep = c(1/12, 10/12), len = c(3, 50), nGC = 100,
+#'               pitch_per_gc = rnorm(100, 150, 10),
+#'               rw = rep(1, 100), effect_on = rep(1, 100)),
+#'      type = 'b')
+wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
+  if (length(dep) > 1) dep = getSmoothContour(dep, len = nGC)
+  if (length(len) > 1) len = getSmoothContour(len, len = nGC)
+  ratio = pitch_per_gc * len / 1000 # the number of gc that make
+  #   up one period of effect (vector of length nGC)
+  idx = 1
+  i = 1
+  while (i < nGC) {
+    i = tail(idx, 1) + ratio[i]
+    idx = c(idx, i)
+  }
+  idx = round(idx)
+  idx = idx[idx <= nGC]
+  idx = unique(idx)  # pitch for these gc will be wiggled
+
+  effect = 2 ^ (rnorm(
+    n = length(idx),
+    mean = 0,
+    sd = dep
+  ) * rw[idx] * effect_on[idx])
+  # plot(effect, type = 'b')
+
+  # upsample to length nGC
+  effect_per_gc = spline(effect, n = nGC, x = idx)$y
+  # plot(effect_per_gc, type = 'b')
+  return(effect_per_gc)
 }

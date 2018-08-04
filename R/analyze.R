@@ -107,14 +107,41 @@
 #'   \code{\link[grDevices]{jpeg}} if the plot is saved
 #' @param ... other graphical parameters passed to \code{\link{spectrogram}}
 #' @return If \code{summary = TRUE}, returns a dataframe with one row and three
-#'   column per acoustic variable (mean / median / SD). If \code{summary =
+#'   columns per acoustic variable (mean / median / SD). If \code{summary =
 #'   FALSE}, returns a dataframe with one row per FFT frame and one column per
 #'   acoustic variable. The best guess at the pitch contour considering all
 #'   available information is stored in the variable called "pitch". In
-#'   addition, the output contains a number of other acoustic descriptors and
-#'   pitch estimates by separate algorithms included in \code{pitchMethods}. See
-#'   the vignette on acoustic analysis for a full explanation of returned
-#'   measures.
+#'   addition, the output contains pitch estimates by separate algorithms
+#'   included in \code{pitchMethods} and a number of other acoustic descriptors:
+#'   \describe{\item{time}{time of the middle of each frame (ms)}
+#'   \item{ampl}{root mean square of amplitude per frame, calculated as
+#'   sqrt(mean(frame ^ 2))} \item{amplVoiced}{the same as ampl for voiced frames
+#'   and NA for unvoiced frames} \item{dom}{lowest dominant frequency band (Hz)
+#'   (see “Pitch tracking methods / Dominant frequency” in the vignette)}
+#'   \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
+#'   to 0: pure tone or tonal sound with nearly all energy in harmonics; close
+#'   to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
+#'   bandwidth of the first nFormants formants per FFT frame, as calculated by
+#'   phonTools::findformants with default settings} \item{harmonics}{the amount
+#'   of energy in upper harmonics, namely the ratio of total spectral power
+#'   above 1.25 x F0 to the total spectral power below 1.25 x F0 (dB)}
+#'   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
+#'   by soundgen:::getPitchAutocor (see “Pitch tracking methods /
+#'   Autocorrelation”). If HNR = 0 dB, there is as much energy in harmonics as
+#'   in noise} \item{medianFreq}{50th quantile of the frame's spectrum}
+#'   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
+#'   \item{peakFreqCut}{the frequency with maximum spectral power below cutFreq
+#'   (Hz)} \item{pitch}{post-processed pitch contour based on all F0 estimates}
+#'   \item{pitchAutocor}{autocorrelation estimate of F0}
+#'   \item{pitchCep}{cepstral estimate of F0} \item{pitchSpec}{BaNa estimate of
+#'   F0} \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
+#'   quantiles of the spectrum below cutFreq (Hz)} \item{specCentroid}{the
+#'   center of gravity of the frame’s spectrum, first spectral moment (Hz)}
+#'   \item{specCentroidCut}{the center of gravity of the frame’s spectrum below
+#'   cutFreq} \item{specSlope}{the slope of linear regression fit to the
+#'   spectrum below cutFreq} \item{voiced}{is the current FFT frame voiced? TRUE
+#'   / FALSE}
+#' }
 #' @export
 #' @examples
 #' sound = soundgen(sylLen = 300, pitchAnchors = c(900, 400, 2300),
@@ -130,11 +157,11 @@
 #'   temperature = 0.001, addSilence = 0)
 #' # improve the quality of postprocessing:
 #' a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
-#' median(a1$pitch, na.rm = TRUE)  # 578 Hz
+#' median(a1$pitch, na.rm = TRUE)
 #' # (can vary, since postprocessing is stochastic)
 #' # compare to the true value:
 #' median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
-#'   value = c(300, 900, 400, 2300)), len = 1000))  # 611 Hz
+#'   value = c(300, 900, 400, 2300)), len = 1000))
 #'
 #' # the same pitch contour, but harder b/c of subharmonics and jitter
 #' sound2 = soundgen(sylLen = 900, pitchAnchors = list(
@@ -240,8 +267,8 @@ analyze = function(x,
     samplingRate = sound@samp.rate
     sound = sound@left
     plotname = tail(unlist(strsplit(x, '/')), n = 1)
-    plotname = substring (plotname, first = 1,
-                          last = (nchar(plotname) - 4))
+    plotname = substring(plotname, first = 1,
+                         last = (nchar(plotname) - 4))
   } else if (class(x) == 'numeric' & length(x) > 1) {
     if (is.null(samplingRate)) {
       stop('Please specify "samplingRate", eg 44100')
@@ -543,9 +570,11 @@ analyze = function(x,
     'summaries' = data.frame(
       'HNR' = NA,
       'dom' = NA,
+      'specCentroid' = NA,
+      'specCentroidCut' = NA,
       'peakFreq' = NA,
       'peakFreqCut' = NA,
-      'meanFreq' = NA,
+      'medianFreq' = NA,
       'quartile25' = NA,
       'quartile50' = NA,
       'quartile75' = NA,

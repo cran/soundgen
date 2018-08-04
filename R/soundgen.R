@@ -1,3 +1,5 @@
+# TODO: calculate intensity in analyze()
+
 #' @import stats graphics utils grDevices
 #' @encoding UTF-8
 NULL
@@ -65,6 +67,8 @@ NULL
 #' @param vibratoDep the depth of vibrato, semitones (vectorized)
 #' @param shimmerDep random variation in amplitude between individual glottal
 #'   cycles (0 to 100\% of original amplitude of each cycle) (vectorized)
+#' @param shimmerLen duration of stable periods between amplitude jumps, ms. Use
+#'   a low value for harsh noise, a high value for shaky voice (vectorized)
 #' @param attackLen duration of fade-in / fade-out at each end of syllables and
 #'   noise (ms): a vector of length 1 (symmetric) or 2 (separately for fade-in
 #'   and fade-out)
@@ -129,6 +133,7 @@ NULL
 #'   component, approximating aspiration noise [h]
 #' @param rolloffNoise linear rolloff of the excitation source for the unvoiced
 #'   component, dB/kHz (vectorized)
+#' @param noiseFlatSpec keeps noise spectrum flat to this frequency, Hz
 #' @param mouthAnchors a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
 #'   i.e. no modification) or a dataframe specifying the time (ms) and value of
 #'   mouth opening
@@ -148,7 +153,8 @@ NULL
 #'   adding pitch jumps)
 #' @param samplingRate sampling frequency, Hz
 #' @param windowLength length of FFT window, ms
-#' @param overlap FFT window overlap, \%
+#' @param overlap FFT window overlap, \%. For allowed values, see
+#'   \code{\link[seewave]{istft}}
 #' @param addSilence silence before and after the bout, ms
 #' @param pitchFloor,pitchCeiling lower & upper bounds of f0
 #' @param pitchSamplingRate sampling frequency of the pitch contour only, Hz.
@@ -220,7 +226,8 @@ NULL
 #' a = c(rep(0, 100), rep(1, 100), rep(2, 100))
 #' s = soundgen(sylLen = 800, pitchAnchors = 300, temperature = 0.001,
 #'              subFreq = 100, subDep = 70, jitterDep = 1,
-#'              nonlinRandomWalk = a, plot = T, ylim = c(0, 4))
+#'              nonlinRandomWalk = a, plot = TRUE, ylim = c(0, 4))
+#' # playme(s)
 #'
 #' # See the vignette on sound generation for more examples and in-depth
 #' # explanation of the arguments to soundgen()
@@ -245,6 +252,7 @@ soundgen = function(repeatBout = 1,
                     vibratoFreq = 5,
                     vibratoDep = 0,
                     shimmerDep = 0,
+                    shimmerLen = 1,
                     attackLen = 50,
                     rolloff = -9,
                     rolloffOct = -3,
@@ -268,6 +276,7 @@ soundgen = function(repeatBout = 1,
                     noiseAnchors = NULL,
                     formantsNoise = NA,
                     rolloffNoise = -4,
+                    noiseFlatSpec = 1200,
                     mouthAnchors = data.frame(time = c(0, 1),
                                               value = c(.5, .5)),
                     amplAnchors = NA,
@@ -326,6 +335,16 @@ soundgen = function(repeatBout = 1,
     ))
   }
 
+  # check that the overlap setting is valid
+  o = 25 / (100 - overlap)
+  if (round(o) != o) {
+    overlap = 75
+    warning(paste(
+      'overlap must satisfy 100 * (1 - 1 / (4 * positive_integer)).',
+      'Resetting to 75%. OK values: 75, 87.5, 93.75, 95. See ?seewave::istft'
+    ))
+  }
+
   ## stochastic rounding of the number of syllables and repeatBouts
   #   (eg for nSyl = 2.5, we'll have 2 or 3 syllables with equal probs)
   #   NB: this is very useful for morphing
@@ -349,6 +368,24 @@ soundgen = function(repeatBout = 1,
       time = seq(0, sylLen[1], length.out = max(2, length(noiseAnchors))),
       value = noiseAnchors
     )
+  }
+  if (is.list(pitchAnchors)) {
+    if (any(pitchAnchors$value < pitchFloor)) {
+      pitchFloor = 0.1
+      message('Some pitch values are lower than pitchFloor; lowering to 0.1 Hz')
+    }
+    if (any(pitchAnchors$value > samplingRate / 2)) {
+      samplingRate = max(pitchAnchors$value * 4)
+      message(paste('Some pitch values exceed Nyquist frequency;',
+                    'raising samplingRate to', samplingRate, 'Hz'))
+    }
+    if (any(pitchAnchors$value > pitchSamplingRate) |
+        any(pitchAnchors$value > pitchCeiling)) {
+      pitchSamplingRate = samplingRate
+      pitchCeiling = samplingRate
+      message(paste('Some pitch values exceed pitchSamplingRate or pitchCeiling.',
+                    'Resetting both to the value of samplingRate.'))
+    }
   }
 
   # check amplitude anchors and make all values negative
@@ -482,7 +519,9 @@ soundgen = function(repeatBout = 1,
     'nonlinDep',
     'attackLen',
     'jitterDep',
+    'jitterLen',
     'shimmerDep',
+    'shimmerLen',
     'rolloff',
     'rolloffOct',
     'shortestEpoch',
@@ -498,6 +537,7 @@ soundgen = function(repeatBout = 1,
     'vibratoFreq' = vibratoFreq,
     'vibratoDep' = vibratoDep,
     'shimmerDep' = shimmerDep,
+    'shimmerLen' = shimmerLen,
     'creakyBreathy' = creakyBreathy,
     'rolloff' = rolloff,
     'rolloffOct' = rolloffOct,
@@ -602,8 +642,9 @@ soundgen = function(repeatBout = 1,
 
     for (s in 1:nrow(syllables)) {
       # scale noise anchors for polysyllabic sounds with lengh(sylLen) > 1
-      noiseAnchors_syl[[s]] = scaleNoiseAnchors(
-        noiseAnchors = noiseAnchors,
+      noiseAnchors_syl[[s]] = noiseAnchors
+      noiseAnchors_syl[[s]]$time = scaleNoiseAnchors(
+        noiseTime = noiseAnchors_syl[[s]]$time,
         sylLen_old = sylLen[1],
         sylLen_new = syllables$dur[s]
       )
@@ -751,12 +792,14 @@ soundgen = function(repeatBout = 1,
           len = round(diff(range(noiseAnchors_syl[[s]]$time)) * samplingRate / 1000),
           noiseAnchors = noiseAnchors_syl[[s]],
           rolloffNoise = rolloffNoise_syl,
+          noiseFlatSpec = noiseFlatSpec,
+          temperature = 0,  # wiggled separately in soundgen
           attackLen = attackLen,
           samplingRate = samplingRate,
           windowLength_points = windowLength_points,
           overlap = overlap,
           throwaway = throwaway,
-          filterNoise = NA # spectralEnvelopeNoise
+          filterNoise = NULL # spectralEnvelopeNoise
         ) * amplEnvelope[s]  # correction of amplitude per syllable
         # plot(unvoiced[[s]], type = 'l')
       }
