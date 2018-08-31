@@ -4,6 +4,12 @@ formantsPerVowel = data.frame(  # Ladefoged 2012 "Vowels & consonants, 3rd ed.",
   f2 = c(2300, 1950, 1800, 1750, 1100, 1200, 850, 1050, 880)
 )
 
+formerAnchors = c(
+  'pitchAnchors', 'pitchAnchorsGlobal', 'glottisAnchors',
+  'amplAnchors', 'amplAnchorsGlobal', 'mouthAnchors', 'noiseAnchors'
+)
+newAnchors = c('pitch', 'pitchGlobal', 'glottis', 'ampl', 'amplGlobal', 'mouth', 'noise')
+
 server = function(input, output, session) {
   # clean-up of www/ folder: remove all files except temp.wav
   files = list.files('www/')
@@ -40,7 +46,7 @@ server = function(input, output, session) {
   })
 
   durSyl_withNoise = reactive({ # the duration of a single syllable with noise
-    ifelse(!sum(myPars$noiseAnchors$value > input$throwaway) > 0,
+    ifelse(!sum(myPars$noiseAnchors$value > -input$dynamicRange) > 0,
            input$sylLen,
            min(0, myPars$noiseAnchors$time[1]) +
              max(input$sylLen,
@@ -90,9 +96,27 @@ server = function(input, output, session) {
         preset$vowelString = preset$formants  # in case formants = 'aui' etc
       }
 
+      # if the preset contains "pitch", "ampl" etc, rename to "pitchAnchors", "amplAchors"
+      for (a in 1:length(formerAnchors)) {
+        old = formerAnchors[a]
+        new = newAnchors[a]
+        if (new %in% names(preset)) {
+          names(preset)[which(names(preset) == new)] = old
+        }
+      }
+
       sliders_to_reset = names(preset)[which(names(preset) %in% names(input))]
       for (v in sliders_to_reset) {
-        try(updateSliderInput(session, v, value = as.numeric(preset[[v]])))
+        if (is.numeric(preset[[v]])) {
+          new_value = preset[[v]][1]  # the first value if a vector
+        } else if (is.list(preset[[v]])) {
+          new_value = preset[[v]][1, 2]  # the first value if a df of anchors
+        } else {
+          new_value = NULL
+        }
+        if (length(new_value) > 0) {
+          try(updateSliderInput(session, v, value = new_value))
+        }
       }
 
       # reformat anchors from the preset
@@ -173,7 +197,7 @@ server = function(input, output, session) {
       if (!is.list(preset$noiseAnchors) & is.numeric(preset$sylLen)) {
         myPars$noiseAnchors = data.frame(
           time = c(0, preset$sylLen),
-          value = c(input$throwaway, input$throwaway)
+          value = c(-input$dynamicRange, -input$dynamicRange)
         )
         myPars$sylDur_previous = input$sylLen
       }
@@ -290,7 +314,7 @@ server = function(input, output, session) {
     # pre-syllable aspiration depending on the syllable duration)
     if (myPars$updateDur == TRUE) {
       # doesn't run if updateDur == FALSE (set to F in reset_all())
-      myPars$noiseAnchors$time = scaleNoiseAnchors(
+      myPars$noiseAnchors$time = soundgen:::scaleNoiseAnchors(
         noiseTime = myPars$noiseAnchors$time,
         sylLen_old = myPars$sylDur_previous,
         sylLen_new = input$sylLen
@@ -452,7 +476,7 @@ server = function(input, output, session) {
       soundgen:::getDiscreteContour(
         anchors = myPars$pitchAnchorsGlobal,
         len = input$nSyl,
-        method = 'spline',
+        interpol = 'spline',
         plot = TRUE,
         ylab = 'Pitch delta, semitones',
         valueFloor = permittedValues['pitchDeltas', 'low'],
@@ -552,7 +576,7 @@ server = function(input, output, session) {
   myUnvoicedContour = reactive({
     br_xlim_low = min(input$noiseTime[1], 0)
     br_xlim_high = max(input$noiseTime[2], input$sylLen)
-    br_ylim_low = input$throwaway  # permittedValues['noiseAmpl', 'low']
+    br_ylim_low = -input$dynamicRange  # permittedValues['noiseAmpl', 'low']
     br_ylim_high = permittedValues['noiseAmpl', 'high']
     nTicks = length(seq(br_ylim_low, br_ylim_high, by = 20)) - 1
     getSmoothContour(anchors = myPars$noiseAnchors,
@@ -721,8 +745,8 @@ server = function(input, output, session) {
     getSmoothContour(anchors = myPars$amplAnchors,
                      xaxs = "i",
                      xlim = c(0, input$sylLen),
-                     ylim = c(input$throwaway, 0),
-                     valueFloor = input$throwaway,
+                     ylim = c(-input$dynamicRange, 0),
+                     valueFloor = -input$dynamicRange,
                      valueCeiling = 0,
                      len = input$sylLen / 1000 * 1000,
                      samplingRate = 1000, plot = TRUE)
@@ -734,7 +758,7 @@ server = function(input, output, session) {
     click_y = round(input$plotAmplSyl_click$y)
     # if the click is outside the allowed range of y, re-interpret the click
     # as within the range
-    if (click_y < input$throwaway) click_y = input$throwaway
+    if (click_y < -input$dynamicRange) click_y = -input$dynamicRange
     if (click_y > 0) click_y = 0
 
     closest_point_in_time = which.min(abs(myPars$amplAnchors$time - click_x))
@@ -798,9 +822,9 @@ server = function(input, output, session) {
       getSmoothContour(anchors = myPars$amplAnchorsGlobal,
                        xaxs = "i",
                        xlim = c(0, durTotal()),
-                       ylim = c(input$throwaway / 2, -input$throwaway / 2),
-                       valueFloor = input$throwaway / 2,
-                       valueCeiling = -input$throwaway / 2,
+                       ylim = c(-input$dynamicRange / 2, input$dynamicRange / 2),
+                       valueFloor = -input$dynamicRange / 2,
+                       valueCeiling = input$dynamicRange / 2,
                        len = durTotal() / 1000 * 100,
                        samplingRate = 100, plot = TRUE)
     } else {
@@ -813,8 +837,8 @@ server = function(input, output, session) {
     click_x = round(input$plotAmplGlobal_click$x / durTotal(), 2)
     click_y = round(input$plotAmplGlobal_click$y)
     # if the click is outside the allowed range of y, re-interpret the click as within the range
-    if (click_y < (input$throwaway / 2)) click_y = input$throwaway / 2
-    if (click_y > (-input$throwaway / 2)) click_y = -input$throwaway / 2
+    if (click_y < (-input$dynamicRange / 2)) click_y = -input$dynamicRange / 2
+    if (click_y > (input$dynamicRange / 2)) click_y = input$dynamicRange / 2
 
     closest_point_in_time = which.min(abs(myPars$amplAnchorsGlobal$time - click_x))
     delta_x = abs(myPars$amplAnchorsGlobal$time[closest_point_in_time] - click_x)
@@ -927,7 +951,7 @@ server = function(input, output, session) {
       rolloffParabHarm = input$rolloffParabHarm,
       rolloffKHz = input$rolloffKHz,
       baseline = 200,
-      throwaway = input$throwaway,
+      dynamicRange = input$dynamicRange,
       samplingRate = input$samplingRate,
       plot = TRUE
     )
@@ -1094,21 +1118,33 @@ server = function(input, output, session) {
 
   output$spectrogram = renderPlot({
     if (input$spectrogram_or_spectrum == 'spectrogram') {
-      spectrogram(myPars$sound,
-                  samplingRate = input$samplingRate,
-                  wn = 'gaussian', windowLength = input$specWindowLength,
-                  step = round(input$specWindowLength / 4),
-                  osc = TRUE, xlab = 'Time, ms', ylab = 'Frequency, kHz',
-                  main = 'Spectrogram', contrast = input$specContrast,
-                  brightness = input$specBrightness,
-                  colorTheme = input$spec_colorTheme,
-                  method = input$spec_method,
-                  ylim = c(input$spec_ylim[1], input$spec_ylim[2]))
+      if (input$osc_heights < 0) {
+        heights = c(-input$osc_heights, 1)
+      } else if (input$osc_heights == 0) {
+        heights = c(1, 1)
+      } else {
+        heights = c(1, input$osc_heights)
+      }
+      spectrogram(
+        myPars$sound,
+        samplingRate = input$samplingRate,
+        wn = 'gaussian', windowLength = input$specWindowLength,
+        step = round(input$specWindowLength / 4),
+        osc = input$osc == 'linear',
+        osc_dB = input$osc == 'dB',
+        heights = heights,
+        xlab = 'Time, ms', ylab = 'Frequency, kHz',
+        main = 'Spectrogram', contrast = input$specContrast,
+        brightness = input$specBrightness,
+        colorTheme = input$spec_colorTheme,
+        method = input$spec_method,
+        ylim = c(input$spec_ylim[1], input$spec_ylim[2])
+      )
     } else {
       seewave::meanspec(myPars$sound, f = input$samplingRate, dB = 'max0',
                         wl = floor(input$specWindowLength * input$samplingRate / 1000 / 2) * 2,
                         flim = c(input$spec_ylim[1], input$spec_ylim[2]),
-                        alim = c(input$throwaway, 0),
+                        alim = c(-input$dynamicRange, 0),
                         main = 'Spectrum')
     }
   })
@@ -1121,9 +1157,9 @@ server = function(input, output, session) {
       nSyl = input$nSyl,
       sylLen = input$sylLen,
       pauseLen = input$pauseLen,
-      pitchAnchors = myPars$pitchAnchors,
-      pitchAnchorsGlobal = myPars$pitchAnchorsGlobal,
-      glottisAnchors = input$glottisAnchors,
+      pitch = myPars$pitchAnchors,
+      pitchGlobal = myPars$pitchAnchorsGlobal,
+      glottis = input$glottisAnchors,
       temperature = input$temperature,
       maleFemale = input$maleFemale,
       creakyBreathy = input$creakyBreathy,
@@ -1155,18 +1191,18 @@ server = function(input, output, session) {
       amDep = input$amDep,
       amFreq = input$amFreq,
       amShape = input$amShape,
-      noiseAnchors = myPars$noiseAnchors,
+      noise = myPars$noiseAnchors,
       formantsNoise = myPars$formantsNoise,
       rolloffNoise = input$rolloffNoise,
-      mouthAnchors = myPars$mouthAnchors,
-      amplAnchors = myPars$amplAnchors,
-      amplAnchorsGlobal = myPars$amplAnchorsGlobal,
+      mouth = myPars$mouthAnchors,
+      ampl = myPars$amplAnchors,
+      amplGlobal = myPars$amplAnchorsGlobal,
       samplingRate = input$samplingRate,
       windowLength = input$windowLength,
       pitchFloor = input$pitchFloorCeiling[1],
       pitchCeiling = input$pitchFloorCeiling[2],
       pitchSamplingRate = input$pitchSamplingRate,
-      throwaway = input$throwaway
+      dynamicRange = input$dynamicRange
     )
     # simplify arg_list by removing values that are the same as defaults
     idx_same = apply(matrix(1:length(arg_list)), 1, function(x) {
@@ -1230,6 +1266,14 @@ server = function(input, output, session) {
     # create a new preset
     new_presetID = paste(sample(c(letters, 0:9), 8, replace = TRUE),
                          collapse = '')
+    # if the new preset contains "pitch", "ampl" etc, rename to "pitchAnchors", "amplAchors"
+    for (a in 1:length(newAnchors)) {
+      old = formerAnchors[a]
+      new = newAnchors[a]
+      if (new %in% names(new_preset_list)) {
+        names(new_preset_list)[which(names(new_preset_list) == new)] = old
+      }
+    }
     myPars$loaded_presets[[new_presetID]] = new_preset_list
 
     # update sliders
@@ -1239,7 +1283,7 @@ server = function(input, output, session) {
 
   observeEvent(input$about, {
     id <<- showNotification(
-      ui = 'SoundGen 1.1.0. Load/detach library(shinyBS) to show/hide tips. Project home page: http://cogsci.se/soundgen.html. Contact me at andrey.anikin / at / rambler.ru. Thank you!',
+      ui = paste0("SoundGen ", packageVersion('soundgen'), ". Load/detach library(shinyBS) to show/hide tips. Project home page: http://cogsci.se/soundgen.html. Contact me at andrey.anikin / at / rambler.ru. Thank you!"),
       duration = 10,
       closeButton = TRUE,
       type = 'default'

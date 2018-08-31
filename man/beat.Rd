@@ -4,20 +4,26 @@
 \alias{beat}
 \title{Generate beat}
 \usage{
-beat(nSyl = 10, sylLen = 200, pauseLen = 50, pitchAnchors = c(200, 10),
-  samplingRate = 16000, fadeOut = TRUE, play = FALSE)
+beat(nSyl = 10, sylLen = 200, pauseLen = 50, pitch = c(200, 10),
+  pitchAnchors = c(200, 10), samplingRate = 16000, fadeOut = TRUE,
+  play = FALSE)
 }
 \arguments{
 \item{nSyl}{the number of syllables to generate}
 
-\item{sylLen}{average duration of each syllable, ms}
+\item{sylLen}{average duration of each syllable, ms (vectorized)}
 
 \item{pauseLen}{average duration of pauses between syllables, ms}
 
+\item{pitch}{a numeric vector of f0 values in Hz or a dataframe
+specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
+"anchor format". These anchors are used to create a smooth contour of
+fundamental frequency f0 (pitch) within one syllable}
+
 \item{pitchAnchors}{a numeric vector of f0 values in Hz or a dataframe
-specifying the time (ms or 0 to 1) and value (Hz) of each anchor. These
-anchors are used to create a smooth contour of fundamental frequency f0
-(pitch) within one syllable}
+specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
+"anchor format". These anchors are used to create a smooth contour of
+fundamental frequency f0 (pitch) within one syllable}
 
 \item{samplingRate}{sampling frequency, Hz}
 
@@ -41,18 +47,18 @@ to be very short.
 playback = c(TRUE, FALSE)[2]
 # a drum-like sound
 s = beat(nSyl = 1, sylLen = 200,
-                 pitchAnchors = c(200, 100), play = playback)
+         pitch = c(200, 100), play = playback)
 # plot(s, type = 'l')
 
 # a dry, muted drum
 s = beat(nSyl = 1, sylLen = 200,
-                 pitchAnchors = c(200, 10), play = playback)
+         pitch = c(200, 10), play = playback)
 
 # sci-fi laser guns
 s = beat(nSyl = 3, sylLen = 300,
-                 pitchAnchors = c(1000, 50), play = playback)
+         pitch = c(1000, 50), play = playback)
 
 # machine guns
 s = beat(nSyl = 10, sylLen = 10, pauseLen = 50,
-                 pitchAnchors = c(2300, 300), play = playback)
+         pitch = c(2300, 300), play = playback)
 }

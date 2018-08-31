@@ -454,7 +454,6 @@ getDiscreteContour = function(len,
 #' soundgen:::reformatAnchors(anchors = list(value=c(150, 200, 220)))
 #' soundgen:::reformatAnchors(anchors = list(time = c(0, 10, 100),
 #'                                           value = c(150, 200, 220)))
-
 #' # returns NA
 #' soundgen:::reformatAnchors('aha')
 #' # returns NA with a warning
@@ -484,7 +483,7 @@ reformatAnchors = function(anchors, normalizeTime = TRUE) {
         value = anchors_df[, 1]
       )
     } else if (!identical(colnames(anchors_df), c('time', 'value'))) {
-      warning(paste('Anchors should be either numeric or a dataframe',
+      warning(paste('An anchor should be either numeric or a dataframe',
                     'with two columns: time and value.'))
       return(NA)
     }

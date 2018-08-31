@@ -4,13 +4,14 @@
 \alias{spectrogram}
 \title{Spectrogram}
 \usage{
-spectrogram(x, samplingRate = NULL, windowLength = 50, step = NULL,
-  overlap = 70, wn = "gaussian", zp = 0, smoothFreq = 0,
+spectrogram(x, samplingRate = NULL, dynamicRange = 80, windowLength = 50,
+  step = NULL, overlap = 70, wn = "gaussian", zp = 0, smoothFreq = 0,
   smoothTime = 0, qTime = 0, percentNoise = 10, noiseReduction = 0,
   contrast = 0.2, brightness = 0, method = c("spectrum",
   "spectralDerivative")[1], output = c("none", "original", "processed")[1],
-  ylim = NULL, plot = TRUE, osc = FALSE, colorTheme = c("bw", "seewave",
-  "...")[1], xlab = "Time, ms", ylab = "Frequency, KHz", main = "",
+  ylim = NULL, plot = TRUE, osc = FALSE, osc_dB = FALSE,
+  heights = c(3, 1), colorTheme = c("bw", "seewave", "...")[1],
+  xlab = "Time, ms", ylab = "Frequency, KHz", main = "",
   frameBank = NULL, duration = NULL, ...)
 }
 \arguments{
@@ -19,6 +20,9 @@ samplingRate}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if
 \code{x} is a numeric vector, rather than a .wav file)}
+
+\item{dynamicRange}{dynamic range, dB. All values with power more than one
+dynamicRange under maximum are treated as zero}
 
 \item{windowLength}{length of FFT window, ms}
 
@@ -66,7 +70,12 @@ spectrogram ('original'), or denoised and/or smoothed spectrogram
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{osc}{should an oscillogram be shown under the spectrogram? TRUE / FALSE}
+\item{osc, osc_dB}{should an oscillogram be shown under the spectrogram? TRUE
+/ FALSE, If `osc_dB`, the oscillogram is displayed on a dB scale. See
+\code{\link{osc_dB}} for details}
+
+\item{heights}{a vector of length two specifying the relative height of the
+spectrogram and the oscillogram}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as
@@ -104,8 +113,17 @@ sound = soundgen(sylLen = 1000, temperature = 0.001, noiseAnchors = list(
 spectrogram(sound, samplingRate = 16000)
 
 \dontrun{
+# change dynamic range
+spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
+spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
+
 # add an oscillogram
 spectrogram(sound, samplingRate = 16000, osc = TRUE)
+
+# oscillogram on a dB scale, same height as spectrogram
+spectrogram(sound, samplingRate = 16000,
+            osc_dB = TRUE, heights = c(1, 1))
+
 # broad-band instead of narrow-band
 spectrogram(sound, samplingRate = 16000, windowLength = 5)
 

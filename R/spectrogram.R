@@ -10,6 +10,8 @@
 #'   samplingRate
 #' @param samplingRate sampling rate of \code{x} (only needed if
 #'   \code{x} is a numeric vector, rather than a .wav file)
+#' @param dynamicRange dynamic range, dB. All values with power more than one
+#'   dynamicRange under maximum are treated as zero
 #' @param windowLength length of FFT window, ms
 #' @param overlap overlap between successive FFT frames, \%
 #' @param step you can override \code{overlap} by specifying FFT step, ms
@@ -41,7 +43,11 @@
 #'   ('processed')
 #' @param ylim frequency range to plot, kHz (defaults to 0 to Nyquist frequency)
 #' @param plot should a spectrogram be plotted? TRUE / FALSE
-#' @param osc should an oscillogram be shown under the spectrogram? TRUE / FALSE
+#' @param osc,osc_dB should an oscillogram be shown under the spectrogram? TRUE
+#'   / FALSE, If `osc_dB`, the oscillogram is displayed on a dB scale. See
+#'   \code{\link{osc_dB}} for details
+#' @param heights a vector of length two specifying the relative height of the
+#'   spectrogram and the oscillogram
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
 #'   or any palette from \code{\link[grDevices]{palette}} such as
 #'   'heat.colors', 'cm.colors', etc
@@ -66,8 +72,17 @@
 #' spectrogram(sound, samplingRate = 16000)
 #'
 #' \dontrun{
+#' # change dynamic range
+#' spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
+#' spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
+#'
 #' # add an oscillogram
 #' spectrogram(sound, samplingRate = 16000, osc = TRUE)
+#'
+#' # oscillogram on a dB scale, same height as spectrogram
+#' spectrogram(sound, samplingRate = 16000,
+#'             osc_dB = TRUE, heights = c(1, 1))
+#'
 #' # broad-band instead of narrow-band
 #' spectrogram(sound, samplingRate = 16000, windowLength = 5)
 #'
@@ -93,6 +108,7 @@
 #' }
 spectrogram = function(x,
                        samplingRate = NULL,
+                       dynamicRange = 80,
                        windowLength = 50,
                        step = NULL,
                        overlap = 70,
@@ -110,6 +126,8 @@ spectrogram = function(x,
                        ylim = NULL,
                        plot = TRUE,
                        osc = FALSE,
+                       osc_dB = FALSE,
+                       heights = c(3, 1),
                        colorTheme = c('bw', 'seewave', '...')[1],
                        xlab = 'Time, ms',
                        ylab = 'Frequency, KHz',
@@ -128,6 +146,7 @@ spectrogram = function(x,
     samplingRate = sound_wav@samp.rate
     windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
     sound = sound_wav@left
+    maxAmpl = 2^(sound_wav@bit - 1)
     if (windowLength_points > (length(sound) / 2)) {
       windowLength_points = floor(length(sound) / 4) * 2
       step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
@@ -150,6 +169,7 @@ spectrogram = function(x,
       stop ('Please specify samplingRate, eg 44100')
     } else {
       sound = x
+      maxAmpl = max(abs(sound))
       duration = length(sound) / samplingRate
       windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
       if (windowLength_points > (length(sound) / 2)) {
@@ -214,13 +234,17 @@ spectrogram = function(x,
 
   if (method == 'spectralDerivative') {
     # first derivative of spectrum by time
-    dZ_dt = cbind (rep(0, nrow(Z)), t(apply(Z, 1, diff)))
+    dZ_dt = cbind(rep(0, nrow(Z)), t(apply(Z, 1, diff)))
     # first derivative of spectrum by frequency
-    dZ_df = rbind (rep(0, ncol(Z)), apply(Z, 2, diff))
+    dZ_df = rbind(rep(0, ncol(Z)), apply(Z, 2, diff))
     Z1 = sqrt(dZ_dt ^ 2 + dZ_df ^ 2)  # length of gradient vector
   } else {
     Z1 = Z # this is our raw spectrogram
   }
+
+  # set to zero under dynamic range
+  threshold = max(Z1) / 10^(dynamicRange/20)
+  Z1[Z1 < threshold] = 0
 
   # removing noise. NB: the order of these operations is crucial,
   # don't change it!
@@ -289,15 +313,32 @@ spectrogram = function(x,
 
   if (plot) {
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
-    if (osc) {
-      layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = c(3, 1))
-      par(mar = c(5.1, 4.1, 0, 2.1), xaxt = 's', yaxt = 'n')
+    if (osc | osc_dB) {
+      if (osc_dB) {
+        sound = osc_dB(sound,
+                       dynamicRange = dynamicRange,
+                       maxAmpl = maxAmpl,
+                       plot = FALSE,
+                       returnWave = TRUE)
+        ylim_osc = c(-dynamicRange, dynamicRange)
+      } else {
+        ylim_osc = c(-maxAmpl, maxAmpl)
+      }
+      layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
+      par(mar = c(5.1, 4.1, 0, 2.1), xaxt = 's', yaxt = 's')
       plot(
         seq(1, duration * 1000, length.out = length(sound)),
         sound,
-        type = "l", xaxs = "i", yaxs = "i",
+        type = "l",
+        ylim = ylim_osc,
+        axes = FALSE, xaxs = "i", yaxs = "i", bty = 'o',
         xlab = xlab, ylab = '', main = '', ...)
-      axis(side = 1, labels = TRUE, ...)
+      box()
+      axis(side = 1)
+      if (osc_dB) {
+        axis(side = 4, at = seq(0, dynamicRange, by = 10))
+        mtext("dB", side = 2, line = 3)
+      }
       abline(h = 0, lty = 2)
       par(mar = c(0, 4.1, 2.1, 2.1), xaxt = 'n', yaxt = 's')
       xlab = ''
@@ -342,10 +383,12 @@ spectrogram = function(x,
 #' @export
 #' @examples
 #' \dontrun{
-#' spectrogramFolder('~/Downloads/temp',
-#'                   windowLength = 40, overlap = 75,  # spectrogram pars
-#'                   width = 1500, height = 900        # passed to jpeg()
-#'                   )
+#' spectrogramFolder(
+#'   '~/Downloads/temp',
+#'   windowLength = 40, overlap = 75,  # spectrogram pars
+#'   width = 1500, height = 900,        # passed to jpeg()
+#'   osc = TRUE, osc_dB = TRUE, heights = c(1, 1)
+#' )
 #' # note that the folder now also contains an html file with clickable plots
 #' }
 spectrogramFolder = function(myfolder,

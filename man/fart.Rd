@@ -4,28 +4,38 @@
 \alias{fart}
 \title{Fart}
 \usage{
-fart(glottisAnchors = c(350, 700), pitchAnchors = 75, temperature = 0.25,
-  sylLen = 600, rolloff = -20, samplingRate = 16000, play = FALSE,
-  plot = FALSE)
+fart(glottis = c(350, 700), glottisAnchors = "deprecated", pitch = 75,
+  pitchAnchors = "deprecated", temperature = 0.25, sylLen = 600,
+  rolloff = -20, samplingRate = 16000, play = FALSE, plot = FALSE)
 }
 \arguments{
-\item{glottisAnchors}{anchors for specifying the proportion of a glottal
-cycle with closed glottis, % (0 = no modification, 100 = closed phase as
-long as open phase); numeric vector or dataframe specifying time and value}
+\item{glottis}{anchors for specifying the proportion of a
+glottal cycle with closed glottis, \% (0 = no modification, 100 = closed
+phase as long as open phase); numeric vector or dataframe specifying time
+and value (anchor format)}
+
+\item{glottisAnchors}{anchors for specifying the proportion of a
+glottal cycle with closed glottis, \% (0 = no modification, 100 = closed
+phase as long as open phase); numeric vector or dataframe specifying time
+and value (anchor format)}
+
+\item{pitch}{a numeric vector of f0 values in Hz or a dataframe
+specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
+"anchor format". These anchors are used to create a smooth contour of
+fundamental frequency f0 (pitch) within one syllable}
 
 \item{pitchAnchors}{a numeric vector of f0 values in Hz or a dataframe
-specifying the time (ms or 0 to 1) and value (Hz) of each anchor. These
-anchors are used to create a smooth contour of fundamental frequency f0
-(pitch) within one syllable}
+specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
+"anchor format". These anchors are used to create a smooth contour of
+fundamental frequency f0 (pitch) within one syllable}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
 
-\item{sylLen}{average duration of each syllable, ms}
+\item{sylLen}{syllable length, ms (not vectorized)}
 
-\item{rolloff}{basic rolloff from lower to upper harmonics, db/octave
-(exponential decay). All rolloff parameters are vectorized. See
-\code{\link{getRolloff}} for more details}
+\item{rolloff}{rolloff of harmonics in source spectrum, dB/octave (not
+vectorized)}
 
 \item{samplingRate}{sampling frequency, Hz}
 

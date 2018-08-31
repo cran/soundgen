@@ -47,7 +47,15 @@
 #' noise = generateNoise(len = samplingRate * 1.2,
 #'   rolloffNoise = c(0, -12), noiseFlatSpec = 2000, samplingRate = samplingRate)
 #' # playme(noise, samplingRate = samplingRate)
-#' # spectrogram(noise, samplingRate)
+#' # spectrogram(noise, samplingRate, osc = TRUE)
+#'
+#' # Similar, but using the dataframe format to specify a more complicated
+#' # contour for rolloffNoise:
+#' noise = generateNoise(len = samplingRate * 1.2,
+#'   rolloffNoise = data.frame(time = c(0, .2, 1), value = c(-12, 0, -12)),
+#'   noiseFlatSpec = 2000, samplingRate = samplingRate)
+#' # playme(noise, samplingRate = samplingRate)
+#' # spectrogram(noise, samplingRate, osc = TRUE)
 #'
 #' # To create a sibilant [s], specify a single strong, broad formant at ~7 kHz:
 #' windowLength_points = 1024
@@ -94,31 +102,45 @@ generateNoise = function(len,
                          windowLength_points = 1024,
                          samplingRate = 16000,
                          overlap = 75,
-                         throwaway = -80) {
+                         dynamicRange = 80) {
   # wiggle pars
-  if (temperature > 0) {
+  if (temperature > 0) {  # set to 0 when called internally by soundgen()
     len = rnorm_bounded(n = 1,
                         mean = len,
                         sd = len * temperature * .5,
                         low = 0, high = samplingRate * 10,  # max 10 s
                         roundToInteger = TRUE)
-    rolloffNoise = rnorm_bounded(n = length(rolloffNoise),
-                                 mean = rolloffNoise,
-                                 sd = rolloffNoise * temperature * .5,
-                                 low = -50, high = 10)
+    if (is.list(rolloffNoise)) {
+      rolloffNoise = wiggleAnchors(
+        rolloffNoise,
+        temperature = temperature,
+        temp_coef = .5,
+        low = c(-Inf, permittedValues['rolloffNoise', 'low']),
+        high = c(Inf, permittedValues['rolloffNoise', 'high']),
+        wiggleAllRows = TRUE
+      )
+    } else {
+      rolloffNoise = rnorm_bounded(
+        n = length(rolloffNoise),
+        mean = rolloffNoise,
+        sd = abs(rolloffNoise) * temperature * .5,
+        low = -20,
+        high = 20
+      )
+    }
     noiseFlatSpec = rnorm_bounded(n = 1,
                                   mean = noiseFlatSpec,
                                   sd = noiseFlatSpec * temperature * .5,
                                   low = 0, high = samplingRate / 2)
     attackLen = rnorm_bounded(n = length(attackLen),
-                                  mean = attackLen,
-                                  sd = attackLen * temperature * .5,
-                                  low = 0, high = len / samplingRate * 1000 / 2)
+                              mean = attackLen,
+                              sd = attackLen * temperature * .5,
+                              low = 0, high = len / samplingRate * 1000 / 2)
     noiseAnchors = wiggleAnchors(
       reformatAnchors(noiseAnchors),
       temperature = temperature,
       temp_coef = .5,
-      low = c(0, throwaway),
+      low = c(0, -dynamicRange),
       high = c(1, 0),
       wiggleAllRows = TRUE
     )
@@ -167,8 +189,14 @@ generateNoise = function(len,
     binsPerKHz = round(1000 / bin)
     flatBins = round(noiseFlatSpec / bin)
     idx = (flatBins + 1):nr  # the bins affected by rolloffNoise
-    if (length(rolloffNoise) > 1) {
-      rolloffNoise = getSmoothContour(anchors = rolloffNoise, len = nc)
+    if (is.list(rolloffNoise) |
+        (is.numeric(rolloffNoise) && length(rolloffNoise) > 1)) {
+      rolloffNoise = getSmoothContour(
+        anchors = rolloffNoise,
+        len = nc,
+        valueFloor = permittedValues['rolloffNoise', 'low'],
+        valueCeiling = permittedValues['rolloffNoise', 'high']
+      )
       filterNoise = matrix(1, nrow = nr, ncol = nc)
       for (c in 1:nc) {
         filterNoise[idx, c] = 10 ^ (rolloffNoise[c] / 20 * (idx - flatBins) / binsPerKHz)
@@ -228,7 +256,7 @@ generateNoise = function(len,
       )
     )
     breathing = matchLengths(breathing, len = len)  # pad with 0s or trim
-    breathing = breathing / max(breathing) * breathingStrength # normalize
+    breathing = breathing / max(abs(breathing)) * breathingStrength # normalize
 
     # add attack
     if (is.numeric(attackLen) && any(attackLen > 0)) {
@@ -271,7 +299,7 @@ generateNoise = function(len,
 #'   is to get high in the middle and low at the beginning and end (i.e. max
 #'   effect amplitude in the middle of a sound)
 #' @param rolloff_perAmpl as amplitude goes down from max to
-#'   \code{throwaway}, \code{rolloff} increases by \code{rolloff_perAmpl}
+#'   \code{-dynamicRange}, \code{rolloff} increases by \code{rolloff_perAmpl}
 #'   dB/octave. The effect is to make loud parts brighter by increasing energy
 #'   in higher frequencies
 #' @keywords internal
@@ -305,22 +333,28 @@ generateHarmonics = function(pitch,
                              subFreq = 100,
                              subDep = 0,
                              amplAnchors = NA,
+                             interpol = c('approx', 'spline', 'loess')[3],
                              overlap = 75,
                              samplingRate = 16000,
                              pitchFloor = 75,
                              pitchCeiling = 3500,
                              pitchSamplingRate = 3500,
-                             throwaway = -80) {
+                             dynamicRange = 80) {
   ## PRE-SYNTHESIS EFFECTS (NB: the order in which effects are added is NOT arbitrary!)
   # vibrato (performed on pitch, not pitch_per_gc!)
-  if (any(vibratoDep > 0)) {
-    if (length(vibratoFreq) > 1) {
-      vibratoFreq = getSmoothContour(anchors = vibratoFreq,
-                                     len = length(pitch))
-    }
-    if (length(vibratoDep) > 1) {
-      vibratoDep = getSmoothContour(anchors = vibratoDep,
-                                    len = length(pitch))
+  if (any(vibratoDep$value > 0)) {
+    lp = length(pitch)
+    for (p in c('vibratoFreq', 'vibratoDep')) {
+      old = get(p)
+      if (length(old) > 1) {
+        new = getSmoothContour(
+          anchors = old,
+          len = lp,
+          valueFloor = permittedValues[p, 'low'],
+          valueCeiling = permittedValues[p, 'high'],
+          interpol = interpol)
+        assign(p, new)
+      }
     }
     vibrato = 2 ^ (sin(2 * pi * (1:length(pitch)) * vibratoFreq /
                          pitchSamplingRate) * vibratoDep / 12)
@@ -332,18 +366,40 @@ generateHarmonics = function(pitch,
   gc = getGlottalCycles(pitch, samplingRate = pitchSamplingRate)  # our "glottal cycles"
   pitch_per_gc = pitch[gc]
   nGC = length(pitch_per_gc)
+  # to avoid recalculating gc for each contour like jitterDep,
+  # we can upsample them to length nGC and just take gc indices
+  # scaled to length nGC instead of length(pitch)
+  gc1 = ceiling(gc * nGC / length(pitch))
+
+  # vectorized par-s should be upsampled and converted from ms to gc scale
+  update_pars = c(
+    'rolloff', 'rolloffOct', 'rolloffParab', 'rolloffParabHarm', 'rolloffKHz',
+    'jitterDep', 'jitterLen', 'shimmerDep', 'shimmerLen', 'subFreq', 'subDep'
+  )
+  for (p in update_pars) {
+    old = get(p)
+    if (length(old) > 1) {
+      new = getSmoothContour(
+        anchors = old,
+        len = nGC,
+        valueFloor = permittedValues[p, 'low'],
+        valueCeiling = permittedValues[p, 'high'],
+        interpol = interpol)[gc1]
+      assign(p, new)
+    }
+  }
 
   # generate a short amplitude contour to adjust rolloff per glottal cycle
   if (!is.na(amplAnchors) && any(amplAnchors$value != 0)) {
     amplContour = getSmoothContour(
       anchors = amplAnchors,
       len = nGC,
-      valueFloor = throwaway,
+      valueFloor = -dynamicRange,
       valueCeiling = 0,
       samplingRate = samplingRate
     )
     # plot(amplContour, type='l')
-    amplContour = (amplContour + abs(throwaway)) / abs(throwaway) - 1
+    amplContour = (amplContour + dynamicRange) / dynamicRange - 1
     rolloffAmpl = amplContour * rolloff_perAmpl
   } else {
     rolloffAmpl = rep(0, nGC)
@@ -412,7 +468,7 @@ generateHarmonics = function(pitch,
       1.2 / (1 + exp(-.008 * (length(pitch_per_gc) - 10))) + .6
     rw_range = temperature * pitchDriftDep +
       length(pitch_per_gc) / 1000 / 12
-    drift = getRandomWalk (
+    drift = getRandomWalk(
       len = length(pitch_per_gc),
       rw_range = rw_range,
       rw_smoothing = rw_smoothing,
@@ -447,7 +503,7 @@ generateHarmonics = function(pitch,
     rolloffParab = rolloffParab,
     rolloffParabHarm = rolloffParabHarm,
     samplingRate = samplingRate,
-    throwaway = throwaway
+    dynamicRange = dynamicRange
   )
   # NB: this whole pitch_per_gc trick is purely for computational efficiency.
   #   The entire pitch contour can be fed in, but then it takes up to 1 s
@@ -473,15 +529,13 @@ generateHarmonics = function(pitch,
   # add vocal fry (subharmonics)
   if (!synthesize_per_gc &&  # can't add subharmonics if doing one gc at a time (one f0 period)
       any(subDep > 0) & any(vocalFry_on)) {
-    if (length(subFreq) > 1) subFreq = getSmoothContour(subFreq, len = nGC)
-    if (length(subDep) > 1) subDep = getSmoothContour(subDep, len = nGC, valueFloor = .001)
     vocalFry = getVocalFry(
       rolloff = rolloff_source,
       pitch_per_gc = pitch_per_gc,
       subFreq = subFreq * rw ^ subDriftDep,
       subDep = subDep * rw ^ subDriftDep * vocalFry_on,
       shortestEpoch = shortestEpoch,
-      throwaway = throwaway
+      dynamicRange = dynamicRange
     )
     rolloff_source = vocalFry$rolloff # list of matrices
     epochs = vocalFry$epochs # dataframe
@@ -531,7 +585,7 @@ generateHarmonics = function(pitch,
     amplEnvelope = getSmoothContour(
       anchors = amplAnchors,
       len = length(waveform),
-      valueFloor = throwaway,
+      valueFloor = -dynamicRange,
       samplingRate = samplingRate
     )
     # plot(amplEnvelope, type = 'l')
@@ -710,20 +764,40 @@ generateEpoch = function(pitch_per_gc,
 #' cycles with harmonics, but no formants. See \code{\link{soundgen}} for more
 #' details.
 #' @inheritParams soundgen
+#' @param sylLen syllable length, ms (not vectorized)
+#' @param rolloff rolloff of harmonics in source spectrum, dB/octave (not
+#'   vectorized)
 #' @param plot if TRUE, plots the waveform
 #' @return Returns a normalized waveform.
 #' @export
 #' @examples
 #' f = fart()
 #' # playme(f)
-fart = function(glottisAnchors = c(350, 700),
-                pitchAnchors = 75,
+fart = function(glottis = c(350, 700),
+                glottisAnchors = 'deprecated',
+                pitch = 75,
+                pitchAnchors = 'deprecated',
                 temperature = 0.25,
                 sylLen = 600,
                 rolloff = -20,
                 samplingRate = 16000,
                 play = FALSE,
                 plot = FALSE) {
+  # deprecated pars
+  formerAnchors = c('pitchAnchors', 'glottisAnchors')
+  newAnchors = c('pitch', 'glottis')
+  for (i in 1:length(formerAnchors)) {
+    p = formerAnchors[i]
+    q = newAnchors[i]
+    # simply missing(noquote(p)) doesn't work, so use do.call
+    if (!do.call(missing, list(noquote(p)))) {
+      # user wrote "pitchAnchors = ..." etc
+      message(paste(p, 'is deprecated; use', q, 'instead'))
+    } else {
+      assign(p, get(q))
+    }
+  }
+
   glottisAnchors = reformatAnchors(glottisAnchors)
   pitchAnchors = reformatAnchors(pitchAnchors)
 
@@ -738,8 +812,14 @@ fart = function(glottisAnchors = c(350, 700),
                            sd = sylLen * temperature * .5,
                            low = 0, high = 10000)
 
-    glottisAnchors = wiggleAnchors(glottisAnchors, temperature, temp_coef = .5, low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE)
-    pitchAnchors = wiggleAnchors(pitchAnchors, temperature, temp_coef = 1, low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE)
+    glottisAnchors = wiggleAnchors(
+      glottisAnchors, temperature, temp_coef = .5,
+      low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE
+      )
+    pitchAnchors = wiggleAnchors(
+      pitchAnchors, temperature, temp_coef = 1,
+      low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE
+      )
   }
 
   # preliminary glottis contour
@@ -751,7 +831,8 @@ fart = function(glottisAnchors = c(350, 700),
   pitchAnchors = pitchAnchors * (mean_closed + 1)
 
   # prepare pitch contour
-  pitch = getSmoothContour(anchors = pitchAnchors, len = sylLen * samplingRate / 1000)
+  pitch = getSmoothContour(anchors = pitchAnchors,
+                           len = sylLen * samplingRate / 1000)
 
   # get pitch per glottal cycle
   gc = getGlottalCycles(pitch, samplingRate = samplingRate)
@@ -823,27 +904,33 @@ fart = function(glottisAnchors = c(350, 700),
 #' playback = c(TRUE, FALSE)[2]
 #' # a drum-like sound
 #' s = beat(nSyl = 1, sylLen = 200,
-#'                  pitchAnchors = c(200, 100), play = playback)
+#'          pitch = c(200, 100), play = playback)
 #' # plot(s, type = 'l')
 #'
 #' # a dry, muted drum
 #' s = beat(nSyl = 1, sylLen = 200,
-#'                  pitchAnchors = c(200, 10), play = playback)
+#'          pitch = c(200, 10), play = playback)
 #'
 #' # sci-fi laser guns
 #' s = beat(nSyl = 3, sylLen = 300,
-#'                  pitchAnchors = c(1000, 50), play = playback)
+#'          pitch = c(1000, 50), play = playback)
 #'
 #' # machine guns
 #' s = beat(nSyl = 10, sylLen = 10, pauseLen = 50,
-#'                  pitchAnchors = c(2300, 300), play = playback)
+#'          pitch = c(2300, 300), play = playback)
 beat = function(nSyl = 10,
                 sylLen = 200,
                 pauseLen = 50,
+                pitch = c(200, 10),
                 pitchAnchors = c(200, 10),
                 samplingRate = 16000,
                 fadeOut = TRUE,
                 play = FALSE) {
+  if (!missing(pitchAnchors)) {
+    message(paste('pitchAnchors is deprecated; use pitch instead'))
+  } else {
+    pitchAnchors = pitch
+  }
   len = sylLen * samplingRate / 1000
   pitchContour = getSmoothContour(anchors = pitchAnchors,
                                   len = len,

@@ -7,27 +7,26 @@
 getRolloff(pitch_per_gc = c(440), nHarmonics = 100, rolloff = -6,
   rolloffOct = -3, rolloffParab = 0, rolloffParabHarm = 3,
   rolloffParabCeiling = NULL, rolloffKHz = -3, baseline = 200,
-  throwaway = -120, samplingRate = 16000, plot = FALSE)
+  dynamicRange = 80, samplingRate = 16000, plot = FALSE)
 }
 \arguments{
 \item{pitch_per_gc}{a vector of f0 per glottal cycle, Hz}
 
 \item{nHarmonics}{maximum number of harmonics to generate (very weak
-harmonics with amplitude < \code{throwaway} will be discarded)}
+harmonics with amplitude < \code{-dynamicRange} will be discarded)}
 
 \item{rolloff}{basic rolloff from lower to upper harmonics, db/octave
-(exponential decay). All rolloff parameters are vectorized. See
+(exponential decay). All rolloff parameters are in anchor format. See
 \code{\link{getRolloff}} for more details}
 
-\item{rolloffOct}{basic rolloff changes from lower to upper
-harmonics (regardless of f0) by \code{rolloffOct} dB/oct. For
-example, we can get steeper rolloff in the upper part of the spectrum}
+\item{rolloffOct}{basic rolloff changes from lower to upper harmonics
+(regardless of f0) by \code{rolloffOct} dB/oct. For example, we can get
+steeper rolloff in the upper part of the spectrum}
 
-\item{rolloffParab}{an optional quadratic term affecting only the
-first \code{rolloffParabHarm} harmonics. The middle harmonic
-of the first \code{rolloffParabHarm} harmonics is amplified or
-dampened by \code{rolloffParab} dB relative to the basic
-exponential decay}
+\item{rolloffParab}{an optional quadratic term affecting only the first
+\code{rolloffParabHarm} harmonics. The middle harmonic of the first
+\code{rolloffParabHarm} harmonics is amplified or dampened by
+\code{rolloffParab} dB relative to the basic exponential decay}
 
 \item{rolloffParabHarm}{the number of harmonics affected by
 \code{rolloffParab}}
@@ -36,15 +35,16 @@ exponential decay}
 \code{rolloffParabCeiling}, Hz. If not NULL, it overrides
 \code{rolloffParabHarm}}
 
-\item{rolloffKHz}{rolloff changes linearly with f0 by
-\code{rolloffKHz} dB/kHz. For ex., -6 dB/kHz gives a 6 dB
-steeper basic rolloff as f0 goes up by 1000 Hz}
+\item{rolloffKHz}{rolloff changes linearly with f0 by \code{rolloffKHz}
+dB/kHz. For ex., -6 dB/kHz gives a 6 dB steeper basic rolloff as f0 goes up
+by 1000 Hz}
 
 \item{baseline}{The "neutral" frequency, at which no adjustment of rolloff
 takes place regardless of \code{rolloffKHz}}
 
-\item{throwaway}{discard harmonics and noise that are quieter than this
-number (in dB, defaults to -80) to save computational resources}
+\item{dynamicRange}{dynamic range, dB. Harmonics and noise more than
+dynamicRange under maximum amplitude are discarded to save computational
+resources}
 
 \item{samplingRate}{sampling rate (needed to stop at Nyquist frequency and
 for plotting purposes)}
@@ -114,11 +114,20 @@ rolloff = getRolloff(pitch_per_gc = c(150, 250),
                      rolloff = c(-12, -18, -24), plot = TRUE)
 rolloff = getRolloff(pitch_per_gc = c(150, 250), rolloffParab = 40,
                     rolloffParabHarm = 1:5, plot = TRUE)
+
 \dontrun{
-# only rolloff for the first glottal cycle is plotted, but the sound varies:
+# Note: getRolloff() is called internally by soundgen()
+# using the data.frame format for all vectorized parameters.
+# Compare:
 s1 = soundgen(sylLen = 1000, pitchAnchors = 250,
-              rolloff = c(-12, -24, -2), plot = TRUE)
+              rolloff = c(-24, -2, -18), plot = TRUE)
 s2 = soundgen(sylLen = 1000, pitchAnchors = 250,
+              rolloff = data.frame(time = c(0, .2, 1),
+                                   value = c(-24, -2, -18)),
+              plot = TRUE)
+
+# Also works for rolloffOct, rolloffParab, etc:
+s3 = soundgen(sylLen = 1000, pitchAnchors = 250,
              rolloffParab = 20, rolloffParabHarm = 1:15, plot = TRUE)
 }
 }

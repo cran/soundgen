@@ -301,9 +301,9 @@ findZeroCrossing = function(ampl, location) {
 #'
 #' \dontrun{
 #' # Actual sounds, alternative shapes of fade-in/out
-#' sound3 = soundgen(formants = 'a', pitchAnchors = 200,
+#' sound3 = soundgen(formants = 'a', pitch = 200,
 #'                   addSilence = 0, attackLen = c(50, 0))
-#' sound4 = soundgen(formants = 'u', pitchAnchors = 200,
+#' sound4 = soundgen(formants = 'u', pitch = 200,
 #'                   addSilence = 0, attackLen = c(0, 50))
 #'
 #' # simple concatenation (with a click)
@@ -577,6 +577,8 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #'   bound on "time"=0, low bound on "value"=1
 #' @param wiggleAllRows should the first and last time anchors be wiggled? (TRUE
 #'   for breathing, FALSE for other anchors)
+#' @param sd_values (optional) the exact value of sd used by rnorm_bounded in
+#'   columns 2 and beyond
 #' @inheritParams soundgen
 #' @return Modified original dataframe.
 #' @keywords internal
@@ -587,7 +589,7 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #'   wiggleAllRows = FALSE) # pitch
 #' soundgen:::wiggleAnchors(df = data.frame(time = 0, value = 240),
 #'   temperature = .2, temp_coef = .1, low = c(0, 50), high = c(1, 1000),
-#'   wiggleAllRows = FALSE) # pitch, sinle anchor
+#'   wiggleAllRows = FALSE) # pitch, single anchor
 #' soundgen:::wiggleAnchors(df = data.frame(
 #'   time = c(-100, 100, 600, 900), value = c(-120, -80, 0, -120)),
 #'   temperature = .4, temp_coef = .5, low = c(-Inf, -120), high = c(+Inf, 30),
@@ -607,12 +609,18 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #'   )
 #' }
 #' print(formants)
+#'
+#' # manually provided sd (temp only affects prob of adding/dropping anchors)
+#' soundgen:::wiggleAnchors(df = data.frame(
+#'   time = c(0, .1, .8, 1), value = c(100, 230, 180, 90)),
+#'   wiggleAllRows = FALSE, sd_values = 5)
 wiggleAnchors = function(df,
-                         temperature,
-                         temp_coef,
-                         low,
-                         high,
+                         temperature = .05,
+                         temp_coef = 1,
+                         low = c(0, -Inf),
+                         high = c(1, Inf),
                          wiggleAllRows = FALSE,
+                         sd_values = NULL,
                          invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
   if (temperature == 0 | temp_coef == 0) return(df)
   if (any(is.na(df))) return(NA)
@@ -635,7 +643,9 @@ wiggleAnchors = function(df,
       newAnchor = try(rnorm_bounded(
         n = ncol(df) - 1,
         mean = as.numeric(df[1, idx]),
-        sd = as.numeric(df[1, idx] * temperature * temp_coef),
+        sd = ifelse(is.numeric(sd_values),
+                    sd_values,
+                    as.numeric(df[1, idx] * temperature * temp_coef)),
         low = low[idx],
         high = high[idx],
         invalidArgAction = invalidArgAction))
@@ -694,7 +704,9 @@ wiggleAnchors = function(df,
     w = try(rnorm_bounded(
       n = nrow(df),
       mean = as.numeric(df[, i]),
-      sd = as.numeric(ranges[i] * temperature * temp_coef),
+      sd = ifelse(i > 1 && !is.null(sd_values),
+                  sd_values,
+                  as.numeric(ranges[i] * temperature * temp_coef)),
       low = low[i],
       high = high[i],
       roundToInteger = FALSE,
@@ -786,8 +798,8 @@ getEnv = function(sound,
 #'   specified, overrides both \code{windowLength} and \code{samplingRate}
 #' @param killDC if TRUE, dynamically removes DC offset or similar deviations of
 #'   average waveform from zero
-#' @param throwaway parts of sound quieter than \code{throwaway} dB will not be
-#'   amplified
+#' @param dynamicRange parts of sound quieter than \code{-dynamicRange} dB will
+#'   not be amplified
 #' @param plot if TRUE, plots the original sound, smoothed envelope, and
 #'   flattened sound
 #' @export
@@ -801,7 +813,7 @@ getEnv = function(sound,
 #'             windowLength_points = 50)        # about right
 #'
 #' \dontrun{
-#' s = soundgen(sylLen = 1000, amplAnchors = c(0, -40, 0), plot = TRUE, osc = TRUE)
+#' s = soundgen(sylLen = 1000, ampl = c(0, -40, 0), plot = TRUE, osc = TRUE)
 #' # playme(s)
 #' s_flat = flatEnv(s, plot = TRUE, windowLength = 50)
 #' # playme(s_flat)
@@ -812,7 +824,7 @@ flatEnv = function(sound,
                    method = c('hil', 'rms', 'peak')[1],
                    windowLength_points = NULL,
                    killDC = FALSE,
-                   throwaway = -80,
+                   dynamicRange = 80,
                    plot = FALSE) {
   if (!is.numeric(windowLength_points)) {
     if (is.numeric(windowLength)) {
@@ -827,7 +839,7 @@ flatEnv = function(sound,
 
   m = max(abs(sound))       # original scale (eg -1 to +1 gives m = 1)
   soundNorm = sound / m    # normalize
-  throwaway_lin = 10 ^ (throwaway / 20)  # from dB to linear
+  throwaway_lin = 10 ^ (-dynamicRange / 20)  # from dB to linear
   # get smoothed amplitude envelope
   if (method == 'hil') {
     env = seewave::env(
@@ -1090,7 +1102,7 @@ scaleNoiseAnchors = function(noiseTime, sylLen_old, sylLen_new) {
 #' Internal soundgen function
 #'
 #' Helper function for preparing a vector of multiplication factors for adding
-#' jitter and shimmer per glottal cycle. Generates a random anchors for each
+#' jitter and shimmer per glottal cycle. Generates random anchors for each
 #' jitter/shimmer period and draws a smooth contour between them by spline
 #' interpolation.
 #' @param dep a vector of any length specifying the strengh of applied effect as
@@ -1119,8 +1131,8 @@ scaleNoiseAnchors = function(noiseTime, sylLen_old, sylLen_new) {
 #'               rw = rep(1, 100), effect_on = rep(1, 100)),
 #'      type = 'b')
 wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
-  if (length(dep) > 1) dep = getSmoothContour(dep, len = nGC)
-  if (length(len) > 1) len = getSmoothContour(len, len = nGC)
+  # if (length(dep) > 1) dep = getSmoothContour(dep, len = nGC)
+  # if (length(len) > 1) len = getSmoothContour(len, len = nGC)
   ratio = pitch_per_gc * len / 1000 # the number of gc that make
   #   up one period of effect (vector of length nGC)
   idx = 1
@@ -1132,11 +1144,12 @@ wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
   idx = round(idx)
   idx = idx[idx <= nGC]
   idx = unique(idx)  # pitch for these gc will be wiggled
+  dep_idx = getSmoothContour(dep, len = length(idx))
 
   effect = 2 ^ (rnorm(
     n = length(idx),
     mean = 0,
-    sd = dep
+    sd = dep_idx
   ) * rw[idx] * effect_on[idx])
   # plot(effect, type = 'b')
 
@@ -1144,4 +1157,111 @@ wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
   effect_per_gc = spline(effect, n = nGC, x = idx)$y
   # plot(effect_per_gc, type = 'b')
   return(effect_per_gc)
+}
+
+
+#' Oscillogram dB
+#'
+#' Plots the oscillogram (waveform) of a sound on a logarithmic scale, in dB.
+#' Analogous to "Waveform (dB)" view in Audacity.
+#'
+#' Algorithm: centers and normalizes the sound, then takes a logarithm of the
+#' positive part and a flipped negative part.
+#' @return Returns the input waveform on a dB scale: a vector with
+#'   range from `-range` to `range`.
+#' @param x path to a .wav file or a CENTERED (mean ~= 0) vector of amplitudes
+#'   with specified samplingRate
+#' @param dynamicRange dynamic range of the oscillogram, dB
+#' @param maxAmpl the maximum theoretically possible value indicating on which
+#'   scale the sound is coded: 1 if the range is -1 to +1, 2^15 for 16-bit wav
+#'   files, etc
+#' @param samplingRate sampling rate of \code{x} (only needed if \code{x} is a
+#'   numeric vector, rather than a .wav file)
+#' @param returnWave if TRUE, returns a log-transformed waveform as a numeric vector
+#' @param plot if TRUE, plots the oscillogram
+#' @param xlab,ylab axis labels
+#' @param bty box type (see `?par`)
+#' @param midline if TRUE, draws a line at 0 dB
+#' @param ... Other graphical parameters passed on to `plot()`
+#' @export
+#' @examples
+#' sound = sin(1:2000/10) *
+#'         getSmoothContour(anchors = c(1, .01, .5), len = 2000)
+#'
+#' # Oscillogram on a linear scale
+#' plot(sound, type = 'l')
+#' # or, for fancy plotting options: seewave::oscillo(sound, f = 1000)
+#'
+#' # Oscillogram on a dB scale
+#' osc_dB(sound)
+#'
+#' # Time in ms if samplingRate is specified
+#' osc_dB(sound, samplingRate = 5000)
+#'
+#' # Assuming that the waveform can range up to 50 instead of 1
+#' osc_dB(sound, maxAmpl = 50)
+#'
+#' # Embellish and customize the plot
+#' o = osc_dB(sound, samplingRate = 1000, midline = FALSE,
+#'            main = 'My waveform', col = 'blue')
+#' abline(h = 0, col = 'orange', lty = 3)
+osc_dB = function(x,
+                  dynamicRange = 80,
+                  maxAmpl = NULL,
+                  samplingRate = NULL,
+                  returnWave = FALSE,
+                  plot = TRUE,
+                  xlab = NULL,
+                  ylab = 'dB',
+                  bty = 'n',
+                  midline = TRUE,
+                  ...) {
+  # import a sound
+  if (class(x) == 'character') {
+    sound_wav = tuneR::readWave(x)
+    samplingRate = sound_wav@samp.rate
+    sound = sound_wav@left
+    if (is.null(maxAmpl)) maxAmpl = 2^(sound_wav@bit - 1)
+  } else if (length(x) > 1 && class(x) %in% c('numeric', 'integer')) {
+    sound = x
+  }
+
+  # get original range
+  if (!is.null(maxAmpl)) {
+    mult = diff(range(sound)) / 2 / maxAmpl
+  } else {
+    mult = 1  # assume max loudness
+  }
+
+  # normalize to range from -1 to +1, unless it is quieter than maxAmpl
+  s1 = sound / max(abs(sound)) * mult
+
+  # indices of values above/below midline
+  floor = 10^(-dynamicRange / 20)  # treat smaller values as 0 (beyond dynamic range)
+  zero = which(abs(s1) < floor)
+  pos = which(s1 > floor)
+  neg = which(s1 < -floor)
+
+  # log-transform
+  sound[pos] = 20 * log10(s1[pos]) + dynamicRange
+  sound[neg] = -20 * log10(-s1[neg]) - dynamicRange
+  sound[zero] = 0
+
+  # plot
+  if (plot) {
+    if (!is.null(samplingRate)) {
+      time = 1:length(sound) / samplingRate * 1000
+      if (is.null(xlab)) xlab = 'Time, ms'
+    } else {
+      time = 1:length(sound)
+      if (is.null(xlab)) xlab = 'Time, points'
+    }
+    # plot(time, sound, type = 'l', xlab = xlab, ylab = ylab, ...)
+    plot(time, sound, type = 'l', xlab = xlab, ylab = ylab,
+         bty = bty, yaxt = 'n', ylim = c(-dynamicRange, dynamicRange), ...)
+    axis(side = 2, at = seq(0, dynamicRange, by = 10))
+    if (midline) abline(h = 0, lty = 2, col = 'gray70')
+  }
+
+  if (returnWave) return(sound)
 }

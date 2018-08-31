@@ -7,13 +7,13 @@
 generateNoise(len, rolloffNoise = 0, noiseFlatSpec = 1200,
   filterNoise = NULL, noiseAnchors = NULL, temperature = 0.1,
   attackLen = 10, windowLength_points = 1024, samplingRate = 16000,
-  overlap = 75, throwaway = -80)
+  overlap = 75, dynamicRange = 80)
 }
 \arguments{
 \item{len}{length of output}
 
 \item{rolloffNoise}{linear rolloff of the excitation source for the unvoiced
-component, dB/kHz (vectorized)}
+component, dB/kHz (anchor format)}
 
 \item{noiseFlatSpec}{keeps noise spectrum flat to this frequency, Hz}
 
@@ -25,10 +25,9 @@ STFT step is also accepted. The easiest way to create this matrix is to
 call soundgen:::getSpectralEnvelope, but then you might as well just use
 soundgen()}
 
-\item{noiseAnchors}{a numeric vector of noise amplitudes (throwaway dB = none, 0
-dB = as loud as voiced component) or a dataframe specifying the time (ms)
-and amplitude (dB) of anchors for generating the noise component such as
-aspiration, hissing, etc}
+\item{noiseAnchors}{loudness of turbulent noise (0 dB = as loud as
+voiced component, negative values = quieter) such as aspiration, hissing,
+etc (anchor format)}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
@@ -44,8 +43,9 @@ and fade-out)}
 \item{overlap}{FFT window overlap, \%. For allowed values, see
 \code{\link[seewave]{istft}}}
 
-\item{throwaway}{discard harmonics and noise that are quieter than this
-number (in dB, defaults to -80) to save computational resources}
+\item{dynamicRange}{dynamic range, dB. Harmonics and noise more than
+dynamicRange under maximum amplitude are discarded to save computational
+resources}
 }
 \description{
 Generates noise of length \code{len} and with spectrum defined by linear
@@ -84,7 +84,15 @@ noise3 = generateNoise(len = samplingRate * .25, noiseAnchors = c(0, -40),
 noise = generateNoise(len = samplingRate * 1.2,
   rolloffNoise = c(0, -12), noiseFlatSpec = 2000, samplingRate = samplingRate)
 # playme(noise, samplingRate = samplingRate)
-# spectrogram(noise, samplingRate)
+# spectrogram(noise, samplingRate, osc = TRUE)
+
+# Similar, but using the dataframe format to specify a more complicated
+# contour for rolloffNoise:
+noise = generateNoise(len = samplingRate * 1.2,
+  rolloffNoise = data.frame(time = c(0, .2, 1), value = c(-12, 0, -12)),
+  noiseFlatSpec = 2000, samplingRate = samplingRate)
+# playme(noise, samplingRate = samplingRate)
+# spectrogram(noise, samplingRate, osc = TRUE)
 
 # To create a sibilant [s], specify a single strong, broad formant at ~7 kHz:
 windowLength_points = 1024

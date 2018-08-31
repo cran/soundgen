@@ -1,4 +1,4 @@
-# TODO: calculate intensity in analyze()
+# TODO: calculate intensity in analyze(); automatic addition of pitch jumps at high temp (?)
 
 #' @import stats graphics utils grDevices
 #' @encoding UTF-8
@@ -15,21 +15,24 @@ NULL
 #' animal or human non-linguistic vocalizations. For more information, see
 #' \url{http://cogsci.se/soundgen.html} and the vignette on sound generation.
 #' @param repeatBout number of times the whole bout should be repeated
-#' @param nSyl number of syllables in the bout. Intonation, amplitude, and
-#'   formants contours span multiple syllables, but not multiple bouts
-#' @param sylLen average duration of each syllable, ms
+#' @param nSyl number of syllables in the bout. `pitchGlobal`, `amplGlobal`, and
+#'   `formants` span multiple syllables, but not multiple bouts
+#' @param sylLen average duration of each syllable, ms (vectorized)
 #' @param pauseLen average duration of pauses between syllables, ms (can be
 #'   negative between bouts: force with invalidArgAction = 'ignore')
-#' @param pitchAnchors a numeric vector of f0 values in Hz or a dataframe
-#'   specifying the time (ms or 0 to 1) and value (Hz) of each anchor. These
-#'   anchors are used to create a smooth contour of fundamental frequency f0
-#'   (pitch) within one syllable
-#' @param pitchAnchorsGlobal unlike \code{pitchAnchors}, these anchors are used
-#'   to create a smooth contour of average f0 across multiple syllables. The
-#'   values are in semitones relative to the existing pitch, i.e. 0 = no change
-#' @param glottisAnchors anchors for specifying the proportion of a glottal
-#'   cycle with closed glottis, % (0 = no modification, 100 = closed phase as
-#'   long as open phase); numeric vector or dataframe specifying time and value
+#'   (vectorized)
+#' @param pitch,pitchAnchors a numeric vector of f0 values in Hz or a dataframe
+#'   specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
+#'   "anchor format". These anchors are used to create a smooth contour of
+#'   fundamental frequency f0 (pitch) within one syllable
+#' @param pitchGlobal,pitchAnchorsGlobal unlike \code{pitch}, these anchors are
+#'   used to create a smooth contour of average f0 across multiple syllables.
+#'   The values are in semitones relative to the existing pitch, i.e. 0 = no
+#'   change (anchor format)
+#' @param glottis,glottisAnchors anchors for specifying the proportion of a
+#'   glottal cycle with closed glottis, \% (0 = no modification, 100 = closed
+#'   phase as long as open phase); numeric vector or dataframe specifying time
+#'   and value (anchor format)
 #' @param temperature hyperparameter for regulating the amount of stochasticity
 #'   in sound generation
 #' @param tempEffects a list of scaling coefficients regulating the effect of
@@ -44,7 +47,7 @@ NULL
 #'   pitch drift; \code{pitchAnchorsDep, noiseAnchorsDep, amplAnchorsDep}:
 #'   random fluctuations of user-specified pitch / noise / amplitude anchors;
 #'   \code{glottisAnchorsDep}: proportion of glottal cycle with closed glottis;
-#'   \code{specDep}: rolloff, nonlinear effects, attack
+#'   \code{specDep}: rolloff, rolloffNoise, nonlinear effects, attack
 #' @param maleFemale hyperparameter for shifting f0 contour, formants, and
 #'   vocalTract to make the speaker appear more male (-1...0) or more female
 #'   (0...+1); 0 = no change
@@ -54,94 +57,92 @@ NULL
 #'   proportion of sound with different regimes of pitch effects (none /
 #'   subharmonics only / subharmonics and jitter). 0\% = no noise; 100\% = the
 #'   entire sound has jitter + subharmonics. Ignored if temperature = 0
-#' @param nonlinDep hyperparameter for regulating the intensity of
-#'   subharmonics and jitter, 0 to 100\% (50\% = jitter and subharmonics are as
-#'   specified, <50\% weaker, >50\% stronger). Ignored if temperature = 0
+#' @param nonlinDep hyperparameter for regulating the intensity of subharmonics
+#'   and jitter, 0 to 100\% (50\% = jitter and subharmonics are as specified,
+#'   <50\% weaker, >50\% stronger). Ignored if temperature = 0
 #' @param nonlinRandomWalk a numeric vector specifying the timing of nonliner
 #'   regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer
 #' @param jitterLen duration of stable periods between pitch jumps, ms. Use a
 #'   low value for harsh noise, a high value for irregular vibrato or shaky
-#'   voice (vectorized)
-#' @param jitterDep cycle-to-cycle random pitch variation, semitones (vectorized)
-#' @param vibratoFreq the rate of regular pitch modulation, or vibrato, Hz (vectorized)
-#' @param vibratoDep the depth of vibrato, semitones (vectorized)
+#'   voice (anchor format)
+#' @param jitterDep cycle-to-cycle random pitch variation, semitones (anchor
+#'   format)
+#' @param vibratoFreq the rate of regular pitch modulation, or vibrato, Hz
+#'   (anchor format)
+#' @param vibratoDep the depth of vibrato, semitones (anchor format)
 #' @param shimmerDep random variation in amplitude between individual glottal
-#'   cycles (0 to 100\% of original amplitude of each cycle) (vectorized)
+#'   cycles (0 to 100\% of original amplitude of each cycle) (anchor format)
 #' @param shimmerLen duration of stable periods between amplitude jumps, ms. Use
-#'   a low value for harsh noise, a high value for shaky voice (vectorized)
+#'   a low value for harsh noise, a high value for shaky voice (anchor format)
 #' @param attackLen duration of fade-in / fade-out at each end of syllables and
 #'   noise (ms): a vector of length 1 (symmetric) or 2 (separately for fade-in
 #'   and fade-out)
 #' @param rolloff basic rolloff from lower to upper harmonics, db/octave
-#'   (exponential decay). All rolloff parameters are vectorized. See
+#'   (exponential decay). All rolloff parameters are in anchor format. See
 #'   \code{\link{getRolloff}} for more details
-#' @param rolloffOct basic rolloff changes from lower to upper
-#'   harmonics (regardless of f0) by \code{rolloffOct} dB/oct. For
-#'   example, we can get steeper rolloff in the upper part of the spectrum
-#' @param rolloffParab an optional quadratic term affecting only the
-#'   first \code{rolloffParabHarm} harmonics. The middle harmonic
-#'   of the first \code{rolloffParabHarm} harmonics is amplified or
-#'   dampened by \code{rolloffParab} dB relative to the basic
-#'   exponential decay
+#' @param rolloffOct basic rolloff changes from lower to upper harmonics
+#'   (regardless of f0) by \code{rolloffOct} dB/oct. For example, we can get
+#'   steeper rolloff in the upper part of the spectrum
+#' @param rolloffParab an optional quadratic term affecting only the first
+#'   \code{rolloffParabHarm} harmonics. The middle harmonic of the first
+#'   \code{rolloffParabHarm} harmonics is amplified or dampened by
+#'   \code{rolloffParab} dB relative to the basic exponential decay
 #' @param rolloffParabHarm the number of harmonics affected by
 #'   \code{rolloffParab}
-#' @param rolloffKHz rolloff changes linearly with f0 by
-#'   \code{rolloffKHz} dB/kHz. For ex., -6 dB/kHz gives a 6 dB
-#'   steeper basic rolloff as f0 goes up by 1000 Hz
-#' @param lipRad the effect of lip radiation on source spectrum, dB/oct
-#'   (the default of +6 dB/oct produces a high-frequency boost when the mouth is
+#' @param rolloffKHz rolloff changes linearly with f0 by \code{rolloffKHz}
+#'   dB/kHz. For ex., -6 dB/kHz gives a 6 dB steeper basic rolloff as f0 goes up
+#'   by 1000 Hz
+#' @param lipRad the effect of lip radiation on source spectrum, dB/oct (the
+#'   default of +6 dB/oct produces a high-frequency boost when the mouth is
 #'   open)
-#' @param noseRad the effect of radiation through the nose on source
-#'   spectrum, dB/oct (the alternative to \code{lipRad} when the mouth is
-#'   closed)
+#' @param noseRad the effect of radiation through the nose on source spectrum,
+#'   dB/oct (the alternative to \code{lipRad} when the mouth is closed)
 #' @param mouthOpenThres open the lips (switch from nose radiation to lip
-#'   radiation) when the mouth is more than \code{mouthOpenThres} open, 0 to 1
+#'   radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1
 #' @param formants either a character string like "aaui" referring to default
 #'   presets for speaker "M1" or a list of formant times, frequencies,
 #'   amplitudes, and bandwidths (see ex. below). \code{formants = NA} defaults
 #'   to schwa. Time stamps for formants and mouthOpening can be specified in ms
-#'   or an any other arbitrary scale. See \code{\link{getSpectralEnvelope}} for more details
+#'   or an any other arbitrary scale. See \code{\link{getSpectralEnvelope}} for
+#'   more details
 #' @param formantDep scale factor of formant amplitude (1 = no change relative
 #'   to amplitudes in \code{formants})
-#' @param formantDepStoch the amplitude of additional stochastic formants added above
-#'   the highest specified formant, dB (only if temperature > 0)
+#' @param formantDepStoch the amplitude of additional stochastic formants added
+#'   above the highest specified formant, dB (only if temperature > 0)
 #' @param formantWidth = scale factor of formant bandwidth (1 = no change)
 #' @param vocalTract the length of vocal tract, cm. Used for calculating formant
 #'   dispersion (for adding extra formants) and formant transitions as the mouth
 #'   opens and closes. If \code{NULL} or \code{NA}, the length is estimated
 #'   based on specified formant frequencies (if any)
 #' @param subFreq target frequency of subharmonics, Hz (lower than f0, adjusted
-#'   dynamically so f0 is always a multiple of subFreq)
+#'   dynamically so f0 is always a multiple of subFreq) (anchor format)
 #' @param subDep the width of subharmonic band, Hz. Regulates how quickly the
-#'   strength of subharmonics fades as they move away from harmonics in f0
-#'   stack. Low values produce narrow sidebands, high values produce uniformly
-#'   strong subharmonics
+#'   strength of subharmonics fades as they move away from harmonics in f0 stack
+#'   (anchor format)
 #' @param shortestEpoch minimum duration of each epoch with unchanging
 #'   subharmonics regime, in ms
 #' @param amDep amplitude modulation depth, \%. 0: no change; 100: amplitude
 #'   modulation with amplitude range equal to the dynamic range of the sound
-#' @param amFreq amplitude modulation frequency, Hz (vectorized)
-#' @param amShape amplitude modulation shape (-1 to +1, defaults to 0)
-#'   (vectorized)
-#' @param noiseAnchors a numeric vector of noise amplitudes (throwaway dB = none, 0
-#'   dB = as loud as voiced component) or a dataframe specifying the time (ms)
-#'   and amplitude (dB) of anchors for generating the noise component such as
-#'   aspiration, hissing, etc
-#' @param formantsNoise the same as \code{formants}, but for the
-#'   unvoiced component instead of the voiced component. If NA (default), the
-#'   unvoiced component will be filtered through the same formants as the voiced
-#'   component, approximating aspiration noise [h]
+#'   (anchor format)
+#' @param amFreq amplitude modulation frequency, Hz (anchor format)
+#' @param amShape amplitude modulation shape (-1 to +1, defaults to 0) (anchor
+#'   format)
+#' @param noise,noiseAnchors loudness of turbulent noise (0 dB = as loud as
+#'   voiced component, negative values = quieter) such as aspiration, hissing,
+#'   etc (anchor format)
+#' @param formantsNoise the same as \code{formants}, but for unvoiced instead of
+#'   voiced component. If NA (default), the unvoiced component will be filtered
+#'   through the same formants as the voiced component, approximating aspiration
+#'   noise [h]
 #' @param rolloffNoise linear rolloff of the excitation source for the unvoiced
-#'   component, dB/kHz (vectorized)
+#'   component, dB/kHz (anchor format)
 #' @param noiseFlatSpec keeps noise spectrum flat to this frequency, Hz
-#' @param mouthAnchors a numeric vector of mouth opening (0 to 1, 0.5 = neutral,
-#'   i.e. no modification) or a dataframe specifying the time (ms) and value of
-#'   mouth opening
-#' @param amplAnchors a numeric vector of amplitude envelope (dB) or a dataframe
-#'   specifying the time (ms) and value of amplitude anchors (0 = max amplitude)
-#' @param amplAnchorsGlobal a numeric vector of global amplitude envelope
-#'   spanning multiple syllables or a dataframe specifying the time (ms) and
-#'   value (dB) of each anchor; 0 = no change
+#' @param mouth,mouthAnchors mouth opening (0 to 1, 0.5 = neutral, i.e. no
+#'   modification) (anchor format)
+#' @param ampl,amplAnchors amplitude envelope (dB, 0 = max amplitude) (anchor
+#'   format)
+#' @param amplGlobal,amplAnchorsGlobal global amplitude envelope spanning
+#'   multiple syllables (dB, 0 = no change) (anchor format)
 #' @param interpol the method of smoothing envelopes based on provided anchors:
 #'   'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
 #'   = polynomial local smoothing function. NB: this does not affect
@@ -158,11 +159,12 @@ NULL
 #' @param addSilence silence before and after the bout, ms
 #' @param pitchFloor,pitchCeiling lower & upper bounds of f0
 #' @param pitchSamplingRate sampling frequency of the pitch contour only, Hz.
-#'   Low values reduce processing time. A rule of thumb is to set this to the
-#'   same value as \code{pitchCeiling} for optimal speed and to
-#'   \code{samplingRate} for optimal quality
-#' @param throwaway discard harmonics and noise that are quieter than this
-#'   number (in dB, defaults to -80) to save computational resources
+#'   Low values reduce processing time. Set to \code{pitchCeiling} for optimal
+#'   speed or to \code{samplingRate} for optimal quality
+#' @param dynamicRange dynamic range, dB. Harmonics and noise more than
+#'   dynamicRange under maximum amplitude are discarded to save computational
+#'   resources
+#' @param throwaway (deprecated) same as dynamicRange, but negative
 #' @param invalidArgAction what to do if an argument is invalid or outside the
 #'   range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
 #'   = stop execution, 'ignore' = throw a warning and continue (may crash)
@@ -176,13 +178,22 @@ NULL
 #' @return Returns the synthesized waveform as a numeric vector.
 #' @examples
 #' # NB: GUI for soundgen is available as a Shiny app.
-#' # Type "soundgen_app()" to start it
+#' # Type "soundgen_app()" to open it in default browser
 #'
 #' playback = c(TRUE, FALSE)[2]  # set to TRUE to play back the audio from examples
 #'
 #' sound = soundgen(play = playback)
 #' # spectrogram(sound, 16000, osc = TRUE)
 #' # playme(sound)
+#'
+#' # Control of intonation, amplitude envelope, formants
+#' s0 = soundgen(
+#'   pitch = c(300, 390, 250),
+#'   ampl = data.frame(time = c(0, 50, 300), value = c(-5, -10, 0)),
+#'   attack = c(10, 50),
+#'   formants = c(600, 900, 2200),
+#'   play = playback
+#' )
 #'
 #' # Use the in-built collection of presets:
 #' # names(presets)  # speakers
@@ -201,13 +212,13 @@ NULL
 #'
 #' # Intonation contours per syllable and globally:
 #' sound = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140,
-#'   play = playback, pitchAnchors = data.frame(
+#'   play = playback, pitch = data.frame(
 #'     time = c(0, 0.65, 1), value = c(977, 1540, 826)),
-#'   pitchAnchorsGlobal = data.frame(time = c(0, .5, 1), value = c(-6, 7, 0)))
+#'   pitchGlobal = data.frame(time = c(0, .5, 1), value = c(-6, 7, 0)))
 #'
 #' # Subharmonics in sidebands (noisy scream)
 #' sound = soundgen (nonlinBalance = 100, subFreq = 75, subDep = 130,
-#'   pitchAnchors = data.frame(
+#'   pitch = data.frame(
 #'     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
 #'   sylLen = 800,
 #'   play = playback, plot = TRUE)
@@ -215,8 +226,8 @@ NULL
 #' # Jitter and mouth opening (bark, dog-like)
 #' sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
 #'   nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
-#'   pitchAnchors = c(559, 785, 557),
-#'   mouthAnchors = c(0, 0.5, 0),
+#'   pitch = c(559, 785, 557),
+#'   mouth = c(0, 0.5, 0),
 #'   vocalTract = 5, play = playback)
 #'
 #' # Use nonlinRandomWalk to crease reproducible examples of sounds with
@@ -231,14 +242,20 @@ NULL
 #'
 #' # See the vignette on sound generation for more examples and in-depth
 #' # explanation of the arguments to soundgen()
+#' # Examples of code for creating human and animal vocalizations are available
+#' # on project's homepage: http://cogsci.se/soundgen.htlm
 #' }
 soundgen = function(repeatBout = 1,
                     nSyl = 1,
                     sylLen = 300,
                     pauseLen = 200,
+                    pitch = data.frame(time = c(0, .1, .9, 1),
+                                      value = c(100, 150, 135, 100)),
                     pitchAnchors = data.frame(time = c(0, .1, .9, 1),
                                               value = c(100, 150, 135, 100)),
+                    pitchGlobal = NA,
                     pitchAnchorsGlobal = NA,
+                    glottis = 0,
                     glottisAnchors = 0,
                     temperature = 0.025,
                     tempEffects = list(),
@@ -273,13 +290,18 @@ soundgen = function(repeatBout = 1,
                     amDep = 0,
                     amFreq = 30,
                     amShape = 0,
+                    noise = NULL,
                     noiseAnchors = NULL,
                     formantsNoise = NA,
                     rolloffNoise = -4,
                     noiseFlatSpec = 1200,
+                    mouth = data.frame(time = c(0, 1),
+                                       value = c(.5, .5)),
                     mouthAnchors = data.frame(time = c(0, 1),
                                               value = c(.5, .5)),
+                    ampl = NA,
                     amplAnchors = NA,
+                    amplGlobal = NA,
                     amplAnchorsGlobal = NA,
                     interpol = c('approx', 'spline', 'loess')[3],
                     discontThres = .05,
@@ -291,6 +313,7 @@ soundgen = function(repeatBout = 1,
                     pitchFloor = 1,
                     pitchCeiling = 3500,
                     pitchSamplingRate = 3500,
+                    dynamicRange = 80,
                     throwaway = -80,
                     invalidArgAction = c('adjust', 'abort', 'ignore')[1],
                     plot = FALSE,
@@ -298,18 +321,36 @@ soundgen = function(repeatBout = 1,
                     savePath = NA,
                     ...) {
   # deprecated pars
-  # if (!missing(rolloffLip)) {
-  #   lipRad = rolloffLip
-  #   message('rolloffLip is deprecated; use lipRad instead')
-  # }
+  if (!missing('throwaway')) {
+    dynamicRange = -throwaway
+    message('throwaway is deprecated; used dynamicRange instead')
+  }
+  formerAnchors = c(
+    'pitchAnchors', 'pitchAnchorsGlobal', 'glottisAnchors',
+    'amplAnchors', 'amplAnchorsGlobal', 'mouthAnchors', 'noiseAnchors'
+  )
+  newAnchors = c('pitch', 'pitchGlobal', 'glottis', 'ampl', 'amplGlobal', 'mouth', 'noise')
+  for (i in 1:length(formerAnchors)) {
+    p = formerAnchors[i]
+    q = newAnchors[i]
+    # simply missing(noquote(p)) doesn't work, so use do.call
+    if (!do.call(missing, list(noquote(p)))) {
+      # user wrote "pitchAnchors = ..." etc
+      message(paste(p, 'is deprecated; use', q, 'instead'))
+    } else {
+      assign(p, get(q))
+    }
+  }
+
 
   # check that values of numeric arguments are valid and within range
   for (p in rownames(permittedValues)[1:which(
-    rownames(permittedValues) == 'rolloffNoise'
+    rownames(permittedValues) == 'noiseFlatSpec'
   )]) {
-    if (!is.numeric(get(p)) ||
-        any(get(p) < permittedValues[p, 'low']) ||
-        any(get(p) > permittedValues[p, 'high'])) {
+    gp = try(get(p), silent = TRUE)
+    if (class(gp) != "try-error" && is.numeric(gp) &&
+          (any(gp < permittedValues[p, 'low']) ||
+          any(gp > permittedValues[p, 'high']))) {
       if (invalidArgAction == 'abort') {
         # exit with a warning
         stop(paste(p, 'must be between',
@@ -360,7 +401,12 @@ soundgen = function(repeatBout = 1,
 
   # check and, if necessary, reformat anchors to dataframes
   for (anchor in c('pitchAnchors', 'pitchAnchorsGlobal', 'glottisAnchors',
-                   'amplAnchors', 'amplAnchorsGlobal', 'mouthAnchors')) {
+                   'amplAnchors', 'amplAnchorsGlobal', 'mouthAnchors',
+                   'vibratoFreq', 'vibratoDep', 'subFreq', 'subDep',
+                   'jitterLen', 'jitterDep', 'shimmerLen', 'shimmerDep',
+                   'rolloff', 'rolloffOct', 'rolloffKHz',
+                   'rolloffParab', 'rolloffParabHarm',
+                   'amDep', 'amFreq', 'amShape')) {
     assign(anchor, reformatAnchors(get(anchor)))
   }
   if (is.numeric(noiseAnchors) && length(noiseAnchors) > 0) {
@@ -390,9 +436,9 @@ soundgen = function(repeatBout = 1,
 
   # check amplitude anchors and make all values negative
   if (is.list(amplAnchors) && any(amplAnchors$value > 0)) {
-    amplAnchors$value = amplAnchors$value + throwaway
-    message(paste('The recommended range for amplAnchors is (throwaway, 0).',
-                  'If positive, values are transformed by adding throwaway'))
+    amplAnchors$value = amplAnchors$value - dynamicRange
+    message(paste('The recommended range for amplAnchors is (-dynamicRange, 0).',
+                  'If positive, values are transformed by subtracting dynamicRange'))
   }
 
   # for amplAnchorsGlobal, make the first value 0
@@ -438,16 +484,18 @@ soundgen = function(repeatBout = 1,
   if (creakyBreathy < 0) {
     # for creaky voice
     nonlinBalance = min(100, nonlinBalance - creakyBreathy * 100)
-    jitterDep = max(0, jitterDep - creakyBreathy / 2)
-    shimmerDep = max(0, shimmerDep - creakyBreathy * 5)
-    subDep = subDep * 2 ^ (-creakyBreathy)
+    jitterDep$value = jitterDep$value - creakyBreathy / 2
+    jitterDep$value[jitterDep$value < 0] = 0
+    shimmerDep$value = shimmerDep$value - creakyBreathy * 5
+    shimmerDep$value[shimmerDep$value < 0] = 0
+    subDep$value = subDep$value * 2 ^ (-creakyBreathy)
   } else if (creakyBreathy > 0) {
     # for breathy voice, add breathing
     if (!is.list(noiseAnchors)) {
       noiseAnchors = data.frame(time = c(0, sylLen[1] + 100),
-                                value = c(throwaway, throwaway))
+                                value = c(-dynamicRange, -dynamicRange))
     }
-    noiseAnchors$value = noiseAnchors$value + creakyBreathy * (-throwaway)
+    noiseAnchors$value = noiseAnchors$value + creakyBreathy * dynamicRange
     noiseAnchors$value[noiseAnchors$value >
                          permittedValues['noiseAmpl', 'high']] =
       permittedValues['noiseAmpl', 'high']
@@ -459,16 +507,16 @@ soundgen = function(repeatBout = 1,
     }
   }
   # adjust rolloff for both creaky and breathy voices
-  rolloff = rolloff - creakyBreathy * 10
+  rolloff$value = rolloff$value - creakyBreathy * 10
   if (invalidArgAction != 'ignore') {
-    rolloff[rolloff < permittedValues['rolloff', 'low']] =
+    rolloff$value[rolloff$value < permittedValues['rolloff', 'low']] =
       permittedValues['rolloff', 'low']
-    rolloff[rolloff > permittedValues['rolloff', 'high']] =
+    rolloff$value[rolloff$value > permittedValues['rolloff', 'high']] =
       permittedValues['rolloff', 'high']
-    rolloffOct = rolloffOct - creakyBreathy * 5
-    rolloffOct[rolloffOct < permittedValues['rolloffOct', 'low']] =
+    rolloffOct$value = rolloffOct$value - creakyBreathy * 5
+    rolloffOct$value[rolloffOct$value < permittedValues['rolloffOct', 'low']] =
       permittedValues['rolloffOct', 'low']
-    rolloffOct[rolloffOct > permittedValues['rolloffOct', 'high']] =
+    rolloffOct$value[rolloffOct$value > permittedValues['rolloffOct', 'high']] =
       permittedValues['rolloffOct', 'high']
   }
 
@@ -476,21 +524,21 @@ soundgen = function(repeatBout = 1,
   if (!is.list(noiseAnchors)) {
     noiseAnchors = data.frame(
       time = c(0, sylLen[1]),
-      value = c(throwaway, throwaway)
+      value = c(-dynamicRange, -dynamicRange)
     )
   }
 
   # effects of nonlinDep hyper
-  subFreq = 2 * (subFreq - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50
+  subFreq$value = 2 * (subFreq$value - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50
   # subFreq unchanged for nonlinDep=50%, raised for lower and
   # lowered for higher noise intensities. Max set at 2*subFreq-50, min at 50 Hz.
   # Jitter and shimmer go to 0 if nonlinDep = 0 and double if nonlinDep = 1
   # Illustration: subFreq=250; nonlinDep=0:100; plot(nonlinDep,
   #   2 * (subFreq - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50, type = 'l')
-  jitterDep = 2 * jitterDep / (1 + exp(.1 * (50 - nonlinDep)))
+  jitterDep$value = 2 * jitterDep$value / (1 + exp(.1 * (50 - nonlinDep)))
   # Illustration: jitterDep = 1; nonlinDep = 0:100;
   # plot(nonlinDep, 2 * jitterDep / (1 + exp(.1 * (50 - nonlinDep))), type = 'l')
-  shimmerDep = 2 * shimmerDep / (1 + exp(.1 * (50 - nonlinDep)))
+  shimmerDep$value = 2 * shimmerDep$value / (1 + exp(.1 * (50 - nonlinDep)))
   # Illustration: shimmerDep = 1.5; nonlinDep = 0:100;
   # plot(nonlinDep, 2 * shimmerDep / (1 + exp(.1 * (50 - nonlinDep))), type = 'l')
 
@@ -518,17 +566,15 @@ soundgen = function(repeatBout = 1,
   pars_to_vary = c(
     'nonlinDep',
     'attackLen',
-    'jitterDep',
-    'jitterLen',
-    'shimmerDep',
-    'shimmerLen',
-    'rolloff',
-    'rolloffOct',
-    'shortestEpoch',
-    'subFreq',
-    'subDep'
-  )
-  # don't add nonlinBalance, otherwise there is no simple way to remove noise at temp>0
+    'shortestEpoch'
+  )  # don't add nonlinBalance, otherwise there is no simple way to remove noise at temp>0
+  anchors_to_wiggle = c(
+    'pitchAnchors', 'amplAnchors', 'glottisAnchors',
+    'vibratoFreq', 'vibratoDep',
+    'jitterLen', 'jitterDep',
+    'shimmerLen', 'shimmerDep',
+    'rolloff', 'rolloffKHz', 'rolloffOct',
+    'rolloffParab', 'rolloffParabHarm')
   pars_to_round = c('attackLen', 'subFreq', 'subDep')
   pars_list = list(
     'attackLen' = attackLen,
@@ -559,7 +605,8 @@ soundgen = function(repeatBout = 1,
     'pitchFloor' = pitchFloor,
     'pitchCeiling' = pitchCeiling,
     'pitchSamplingRate' = pitchSamplingRate,
-    'throwaway' = throwaway,
+    'dynamicRange' = dynamicRange,
+    'interpol' = interpol,
     'samplingRate' = samplingRate,
     'overlap' = overlap
   )
@@ -592,10 +639,10 @@ soundgen = function(repeatBout = 1,
 
   wiggleNoise = temperature > 0 &&
     class(noiseAnchors) == 'data.frame' &&
-    any(noiseAnchors$value > throwaway)
+    any(noiseAnchors$value > -dynamicRange)
   wiggleAmpl_per_syl = temperature > 0 &&
     !is.na(amplAnchors) &&
-    any(amplAnchors$value < -throwaway)
+    any(amplAnchors$value < dynamicRange)
   wiggleGlottis = temperature > 0 &&
     class(glottisAnchors) == 'data.frame' &&
     any(glottisAnchors$value > 0)
@@ -610,8 +657,8 @@ soundgen = function(repeatBout = 1,
       interpol = interpol,
       discontThres = discontThres,
       jumpThres = jumpThres,
-      valueFloor = throwaway,
-      valueCeiling = -throwaway,
+      valueFloor = -dynamicRange,
+      valueCeiling = dynamicRange,
       samplingRate = samplingRate
     )
     # convert from dB to linear multiplier
@@ -651,9 +698,10 @@ soundgen = function(repeatBout = 1,
 
       # wiggle par values for this particular syllable, making sure
       #   they are within the permitted range for each variable
-      pitchAnchors_per_syl = pitchAnchors
-      amplAnchors_per_syl = amplAnchors
-      glottisAnchors_per_syl = glottisAnchors
+      for (anchor in anchors_to_wiggle) {
+        newName = paste0(anchor, '_per_syl')
+        assign(newName, get(anchor))  # just create a copy with name _per_syl
+      }
 
       if (temperature > 0) {
         # OR if (temperature>0 & nrow(syllables)>1)
@@ -687,7 +735,7 @@ soundgen = function(repeatBout = 1,
           noiseAnchors_syl[[s]] = wiggleAnchors(
             df = noiseAnchors_syl[[s]],
             temperature = temperature,
-            low = c(-Inf, throwaway),
+            low = c(-Inf, -dynamicRange),
             high = c(+Inf, permittedValues['noiseAmpl', 'high']),
             wiggleAllRows = TRUE,
             temp_coef = tempEffects$noiseAnchorsDep,
@@ -698,7 +746,7 @@ soundgen = function(repeatBout = 1,
           amplAnchors_per_syl = wiggleAnchors(
             df = amplAnchors_per_syl,
             temperature = temperature,
-            low = c(0, throwaway),
+            low = c(0, -dynamicRange),
             high = c(1, 0),
             temp_coef = tempEffects$amplAnchorsDep,
             invalidArgAction = invalidArgAction
@@ -713,6 +761,23 @@ soundgen = function(repeatBout = 1,
             temp_coef = tempEffects$glottisAnchorsDep,
             invalidArgAction = invalidArgAction
           )
+        }
+        # wiggle anchors except special cases (pitch, ampl, glottis)
+        for (i in 4:length(anchors_to_wiggle)) {
+          anchor = anchors_to_wiggle[i]
+          anchor_per_syl = paste0(anchor, '_per_syl')
+          l = permittedValues[anchor, 'low']
+          h = permittedValues[anchor, 'high']
+          anchor_new = wiggleAnchors(
+            df = get(anchor),
+            temperature = temperature,
+            low = c(0, l),
+            high = c(1, h),
+            temp_coef = tempEffects$specDep,
+            sd_values = (h - l) * temperature * tempEffects$specDep,
+            invalidArgAction = invalidArgAction
+          )
+          assign(anchor_per_syl, anchor_new)
         }
       }
 
@@ -781,12 +846,26 @@ soundgen = function(repeatBout = 1,
 
       # generate the unvoiced part, but don't add it to the sound just yet
       if (!is.na(noiseAnchors) &&
-          any(noiseAnchors$value > throwaway)) {
-        rolloffNoise_syl = rnorm(
-          n = length(rolloffNoise),
-          mean = rolloffNoise,
-          sd = abs(rolloffNoise) * temperature * tempEffects$specDep
-        )
+          any(noiseAnchors$value > -dynamicRange)) {
+        if (is.list(rolloffNoise)) {
+          rolloffNoise_syl = wiggleAnchors(
+            rolloffNoise,
+            temperature = temperature,
+            temp_coef = tempEffects$specDep,
+            low = c(-Inf, permittedValues['rolloffNoise', 'low']),
+            high = c(Inf, permittedValues['rolloffNoise', 'high']),
+            wiggleAllRows = TRUE,
+            invalidArgAction = invalidArgAction
+          )
+        } else {
+          rolloffNoise_syl = rnorm_bounded(
+            n = length(rolloffNoise),
+            mean = rolloffNoise,
+            sd = abs(rolloffNoise) * temperature * tempEffects$specDep,
+            low = permittedValues['rolloffNoise', 'low'],
+            high = permittedValues['rolloffNoise', 'high']
+          )
+        }
         # synthesize the unvoiced part
         unvoiced[[s]] = generateNoise(
           len = round(diff(range(noiseAnchors_syl[[s]]$time)) * samplingRate / 1000),
@@ -798,7 +877,7 @@ soundgen = function(repeatBout = 1,
           samplingRate = samplingRate,
           windowLength_points = windowLength_points,
           overlap = overlap,
-          throwaway = throwaway,
+          dynamicRange = dynamicRange,
           filterNoise = NULL # spectralEnvelopeNoise
         ) * amplEnvelope[s]  # correction of amplitude per syllable
         # plot(unvoiced[[s]], type = 'l')
@@ -928,21 +1007,36 @@ soundgen = function(repeatBout = 1,
 
     # trill - rapid regular amplitude modulation
     # (affects both voiced and unvoiced)
-    if (any(amDep > 0)) {
-      # trill = 1 - sin(2 * pi * (1:length(soundFiltered)) /
-      #                  samplingRate * amFreq) * amDep / 100
-      if (length(amDep) > 1) {
-        amDep = getSmoothContour(anchors = amDep,
-                                 len = length(soundFiltered),
-                                 interpol = 'spline',
-                                 valueFloor = 0)
+    if (is.list(amDep) && any(amDep$value > 0)) {
+      # vectorize
+      amPar_vect = c('amDep', 'amFreq', 'amShape')
+      # just to get rid of of NOTE on CRAN:
+      amDep_vector = amFreq_vector = amShape_vector = vector()
+      for (p in amPar_vect) {
+        p_unique_value = unique(get(p)$value)
+        if (length(p_unique_value) > 1) {
+          p_vectorized = getSmoothContour(
+            anchors = get(p),
+            len = length(soundFiltered),
+            interpol = 'spline',
+            valueFloor = permittedValues[p, 'low'],
+            valueCeiling = permittedValues[p, 'high']
+          )
+          assign(paste0(p, '_vector'), p_vectorized)
+        } else {
+          assign(paste0(p, '_vector'), p_unique_value)
+        }
       }
+
+      # prepare am
       sig = getSigmoid(len = length(soundFiltered),
                        samplingRate = samplingRate,
-                       freq = amFreq,
-                       shape = amShape)
-      trill = 1 - sig * amDep / 100
+                       freq = amFreq_vector,
+                       shape = amShape_vector)
+      trill = 1 - sig * amDep_vector / 100
       # plot(trill, type='l')
+
+      # apply am
       soundFiltered = soundFiltered * trill
     }
 
