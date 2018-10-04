@@ -5,29 +5,31 @@
 \title{Generate a sound}
 \usage{
 soundgen(repeatBout = 1, nSyl = 1, sylLen = 300, pauseLen = 200,
-  pitch = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135, 100)),
-  pitchAnchors = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135,
-  100)), pitchGlobal = NA, pitchAnchorsGlobal = NA, glottis = 0,
-  glottisAnchors = 0, temperature = 0.025, tempEffects = list(),
-  maleFemale = 0, creakyBreathy = 0, nonlinBalance = 0, nonlinDep = 50,
-  nonlinRandomWalk = NULL, jitterLen = 1, jitterDep = 1,
-  vibratoFreq = 5, vibratoDep = 0, shimmerDep = 0, shimmerLen = 1,
-  attackLen = 50, rolloff = -9, rolloffOct = -3, rolloffKHz = -3,
-  rolloffParab = 0, rolloffParabHarm = 3, lipRad = 6, noseRad = 4,
+  pitch = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135,
+  100)), pitchAnchors = data.frame(time = c(0, 0.1, 0.9, 1), value =
+  c(100, 150, 135, 100)), pitchGlobal = NA, pitchAnchorsGlobal = NA,
+  glottis = 0, glottisAnchors = 0, temperature = 0.025,
+  tempEffects = list(), maleFemale = 0, creakyBreathy = 0,
+  nonlinBalance = 0, nonlinDep = 50, nonlinRandomWalk = NULL,
+  jitterLen = 1, jitterDep = 1, vibratoFreq = 5, vibratoDep = 0,
+  shimmerDep = 0, shimmerLen = 1, attackLen = 50, rolloff = -9,
+  rolloffOct = -3, rolloffKHz = -3, rolloffParab = 0,
+  rolloffParabHarm = 3, lipRad = 6, noseRad = 4,
   mouthOpenThres = 0, formants = c(860, 1430, 2900), formantDep = 1,
   formantDepStoch = 20, formantWidth = 1, vocalTract = NA,
   subFreq = 100, subDep = 100, shortestEpoch = 300, amDep = 0,
   amFreq = 30, amShape = 0, noise = NULL, noiseAnchors = NULL,
   formantsNoise = NA, rolloffNoise = -4, noiseFlatSpec = 1200,
   mouth = data.frame(time = c(0, 1), value = c(0.5, 0.5)),
-  mouthAnchors = data.frame(time = c(0, 1), value = c(0.5, 0.5)), ampl = NA,
-  amplAnchors = NA, amplGlobal = NA, amplAnchorsGlobal = NA,
-  interpol = c("approx", "spline", "loess")[3], discontThres = 0.05,
-  jumpThres = 0.01, samplingRate = 16000, windowLength = 50,
-  overlap = 75, addSilence = 100, pitchFloor = 1, pitchCeiling = 3500,
-  pitchSamplingRate = 3500, dynamicRange = 80, throwaway = -80,
-  invalidArgAction = c("adjust", "abort", "ignore")[1], plot = FALSE,
-  play = FALSE, savePath = NA, ...)
+  mouthAnchors = data.frame(time = c(0, 1), value = c(0.5, 0.5)),
+  ampl = NA, amplAnchors = NA, amplGlobal = NA,
+  amplAnchorsGlobal = NA, interpol = c("approx", "spline", "loess")[3],
+  discontThres = 0.05, jumpThres = 0.01, samplingRate = 16000,
+  windowLength = 50, overlap = 75, addSilence = 100,
+  pitchFloor = 1, pitchCeiling = 3500, pitchSamplingRate = 3500,
+  dynamicRange = 80, throwaway = -80, invalidArgAction = c("adjust",
+  "abort", "ignore")[1], plot = FALSE, play = FALSE, savePath = NA,
+  ...)
 }
 \arguments{
 \item{repeatBout}{number of times the whole bout should be repeated}
@@ -44,7 +46,9 @@ negative between bouts: force with invalidArgAction = 'ignore')
 \item{pitch, pitchAnchors}{a numeric vector of f0 values in Hz or a dataframe
 specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
 "anchor format". These anchors are used to create a smooth contour of
-fundamental frequency f0 (pitch) within one syllable}
+fundamental frequency f0 (pitch) within one syllable. NB: "pitchAnchors" is
+deprecated; use simply "pitch" instead (same for other arguments with
+"Anchors" below)}
 
 \item{pitchGlobal, pitchAnchorsGlobal}{unlike \code{pitch}, these anchors are
 used to create a smooth contour of average f0 across multiple syllables.
@@ -208,8 +212,8 @@ multiple syllables (dB, 0 = no change) (anchor format)}
 
 \item{interpol}{the method of smoothing envelopes based on provided anchors:
 'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
-= polynomial local smoothing function. NB: this does not affect
-noiseAnchors, glottalAnchors, and the smoothing of formants}
+= polynomial local smoothing function. NB: this does not affect contours for
+"noise", "glottal", and the smoothing of formants}
 
 \item{discontThres, jumpThres}{if two anchors are closer in time than
 \code{discontThres}, the contour is broken into segments with a linear
@@ -263,7 +267,8 @@ noise component. Both components can be filtered with independently specified
 formants. Intonation and amplitude contours can be applied both within each
 syllable and across multiple syllables. Suggested application: synthesis of
 animal or human non-linguistic vocalizations. For more information, see
-\url{http://cogsci.se/soundgen.html} and the vignette on sound generation.
+\url{http://cogsci.se/soundgen.html} and vignette('sound_generation', package
+= 'soundgen').
 }
 \examples{
 # NB: GUI for soundgen is available as a Shiny app.
@@ -324,7 +329,7 @@ nonlinear effects. For ex., to make a sound with no effect in the first
 third, subharmonics in the second third, and jitter in the final third of the
 total duration:
 a = c(rep(0, 100), rep(1, 100), rep(2, 100))
-s = soundgen(sylLen = 800, pitchAnchors = 300, temperature = 0.001,
+s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
              subFreq = 100, subDep = 70, jitterDep = 1,
              nonlinRandomWalk = a, plot = TRUE, ylim = c(0, 4))
 # playme(s)
@@ -332,6 +337,6 @@ s = soundgen(sylLen = 800, pitchAnchors = 300, temperature = 0.001,
 # See the vignette on sound generation for more examples and in-depth
 # explanation of the arguments to soundgen()
 # Examples of code for creating human and animal vocalizations are available
-# on project's homepage: http://cogsci.se/soundgen.htlm
+# on project's homepage: http://cogsci.se/soundgen.html
 }
 }

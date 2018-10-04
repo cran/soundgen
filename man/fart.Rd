@@ -4,9 +4,10 @@
 \alias{fart}
 \title{Fart}
 \usage{
-fart(glottis = c(350, 700), glottisAnchors = "deprecated", pitch = 75,
-  pitchAnchors = "deprecated", temperature = 0.25, sylLen = 600,
-  rolloff = -20, samplingRate = 16000, play = FALSE, plot = FALSE)
+fart(glottis = c(350, 700), glottisAnchors = "deprecated",
+  pitch = 75, pitchAnchors = "deprecated", temperature = 0.25,
+  sylLen = 600, rolloff = -20, samplingRate = 16000, play = FALSE,
+  plot = FALSE)
 }
 \arguments{
 \item{glottis}{anchors for specifying the proportion of a
@@ -22,12 +23,16 @@ and value (anchor format)}
 \item{pitch}{a numeric vector of f0 values in Hz or a dataframe
 specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
 "anchor format". These anchors are used to create a smooth contour of
-fundamental frequency f0 (pitch) within one syllable}
+fundamental frequency f0 (pitch) within one syllable. NB: "pitchAnchors" is
+deprecated; use simply "pitch" instead (same for other arguments with
+"Anchors" below)}
 
 \item{pitchAnchors}{a numeric vector of f0 values in Hz or a dataframe
 specifying the time (ms or 0 to 1) and value (Hz) of each anchor, hereafter
 "anchor format". These anchors are used to create a smooth contour of
-fundamental frequency f0 (pitch) within one syllable}
+fundamental frequency f0 (pitch) within one syllable. NB: "pitchAnchors" is
+deprecated; use simply "pitch" instead (same for other arguments with
+"Anchors" below)}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
@@ -48,14 +53,20 @@ setting another default player for \code{\link[tuneR]{play}}}
 Returns a normalized waveform.
 }
 \description{
-While the same sounds can be created with soundgen(), this dedicated
-facetious function produces the same effect more efficiently and with very
-few control parameters. With default settings, execution time is ~ 10 ms per
-second of audio sampled at 16000 Hz. Principle: creates separate glottal
-cycles with harmonics, but no formants. See \code{\link{soundgen}} for more
-details.
+While the same sounds can be created with soundgen(), this facetious function
+produces the same effect more efficiently and with very few control
+parameters. With default settings, execution time is ~ 10 ms per second of
+audio sampled at 16000 Hz. Principle: creates separate glottal cycles with
+harmonics, but no formants. See \code{\link{soundgen}} for more details.
 }
 \examples{
 f = fart()
 # playme(f)
+
+\dontrun{
+while (TRUE) {
+  fart(sylLen = 200, temperature = .4, play = TRUE)
+  Sys.sleep(rexp(1, rate = 1))
+}
+}
 }

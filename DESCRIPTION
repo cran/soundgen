@@ -1,8 +1,8 @@
 Package: soundgen
 Type: Package
 Title: Parametric Voice Synthesis
-Version: 1.3.0
-Date: 2018-08-04
+Version: 1.3.1
+Date: 2018-10-04
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
@@ -10,18 +10,18 @@ Description: Tools for sound synthesis and acoustic analysis.
     Performs parametric synthesis of sounds with harmonic and noise components
     such as animal vocalizations or human voice. Also includes tools for
     spectral analysis, pitch tracking, audio segmentation, self-similarity
-    matrices, and morphing.
+    matrices, morphing, etc.
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
 Imports: stats, graphics, utils, tuneR, seewave (>= 2.1.0), zoo, shiny,
         reshape2, mvtnorm, plyr, dtw, phonTools
 Depends: R (>= 3.4)
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0
 Suggests: knitr, rmarkdown, shinyBS
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2018-08-31 06:17:17 UTC; allgoodguys
+Packaged: 2018-10-04 08:18:12 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2018-08-31 06:40:02 UTC
+Date/Publication: 2018-10-04 08:50:03 UTC

@@ -11,7 +11,8 @@ getSpectralEnvelope(nr, nc, formants = NA, formantDep = 1,
   formDrift = 0.3, formDisp = 0.2, formantDepStoch = 20,
   smoothLinearFactor = 1, samplingRate = 16000, speedSound = 35400,
   plot = FALSE, duration = NULL, colorTheme = c("bw", "seewave",
-  "...")[1], nCols = 100, xlab = "Time", ylab = "Frequency, kHz", ...)
+  "...")[1], nCols = 100, xlab = "Time", ylab = "Frequency, kHz",
+  ...)
 }
 \arguments{
 \item{nr}{the number of frequency bins = windowLength_points/2, where
@@ -102,13 +103,10 @@ Returns a spectral filter (matrix nr x nc, where nr is the number of
 }
 \description{
 Prepares a spectral envelope for filtering a sound to add formants, lip
-radiation, and some stochastic component regulated by temperature.
-Formants are specified as a list containing time, frequency, amplitude,
-and width values for each formant (see examples). NB: each formant is
-generated as a gamma distribution with mean = freq and SD = width. Formant
-bandwidths in soundgen are therefore NOT compatible with formant bandwidths
-used in Klatt synthesizer and other algorithms that rely on FIR instead of
-FFT.
+radiation, and some stochastic component regulated by temperature. Formants
+are specified as a list containing time, frequency, amplitude, and width
+values for each formant (see examples). See vignette('sound_generation',
+package = 'soundgen') for more information.
 }
 \examples{
 # [a] with F1-F3 visible
@@ -121,6 +119,7 @@ e = getSpectralEnvelope(nr = 512, nc = 50,
 e = getSpectralEnvelope(nr = 512, nc = 50,
   formants = soundgen:::convertStringToFormants('a'),
   temperature = 0.1, formantDepStoch = 20, plot = TRUE)
+
 # a schwa based on the length of vocal tract = 15.5 cm
 e = getSpectralEnvelope(nr = 512, nc = 50, formants = NA,
   temperature = .1, vocalTract = 15.5, plot = TRUE)

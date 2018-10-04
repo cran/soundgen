@@ -6,8 +6,9 @@
 \usage{
 spectrogramFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   windowLength = 50, step = NULL, overlap = 50, wn = "gaussian",
-  zp = 0, ylim = NULL, osc = TRUE, xlab = "Time, ms", ylab = "kHz",
-  width = 900, height = 500, units = "px", res = NA, ...)
+  zp = 0, ylim = NULL, osc = TRUE, xlab = "Time, ms",
+  ylab = "kHz", width = 900, height = 500, units = "px",
+  res = NA, ...)
 }
 \arguments{
 \item{myfolder}{full path to the folder containing .wav files}
@@ -29,8 +30,8 @@ blackman, flattop}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
 
-\item{osc}{should an oscillogram be shown under the spectrogram? TRUE
-/ FALSE, If `osc_dB`, the oscillogram is displayed on a dB scale. See
+\item{osc}{should an oscillogram be shown under the spectrogram? TRUE/
+FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
 \code{\link{osc_dB}} for details}
 
 \item{xlab}{graphical parameters}
@@ -38,21 +39,21 @@ blackman, flattop}
 \item{ylab}{graphical parameters}
 
 \item{width}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{height}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{units}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{res}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{...}{other parameters passed to \code{\link{spectrogram}}}
 }
 \description{
-Creates spectrograms of all .wav files in a folder and save them as .jpeg
+Creates spectrograms of all .wav files in a folder and save them as .png
 files in the same folder. This is a lot faster than running
 \code{\link{analyzeFolder}} if you don't need pitch tracking. By default it
 also creates an html file with a list of audio files and their spectrograms
@@ -67,7 +68,7 @@ spectrogramFolder supports plotting both a spectrogram and an oscillogram if
 spectrogramFolder(
   '~/Downloads/temp',
   windowLength = 40, overlap = 75,  # spectrogram pars
-  width = 1500, height = 900,        # passed to jpeg()
+  width = 1500, height = 900,        # passed to png()
   osc = TRUE, osc_dB = TRUE, heights = c(1, 1)
 )
 # note that the folder now also contains an html file with clickable plots

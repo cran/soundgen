@@ -27,15 +27,18 @@
 #'   windowLength / 20}. See \code{\link[tuneR]{melfcc}}
 #' @param input either MFCCs ("cepstrum") or mel-filtered spectrum ("audiogram")
 #' @param MFCC which mel-frequency cepstral coefficients to use; defaults to
-#'   \code{2:13})
-#' @param norm if TRUE, each FFT frame is normalized by max power
+#'   \code{2:13}
+#' @param norm if TRUE, the spectrum of each STFT frame is normalized
 #' @param simil method for comparing frames: "cosine" = cosine similarity, "cor"
 #'   = Pearson's correlation
-#' @param kernelLen length of checkerboard kernel for calculating novelty, ms (the
-#'   larger, the more global vs. local the novelty)
+#' @param kernelLen length of checkerboard kernel for calculating novelty, ms
+#'   (larger values favor global vs. local novelty)
 #' @param kernelSD SD of checkerboard kernel for calculating novelty
+#' @param padWith how to treat edges when calculating novelty: NA = treat sound
+#'   before and after the recording as unknown, 0 = treat it as silence
 #' @param returnSSM if TRUE, returns the SSM
 #' @param plot if TRUE, plots the SSM
+#' @param heights relative sizes of the SSM and spectrogram/novelty plot
 #' @param specPars graphical parameters passed to
 #'   \code{seewave::filled.contour.modif2} and affecting the spectrogram
 #' @param ssmPars graphical parameters passed to
@@ -74,7 +77,9 @@ ssm = function(x,
                returnSSM = TRUE,
                kernelLen = 200,
                kernelSD = .2,
+               padWith = 0,
                plot = TRUE,
+               heights = c(2, 1),
                specPars = list(
                  levels = seq(0, 1, length = 30),
                  color.palette = seewave::spectro.colors,
@@ -140,6 +145,7 @@ ssm = function(x,
     # the first cepstrum presumably makes no sense with amplitude normalization
     # (?), and it overestimates the similarity of different frames
     target_spec = t(mel$cepstra)[MFCC, ]
+    target_spec[is.na(target_spec)] = 0  # MFCC are NaN for silent frames
   } else if (input == 'audiogram') {
     target_spec = t(mel$aspectrum)
   } else if (input == 'spectrum') {
@@ -155,15 +161,21 @@ ssm = function(x,
     win = win
   )
   # s = zeroOne(s^2)  # hist(s)
+  # image(s)
 
   ## compute novelty
-  novelty = getNovelty(ssm = s, kernelSize = kernelSize, kernelSD = kernelSD)
+  novelty = getNovelty(ssm = s, kernelSize = kernelSize,
+                       kernelSD = kernelSD, padWith = padWith)
 
   ## plot
   if (plot) {
-    spec = zeroOne(log(mel$pspectrum) ^ 2)
+    if (input == 'audiogram') {
+      spec = zeroOne(log(mel$aspectrum + 1e-16))
+    } else {
+      spec = zeroOne(log(mel$pspectrum + 1e-16))
+    }
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
-    layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = c(2, 1))
+    layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
     par(mar = c(5.1, 4.1, 0, 2.1),
         xaxt = 's',
         yaxt = 's')
@@ -182,7 +194,7 @@ ssm = function(x,
     # novelty
     do.call(lines, c(list(
       x = seq(0, duration, length.out = length(novelty)),
-      y = novelty / max(novelty) * maxFreq / 1000
+      y = novelty / max(novelty, na.rm = TRUE) * maxFreq / 1000
       ), noveltyPars
     ))
     axis(side = 1, labels = TRUE)
@@ -235,7 +247,7 @@ selfsim = function(m,
 
   # normalize input by column, if needed
   if (norm) {
-    m = apply(m, 2, zeroOne)
+    m = apply(m, 2, zeroOne, na.rm = TRUE)
   }
 
   # calculate windows for averaging self-similarity
@@ -249,18 +261,22 @@ selfsim = function(m,
     for (j in 1:length(winIdx)) {
       mi = as.vector(m[, winIdx[i]:(winIdx[i] + win - 1)])
       mj = as.vector(m[, winIdx[j]:(winIdx[j] + win - 1)])
-      if (simil == 'cosine') {
-        # http://stackoverflow.com/questions/6597005/cosine-similarity-between-two-vectors-in-language-r
-        out[i, j] = mean(crossprod(mi, mj) /
-                           sqrt(crossprod(mi) * crossprod(mj)),
-                         na.rm = TRUE)
-      } else if (simil == 'cor') {
-        out[i, j] = mean(cor(mi, mj), na.rm = TRUE)
+      if (any(mi != 0) && any(mj != 0)) {
+        if (simil == 'cosine') {
+          # http://stackoverflow.com/questions/6597005/cosine-similarity-between-two-vectors-in-language-r
+          out[i, j] = crossprod(mi, mj) / sqrt(crossprod(mi) * crossprod(mj))
+        } else if (simil == 'cor') {
+          out[i, j] = cor(mi, mj)
+        }
+      }
+      else {
+        # if at least one is a vector of zeros, set result to 0 (otherwise NA)
+        out[i, j] = 0
       }
     }
   }
-  out = zeroOne(out)
-  return (out)
+  out = zeroOne(out, na.rm = TRUE)
+  return(out)
 }
 
 
@@ -333,11 +349,11 @@ getCheckerboardKernel = function(size,
 #' @param kernelSD the SD of gaussian kernel
 #' @return Returns a numeric vector of length \code{nrow(ssm)}
 #' @keywords internal
-getNovelty = function(ssm, kernelSize, kernelSD) {
+getNovelty = function(ssm, kernelSize, kernelSD, padWith = 0) {
   kernel = getCheckerboardKernel(size = kernelSize, kernelSD = kernelSD)
   ## pad matrix with size / 2 zeros, so that we can correlate it with the
   #  kernel starting from the very edge
-  ssm_padded = matrix(0,
+  ssm_padded = matrix(padWith,
                       nrow = nrow(ssm) + kernelSize,
                       ncol = nrow(ssm) + kernelSize)
   # indices in the padded matrix where we'll paste the original ssm
@@ -351,9 +367,10 @@ getNovelty = function(ssm, kernelSize, kernelSD) {
   for (i in idx[1]:idx[2]) {
     n = (i - kernelSize / 2):(i + kernelSize / 2 - 1)
     # suppress warnings, b/c otherwise cor complains of sd = 0 for silent segments
-    novelty[i - kernelSize / 2] =  suppressWarnings(cor(as.vector(ssm_padded[n, n]),
-                                        as.vector(kernel)))
+    novelty[i - kernelSize / 2] =  suppressWarnings(
+      cor(as.vector(ssm_padded[n, n]),
+          as.vector(kernel))) #'pairwise.complete.obs'))
   }
-  novelty[is.na(novelty)] = 0
-  return (novelty)
+  # novelty[is.na(novelty)] = 0
+  return(novelty)
 }

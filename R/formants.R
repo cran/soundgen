@@ -1,13 +1,10 @@
 #' Spectral envelope
 #'
 #' Prepares a spectral envelope for filtering a sound to add formants, lip
-#' radiation, and some stochastic component regulated by temperature.
-#' Formants are specified as a list containing time, frequency, amplitude,
-#' and width values for each formant (see examples). NB: each formant is
-#' generated as a gamma distribution with mean = freq and SD = width. Formant
-#' bandwidths in soundgen are therefore NOT compatible with formant bandwidths
-#' used in Klatt synthesizer and other algorithms that rely on FIR instead of
-#' FFT.
+#' radiation, and some stochastic component regulated by temperature. Formants
+#' are specified as a list containing time, frequency, amplitude, and width
+#' values for each formant (see examples). See vignette('sound_generation',
+#' package = 'soundgen') for more information.
 #' @param nr the number of frequency bins = windowLength_points/2, where
 #'   windowLength_points is the size of window for Fourier transform
 #' @param nc the number of time steps for Fourier transform
@@ -61,6 +58,7 @@
 #' e = getSpectralEnvelope(nr = 512, nc = 50,
 #'   formants = soundgen:::convertStringToFormants('a'),
 #'   temperature = 0.1, formantDepStoch = 20, plot = TRUE)
+#'
 #' # a schwa based on the length of vocal tract = 15.5 cm
 #' e = getSpectralEnvelope(nr = 512, nc = 50, formants = NA,
 #'   temperature = .1, vocalTract = 15.5, plot = TRUE)
@@ -572,7 +570,8 @@ reformatFormants = function(formants) {
 #' original formula from Tappert, Martony, and Fant (TMF)-1963, and below 500 Hz
 #' it applies a correction to allow for energy losses at low frequencies. See
 #' Khodai-Joopari & Clermont (2002), "Comparison of formulae for estimating
-#' formant bandwidths".
+#' formant bandwidths". Below 250 Hz the bandwidth is forces to drop again to
+#' avoid very large values near zero (just guesswork!)
 #' @param f a vector of formant frequencies, Hz
 #' @keywords internal
 #' @examples
@@ -581,10 +580,15 @@ reformatFormants = function(formants) {
 #'   xlab = 'Formant frequency, Hz', ylab = 'Estimated bandwidth, Hz')
 getBandwidth = function(f) {
   b = rep(NA, length(f))
-  f1 = which(f < 500)
-  f2 = which(f >= 500)
-  b[f1] =  52.08333 * (1 + (f[f1]-500) ^ 2/ 10 ^ 5)
-  b[f2] = 50 * (1 + f[f2] ^ 2 / 6 / 10 ^ 6)
+  f1 = which(f < 250)
+  f2 = which(f >= 250 & f < 500)
+  f3 = which(f >= 500)
+  # just guesswork below 250 Hz - no data for such low freqs,
+  # apart from elephant rumbles etc.
+  b[f1] = 26.38541 - .042 * f[f1] + .0011 * f[f1] ^ 2
+  # see Khodai-Joopari & Clermont 2002
+  b[f2] =  52.08333 * (1 + (f[f2]-500) ^ 2/ 10 ^ 5)
+  b[f3] = 50 * (1 + f[f3] ^ 2 / 6 / 10 ^ 6)
   # plot(f, b, type = 'l')
   return(b)
 }
@@ -733,11 +737,13 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
 #' Estimate vocal tract length
 #'
 #' Estimates the length of vocal tract based on formant frequencies, assuming
-#' that the vocal tract can be modeled as a tube open as both ends. Algorithm:
+#' that the vocal tract can be modeled as a tube open at both ends. Algorithm:
 #' first formant dispersion is estimated using the regression method described
 #' in Reby et al. (2005) "Red deer stags use formants as assessment cues during
 #' intrasexual agonistic interactions". The length of vocal tract is then
-#' calculated as speed of sound / 2 / formant dispersion.
+#' calculated as \eqn{speed of sound / 2 / formant dispersion}. See also
+#' \code{\link{schwa}} for VTL estimation with additional information on formant
+#' frequencies.
 #' @inheritParams getSpectralEnvelope
 #' @param formants a character string like "aaui" referring to default presets
 #'   for speaker "M1"; a vector of formant frequencies; or a list of formant
@@ -804,6 +810,13 @@ estimateVTL = function(formants, speedSound = 35400, checkFormat = TRUE) {
 #' @param sound numeric vector with \code{samplingRate}
 #' @param action 'add' = add formants to the sound, 'remove' = remove formants
 #'   (inverse filtering)
+#' @param spectralEnvelope (optional): as an alternative to specifying formant
+#'   frequencies, we can provide the exact filter - a vector of non-negative
+#'   numbers specifying the power in each frequency bin on a linear scale
+#'   (interpolated to length equal to windowLength_points/2). A matrix
+#'   specifying the filter for each STFT step is also accepted. The easiest way
+#'   to create this matrix is to call soundgen:::getSpectralEnvelope or to use
+#'   the spectrum of a recorded sound
 #' @param formDrift,formDisp scaling factors for the effect of temperature on
 #'   formant drift and dispersal, respectively
 #' @param windowLength_points length of FFT window, points
@@ -831,8 +844,45 @@ estimateVTL = function(formants, speedSound = 35400, checkFormat = TRUE) {
 #'                                  action = 'remove')
 #' # playme(sound_inverse_filt)
 #' # spectrogram(sound_inverse_filt, samplingRate = 16000)
+#'
+#' \dontrun{
+#' # Use the spectral envelope of an existing recording (bleating of a sheep)
+#' # (see also the same example with noise as source in ?generateNoise)
+#' data(sheep, package = 'seewave')  # import a recording from seewave
+#' sound_orig = as.numeric(scale(sheep@left))
+#' samplingRate = sheep@samp.rate
+#' sound_orig = sound_orig / max(abs(sound_orig))  # range -1 to +1
+#' # playme(sound_orig, samplingRate)
+#' pitch = analyze(sound_orig, samplingRate = samplingRate,
+#'   pitchMethod = c('autocor', 'dom'))$pitch
+#' pitch = pitch[!is.na(pitch)]
+#' specEnv_bleating = spectrogram(sound_orig, samplingRate = samplingRate,
+#'   output = 'original', plot = FALSE)
+#' # image(t(log(specEnv_bleating)))
+#'
+#' # Synthesize source only, with flat spectrum
+#' sound_unfilt = soundgen(sylLen = 2500, pitch = pitch,
+#'   rolloff = 0, rolloffOct = 0, rolloffKHz = 0,
+#'   temperature = 0, jitterDep = 0, subDep = 0,
+#'   formants = NULL, lipRad = 0, samplingRate = samplingRate)
+#' # playme(sound_unfilt, samplingRate)
+#' # seewave::meanspec(sound_unfilt, f = samplingRate, dB = 'max0')  # ~flat
+#'
+#' # Force spectral envelope to the shape of target
+#' sound_filt = addFormants(sound_unfilt, formants = NULL,
+#'   spectralEnvelope = specEnv_bleating, samplingRate = samplingRate)
+#' # playme(sound_filt, samplingRate)
+#' # The spectral envelope is now similar to the original recording. Compare:
+#' par(mfrow = c(1, 2))
+#' seewave::meanspec(sound_orig, f = samplingRate, dB = 'max0', alim = c(-50, 20))
+#' seewave::meanspec(sound_filt, f = samplingRate, dB = 'max0', alim = c(-50, 20))
+#' par(mfrow = c(1, 1))
+#' # NB: but the source of excitation in the original is actually a mix of
+#' # harmonics and noise, while the new sound is purely tonal
+#' }
 addFormants = function(sound,
                        formants,
+                       spectralEnvelope = NULL,
                        action = c('add', 'remove')[1],
                        vocalTract = NA,
                        formantDep = 1,
@@ -871,35 +921,53 @@ addFormants = function(sound,
     nr = windowLength_points / 2 # number of frequency bins for fft
 
     # are formants moving or stationary?
-    if (is.list(formants)) {
-      movingFormants = max(sapply(formants, function(x) sapply(x, length))) > 1
-    } else {
-      movingFormants = FALSE
-    }
-    if (is.list(mouthAnchors) && sum(mouthAnchors$value != .5) > 0) {
-      movingFormants = TRUE
-    }
-    nInt = ifelse(movingFormants, nc, 1)
+    if (is.null(spectralEnvelope)) {
+      if (is.list(formants)) {
+        movingFormants = max(sapply(formants, function(x) sapply(x, length))) > 1
+      } else {
+        movingFormants = FALSE
+      }
+      if (is.list(mouthAnchors) && sum(mouthAnchors$value != .5) > 0) {
+        movingFormants = TRUE
+      }
+      nInt = ifelse(movingFormants, nc, 1)
 
-    # prepare the filter
-    spectralEnvelope = getSpectralEnvelope(
-      nr = nr,
-      nc = nInt,
-      formants = formants,
-      formantDep = formantDep,
-      formantDepStoch = formantDepStoch,
-      formantWidth = formantWidth,
-      lipRad = lipRad,
-      noseRad = noseRad,
-      mouthOpenThres = mouthOpenThres,
-      mouthAnchors = mouthAnchors,
-      interpol = interpol,
-      temperature = temperature,
-      formDrift = formDrift,
-      formDisp = formDisp,
-      samplingRate = samplingRate,
-      vocalTract = vocalTract
-    )
+      # prepare the filter
+      spectralEnvelope = getSpectralEnvelope(
+        nr = nr,
+        nc = nInt,
+        formants = formants,
+        formantDep = formantDep,
+        formantDepStoch = formantDepStoch,
+        formantWidth = formantWidth,
+        lipRad = lipRad,
+        noseRad = noseRad,
+        mouthOpenThres = mouthOpenThres,
+        mouthAnchors = mouthAnchors,
+        interpol = interpol,
+        temperature = temperature,
+        formDrift = formDrift,
+        formDisp = formDisp,
+        samplingRate = samplingRate,
+        vocalTract = vocalTract
+      )
+    } else {  # user-provided spectralEnvelope
+      spectralEnvelope = as.matrix(spectralEnvelope)  # if a vector,
+      # becomes a matrix with one row
+      if (nrow(spectralEnvelope) > 1) {
+        nInt = nc
+        movingFormants = TRUE
+      } else {  # vector
+        nInt = 1
+        vingFormants = FALSE
+      }
+      spectralEnvelope = interpolMatrix(
+        spectralEnvelope,
+        nr = nr,
+        nc = nInt,
+        interpol = 'approx'
+      )
+    }
     # image(t(spectralEnvelope))
 
     # fft and filtering
@@ -989,8 +1057,11 @@ addFormants = function(sound,
 #' @return Returns a list with the following components: \describe{
 #'   \item{vtl_measured}{VTL as provided by the user, cm}
 #'   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
-#'   provided by the user, cm} \item{ff_measured}{formant frequencies as
-#'   provided by the user, Hz} \item{ff_schwa}{formant frequencies corresponding
+#'   provided by the user, cm}
+#'   \item{formantDispersion}{average distance between formants, Hz}
+#'   \item{ff_measured}{formant frequencies as
+#'   provided by the user, Hz}
+#'   \item{ff_schwa}{formant frequencies corresponding
 #'   to a neutral schwa sound in this vocal tract, Hz}
 #'   \item{ff_theoretical}{formant frequencies corresponding to the
 #'   user-provided relative formant frequencies, Hz}
@@ -1141,6 +1212,7 @@ schwa = function(formants = NULL,
   # prepare the output
   out = list(vtl_measured = vocalTract,
              vtl_apparent = vocalTract_apparent,
+             formantDispersion = formantDispersion,
              ff_measured = formants,
              ff_schwa = ff_schwa,
              ff_theoretical = ff_theoretical,

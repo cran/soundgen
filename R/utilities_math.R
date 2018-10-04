@@ -2,9 +2,9 @@
 
 #' Convert Hz to semitones
 #'
-#' Converts from Hz to semitones above C-5 (~0.5109875 Hz). This may not seem very
-#' useful, but note that (1) this gives you a nice logarithmic scale for
-#' generating natural pitch transitions, (2) with the added benefit of getting
+#' Converts from Hz to semitones above C-5 (~0.5109875 Hz). This may not seem
+#' very useful, but note that this gives us a nice logarithmic scale for
+#' generating natural pitch transitions with the added benefit of getting
 #' musical notation for free from \code{notesDict} (see examples).
 #' @param h vector or matrix of frequencies (Hz)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
@@ -13,14 +13,15 @@
 #' s = HzToSemitones(c(440, 293, 115))
 #' # to convert to musical notation
 #' notesDict$note[1 + round(s)]
-#' # note the "1 +": semitones ABOVE C0, i.e. notesDict[1, ] is C0
+#' # note the "1 +": semitones ABOVE C-5, i.e. notesDict[1, ] is C-5
 HzToSemitones = function(h, ref = 0.5109875) {
   return(log2(h / ref) * 12)
 }
 
 #' Convert semitones to Hz
 #'
-#' Converts from semitones above C-5 (~0.5109875 Hz) to Hz. See \code{\link{HzToSemitones}}
+#' Converts from semitones above C-5 (~0.5109875 Hz) to Hz. See
+#' \code{\link{HzToSemitones}}
 #' @param s vector or matrix of frequencies (semitones above C0)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
@@ -56,10 +57,11 @@ listDepth = function(x) ifelse(is.list(x), 1L + max(sapply(x, listDepth)), 0L)
 #'
 #' Normalized input vector to range from 0 to 1
 #' @param x numeric vector or matrix
+#' @param na.rm if TRUE, removed NA's when calculating min/max for normalization
 #' @keywords internal
-zeroOne = function(x) {
-  x = x - min(x)
-  x = x / max(x)
+zeroOne = function(x, na.rm = FALSE) {
+  x = x - min(x, na.rm = na.rm)
+  x = x / max(x, na.rm = na.rm)
   return(x)
 }
 
@@ -111,11 +113,11 @@ downsample = function(s, srNew = 10, srOld = 120, minLen = 3){
 
 #' Entropy
 #'
-#' Returns Weiner or Shannon entropy of an input vector such as the power
-#' spectrum of a sound. Non-positive input values are converted a small positive
-#' number (convertNonPositive). If all elements are zero, returns NA.
+#' Returns Weiner or Shannon entropy of an input vector such as the spectrum of
+#' a sound. Non-positive input values are converted to a small positive number
+#' (convertNonPositive). If all elements are zero, returns NA.
 #'
-#' @param x vector of positive floats, such as a power spectrum
+#' @param x vector of positive floats
 #' @param type 'shannon' for Shannon (information) entropy, 'weiner' for Weiner
 #'   entropy
 #' @param normalize if TRUE, Shannon entropy is normalized by the length of
@@ -302,6 +304,7 @@ Mode = function(x) {
 #' @export
 #' @examples
 #' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .2))
+#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .5))
 #' plot(getRandomWalk(len = 1000, rw_range = 15,
 #'   rw_smoothing = .2, trend = c(.5, -.5)))
 #' plot(getRandomWalk(len = 1000, rw_range = 15,
@@ -770,3 +773,75 @@ reportCI = function(n, digits = 2) {
     paste0(n[1], ' [', n[2], ', ', n[3], ']')
   }
 }
+
+
+#' Interpolate matrix
+#'
+#' Internal soundgen function
+#'
+#' Performs a chosen type of interpolation (linear or smooth) across both rows and columns of a matrix, in effect up- or downsampling a matrix to required dimensions
+#' @param m input matrix of numeric values
+#' @param nr,nc target dimensions
+#' @inheritParams getSmoothContour
+#' @keywords internal
+#' @examples
+#' m = matrix(1:12 + rnorm(12, 0, .2), nrow = 3)
+#' soundgen:::interpolMatrix(m, nr = 10, nc = 7)
+#' soundgen:::interpolMatrix(m, nr = 10, nc = 7, interpol = 'spline')
+#' soundgen:::interpolMatrix(m, nr = 2, nc = 7)
+#' soundgen:::interpolMatrix(m, nr = 2, nc = 2)
+interpolMatrix = function(m,
+                          nr,
+                          nc,
+                          interpol = c("approx", "spline")[1]) {
+  if (nr < 2) stop('nr must be >1')
+  if (nc < 2) stop('nc msut be >1')
+
+  # Downsample rows if necessary
+  if (nrow(m) > nr) {
+    m = m[seq(1, nrow(m), length.out = nr), ]
+  }
+
+  # Downsample columns if necessary
+  if (ncol(m) > nc) {
+    m = m[, seq(1, ncol(m), length.out = nc)]
+  }
+
+  # Interpolate rows if necessary
+  if (nrow(m) < nr) {
+    temp = matrix(1, nrow = nr, ncol = ncol(m))
+    for (c in 1:ncol(m)) {
+      temp[, c] = do.call(interpol, list(x = m[, c], n = nr))$y
+    }
+  } else {
+    temp = m
+  }
+
+  # Interpolate columns if necessary
+  if (ncol(m) < nc) {
+    out = matrix(1, nrow = nr, ncol = nc)
+    for (r in 1:nr) {
+      out[r, ] = do.call(interpol, list(x = temp[r, ], n = nc))$y
+    }
+  } else {
+    out = temp
+  }
+  return(out)
+}
+
+
+#' sampleModif
+#'
+#' Internal soundgen function
+#'
+#' Same as \code{\link[base]{sample}}, but without defaulting to x = 1:x if
+#' length(x) = 1. See
+#' https://stackoverflow.com/questions/7547758/using-sample-with-sample-space-size-1
+#' @param x vector
+#' @param ... other arguments passed to \code{sample}
+#' @keywords internal
+#' @examples
+#' soundgen:::sampleModif(x = 3, n = 1)
+#' # never returns 1 or 2: cf. sample(x = 3, n = 1)
+sampleModif = function(x, ...) x[sample.int(length(x), ...)]
+

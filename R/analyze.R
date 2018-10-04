@@ -2,16 +2,18 @@
 
 #' Analyze sound
 #'
-#' Acoustic analysis of a single sound file: pitch tracking and basic spectral
-#' characteristics. The default values of arguments are optimized for human
-#' non-linguistic vocalizations. See the vignette on acoustic analysis for
+#' Acoustic analysis of a single sound file: pitch tracking, basic spectral
+#' characteristics, and estimated loudness (see \code{\link{getLoudness}}). The
+#' default values of arguments are optimized for human non-linguistic
+#' vocalizations. See vignette('acoustic_analysis', package = 'soundgen') for
 #' details.
 #'
 #' @inheritParams spectrogram
-#' @param silence (0 to 1) frames with mean abs amplitude below silence
-#'   threshold are not analyzed at all. NB: this number is dynamically updated:
-#'   the actual silence threshold may be higher depending on the quietest frame,
-#'   but it will never be lower than this specified number.
+#' @inheritParams getLoudness
+#' @param silence (0 to 1) frames with RMS amplitude below silence threshold are
+#'   not analyzed at all. NB: this number is dynamically updated: the actual
+#'   silence threshold may be higher depending on the quietest frame, but it
+#'   will never be lower than this specified number.
 #' @param cutFreq (>0 to Nyquist, Hz) repeat the calculation of spectral
 #'   descriptives after discarding all info above \code{cutFreq}.
 #'   Recommended if the original sampling rate varies across different analyzed
@@ -91,12 +93,12 @@
 #' @param summary if TRUE, returns only a summary of the measured acoustic
 #'   variables (mean, median and SD). If FALSE, returns a list containing
 #'   frame-by-frame values
+#' @param summaryStats a vector of names of functions used to summarize each
+#'   acoustic characteristic
 #' @param plot if TRUE, produces a spectrogram with pitch contour overlaid
-#' @param savePath if a valid path is specified, a plot is saved in this
-#'   folder (defaults to NA)
-#' @param specPlot deprecated since soundgen 1.1.2. Pass its arguments directly
-#'   to the main function or set \code{plotSpec = FALSE} to remove the
-#'   spectrogram
+#' @param showLegend if TRUE, adds a legend with pitch tracking methods
+#' @param savePath if a valid path is specified, a plot is saved in this folder
+#'   (defaults to NA)
 #' @param plotSpec if \code{FALSE}, the spectrogram will not be plotted
 #' @param candPlot a list of graphical parameters for displaying
 #' individual pitch candidates. Set to \code{NULL} or \code{NA} to suppress
@@ -104,7 +106,7 @@
 #'   pitch contour. Set to \code{NULL} or \code{NA} to suppress
 #' @param xlab,ylab,main plotting parameters
 #' @param width,height,units,res parameters passed to
-#'   \code{\link[grDevices]{jpeg}} if the plot is saved
+#'   \code{\link[grDevices]{png}} if the plot is saved
 #' @param ... other graphical parameters passed to \code{\link{spectrogram}}
 #' @return If \code{summary = TRUE}, returns a dataframe with one row and three
 #'   columns per acoustic variable (mean / median / SD). If \code{summary =
@@ -123,12 +125,14 @@
 #'   to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
 #'   bandwidth of the first nFormants formants per FFT frame, as calculated by
 #'   phonTools::findformants with default settings} \item{harmonics}{the amount
-#'   of energy in upper harmonics, namely the ratio of total spectral power
-#'   above 1.25 x F0 to the total spectral power below 1.25 x F0 (dB)}
+#'   of energy in upper harmonics, namely the ratio of total spectral mass
+#'   above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
 #'   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
 #'   by soundgen:::getPitchAutocor (see “Pitch tracking methods /
 #'   Autocorrelation”). If HNR = 0 dB, there is as much energy in harmonics as
-#'   in noise} \item{medianFreq}{50th quantile of the frame's spectrum}
+#'   in noise} \item{loudness}{subjective loudness, in sone, corresponding to
+#'   the chosen SPL_measured - see \code{\link{getLoudness}}}
+#'   \item{medianFreq}{50th quantile of the frame's spectrum}
 #'   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
 #'   \item{peakFreqCut}{the frequency with maximum spectral power below cutFreq
 #'   (Hz)} \item{pitch}{post-processed pitch contour based on all F0 estimates}
@@ -181,10 +185,23 @@
 #'
 #'# Plot pitch candidates w/o a spectrogram
 #' a = analyze(sound2, samplingRate = 16000, plot = TRUE, plotSpec = FALSE)
+#'
+#' # Different formatting options for output
+#' a = analyze(sound2, samplingRate = 16000, summary = FALSE)  # frame-by-frame
+#' a = analyze(sound2, samplingRate = 16000, summary = TRUE,
+#'             summaryStats = c('mean', 'range'))  # one row per sound
+#'
+#' # Save the plot
+#' a = analyze(sound, samplingRate = 16000,
+#'             savePath = '~/Downloads/',
+#'             width = 20, height = 15, units = 'cm', res = 300)
 #' }
 analyze = function(x,
                    samplingRate = NULL,
+                   dynamicRange = 80,
                    silence = 0.04,
+                   SPL_measured = 70,
+                   Pref = 20,
                    windowLength = 50,
                    step = NULL,
                    overlap = 50,
@@ -227,10 +244,11 @@ analyze = function(x,
                    smooth = 1,
                    smoothVars = c('pitch', 'dom'),
                    summary = FALSE,
+                   summaryStats = c('mean', 'median', 'sd'),
                    plot = TRUE,
+                   showLegend = TRUE,
                    savePath = NA,
                    plotSpec = TRUE,
-                   specPlot = NULL,
                    pitchPlot = list(
                      col = rgb(0, 0, 1, .75),
                      lwd = 3
@@ -251,11 +269,8 @@ analyze = function(x,
                    res = NA,
                    ...) {
   ## preliminaries
-  # deprecated args
-  if (!missing(specPlot)) {
-    message('specPlot is deprecated; pass its arguments directly to the main function or set plotSpec = FALSE to remove the spectrogram')
-  }
-  if ('osc' %in% names(match.call())) {
+  if ('osc' %in% names(match.call()) |
+      'osc_dB' %in% names(match.call())) {
     # we are working with frameBank, not raw waveform
     osc = FALSE
     message('Plotting a spectrogram with oscillogram from analyze() is currently not implemented')
@@ -263,9 +278,9 @@ analyze = function(x,
 
   # import a sound
   if (class(x) == 'character') {
-    sound = tuneR::readWave(x)
-    samplingRate = sound@samp.rate
-    sound = sound@left
+    sound_wav = tuneR::readWave(x)
+    samplingRate = sound_wav@samp.rate
+    sound = sound_wav@left
     plotname = tail(unlist(strsplit(x, '/')), n = 1)
     plotname = ifelse(
       !missing(main) && !is.null(main),
@@ -284,11 +299,17 @@ analyze = function(x,
     stop('Input not recognized')
   }
 
+  # calculate scaling coefficient, but don't convert yet,
+  # since most routines in analyze() require scale [-1, 1]
+  scaleCorrection = scaleSPL(c(-1, 1),  # internal scale
+                             SPL_measured = SPL_measured,
+                             Pref = Pref)[2]
+
   # normalize to range from no less than -1 to no more than +1
   if (min(sound) > 0) {
-    sound = scale(sound)
+    sound = sound - mean(sound)  # center
   }
-  sound = sound / max(abs(max(sound)), abs(min(sound)))
+  sound = sound / max(abs(sound))
 
   # some derived pars, defaults
   if (!is.numeric(silence) || silence < 0 || silence > 1) {
@@ -345,9 +366,9 @@ analyze = function(x,
     zp = 0
     warning('"zp" must be non-negative; defaulting to 0')
   }
-  if (!is.numeric(cutFreq) || cutFreq <= 0) {
+  if (!is.numeric(cutFreq) || cutFreq <= 0 || cutFreq > (samplingRate / 2)) {
     cutFreq = samplingRate / 2
-    warning(paste('"cutFreq" must be positive;',
+    warning(paste('"cutFreq" must be between 0 and samplingRate / 2;',
                   'defaulting to samplingRate / 2'))
   }
   if (!is.numeric(pitchFloor) || pitchFloor <= 0 ||
@@ -470,7 +491,7 @@ analyze = function(x,
     f = ifelse(plotname == '',
                'sound',
                plotname)
-    jpeg(filename = paste0(savePath, f, ".jpg"),
+    png(filename = paste0(savePath, f, ".png"),
          width = width, height = height, units = units, res = res)
   }
   frameBank = getFrameBank(
@@ -480,10 +501,11 @@ analyze = function(x,
     wn = wn,
     step = step,
     zp = zp,
+    normalize = TRUE,
     filter = NULL
   )
 
-  if (plot == TRUE && plotSpec) { #
+  if (plot == TRUE && plotSpec) {
     plot_spec = TRUE
   } else {
     plot_spec = FALSE
@@ -494,6 +516,7 @@ analyze = function(x,
   s = do.call(spectrogram, c(list(
     x = NULL,
     frameBank = frameBank,
+    dynamicRange = dynamicRange,
     duration = duration,
     samplingRate = samplingRate,
     windowLength = windowLength,
@@ -518,9 +541,10 @@ analyze = function(x,
   silence = max(silence, min(ampl))
 
   # calculate entropy of each frame within the most relevant
-  # vocal range only: 50 to 6000 Hz
-  rowLow = which(as.numeric(rownames(s)) > 0.05)[1] # 50 Hz
-  rowHigh = which(as.numeric(rownames(s)) > 6)[1] # 6000 Hz
+  # vocal range only (up to to cutFreq Hz)
+  rowLow = 1 # which(as.numeric(rownames(s)) > 0.05)[1] # 50 Hz
+  rowHigh = tail(which(as.numeric(rownames(s)) * 1000 <= cutFreq), 1) # 6000 Hz etc
+  if (length(rowHigh) < 1 || !is.finite(rowHigh)) rowHigh = nrow(s)
   entropy = apply(as.matrix(1:ncol(s)), 1, function(x) {
     getEntropy(s[rowLow:rowHigh, x], type = 'weiner')
   })
@@ -572,6 +596,7 @@ analyze = function(x,
       row.names = NULL
     ),
     'summaries' = data.frame(
+      'loudness' = NA,
       'HNR' = NA,
       'dom' = NA,
       'specCentroid' = NA,
@@ -594,6 +619,7 @@ analyze = function(x,
       frame = s[, i],
       autoCorrelation = autocorBank[, i],
       samplingRate = samplingRate,
+      scaleCorrection = scaleCorrection,
       trackPitch = cond_entropy[i],
       pitchMethods = pitchMethods,
       cutFreq = cutFreq,
@@ -826,6 +852,19 @@ analyze = function(x,
         pitchPlot)
         )
       }
+      # add a legend
+      if (showLegend) {
+        pm_all = c('autocor', 'cep', 'spec', 'dom')
+        pm = which(pm_all %in% pitchMethods)
+        legend("topright",
+               legend = c(pm_all[pm], 'combined'),
+               pch = c(candPlot$pch[pm], NA), # c(16, 7, 2, 3, NA)[pm_present],
+               lty = c(rep(NA, length(pm)),
+                       ifelse(!is.null(pitchPlot$lty), pitchPlot$lty, 1)),
+               lwd = c(rep(NA, length(pm)), pitchPlot$lwd),
+               col = c(candPlot$col[pm], pitchPlot$col), # c('green', 'violet', 'red', 'orange', 'blue')[pm_present],
+               bg = "white")
+      }
     }
   }
   if (is.character(savePath)) {
@@ -841,48 +880,57 @@ analyze = function(x,
   }
 
   if (summary) {
-    vars = colnames(result)[3:ncol(result)]
-    vars = vars[vars != 'voiced']  # except dur, time and voiced
+    vars = colnames(result)[!colnames(result) %in% c('duration', 'time', 'voiced')]
+    ls = length(summaryStats)
     out = as.data.frame(matrix(
-      ncol = 2 + 3 * length(vars),
+      ncol = 2 + ls * length(vars),  # 2 b/c dur & voiced are not summarized
       nrow = 1
     ))
     colnames(out)[c(1:2)] = c('duration', 'voiced')
     for (c in 1:length(vars)) {
       # specify how to summarize pitch etc values for each frame within each file
-      # - save mean, median, sd, ... "2+2*c-1": "2" because of dur/voiced above,
-      # "+3*c" because for each acoustic variable, we save mean, median and sd
-      colnames(out)[2 + 3 * c - 2] = paste0(vars[c], '_', 'mean')
-      colnames(out)[2 + 3 * c - 1] = paste0(vars[c], '_', 'median')
-      colnames(out)[2 + 3 * c] = paste0(vars[c], '_', 'sd')
+      # - save mean, median, sd, ...
+      for (s in 1:ls) {
+        colnames(out)[2 + ls * (c - 1) + s] = paste0(vars[c], '_', summaryStats[s])
+      }
     }
-    # which columns in the output of pitch_per_sound to save as median + sd
-    myseq = (1:length(vars)) + 2
     out$duration = result$duration[1]  # duration, ms
     out$voiced = mean(result$voiced)  # proportion of voiced frames
-
-    for (v in 1:length(myseq)) {
-      myvar = colnames(result)[myseq[v]]
-      out[1, 3 * v] = mean(result[, myvar], na.rm = TRUE)
-      out[1, 3 * v + 1] = median(result[, myvar], na.rm = TRUE)
-      out[1, 3 * v + 2] = sd(result[, myvar], na.rm = TRUE)
+    # apply the specified summary function to each column of result
+    for (v in 3:(ncol(result) - 1)) {  # -1 for voiced (not summarized)
+      for (s in 1:length(summaryStats)) {
+        if (any(is.finite(result[, colnames(result)[v]]))) {
+          mySummary = do.call(
+            summaryStats[s],
+            list(result[, colnames(result)[v]], na.rm = TRUE)
+          )
+          # for smth like range, collapse and convert to character
+          if (length(mySummary) > 1) {
+            mySummary = paste0(mySummary, collapse = ', ')
+          }
+          out[1, ls * (v - 2 - 1) + s + 2] = mySummary
+        } else {  # not finite, eg NA or -Inf - don't bother to calculate
+          out[1, ls * (v - 2 - 1) + s + 2] = NA
+        }
+      }
     }
   } else {
     out = result
   }
-
   return(out)
 }
 
 
 #' Analyze folder
 #'
-#' Acoustic analysis of all .wav files in a folder.
+#' Acoustic analysis of all .wav files in a folder. See \code{\link{analyze}}
+#' and vignette('acoustic_analysis', package = 'soundgen') for further details.
 #' @param myfolder full path to target folder
 #' @param verbose if TRUE, reports progress and estimated time left
 #' @inheritParams analyze
 #' @inheritParams spectrogram
-#' @param savePlots if TRUE, saves plots as .jpg files
+#' @inheritParams getLoudness
+#' @param savePlots if TRUE, saves plots as .png files
 #' @param htmlPlots if TRUE, saves an html file with clickable plots
 #' @return If \code{summary} is TRUE, returns a dataframe with one row per audio
 #'   file. If \code{summary} is FALSE, returns a list of detailed descriptives.
@@ -896,6 +944,12 @@ analyze = function(x,
 #' myfolder = '~/Downloads/temp'  # 260 .wav files live here
 #' s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 15-30 minutes!
 #'
+#' # Save spectrograms with pitch contours plus an html file for easy access
+#' a = analyzeFolder('~/Downloads/temp', savePlots = TRUE,
+#'   showLegend = TRUE,
+#'   width = 20, height = 12,
+#'   units = 'cm', res = 300)
+#'
 #' # Check accuracy: import manually verified pitch values (our "key")
 #' key = pitchManual  # a vector of 260 floats
 #' trial = s$pitch_median
@@ -907,7 +961,10 @@ analyzeFolder = function(myfolder,
                          htmlPlots = TRUE,
                          verbose = TRUE,
                          samplingRate = NULL,
+                         dynamicRange = 80,
                          silence = 0.04,
+                         SPL_measured = 70,
+                         Pref = 20,
                          windowLength = 50,
                          step = NULL,
                          overlap = 50,
@@ -950,11 +1007,11 @@ analyzeFolder = function(myfolder,
                          smooth = 1,
                          smoothVars = c('pitch', 'dom'),
                          summary = TRUE,
+                         summaryStats = c('mean', 'median', 'sd'),
                          plot = FALSE,
+                         showLegend = TRUE,
                          savePlots = FALSE,
-                         savePath = NA,
                          plotSpec = TRUE,
-                         specPlot = NULL,
                          pitchPlot = list(
                            col = rgb(0, 0, 1, .75),
                            lwd = 3
@@ -980,14 +1037,6 @@ analyzeFolder = function(myfolder,
   # check the size of all files in the target folder
   filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
 
-  # deprecated args
-  if (!missing(specPlot)) {
-    message('specPlot is deprecated; pass its arguments directly to the main function or set plotSpec = FALSE to remove the spectrogram')
-  }
-  if (!missing(savePath)) {
-    message('savePath is deprecated; use savePlots = TRUE instead')
-  }
-
   # as.list(match.call()) also works, but we want to get default args as well,
   # since plot should default to TRUE for analyze() and FALSE for analyzeFolder(),
   # and summary vice versa.
@@ -996,7 +1045,7 @@ analyzeFolder = function(myfolder,
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'myfolder' , 'htmlPlots', 'verbose', 'savePlots',
-    'specPlot', 'pitchPlot', 'candPlot')]
+    'pitchPlot', 'candPlot')]
   # exclude ...
   myPars = myPars[1:(length(myPars)-1)]
   # add plot pars correctly, without flattening the lists
@@ -1015,12 +1064,11 @@ analyzeFolder = function(myfolder,
 
   # prepare output
   if (summary == TRUE) {
-    output = as.data.frame(t(sapply(result, rbind)))
+    output = as.data.frame(t(sapply(result, function(x) unlist(rbind(x)))))
     output$sound = apply(matrix(1:length(filenames)), 1, function(x) {
       tail(unlist(strsplit(filenames[x], '/')), 1)
     })
     output = output[, c('sound', colnames(output)[1:(ncol(output) - 1)])]
-    output = as.data.frame(apply(output, 2, unlist))
   } else {
     output = result
     names(output) = filenames

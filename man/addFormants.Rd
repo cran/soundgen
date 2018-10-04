@@ -4,13 +4,13 @@
 \alias{addFormants}
 \title{Add formants}
 \usage{
-addFormants(sound, formants, action = c("add", "remove")[1],
-  vocalTract = NA, formantDep = 1, formantDepStoch = 20,
-  formantWidth = 1, lipRad = 6, noseRad = 4, mouthOpenThres = 0,
-  mouthAnchors = NA, interpol = c("approx", "spline", "loess")[3],
-  temperature = 0.025, formDrift = 0.3, formDisp = 0.2,
-  samplingRate = 16000, windowLength_points = 800, overlap = 75,
-  normalize = TRUE)
+addFormants(sound, formants, spectralEnvelope = NULL, action = c("add",
+  "remove")[1], vocalTract = NA, formantDep = 1,
+  formantDepStoch = 20, formantWidth = 1, lipRad = 6, noseRad = 4,
+  mouthOpenThres = 0, mouthAnchors = NA, interpol = c("approx",
+  "spline", "loess")[3], temperature = 0.025, formDrift = 0.3,
+  formDisp = 0.2, samplingRate = 16000, windowLength_points = 800,
+  overlap = 75, normalize = TRUE)
 }
 \arguments{
 \item{sound}{numeric vector with \code{samplingRate}}
@@ -21,6 +21,14 @@ amplitudes, and bandwidths (see ex. below). \code{formants = NA} defaults
 to schwa. Time stamps for formants and mouthOpening can be specified in ms
 or an any other arbitrary scale. See \code{\link{getSpectralEnvelope}} for
 more details}
+
+\item{spectralEnvelope}{(optional): as an alternative to specifying formant
+frequencies, we can provide the exact filter - a vector of non-negative
+numbers specifying the power in each frequency bin on a linear scale
+(interpolated to length equal to windowLength_points/2). A matrix
+specifying the filter for each STFT step is also accepted. The easiest way
+to create this matrix is to call soundgen:::getSpectralEnvelope or to use
+the spectrum of a recorded sound}
 
 \item{action}{'add' = add formants to the sound, 'remove' = remove formants
 (inverse filtering)}
@@ -103,4 +111,40 @@ sound_inverse_filt = addFormants(sound_filtered,
                                  action = 'remove')
 # playme(sound_inverse_filt)
 # spectrogram(sound_inverse_filt, samplingRate = 16000)
+
+\dontrun{
+# Use the spectral envelope of an existing recording (bleating of a sheep)
+# (see also the same example with noise as source in ?generateNoise)
+data(sheep, package = 'seewave')  # import a recording from seewave
+sound_orig = as.numeric(scale(sheep@left))
+samplingRate = sheep@samp.rate
+sound_orig = sound_orig / max(abs(sound_orig))  # range -1 to +1
+# playme(sound_orig, samplingRate)
+pitch = analyze(sound_orig, samplingRate = samplingRate,
+  pitchMethod = c('autocor', 'dom'))$pitch
+pitch = pitch[!is.na(pitch)]
+specEnv_bleating = spectrogram(sound_orig, samplingRate = samplingRate,
+  output = 'original', plot = FALSE)
+# image(t(log(specEnv_bleating)))
+
+# Synthesize source only, with flat spectrum
+sound_unfilt = soundgen(sylLen = 2500, pitch = pitch,
+  rolloff = 0, rolloffOct = 0, rolloffKHz = 0,
+  temperature = 0, jitterDep = 0, subDep = 0,
+  formants = NULL, lipRad = 0, samplingRate = samplingRate)
+# playme(sound_unfilt, samplingRate)
+# seewave::meanspec(sound_unfilt, f = samplingRate, dB = 'max0')  # ~flat
+
+# Force spectral envelope to the shape of target
+sound_filt = addFormants(sound_unfilt, formants = NULL,
+  spectralEnvelope = specEnv_bleating, samplingRate = samplingRate)
+# playme(sound_filt, samplingRate)
+# The spectral envelope is now similar to the original recording. Compare:
+par(mfrow = c(1, 2))
+seewave::meanspec(sound_orig, f = samplingRate, dB = 'max0', alim = c(-50, 20))
+seewave::meanspec(sound_filt, f = samplingRate, dB = 'max0', alim = c(-50, 20))
+par(mfrow = c(1, 1))
+# NB: but the source of excitation in the original is actually a mix of
+# harmonics and noise, while the new sound is purely tonal
+}
 }

@@ -4,8 +4,8 @@
 \alias{getRandomWalk}
 \title{Random walk}
 \usage{
-getRandomWalk(len, rw_range = 1, rw_smoothing = 0.2, method = c("linear",
-  "spline")[2], trend = 0)
+getRandomWalk(len, rw_range = 1, rw_smoothing = 0.2,
+  method = c("linear", "spline")[2], trend = 0)
 }
 \arguments{
 \item{len}{an integer specifying the required length of random walk. If len
@@ -40,6 +40,7 @@ initially generating a shorter random walk and upsampling.
 }
 \examples{
 plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .2))
+plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .5))
 plot(getRandomWalk(len = 1000, rw_range = 15,
   rw_smoothing = .2, trend = c(.5, -.5)))
 plot(getRandomWalk(len = 1000, rw_range = 15,

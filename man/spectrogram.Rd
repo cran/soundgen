@@ -4,14 +4,15 @@
 \alias{spectrogram}
 \title{Spectrogram}
 \usage{
-spectrogram(x, samplingRate = NULL, dynamicRange = 80, windowLength = 50,
-  step = NULL, overlap = 70, wn = "gaussian", zp = 0, smoothFreq = 0,
-  smoothTime = 0, qTime = 0, percentNoise = 10, noiseReduction = 0,
-  contrast = 0.2, brightness = 0, method = c("spectrum",
-  "spectralDerivative")[1], output = c("none", "original", "processed")[1],
-  ylim = NULL, plot = TRUE, osc = FALSE, osc_dB = FALSE,
-  heights = c(3, 1), colorTheme = c("bw", "seewave", "...")[1],
-  xlab = "Time, ms", ylab = "Frequency, KHz", main = "",
+spectrogram(x, samplingRate = NULL, dynamicRange = 80,
+  windowLength = 50, step = NULL, overlap = 70, wn = "gaussian",
+  zp = 0, normalize = TRUE, smoothFreq = 0, smoothTime = 0,
+  qTime = 0, percentNoise = 10, noiseReduction = 0, contrast = 0.2,
+  brightness = 0, method = c("spectrum", "spectralDerivative")[1],
+  output = c("none", "original", "processed")[1], ylim = NULL,
+  plot = TRUE, osc = FALSE, osc_dB = FALSE, heights = c(3, 1),
+  colorTheme = c("bw", "seewave", "...")[1], xlab = "Time, ms",
+  ylab = "Frequency, KHz", mar = c(5.1, 4.1, 4.1, 2), main = "",
   frameBank = NULL, duration = NULL, ...)
 }
 \arguments{
@@ -21,8 +22,8 @@ samplingRate}
 \item{samplingRate}{sampling rate of \code{x} (only needed if
 \code{x} is a numeric vector, rather than a .wav file)}
 
-\item{dynamicRange}{dynamic range, dB. All values with power more than one
-dynamicRange under maximum are treated as zero}
+\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
+under maximum are treated as zero}
 
 \item{windowLength}{length of FFT window, ms}
 
@@ -34,6 +35,8 @@ dynamicRange under maximum are treated as zero}
 blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
+
+\item{normalize}{if TRUE, scales input prior to FFT}
 
 \item{smoothFreq, smoothTime}{length of the window, in data points (0 to
 +inf), for calculating a rolling median. Applies median smoothing to
@@ -70,8 +73,8 @@ spectrogram ('original'), or denoised and/or smoothed spectrogram
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{osc, osc_dB}{should an oscillogram be shown under the spectrogram? TRUE
-/ FALSE, If `osc_dB`, the oscillogram is displayed on a dB scale. See
+\item{osc, osc_dB}{should an oscillogram be shown under the spectrogram? TRUE/
+FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
 \code{\link{osc_dB}} for details}
 
 \item{heights}{a vector of length two specifying the relative height of the
@@ -81,7 +84,7 @@ spectrogram and the oscillogram}
 or any palette from \code{\link[grDevices]{palette}} such as
 'heat.colors', 'cm.colors', etc}
 
-\item{xlab, ylab, main}{graphical parameters}
+\item{xlab, ylab, main, mar}{graphical parameters}
 
 \item{frameBank}{ignore (only needed for pitch tracking)}
 
@@ -91,20 +94,21 @@ or any palette from \code{\link[grDevices]{palette}} such as
 \code{seewave:::filled.contour.modif2}}
 }
 \value{
-Returns nothing (if output = 'none'), raw spectrum (if output =
-  'original'), denoised and/or smoothed spectrum (if output = 'processed'),
-  or spectral derivatives (if method = 'spectralDerivative') as a matrix of
-  real numbers.
+Returns nothing (if output = 'none'), absolute - not power! -
+  spectrum (if output = 'original'), denoised and/or smoothed spectrum (if
+  output = 'processed'), or spectral derivatives (if method =
+  'spectralDerivative') as a matrix of real numbers.
 }
 \description{
 Produces the spectrogram of a sound using short-term Fourier transform. This
 is a simplified version of \code{\link[seewave]{spectro}} with fewer plotting
 options, but with added routines for noise reduction, smoothing in time and
-frequency domains, and controlling contrast and brightness.
+frequency domains, and controlling contrast and brightness. It also provides
+an options to plot the oscillogram on a dB scale.
 }
 \examples{
 # synthesize a sound 1 s long, with gradually increasing hissing noise
-sound = soundgen(sylLen = 1000, temperature = 0.001, noiseAnchors = list(
+sound = soundgen(sylLen = 1000, temperature = 0.001, noise = list(
   time = c(0, 1300), value = c(-120, 0)), formantsNoise = list(
   f1 = list(freq = 5000, width = 10000)))
 # playme(sound, samplingRate = 16000)
@@ -127,13 +131,13 @@ spectrogram(sound, samplingRate = 16000,
 # broad-band instead of narrow-band
 spectrogram(sound, samplingRate = 16000, windowLength = 5)
 
-# focus only on values in the upper 5\% of power for each frequency bin
+# focus only on values in the upper 5\% for each frequency bin
 spectrogram(sound, samplingRate = 16000, qTime = 0.95)
 
 # detect 10\% of the noisiest frames based on entropy and remove the pattern
 # found in those frames (in this cases, breathing)
 spectrogram(sound, samplingRate = 16000,  noiseReduction = 1.1,
-  brightness = -2)  # white noise gone
+  brightness = -2)  # white noise attenuated
 
 # apply median smoothing in both time and frequency domains
 spectrogram(sound, samplingRate = 16000, smoothFreq = 5,

@@ -5,21 +5,24 @@
 \title{Analyze folder}
 \usage{
 analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
-  samplingRate = NULL, silence = 0.04, windowLength = 50, step = NULL,
+  samplingRate = NULL, dynamicRange = 80, silence = 0.04,
+  SPL_measured = 70, Pref = 20, windowLength = 50, step = NULL,
   overlap = 50, wn = "gaussian", zp = 0, cutFreq = 6000,
   nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
   entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
   priorMean = HzToSemitones(300), priorSD = 6, priorPlot = FALSE,
-  nCands = 1, minVoicedCands = "autom", domThres = 0.1, domSmooth = 220,
-  autocorThres = 0.7, autocorSmooth = NULL, cepThres = 0.3,
-  cepSmooth = NULL, cepZp = 0, specThres = 0.3, specPeak = 0.35,
-  specSinglePeakCert = 0.4, specHNRslope = 0.8, specSmooth = 150,
-  specMerge = 1, shortestSyl = 20, shortestPause = 60, interpolWin = 3,
-  interpolTol = 0.3, interpolCert = 0.3, pathfinding = c("none", "fast",
-  "slow")[2], annealPars = list(maxit = 5000, temp = 1000),
-  certWeight = 0.5, snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
-  smoothVars = c("pitch", "dom"), summary = TRUE, plot = FALSE,
-  savePlots = FALSE, savePath = NA, plotSpec = TRUE, specPlot = NULL,
+  nCands = 1, minVoicedCands = "autom", domThres = 0.1,
+  domSmooth = 220, autocorThres = 0.7, autocorSmooth = NULL,
+  cepThres = 0.3, cepSmooth = NULL, cepZp = 0, specThres = 0.3,
+  specPeak = 0.35, specSinglePeakCert = 0.4, specHNRslope = 0.8,
+  specSmooth = 150, specMerge = 1, shortestSyl = 20,
+  shortestPause = 60, interpolWin = 3, interpolTol = 0.3,
+  interpolCert = 0.3, pathfinding = c("none", "fast", "slow")[2],
+  annealPars = list(maxit = 5000, temp = 1000), certWeight = 0.5,
+  snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
+  smoothVars = c("pitch", "dom"), summary = TRUE,
+  summaryStats = c("mean", "median", "sd"), plot = FALSE,
+  showLegend = TRUE, savePlots = FALSE, plotSpec = TRUE,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
   candPlot = list(levels = c("autocor", "spec", "dom", "cep"), col =
   c("green", "red", "orange", "violet"), pch = c(16, 2, 3, 7), cex = 2),
@@ -36,10 +39,17 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
 \item{samplingRate}{sampling rate of \code{x} (only needed if
 \code{x} is a numeric vector, rather than a .wav file)}
 
-\item{silence}{(0 to 1) frames with mean abs amplitude below silence
-threshold are not analyzed at all. NB: this number is dynamically updated:
-the actual silence threshold may be higher depending on the quietest frame,
-but it will never be lower than this specified number.}
+\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
+under maximum are treated as zero}
+
+\item{silence}{(0 to 1) frames with RMS amplitude below silence threshold are
+not analyzed at all. NB: this number is dynamically updated: the actual
+silence threshold may be higher depending on the quietest frame, but it
+will never be lower than this specified number.}
+
+\item{SPL_measured}{sound pressure level at which the sound is presented, dB}
+
+\item{Pref}{reference pressure, Pa}
 
 \item{windowLength}{length of FFT window, ms}
 
@@ -197,18 +207,16 @@ deviation of ~4 semitones. To disable, set \code{smooth} to NULL}
 variables (mean, median and SD). If FALSE, returns a list containing
 frame-by-frame values}
 
+\item{summaryStats}{a vector of names of functions used to summarize each
+acoustic characteristic}
+
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}
 
-\item{savePlots}{if TRUE, saves plots as .jpg files}
+\item{showLegend}{if TRUE, adds a legend with pitch tracking methods}
 
-\item{savePath}{if a valid path is specified, a plot is saved in this
-folder (defaults to NA)}
+\item{savePlots}{if TRUE, saves plots as .png files}
 
 \item{plotSpec}{if \code{FALSE}, the spectrogram will not be plotted}
-
-\item{specPlot}{deprecated since soundgen 1.1.2. Pass its arguments directly
-to the main function or set \code{plotSpec = FALSE} to remove the
-spectrogram}
 
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{NULL} or \code{NA} to suppress}
@@ -225,16 +233,16 @@ individual pitch candidates. Set to \code{NULL} or \code{NA} to suppress}
 \item{main}{plotting parameters}
 
 \item{width}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{height}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{units}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{res}{parameters passed to
-\code{\link[grDevices]{jpeg}} if the plot is saved}
+\code{\link[grDevices]{png}} if the plot is saved}
 
 \item{...}{other graphical parameters passed to \code{\link{spectrogram}}}
 }
@@ -243,7 +251,8 @@ If \code{summary} is TRUE, returns a dataframe with one row per audio
   file. If \code{summary} is FALSE, returns a list of detailed descriptives.
 }
 \description{
-Acoustic analysis of all .wav files in a folder.
+Acoustic analysis of all .wav files in a folder. See \code{\link{analyze}}
+and vignette('acoustic_analysis', package = 'soundgen') for further details.
 }
 \examples{
 \dontrun{
@@ -253,6 +262,12 @@ Acoustic analysis of all .wav files in a folder.
 # unzip them into a folder, say '~/Downloads/temp'
 myfolder = '~/Downloads/temp'  # 260 .wav files live here
 s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 15-30 minutes!
+
+# Save spectrograms with pitch contours plus an html file for easy access
+a = analyzeFolder('~/Downloads/temp', savePlots = TRUE,
+  showLegend = TRUE,
+  width = 20, height = 12,
+  units = 'cm', res = 300)
 
 # Check accuracy: import manually verified pitch values (our "key")
 key = pitchManual  # a vector of 260 floats
