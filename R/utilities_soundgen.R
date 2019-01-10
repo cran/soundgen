@@ -96,9 +96,8 @@ htmlPlots = function(myfolder, myfiles) {
   basenames_stripped = as.character(sapply(
     basenames,
     function(x) substr(x, 1, nchar(x) - 4)
-  )
-  )
-  n = paste0(basenames_stripped, collapse = "', '")
+  ))
+  n = paste0(basenames, collapse = "', '")
   n = paste0("var mylist = ['", n, "'];")
 
   # create an html file to display nice, clickable spectrograms
@@ -126,23 +125,21 @@ htmlPlots = function(myfolder, myfiles) {
       "<div id='container'> </div>",
       "<script>",
       "var sound = [];",
-      "var image = [];",
       "var table = document.createElement('table'), tr, td, row, cell;",
       "for (row = 0; row < mylist.length; row++) {",
-      "  sound[row] = mylist[row] + '.wav';",
-      "  image[row] = mylist[row] + '.png';",
+      "  sound[row] = mylist[row].substring(0, mylist[row].length - 4);",
       "  tr = document.createElement('tr');",
       "  td = document.createElement('td');",
       "  tr.appendChild(td);",
-      "  td.innerHTML = '<img src=\"' + image[row] + '\">';",
-      "  var mysound = sound[row];",
+      "  td.innerHTML = '<img src=\"' + sound[row] + '.png\">';",
+      "  var mysound = mylist[row];",
       "  td.onclick = (function(mysound) {",
       "    return function() {",
       "      var audioElement = document.createElement('audio');",
       "      audioElement.setAttribute('src', mysound);",
       "      audioElement.play();",
       "    };",
-      "  })(sound[row]);",
+      "  })(mysound);",
       "  table.appendChild(tr);",
       "}",
       "document.getElementById('container').appendChild(table);",
@@ -196,7 +193,7 @@ findZeroCrossing = function(ampl, location) {
   if (location > 1) {
     i = location
     while (i > 1) {
-      if (ampl[i] > 0 && ampl[i - 1] < 0) {
+      if (ampl[i] > 0 & ampl[i - 1] < 0) {
         zc_left = i - 1
         break
       }
@@ -208,7 +205,7 @@ findZeroCrossing = function(ampl, location) {
   if (location < len)
     i = location
   while (i < (len - 1)) {
-    if (ampl[i + 1] > 0 && ampl[i] < 0) {
+    if (ampl[i + 1] > 0 & ampl[i] < 0) {
       zc_right = i
       break
     }
@@ -498,7 +495,7 @@ wiggleAnchors = function(df,
       # insert between any two existing anchors
       a1 = sample(1:nrow(df), size = 1)
       direction = sample(c(-1, 1), size = 1)
-      a2 = ifelse(a1 + direction < 1 || a1 + direction > nrow(df),
+      a2 = ifelse(a1 + direction < 1 | a1 + direction > nrow(df),
                   a1 - direction,
                   a1 + direction)
       i1 = min(a1, a2)
@@ -543,7 +540,7 @@ wiggleAnchors = function(df,
     w = try(rnorm_bounded(
       n = nrow(df),
       mean = as.numeric(df[, i]),
-      sd = ifelse(i > 1 && !is.null(sd_values),
+      sd = ifelse(i > 1 & !is.null(sd_values),
                   sd_values,
                   as.numeric(ranges[i] * temperature * temp_coef)),
       low = low[i],

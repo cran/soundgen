@@ -7,10 +7,10 @@
 #' options, but with added routines for noise reduction, smoothing in time and
 #' frequency domains, and controlling contrast and brightness. It also provides
 #' an options to plot the oscillogram on a dB scale.
-#' @param x path to a .wav file or a vector of amplitudes with specified
+#' @param x path to a .wav or .mp3 file or a vector of amplitudes with specified
 #'   samplingRate
 #' @param samplingRate sampling rate of \code{x} (only needed if
-#'   \code{x} is a numeric vector, rather than a .wav file)
+#'   \code{x} is a numeric vector, rather than an audio file)
 #' @param dynamicRange dynamic range, dB. All values more than one dynamicRange
 #'   under maximum are treated as zero
 #' @param windowLength length of FFT window, ms
@@ -146,7 +146,14 @@ spectrogram = function(x,
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
   # import audio
   if (class(x) == 'character') {
-    sound_wav = tuneR::readWave(x)
+    extension = substr(x, nchar(x) - 2, nchar(x))
+    if (extension == 'wav' | extension == 'WAV') {
+      sound_wav = tuneR::readWave(x)
+    } else if (extension == 'mp3' | extension == 'MP3') {
+      sound_wav = tuneR::readMP3(x)
+    } else {
+      stop('Input not recognized: must be a numeric vector or wav/mp3 file')
+    }
     samplingRate = sound_wav@samp.rate
     windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
     sound = sound_wav@left
@@ -198,14 +205,14 @@ spectrogram = function(x,
   }
   if (class(frameBank) != 'matrix') {
     stop(
-      'Input format not recognized. Please provide path to .wav file,
+      'Input format not recognized. Please provide path to .wav or .mp3 file,
       a vector of amplitudes plus samplingRate, or a preprocessed frameBank'
     )
   }
 
   # fix default settings
   if (is.null(ylim)) {
-    ylim = c(0, floor(samplingRate / 2 / 1000))
+    ylim = c(0, samplingRate / 2 / 1000)
   }
   contrast_exp = exp(3 * contrast)
   brightness_exp = exp(3 * brightness)
@@ -213,9 +220,11 @@ spectrogram = function(x,
 
   # FFT
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
-  if (exists('sound') && windowLength_points > (length(sound) / 2)) {
-    windowLength_points = floor(length(sound) / 4) * 2
-    step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
+  if (exists('sound')) {
+    if (windowLength_points > (length(sound) / 2)) {
+      windowLength_points = floor(length(sound) / 4) * 2
+      step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
+    }
   }
   if (windowLength_points == 0) {
     stop('The sound and/or the windowLength is too short for plotting a spectrogram')
@@ -374,18 +383,18 @@ spectrogram = function(x,
 
 #' Save spectrograms per folder
 #'
-#' Creates spectrograms of all .wav files in a folder and save them as .png
+#' Creates spectrograms of all wav/mp3 files in a folder and saves them as .png
 #' files in the same folder. This is a lot faster than running
 #' \code{\link{analyzeFolder}} if you don't need pitch tracking. By default it
 #' also creates an html file with a list of audio files and their spectrograms
 #' in the same folder. If you open it in a browser that supports playing .wav
-#' files (e.g. Firefox or Chrome), you can view the spetrograms and click on
-#' them to play each sound. Unlike \code{\link{analyzeFolder}},
+#' and/or .mp3 files (e.g. Firefox or Chrome), you can view the spetrograms and
+#' click on them to play each sound. Unlike \code{\link{analyzeFolder}},
 #' spectrogramFolder supports plotting both a spectrogram and an oscillogram if
 #' \code{osc = TRUE}.
 #' @inheritParams spectrogram
 #' @inheritParams analyzeFolder
-#' @param myfolder full path to the folder containing .wav files
+#' @param myfolder full path to the folder containing wav/mp3 files
 #' @param htmlPlots if TRUE, saves an html file with clickable plots
 #' @param ... other parameters passed to \code{\link{spectrogram}}
 #' @export
@@ -417,13 +426,13 @@ spectrogramFolder = function(myfolder,
                              res = NA,
                              ...) {
   time_start = proc.time()  # timing
-  filenames = list.files(myfolder, pattern = "*.wav", full.names = TRUE)
+  filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
   # in order to provide more accurate estimates of time to completion,
   # check the size of all files in the target folder
   filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
 
   for (i in 1:length(filenames)) {
-    # strip .wav extension
+    # remove file extension
     f = substr(as.character(filenames[i]), 1, nchar(as.character(filenames[i])) - 4)
     png(filename = paste0(f, ".png"),
          width = width, height = height,
@@ -462,6 +471,14 @@ spectrogramFolder = function(myfolder,
 #' @param wl window length, in points
 #' @param wn window type (defaults to gaussian)
 #' @keywords internal
+#' @examples
+#' wns = c('bartlett', 'blackman', 'flattop', 'hamming', 'hanning', 'rectangle', 'gaussian')
+#' l = 200
+#' par(mfrow = c(4, 2))
+#' for (w in wns) {
+#'   plot(1:l, soundgen:::ftwindow_modif(wl = l, wn = w), type = 'b', main = w)
+#' }
+#' par(mfrow = c(1, 1))
 ftwindow_modif = function (wl, wn = "gaussian") {
   if (wn == "bartlett")
     w = seewave::bartlett.w(wl)
@@ -526,7 +543,7 @@ getFrameBank = function(sound,
   if (any(is.na(sound))) {
     sound[is.na(sound)] = 0
   }
-  if (normalize && any(sound != 0)) {
+  if (normalize & any(sound != 0)) {
     sound = sound - mean(sound)
     sound = sound / max(abs(max(sound)), abs(min(sound)))
   }
@@ -615,7 +632,7 @@ osc_dB = function(x,
     samplingRate = sound_wav@samp.rate
     sound = sound_wav@left
     if (is.null(maxAmpl)) maxAmpl = 2^(sound_wav@bit - 1)
-  } else if (length(x) > 1 && class(x) %in% c('numeric', 'integer')) {
+  } else if (is.numeric(x)) {
     sound = x
   }
 

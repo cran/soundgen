@@ -84,13 +84,14 @@ analyzeFrame = function(frame,
   # in Hz (~20 Hz for 44100 Hz with 50 ms window and zp = 0)
 
   # lowest dominant frequency band
-  if (trackPitch && 'dom' %in% pitchMethods) {
+  if (trackPitch & 'dom' %in% pitchMethods) {
     d = getDom(frame = frame,
                samplingRate = samplingRate,
                bin = bin,
                domSmooth = domSmooth,
                domThres = domThres,
-               pitchFloor = pitchFloor
+               pitchFloor = pitchFloor,
+               pitchCeiling = pitchCeiling
     )
     pitch_array = d$dom_array
     dom = d$dom
@@ -106,7 +107,7 @@ analyzeFrame = function(frame,
   }
 
   # autocorrelation (PRAAT)
-  if (trackPitch && 'autocor' %in% pitchMethods) {
+  if (trackPitch & 'autocor' %in% pitchMethods) {
     pa = getPitchAutocor(autoCorrelation = autoCorrelation,
                          autocorThres = autocorThres,
                          autocorSmooth = autocorSmooth,
@@ -123,7 +124,7 @@ analyzeFrame = function(frame,
   }
 
   # cepstrum
-  if (trackPitch && 'cep' %in% pitchMethods) {
+  if (trackPitch & 'cep' %in% pitchMethods) {
     pitchCep_array = getPitchCep(frame = frame,
                                  cepZp = cepZp,
                                  samplingRate = samplingRate,
@@ -136,7 +137,7 @@ analyzeFrame = function(frame,
   }
 
   # spectral: ratios of harmonics (BaNa)
-  if (trackPitch && 'spec' %in% pitchMethods) {
+  if (trackPitch & 'spec' %in% pitchMethods) {
     pitchSpec_array = getPitchSpec(frame = frame,
                                    specSmooth = specSmooth,
                                    specHNRslope = specHNRslope,
@@ -205,7 +206,8 @@ getDom = function(frame,
                   bin,
                   domSmooth,
                   domThres,
-                  pitchFloor
+                  pitchFloor,
+                  pitchCeiling
 ) {
   dom_array = data.frame(
     'pitchCand' = numeric(),
@@ -227,12 +229,13 @@ getDom = function(frame,
                         })
   idx = zoo::index(temp)[zoo::coredata(temp)]
   pitchFloor_idx = which(as.numeric(names(frame)) > pitchFloor / 1000)[1]
-  idx = idx[idx > pitchFloor_idx]
+  pitchCeiling_idx = which(as.numeric(names(frame)) > pitchCeiling / 1000)[1]
+  idx = idx[idx > pitchFloor_idx & idx < pitchCeiling_idx]
 
   if (length(idx) > 0) {
     # lowest dominant freq band - we take the first frequency in the spectrum at
     # least /domThres/ % of the amplitude of peak frequency, but high
-    # enough to be above pitchFloor
+    # enough to be above pitchFloor (and below pitchCeiling)
     dom = as.numeric(names(frame)[idx[1]]) * 1000
     dom_array = data.frame(
       'pitchCand' = dom,
@@ -560,11 +563,13 @@ getPitchSpec = function(frame,
         ]
     }
   }
-  if (!is.null(pitchSpec_array) && sum(!is.na(pitchSpec_array)) > 0) {
-    pitchSpec_array = pitchSpec_array[pitchSpec_array$pitchAmpl > specThres,
-                                      , drop = FALSE]
-    # how many pitchSpec candidates to use (max)
-    pitchSpec_array = pitchSpec_array[1:min(nrow(pitchSpec_array), nCands), ]
+  if (!is.null(pitchSpec_array)) {
+    if (sum(!is.na(pitchSpec_array)) > 0) {
+      pitchSpec_array = pitchSpec_array[pitchSpec_array$pitchAmpl > specThres,
+                                        , drop = FALSE]
+      # how many pitchSpec candidates to use (max)
+      pitchSpec_array = pitchSpec_array[1:min(nrow(pitchSpec_array), nCands), ]
+    }
   }
 
   return(pitchSpec_array)

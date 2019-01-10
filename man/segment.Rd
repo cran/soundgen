@@ -15,11 +15,11 @@ segment(x, samplingRate = NULL, windowLength = 40, overlap = 80,
   ...)
 }
 \arguments{
-\item{x}{path to a .wav file or a vector of amplitudes with specified
+\item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
 samplingRate}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than a .wav file)}
+numeric vector, rather than an audio file)}
 
 \item{windowLength, overlap}{length (ms) and overlap (%) of the smoothing
 window used to produce the amplitude envelope, see
@@ -100,8 +100,8 @@ research: a validated corpus. Behavior Research Methods, 49(2): 758-771.
 }
 \examples{
 sound = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70,
-  pitchAnchors = c(368, 284), temperature = 0.1,
-  noiseAnchors = list(time = c(0, 67, 86, 186), value = c(-45, -47, -89, -120)),
+  pitch = c(368, 284), temperature = 0.1,
+  noise = list(time = c(0, 67, 86, 186), value = c(-45, -47, -89, -120)),
   rolloff_noise = -8, amplAnchorsGlobal = c(0, -20))
 spectrogram(sound, samplingRate = 16000, osc = TRUE)
  # playme(sound, samplingRate = 16000)
