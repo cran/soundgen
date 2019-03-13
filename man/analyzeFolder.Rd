@@ -6,7 +6,7 @@
 \usage{
 analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   samplingRate = NULL, dynamicRange = 80, silence = 0.04,
-  SPL_measured = 70, Pref = 20, windowLength = 50, step = NULL,
+  SPL_measured = 70, Pref = 2e-05, windowLength = 50, step = NULL,
   overlap = 50, wn = "gaussian", zp = 0, cutFreq = 6000,
   nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
   entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
@@ -251,14 +251,13 @@ If \code{summary} is TRUE, returns a dataframe with one row per audio
   file. If \code{summary} is FALSE, returns a list of detailed descriptives.
 }
 \description{
-Acoustic analysis of all .wav files in a folder. See \code{\link{analyze}}
+Acoustic analysis of all wav/mp3 files in a folder. See \code{\link{analyze}}
 and vignette('acoustic_analysis', package = 'soundgen') for further details.
 }
 \examples{
 \dontrun{
 # download 260 sounds from Anikin & Persson (2017)
-# http://cogsci.se/personal/results/
-# 01_anikin-persson_2016_naturalistics-non-linguistic-vocalizations/260sounds_wav.zip
+# http://cogsci.se/publications/anikin-persson_2017_nonlinguistic-vocs/260sounds_wav.zip
 # unzip them into a folder, say '~/Downloads/temp'
 myfolder = '~/Downloads/temp'  # 260 .wav files live here
 s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 15-30 minutes!

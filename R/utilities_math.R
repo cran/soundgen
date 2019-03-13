@@ -871,3 +871,154 @@ interpolMatrix = function(m,
 #' # never returns 1 or 2: cf. sample(x = 3, n = 1)
 sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 
+
+#' Gaussian smoothing in 2D
+#'
+#' Takes a matrix of numeric values and smoothes it by convolution with a
+#' symmetric Gaussian window function.
+#'
+#' @return Returns a numeric matrix of the same dimensions as input.
+#' @param m input matrix (numeric, on any scale, doesn't have to be square)
+#' @param kernelSize the size of the Gaussian kernel, in points
+#' @param kernelSD the SD of the Gaussian kernel relative to its size (.5 = the
+#'   edge is two SD's away)
+#' @param plotKernel if TRUE, plots the kernel
+#' @export
+#' @examples
+#' s = spectrogram(soundgen(), samplingRate = 16000,
+#'   output = 'original', plot = FALSE)
+#' # image(log(s))
+#' s1 = gaussianSmooth2D(s, kernelSize = 11, plotKernel = TRUE)
+#' # image(log(s1))
+gaussianSmooth2D = function(m,
+                            kernelSize = 5,
+                            kernelSD = .5,
+                            plotKernel = FALSE) {
+  nr = nrow(m)
+  nc = ncol(m)
+  if (kernelSize < 2) return(m)
+  if (kernelSize >= (nr / 2)) {
+    kernelSize = ceiling(nr / 2) - 1
+  }
+  if (kernelSize >= (nc / 2)) {
+    kernelSize = ceiling(nc / 2) - 1
+  }
+  if (kernelSize %% 2 == 0) kernelSize = kernelSize - 1  # make uneven
+
+  # set up 2D Gaussian filter
+  kernel = getCheckerboardKernel(
+    size = kernelSize,
+    kernelSD = kernelSD,
+    checker = FALSE,
+    plot = plotKernel)
+  kernel = kernel / sum(kernel)  # convert to pdf
+
+  ## pad matrix with size / 2 zeros, so that we can correlate it with the
+  #  kernel starting from the very edge
+  m_padded = matrix(0,
+                    nrow = nr + kernelSize,
+                    ncol = nc + kernelSize)
+  # lower left corner in the padded matrix where we'll paste the original m
+  idx = (kernelSize + 1) / 2
+  # paste original. Now we have a padded matrix
+  m_padded[idx:(idx + nrow(m) - 1), idx:(idx + ncol(m) - 1)] = m
+
+  # kernel smoothing
+  out = matrix(NA, nrow = nr, ncol = nc)
+  for (i in 1:nr) {
+    for (j in 1:nc) {
+      out[i, j] = sum(m_padded[i : (i + 2 * idx - 2), j : (j + 2 * idx - 2)] * kernel)
+    }
+  }
+  if (!is.null(rownames(m))) rownames(out) = rownames(m)
+  if (!is.null(colnames(m))) colnames(out) = colnames(m)
+  return(out)
+}
+
+
+#' Proportion of total
+#'
+#' Internal soundgen function.
+#'
+#' Calculates the values in the input distribution that contain particular
+#' proportions of the sum of all values in the input distribution.
+#' @param x numeric vector of non-negative real numbers
+#' @param quantiles quantiles of the cumulative distribution
+#' @keywords internal
+#' @examples
+#' x = rnorm(100)
+#' x = x - min(x)  # must be non-negative
+#' hist(x)
+#' v = soundgen:::pDistr(x, quantiles = c(.5, .8, .9))
+#' sum(x[x > v['0.5']]) / sum(x)
+#' sum(x[x > v['0.9']]) / sum(x)
+pDistr = function(x, quantiles) {
+  a1 = rev(sort(x))  # plot(a1, type = 'l')
+  a2 = cumsum(a1)  # plot(a2, type = 'l')
+  total = sum(x)
+  out = rep(NA, length(quantiles))
+  names(out) = quantiles
+  for (q in 1:length(quantiles)) {
+    out[q] = a1[which(a2 > total * quantiles[q])[1]]
+  }
+  return(out)
+}
+
+
+#' Log-warp matrix
+#'
+#' Internal soundgen function.
+#'
+#' Log-warps a matrix, as if log-transforming plot axes.
+#'
+#' @param m a matrix of numeric values of any dimensions (not necessarily
+#'   square)
+#' @param base the base of logarithm
+#' @keywords internal
+#' @examples
+#' m = matrix(1:90, nrow = 10)
+#' soundgen:::logMatrix(m, base = 2)
+#' soundgen:::logMatrix(m, base = 10)
+#'
+#' soundgen:::logMatrix(m = matrix(1:9, nrow = 1), base = 2)
+#'
+#' \dontrun{
+#' s = spectrogram(soundgen(), 16000, output = 'original')
+#' image(log(t(soundgen:::logMatrix(s, base = 2))))
+#' }
+logMatrix = function(m, base = 2) {
+  # the key is to make a sequence of time locations within each row/column for
+  # interpolation: (1:nrow(m)) ^ base (followed by normalization, so this index
+  # will range from 1 to nrow(m) / ncol(m))
+  if (ncol(m) > 1) {
+    idx_row = (1:ncol(m)) ^ base - 1
+    idx_row = idx_row / max(idx_row)
+    idx_row = idx_row * (ncol(m) - 1) + 1
+    # interpolate rows at these time points
+    m1 = t(apply(m, 1, function(x) approx(x, xout = idx_row)$y))
+  } else {
+    m1 = m
+  }
+
+  # same for columns
+  if (nrow(m) > 1) {
+    idx_col = (1:nrow(m)) ^ base - 1
+    idx_col = idx_col / max(idx_col)
+    idx_col = idx_col * (nrow(m) - 1) + 1
+    # interpolate columns at these time points
+    m2 = apply(m1, 2, function(x) approx(x, xout = idx_col)$y)
+  } else {
+    m2 = m1
+  }
+
+  # interpolate row and column names
+  # (assuming numeric values, as when called from modulationSpectrum())
+  if (!is.null(colnames(m)) & ncol(m) > 1) {
+    colnames(m2) = approx(as.numeric(colnames(m)), xout = idx_row)$y
+  }
+  if (!is.null(rownames(m)) & nrow(m) > 1) {
+    rownames(m2) = approx(as.numeric(rownames(m)), xout = idx_col)$y
+  }
+
+  return(m2)
+}

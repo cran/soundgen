@@ -66,7 +66,7 @@
 #' @examples
 #' # synthesize a sound 1 s long, with gradually increasing hissing noise
 #' sound = soundgen(sylLen = 1000, temperature = 0.001, noise = list(
-#'   time = c(0, 1300), value = c(-120, 0)), formantsNoise = list(
+#'   time = c(0, 1300), value = c(-40, 0)), formantsNoise = list(
 #'   f1 = list(freq = 5000, width = 10000)))
 #' # playme(sound, samplingRate = 16000)
 #'
@@ -139,11 +139,13 @@ spectrogram = function(x,
                        frameBank = NULL,
                        duration = NULL,
                        ...) {
+  sound = NULL
   if (overlap < 0 | overlap > 100) {
     warning('overlap must be >0 and <= 100%; resetting to 70')
     overlap = 70
   }
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
+
   # import audio
   if (class(x) == 'character') {
     extension = substr(x, nchar(x) - 2, nchar(x))
@@ -220,7 +222,7 @@ spectrogram = function(x,
 
   # FFT
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
-  if (exists('sound')) {
+  if (!is.null(sound)) {
     if (windowLength_points > (length(sound) / 2)) {
       windowLength_points = floor(length(sound) / 4) * 2
       step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
@@ -233,7 +235,16 @@ spectrogram = function(x,
   # fft of each frame
   z = apply(frameBank, 2, function(x) stats::fft(x)[1:(floor(nrow(frameBank) / 2))])
   if (!is.matrix(z)) z = matrix(z, ncol = 1)
-  X = seq(0, duration * 1000, length.out = ncol(z))  # time stamp
+  # adjust the timing of spectrogram to match the actual time stamps
+  # in getFrameBank (~the middle of each fft frame)
+  if (!is.null(sound)) {
+    X = seq(1, max(1, (length(sound) - windowLength_points)),
+            step / 1000 * samplingRate) / samplingRate * 1000 + windowLength / 2
+  } else {
+    # if calling spectrogram from analyze() with only frameBank
+    X = seq(0, duration * 1000 - windowLength,
+            length.out = ncol(z)) + windowLength / 2
+  }
   if (length(X) < 2) {
     stop('The sound is too short for plotting a spectrogram')
   }
@@ -316,17 +327,17 @@ spectrogram = function(x,
     Z1[Z1 > 1] = 1 # otherwise values >1 are shown as white instead of black
   }
 
-  # spectrogram of the modified fft
-  if (colorTheme == 'bw') {
-    color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
-  } else if (colorTheme == 'seewave') {
-    color.palette = seewave::spectro.colors
-  } else {
-    colFun = match.fun(colorTheme)
-    color.palette = function(x) rev(colFun(x))
-  }
-
   if (plot) {
+    # spectrogram of the modified fft
+    if (colorTheme == 'bw') {
+      color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
+    } else if (colorTheme == 'seewave') {
+      color.palette = seewave::spectro.colors
+    } else {
+      colFun = match.fun(colorTheme)
+      color.palette = function(x) rev(colFun(x))
+    }
+
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
     if (osc | osc_dB) {
       if (osc_dB) {
@@ -342,7 +353,7 @@ spectrogram = function(x,
       layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
       par(mar = c(mar[1:2], 0, mar[4]), xaxt = 's', yaxt = 's')
       plot(
-        seq(1, duration * 1000, length.out = length(sound)),
+        seq(0, duration * 1000, length.out = length(sound)),
         sound,
         type = "l",
         ylim = ylim_osc,
@@ -367,6 +378,7 @@ spectrogram = function(x,
       color.palette = color.palette,
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
+      xlim = c(0, duration * 1000),
       ...
     )
     # restore original pars
@@ -429,7 +441,7 @@ spectrogramFolder = function(myfolder,
   filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
   # in order to provide more accurate estimates of time to completion,
   # check the size of all files in the target folder
-  filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
+  filesizes = file.info(filenames)$size
 
   for (i in 1:length(filenames)) {
     # remove file extension
@@ -547,7 +559,6 @@ getFrameBank = function(sound,
     sound = sound - mean(sound)
     sound = sound / max(abs(max(sound)), abs(min(sound)))
   }
-  duration = length(sound) / samplingRate
   myseq = seq(1, max(1, (length(sound) - windowLength_points)),
               step / 1000 * samplingRate)
   if (is.null(filter)) {

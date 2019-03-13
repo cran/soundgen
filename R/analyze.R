@@ -14,6 +14,8 @@
 #'   not analyzed at all. NB: this number is dynamically updated: the actual
 #'   silence threshold may be higher depending on the quietest frame, but it
 #'   will never be lower than this specified number.
+#' @param scale maximum possible amplitude of input used for normalization (not
+#'   needed for audio files)
 #' @param cutFreq (>0 to Nyquist, Hz) repeat the calculation of spectral
 #'   descriptives after discarding all info above \code{cutFreq}.
 #'   Recommended if the original sampling rate varies across different analyzed
@@ -199,13 +201,46 @@
 #' a = analyze(sound, samplingRate = 16000,
 #'             savePath = '~/Downloads/',
 #'             width = 20, height = 15, units = 'cm', res = 300)
+#'
+#' ## Amplitude and loudness: analyze() should give the same results as
+#' dedicated functions getRMS() / getLoudness()
+#' # Create 1 kHz tone
+#' samplingRate = 16000; dur_ms = 50
+#' sound1 = sin(2*pi*1000/samplingRate*(1:(dur_ms/1000*samplingRate)))
+#' a1 = analyze(sound1, samplingRate = samplingRate, windowLength = 25,
+#'         overlap = 50, SPL_measured = 40, scale = 1,
+#'         pitchMethods = NULL, plot = FALSE)
+#' a1$loudness  # loudness per STFT frame (1 sone by definition)
+#' getLoudness(sound1, samplingRate = samplingRate, windowLength = 25,
+#'             overlap = 50, SPL_measured = 40, scale = 1)$loudness
+#' a1$ampl  # RMS amplitude per STFT frame
+#' getRMS(sound1, samplingRate = samplingRate, windowLength = 25,
+#'        overlap = 50, scale = 1)
+#' # or even simply: sqrt(mean(sound1 ^ 2))
+#'
+#' # The same sound as above, but with half the amplitude
+#' a_half = analyze(sound1/2, samplingRate = samplingRate, windowLength = 25,
+#'         overlap = 50, SPL_measured = 40, scale = 1,
+#'         pitchMethods = NULL, plot = FALSE)
+#' a1$ampl / a_half$ampl  # rms amplitude halved
+#' a1$loudness/ a_half$loudness  # loudness is not a linear function of amplitude
+#'
+#' # Amplitude & loudness of an existing audio file
+#' sound2 = '~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav'
+#' a2 = analyze(sound2, windowLength = 25, overlap = 50, SPL_measured = 40,
+#'         pitchMethods = NULL, plot = FALSE)
+#' apply(a2[, c('loudness', 'ampl')], 2, median, na.rm = TRUE)
+#' median(getLoudness(sound2, windowLength = 25, overlap = 50,
+#'                    SPL_measured = 40)$loudness)
+#' median(getRMS(sound2, windowLength = 25, overlap = 50, scale = 1))
 #' }
 analyze = function(x,
                    samplingRate = NULL,
                    dynamicRange = 80,
                    silence = 0.04,
+                   scale = NULL,
                    SPL_measured = 70,
-                   Pref = 20,
+                   Pref = 2e-5,
                    windowLength = 50,
                    step = NULL,
                    overlap = 50,
@@ -287,6 +322,8 @@ analyze = function(x,
     }
     samplingRate = sound_wav@samp.rate
     sound = sound_wav@left
+    scale = 2 ^ (sound_wav@bit - 1)
+    m = max(abs(sound))
     plotname = tail(unlist(strsplit(x, '/')), n = 1)
     plotname = ifelse(
       !missing(main) & !is.null(main),
@@ -301,15 +338,28 @@ analyze = function(x,
       sound = x
       plotname = ifelse(!missing(main) & !is.null(main), main, '')
     }
+    m = max(abs(sound))
+    if (is.null(scale)) {
+      scale = max(m, 1)
+      message(paste('Scale not specified. Assuming that max amplitude is', scale))
+    } else if (is.numeric(scale)) {
+      if (scale < m) {
+        scale = m
+        warning(paste('Scale cannot be smaller than observed max; resetting to', m))
+      }
+    }
   } else {
     stop('Input not recognized: must be a numeric vector or wav/mp3 file')
   }
 
-  # calculate scaling coefficient, but don't convert yet,
-  # since most routines in analyze() require scale [-1, 1]
-  scaleCorrection = scaleSPL(c(-1, 1),  # internal scale
-                             SPL_measured = SPL_measured,
-                             Pref = Pref)[2]
+  # calculate scaling coefficient for loudness calculation, but don't convert
+  # yet, since most routines in analyze() require scale [-1, 1]
+  scaleCorrection = max(abs(scaleSPL(sound * m / scale,
+                                     # NB: m / scale = 1 if the sound is normalized  to 0 dB (max amplitude)
+                                     scale = 1,
+                                     SPL_measured = SPL_measured,
+                                     Pref = Pref))) /  # peak ampl of rescaled
+    m  # peak ampl of original
 
   # normalize to range from no less than -1 to no more than +1
   if (min(sound) > 0) {
@@ -501,7 +551,7 @@ analyze = function(x,
                'sound',
                plotname)
     png(filename = paste0(savePath, f, ".png"),
-         width = width, height = height, units = units, res = res)
+        width = width, height = height, units = units, res = res)
   }
   frameBank = getFrameBank(
     sound = sound,
@@ -534,17 +584,19 @@ analyze = function(x,
     step = step,
     main = plotname,
     plot = plot_spec,
+    normalize = FALSE,
     output = 'original',
     ylim = ylim,
     xlab = xlab,
     ylab = ylab
   ), extraSpecPars))
 
-  # calculate amplitude of each frame
+  # calculate rms amplitude of each frame
   myseq = seq(1, (length(sound) - windowLength_points), length.out = ncol(s))
   ampl = apply(as.matrix(1:ncol(s)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
-    sqrt(mean(sound[myseq[x]:(myseq[x] + windowLength_points)] ^ 2))
+    # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
+    sqrt(mean((sound[myseq[x]:(myseq[x] + windowLength_points - 1)] * m / scale) ^ 2))
   })
   # dynamically adjust silence threshold
   silence = max(silence, min(ampl))
@@ -558,7 +610,7 @@ analyze = function(x,
     getEntropy(s[rowLow:rowHigh, x], type = 'weiner')
   })
   # if the frame is too quiet or too noisy, we will not analyze it
-  cond_silence = ampl > silence &
+  cond_silence = ampl >= silence &
     as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
   cond_entropy = ampl > silence & entropy < entropyThres
   cond_entropy[is.na(cond_entropy)] = FALSE
@@ -658,12 +710,9 @@ analyze = function(x,
   result = cbind(result, formants)
   result$entropy = entropy
   result$ampl = ampl
-  result$time = round(seq(
-    step / 2,  # windowLength_points / 2 / samplingRate,
-    duration * 1000 - step / 2,
-    length.out = nrow(result)
-  ),
-  0)
+  result$time = round(seq(0,
+                          duration * 1000 - windowLength,
+                          length.out = nrow(result)) + windowLength / 2, 0)
   result$duration = duration
   c = ncol(result)
   result = result[, c(rev((c-3):c), 1:(c-4))]  # change the order of columns
@@ -823,40 +872,38 @@ analyze = function(x,
     }
     # add pitch candidates to the plot
     if (nrow(pitchCands) > 0) {
-      if (is.list(candPlot)) {
-        if (is.null(candPlot$levels)) {
-          candPlot$levels = pitchMethods # c('autocor', 'spec', 'dom', 'cep')
-        }
-        if (is.null(candPlot$col)) {
-          candPlot$col[candPlot$levels == 'autocor'] = 'green'
-          candPlot$col[candPlot$levels == 'spec'] = 'red'
-          candPlot$col[candPlot$levels == 'dom'] = 'orange'
-          candPlot$col[candPlot$levels == 'cep'] = 'violet' # c('green', 'red', 'orange', 'violet')
-        }
-        if (is.null(candPlot$pch)) {
-          candPlot$pch[candPlot$levels == 'autocor'] = 16
-          candPlot$pch[candPlot$levels == 'spec'] = 2
-          candPlot$pch[candPlot$levels == 'dom'] = 3
-          candPlot$pch[candPlot$levels == 'cep'] = 7
-          # candPlot$pch = c(16, 2, 3, 7)
-        }
-        if (is.null(candPlot$cex)) {
-          candPlot$cex = 2
-        }
-        pitchSource_1234 = matrix(match(pitchSource, candPlot$levels),
-                                  ncol = ncol(pitchSource))
-        for (r in 1:nrow(pitchCands)) {
-          points(
-            x = result$time,
-            y = pitchCands[r, ] / 1000,
-            col = candPlot$col[pitchSource_1234[r, ]],
-            pch = candPlot$pch[pitchSource_1234[r, ]],
-            cex = pitchCert[r, ] * candPlot$cex
-          )
-        }
+      if (is.null(candPlot$levels)) {
+        candPlot$levels = pitchMethods # c('autocor', 'spec', 'dom', 'cep')
+      }
+      if (is.null(candPlot$col)) {
+        candPlot$col[candPlot$levels == 'autocor'] = 'green'
+        candPlot$col[candPlot$levels == 'spec'] = 'red'
+        candPlot$col[candPlot$levels == 'dom'] = 'orange'
+        candPlot$col[candPlot$levels == 'cep'] = 'violet' # c('green', 'red', 'orange', 'violet')
+      }
+      if (is.null(candPlot$pch)) {
+        candPlot$pch[candPlot$levels == 'autocor'] = 16
+        candPlot$pch[candPlot$levels == 'spec'] = 2
+        candPlot$pch[candPlot$levels == 'dom'] = 3
+        candPlot$pch[candPlot$levels == 'cep'] = 7
+        # candPlot$pch = c(16, 2, 3, 7)
+      }
+      if (is.null(candPlot$cex)) {
+        candPlot$cex = 2
+      }
+      pitchSource_1234 = matrix(match(pitchSource, candPlot$levels),
+                                ncol = ncol(pitchSource))
+      for (r in 1:nrow(pitchCands)) {
+        points(
+          x = result$time,
+          y = pitchCands[r, ] / 1000,
+          col = candPlot$col[pitchSource_1234[r, ]],
+          pch = candPlot$pch[pitchSource_1234[r, ]],
+          cex = pitchCert[r, ] * candPlot$cex
+        )
       }
       # add the final pitch contour to the plot
-      if (is.list(pitchPlot)) {
+      if (any(is.numeric(result$pitch))) {
         if (is.null(pitchPlot$col)) {
           pitchPlot$col = rgb(0, 0, 1, .75)
         }
@@ -941,7 +988,7 @@ analyze = function(x,
 
 #' Analyze folder
 #'
-#' Acoustic analysis of all .wav files in a folder. See \code{\link{analyze}}
+#' Acoustic analysis of all wav/mp3 files in a folder. See \code{\link{analyze}}
 #' and vignette('acoustic_analysis', package = 'soundgen') for further details.
 #' @param myfolder full path to target folder
 #' @param verbose if TRUE, reports progress and estimated time left
@@ -956,8 +1003,7 @@ analyze = function(x,
 #' @examples
 #' \dontrun{
 #' # download 260 sounds from Anikin & Persson (2017)
-#' # http://cogsci.se/personal/results/
-#' # 01_anikin-persson_2016_naturalistics-non-linguistic-vocalizations/260sounds_wav.zip
+#' # http://cogsci.se/publications/anikin-persson_2017_nonlinguistic-vocs/260sounds_wav.zip
 #' # unzip them into a folder, say '~/Downloads/temp'
 #' myfolder = '~/Downloads/temp'  # 260 .wav files live here
 #' s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 15-30 minutes!
@@ -982,7 +1028,7 @@ analyzeFolder = function(myfolder,
                          dynamicRange = 80,
                          silence = 0.04,
                          SPL_measured = 70,
-                         Pref = 20,
+                         Pref = 2e-5,
                          windowLength = 50,
                          step = NULL,
                          overlap = 50,
@@ -1053,7 +1099,7 @@ analyzeFolder = function(myfolder,
   filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
   # in order to provide more accurate estimates of time to completion,
   # check the size of all files in the target folder
-  filesizes = apply(as.matrix(filenames), 1, function(x) file.info(x)$size)
+  filesizes = file.info(filenames)$size
 
   # as.list(match.call()) also works, but we want to get default args as well,
   # since plot should default to TRUE for analyze() and FALSE for analyzeFolder(),

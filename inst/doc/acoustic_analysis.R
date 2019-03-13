@@ -3,7 +3,7 @@ library(soundgen)
 s1 = soundgen(sylLen = 900, temperature = 0,
               pitch = list(time = c(0, .3, .8, 1), 
                            value = c(300, 900, 400, 2300)),
-              noise = c(-40, 0), subDep = 100, 
+              noise = c(-40, -20), subDep = 100, 
               jitterDep = 0.5, nonlinBalance = 100,
               plot = TRUE, ylim = c(0, 4))
 # playme(s1)  # replay as many times as needed w/o re-synthesizing the sound
@@ -80,7 +80,7 @@ plot(seq(0, dur, length.out = length(a$ampl)), a$ampl, type = 'b', xlab= 'Time, 
 ## ----fig.height = 4, fig.width = 7---------------------------------------
 plot(seq(0, dur, length.out = length(a$loudness)), a$loudness, type = 'b', xlab= 'Time, s')
 
-## ----fig.height = 6, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7---------------------------------------
 l = getLoudness(sweep, samplingRate = samplingRate)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
@@ -126,12 +126,32 @@ a = analyze(s1,
             specPeak = .4,
             nCands = 2)
 
+## ----fig.show = "hold", fig.height = 3, fig.width = 4--------------------
+s_withf0 = soundgen(sylLen = 600, pitch = 300,
+              rolloffExact = c(1, 1, 1, 1), formants = NULL, lipRad = 0)
+# playme(s_withf0)
+seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
+
+## ----fig.show = "hold", fig.height = 4, fig.width = 5--------------------
+a_withf0 = analyze(s_withf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
+             ylim = c(0, 3), dynamicRange = 60)
+
+## ----fig.show = "hold", fig.height = 3, fig.width = 4--------------------
+s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
+              rolloffExact = c(0, 1, 1, 1), formants = NULL, lipRad = 0)
+# playme(s_withoutf0)  # you can clearly hear the difference
+seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
+
+## ----fig.show = "hold", fig.height = 4, fig.width = 5--------------------
+a_withoutf0 = analyze(s_withoutf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
+             ylim = c(0, 3), dynamicRange = 60)
+
 ## ----fig.height = 5, fig.width = 7---------------------------------------
 a = analyze(
   s1, 
   samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
   shortestSyl = 0, shortestPause = 0,  # any length of voiced fragments
-  interpolWin = NULL,     # don't interpolate missing F0 values
+  interpolWin = NULL,     # don't interpolate missing f0 values
   pathfinding = 'none',   # don't look for optimal path through candidates
   snakeStep = NULL,       # don't run the snake
   smooth = NULL           # don't run median smoothing
@@ -268,6 +288,28 @@ m2 = ssm(s3, samplingRate = 16000,
          input = 'mfcc', simil = 'cosine', norm = TRUE, 
          ssmWin = 50, kernelLen = 600)  # more global
 par(mfrow = c(1, 1))
+
+## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+s = soundgen(pitch = 70, amFreq = 25, amDep = 80, rolloff = -15)
+ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
+                        windowLength = 25, step = 25)
+
+## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
+                        windowLength = 40, step = 10)
+
+## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+ms = modulationSpectrum(
+  s, samplingRate = 16000, windowLength = 40, step = 10,
+  logSpec = FALSE,  # log-transform the spectrogram before 2D FFT?
+  power = 2,  # square amplitudes in modulation spectrum ("power" spectrum)
+  roughRange = c(15, 35),  # temporal modulations in the "roughness" range
+  logWarp = 2,  # log-transform axes for plotting
+  kernelSize = 7,  # apply Gaussian blur for smoothing
+  quantiles = c(.5, .8, .95, .99),  # customize contour lines
+  colorTheme = 'terrain.colors'  # alternative palette
+)
+ms$roughness  # percent of energy in the roughness range
 
 ## ----eval = FALSE--------------------------------------------------------
 #  # checking combinations of pitch tracking methods

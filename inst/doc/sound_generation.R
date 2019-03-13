@@ -145,7 +145,7 @@ s = soundgen(nSyl = 4,
              ampl = data.frame(time = c(0, .3, 1),  # unequal time steps
                                value = c(0, -10, 0)),
              amplGlobal = c(0, -20),  # this fade-out applies to noise as well
-             noise = -20,
+             noise = -10,
              plot = TRUE, osc = TRUE, heights = c(1, 1), play = playback)
 
 ## ----fig.width = 5, fig.height = 5---------------------------------------
@@ -360,7 +360,7 @@ s = soundgen(sylLen = 1200,
              pitch = list(
                time = c(0, 110, 111, 180, 350, 940, 941, 1100, 1200),
                value = c(700, 1150, 1550, 2000, 2240, 1940, 1180, 900, 500)),
-             temperature = 0.05, tempEffects = list(pitchAnchors = 0),
+             temperature = 0.05, tempEffects = list(pitchDep = 0),
              nonlinBalance = 100, subDep = 0, 
              jitterDep = data.frame(time = c(0, 200, 201, 900, 901, 1200),
                                     value = c(0, 0,  1.7, 1.2, 0,   0)),
@@ -426,7 +426,7 @@ s = soundgen(
   rolloff = c(-20, -18, -23, -28), vibratoDep = .2,
   formants = c(800, 1400, 2500, 3700, 5000, 6800),
   noise = data.frame(time = c(0, 340, 900, 1000), 
-                     value = c(-60, -45, -60, -80) + 5),
+                     value = c(-60, -45, -60, -80) + 30),
   rolloffNoise = -8,
   mouth = c(.55, .5, .45, .6),
   play = playback, plot = TRUE, osc = TRUE, ylim = c(0, 4)
@@ -453,7 +453,7 @@ s = soundgen(
   rolloff = c(-20, -18, -23, -28), vibratoDep = .2,
   formants = c(800, 1400, 2500, 3700, 5000, 6800),
   noise = data.frame(time = c(0, 340, 900, 1000), 
-                     value = c(-60, -45, -60, -80) + 5),
+                     value = c(-60, -45, -60, -80) + 30),
   rolloffNoise = -8,
   mouth = c(.55, .5, .45, .6),
   play = playback, plot = TRUE, osc = TRUE, ylim = c(0, 4)
@@ -461,14 +461,14 @@ s = soundgen(
 
 ## ----fig.width = 5, fig.height = 5---------------------------------------
 s = soundgen(sylLen = 500, 
-             noise = data.frame(time = c(0, 800), value = c(-40, 0)),
+             noise = data.frame(time = c(0, 800), value = c(-20, -10)),
              formantsNoise = NA,  # breathing - same formants as for voiced
-             play = playback, plot = TRUE)
+             play = playback, plot = TRUE, osc = TRUE)
 # observe that the voiced and unvoiced components have exactly the same formants
 
 ## ----fig.width = 5, fig.height = 5---------------------------------------
 s = soundgen(sylLen = 500, 
-             noise = data.frame(time = c(0, 800), value = c(-60, -30)),
+             noise = data.frame(time = c(0, 800), value = c(-20, -10)),
              # specify noise filter ≠ voiced filter to get ~[s]
              formantsNoise = list(
                f1 = data.frame(freq = 6000,
@@ -476,7 +476,7 @@ s = soundgen(sylLen = 500,
                                width = 1000)
              ), 
              rolloffNoise = 0,
-             play = playback, plot = TRUE)
+             play = playback, plot = TRUE, osc = TRUE)
 # observe that the voiced and unvoiced components have different formants
 
 ## ------------------------------------------------------------------------
@@ -514,6 +514,39 @@ s1 = soundgen(sylLen = 1500, vocalTract = 17.5,
               noise = 40, rolloffNoise = c(0, -20),
               formants = NULL, attackLen = 200, 
               play = playback, plot = TRUE)
+
+## ----fig.width = 7, fig.height = 5---------------------------------------
+s1 = soundgen(noiseAmpRef = 'f0', rolloff = -1, 
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+s2 = soundgen(noiseAmpRef = 'f0', rolloff = -15, 
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+
+## ----fig.width = 7, fig.height = 5---------------------------------------
+# Harmonics-noise balance doesn't depend on rolloff...
+s3 = soundgen(noiseAmpRef = 'source', rolloff = -15, rolloffNoise = 0,
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+s4 = soundgen(noiseAmpRef = 'source', rolloff = -1, rolloffNoise = -20,
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+
+# ...but it does depend on the formant structure
+s5 = soundgen(noiseAmpRef = 'source', formants = 'a', 
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+s6 = soundgen(noiseAmpRef = 'source', formants = 'u',
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+
+## ----fig.width = 7, fig.height = 5---------------------------------------
+s7 = soundgen(noiseAmpRef = 'filtered', formants = 'a', 
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
+s8 = soundgen(noiseAmpRef = 'filtered', formants = 'u',
+              noise = data.frame(time = c(-100, 400), value = c(0, 0)), 
+              plot = T, osc = T, play = playback)
 
 ## ----fig.width = 7, fig.height = 5---------------------------------------
 s = soundgen(nSyl = 2, sylLen = 120, pauseLen = 120, 
@@ -571,7 +604,7 @@ cow1 = soundgen(sylLen = 1400,
                 mouth = list(time = c(0, 0.82, 1), 
                              value = c(0.6, 0, 1)), 
                 noise = list(time = c(0, 1400), 
-                             value = c(-25, -25)), 
+                             value = c(-25, -25)),
                 rolloffNoise = -4, addSilence = 0)
 cow2 = soundgen(sylLen = 310, pitch = c(359, 359), 
                 temperature = 0.05, nonlinBalance = 100, 
@@ -580,7 +613,7 @@ cow2 = soundgen(sylLen = 310, pitch = c(359, 359),
                 formants = NULL, vocalTract = 36.5, 
                 noise = list(time = c(0, 26, 317, 562), 
                              value = c(-80, -23, -22, -80)), 
-                rolloffNoise = -6, 
+                rolloffNoise = -6,
                 attackLen = 0, addSilence = 0)
 s = crossFade(cow1 * 3, cow2,  # adjust the relative volume by scaling
               samplingRate = 16000, crossLen = 150)

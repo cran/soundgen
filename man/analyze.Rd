@@ -5,10 +5,10 @@
 \title{Analyze sound}
 \usage{
 analyze(x, samplingRate = NULL, dynamicRange = 80, silence = 0.04,
-  SPL_measured = 70, Pref = 20, windowLength = 50, step = NULL,
-  overlap = 50, wn = "gaussian", zp = 0, cutFreq = 6000,
-  nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
-  entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
+  scale = NULL, SPL_measured = 70, Pref = 2e-05, windowLength = 50,
+  step = NULL, overlap = 50, wn = "gaussian", zp = 0,
+  cutFreq = 6000, nFormants = 3, pitchMethods = c("autocor", "spec",
+  "dom"), entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
   priorMean = HzToSemitones(300), priorSD = 6, priorPlot = FALSE,
   nCands = 1, minVoicedCands = "autom", domThres = 0.1,
   domSmooth = 220, autocorThres = 0.7, autocorSmooth = NULL,
@@ -41,6 +41,9 @@ under maximum are treated as zero}
 not analyzed at all. NB: this number is dynamically updated: the actual
 silence threshold may be higher depending on the quietest frame, but it
 will never be lower than this specified number.}
+
+\item{scale}{maximum possible amplitude of input used for normalization (not
+needed for audio files)}
 
 \item{SPL_measured}{sound pressure level at which the sound is presented, dB}
 
@@ -291,5 +294,37 @@ a = analyze(sound2, samplingRate = 16000, summary = TRUE,
 a = analyze(sound, samplingRate = 16000,
             savePath = '~/Downloads/',
             width = 20, height = 15, units = 'cm', res = 300)
+
+## Amplitude and loudness: analyze() should give the same results as
+dedicated functions getRMS() / getLoudness()
+# Create 1 kHz tone
+samplingRate = 16000; dur_ms = 50
+sound1 = sin(2*pi*1000/samplingRate*(1:(dur_ms/1000*samplingRate)))
+a1 = analyze(sound1, samplingRate = samplingRate, windowLength = 25,
+        overlap = 50, SPL_measured = 40, scale = 1,
+        pitchMethods = NULL, plot = FALSE)
+a1$loudness  # loudness per STFT frame (1 sone by definition)
+getLoudness(sound1, samplingRate = samplingRate, windowLength = 25,
+            overlap = 50, SPL_measured = 40, scale = 1)$loudness
+a1$ampl  # RMS amplitude per STFT frame
+getRMS(sound1, samplingRate = samplingRate, windowLength = 25,
+       overlap = 50, scale = 1)
+# or even simply: sqrt(mean(sound1 ^ 2))
+
+# The same sound as above, but with half the amplitude
+a_half = analyze(sound1/2, samplingRate = samplingRate, windowLength = 25,
+        overlap = 50, SPL_measured = 40, scale = 1,
+        pitchMethods = NULL, plot = FALSE)
+a1$ampl / a_half$ampl  # rms amplitude halved
+a1$loudness/ a_half$loudness  # loudness is not a linear function of amplitude
+
+# Amplitude & loudness of an existing audio file
+sound2 = '~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav'
+a2 = analyze(sound2, windowLength = 25, overlap = 50, SPL_measured = 40,
+        pitchMethods = NULL, plot = FALSE)
+apply(a2[, c('loudness', 'ampl')], 2, median, na.rm = TRUE)
+median(getLoudness(sound2, windowLength = 25, overlap = 50,
+                   SPL_measured = 40)$loudness)
+median(getRMS(sound2, windowLength = 25, overlap = 50, scale = 1))
 }
 }
