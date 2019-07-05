@@ -98,7 +98,14 @@ getLoudness = function(x,
   # import sound
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
   if (class(x) == 'character') {
-    sound_wav = tuneR::readWave(x)
+    extension = substr(x, nchar(x) - 2, nchar(x))
+    if (extension == 'wav' | extension == 'WAV') {
+      sound_wav = tuneR::readWave(x)
+    } else if (extension == 'mp3' | extension == 'MP3') {
+      sound_wav = tuneR::readMP3(x)
+    } else {
+      stop('Input not recognized: must be a numeric vector or wav/mp3 file')
+    }
     samplingRate = sound_wav@samp.rate
     sound = sound_wav@left
     scale = 2 ^ (sound_wav@bit - 1) # range(sound)
@@ -153,6 +160,13 @@ getLoudness = function(x,
   # range(log10(audSpec) * 10)
   # plot(audSpec[, 1], type = 'l')
   # plot(log10(audSpec[, 1]) * 10, type = 'l')
+
+  # throw away very high frequencies
+  if (samplingRate > 44100) {
+    message(paste('Sampling rate above 44100, but discarding frequencies above 27 barks',
+                  '(27 KHz) as inaudible to humans'))
+    audSpec = audSpec[1:27, ]  # max 27 barks
+  }
 
   # apply spreading function (NB: linear, not dB scale!)
   if (spreadSpectrum) {
@@ -303,7 +317,9 @@ getLoudness = function(x,
 #' # (per STFT frame; should be very similar, but not identical, because
 #' # analyze() discards frames considered silent or too noisy)
 #'
-#' getLoudnessFolder('~/Downloads/temp', summaryFun = function(x) diff(range(x)))
+#' # custom summaryFun
+#' difRan = function(x) diff(range(x))
+#' getLoudnessFolder('~/Downloads/temp', summaryFun = c('mean', 'difRan'))
 #'
 #' # save loudness values per frame without summarizing
 #' l = getLoudnessFolder('~/Downloads/temp', summary = FALSE)
@@ -342,7 +358,19 @@ getLoudnessFolder = function(myfolder,
   # prepare output
   if (summary == TRUE) {
     output = data.frame(sound = basename(filenames))
-    output$loudness = unlist(lapply(result, summaryFun))
+    for (s in 1:length(summaryFun)) {
+      # for each summary function...
+      f = eval(parse(text = summaryFun[s]))
+      for (i in 1:length(result)) {
+        # for each sound file...
+        mySummary = do.call(f, list(na.omit(result[[i]])))
+        # for smth like range, collapse and convert to character
+        if (length(mySummary) > 1) {
+          mySummary = paste0(mySummary, collapse = ', ')
+        }
+        output[i, summaryFun[s]] = mySummary
+      }
+    }
   } else {
     output = result
     names(output) = basename(filenames)

@@ -21,7 +21,7 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   annealPars = list(maxit = 5000, temp = 1000), certWeight = 0.5,
   snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
   smoothVars = c("pitch", "dom"), summary = TRUE,
-  summaryStats = c("mean", "median", "sd"), plot = FALSE,
+  summaryFun = c("mean", "median", "sd"), plot = FALSE,
   showLegend = TRUE, savePlots = FALSE, plotSpec = TRUE,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
   candPlot = list(levels = c("autocor", "spec", "dom", "cep"), col =
@@ -67,7 +67,7 @@ descriptives after discarding all info above \code{cutFreq}.
 Recommended if the original sampling rate varies across different analyzed
 audio files}
 
-\item{nFormants}{the number of formants to extract per FFT frame. Calls
+\item{nFormants}{the number of formants to extract per STFT frame. Calls
 \code{\link[phonTools]{findformants}} with default settings}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
@@ -207,7 +207,7 @@ deviation of ~4 semitones. To disable, set \code{smooth} to NULL}
 variables (mean, median and SD). If FALSE, returns a list containing
 frame-by-frame values}
 
-\item{summaryStats}{a vector of names of functions used to summarize each
+\item{summaryFun}{a vector of names of functions used to summarize each
 acoustic characteristic}
 
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}

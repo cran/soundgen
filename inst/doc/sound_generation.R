@@ -1,5 +1,8 @@
 ## ------------------------------------------------------------------------
-playback = c(TRUE, FALSE)[2]
+playback = FALSE  
+# TRUE means using "play" on Linux and the defaults of tuneR::play on Windows/Mac
+# FALSE means no sound playback
+# A string like "play", "aplay", "vlc" etc. calls a specific player
 
 ## ------------------------------------------------------------------------
 library(soundgen)

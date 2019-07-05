@@ -46,10 +46,12 @@
 #' @param ... other graphical parameters passed on to \code{image()}
 #' @export
 #' @return Returns a spectral filter (matrix nr x nc, where nr is the number of
-#'   frequency bins = windowLength_points/2 and nc is the number of time steps)
+#'   frequency bins and nc is the number of time steps). Accordingly, rownames
+#'   of the output give central frequency of each bin(in kHz), while colnames
+#'   give time values (in ms if duration is specified, otherwise 0 to 1).
 #' @examples
 #' # [a] with F1-F3 visible
-#' e = getSpectralEnvelope(nr = 512, nc = 50,
+#' e = getSpectralEnvelope(nr = 512, nc = 50, duration = 300,
 #'   formants = soundgen:::convertStringToFormants('a'),
 #'   temperature = 0, plot = TRUE)
 #' # image(t(e))  # to plot the output on a linear scale instead of dB
@@ -440,6 +442,7 @@ getSpectralEnvelope = function(nr,
   } else {
     mouthOpen_binary = rep(1, nc)
     mouthOpening_upsampled = rep(0.5, nc)
+    bin_width = samplingRate / 2 / nr # otherwise it's not defined if formants = NULL
   }
   # plot(spectralEnvelope[, 1], type = 'l')
   # image(t(spectralEnvelope))
@@ -463,15 +466,20 @@ getSpectralEnvelope = function(nr,
       mouthOpen_binary[c] * openMouthBoost
   }
 
+  # save frequency and time stamps
+  rownames(spectralEnvelope) = seq(bin_width / 2,
+                                   samplingRate / 2 - bin_width / 2,
+                                   length.out = nr) / 1000
+  if (is.numeric(duration)) {
+    colnames(spectralEnvelope) = seq(0, duration, length.out = nc)
+  } else {
+    colnames(spectralEnvelope) = seq(0, 1, length.out = nc)
+  }
+
   # convert from dB to linear multiplier of power spectrum
   spectralEnvelope_lin = 10 ^ (spectralEnvelope / 20)
 
   if (plot) {
-    if (is.numeric(duration)) {
-      x = seq(0, duration, length.out = nc)
-    } else {
-      x = seq(0, 1, length.out = nc)
-    }
     if (colorTheme == 'bw') {
       col = gray(seq(from = 1, to = 0, length = nCols))
     } else if (colorTheme == 'seewave') {
@@ -480,8 +488,8 @@ getSpectralEnvelope = function(nr,
       colFun = match.fun(colorTheme)
       col = rev(colFun(nCols))
     }
-    image(x = x,
-          y = seq(0, samplingRate /2, length.out = nr) / 1000,
+    image(x = as.numeric(colnames(spectralEnvelope)),
+          y = as.numeric(rownames(spectralEnvelope)),
           z = t(spectralEnvelope),
           xlab = xlab,
           ylab = ylab,
@@ -600,66 +608,6 @@ getBandwidth = function(f) {
   return(b)
 }
 
-#' Get formant dispersion
-#'
-#' Internal soundgen function.
-#'
-#' Estimates formant dispersion based on one or more formant frequencies.
-#' @param formants a vector of formant frequencies, Hz
-#' @inheritParams getSpectralEnvelope
-#' @param method method of calculating formant dispersion: \code{fast} for
-#'   simple averaging of inter-formant difference, \code{accurate} for fitting a
-#'   linear regression to formant frequencies
-#' @keywords internal
-#' @examples
-#' nIter = 100  # nIter = 10000 for better results
-#' speedSound = 35400
-#' out = data.frame(vtl = runif(nIter, 5, 70),
-#'                  nFormants = round(runif(nIter, 1, 10)),
-#'                  noise = runif(nIter, 0, .2),
-#'                  vtl_est = rep(NA, nIter),
-#'                  error = rep(NA, nIter))
-#' for (i in 1:nIter) {
-#'   a = 1:out$nFormants[i]
-#'   formants = sort(speedSound * (2 * a - 1) / (4 * out$vtl[i]) * rnorm(n = length(a),
-#'                                                                  mean = 1,
-#'                                                                  sd = out$noise[i]))
-#'   disp = soundgen:::getFormantDispersion(formants, method = 'fast')
-#'   out$vtl_est[i] = speedSound / 2 / disp
-#'   out$error[i] = (out$vtl[i] -  out$vtl_est[i]) / out$vtl[i]
-#' }
-#' \dontrun{
-#' library(ggplot2)
-#' ggplot(out, aes(x = nFormants, y = error)) +
-#'   geom_point(alpha = .1) +
-#'   geom_smooth() +
-#'   theme_bw()
-#' ggplot(out, aes(x = noise, y = error)) +
-#'   geom_point(alpha = .1) +
-#'   geom_smooth() +
-#'   theme_bw()
-#' }
-getFormantDispersion = function(formants,
-                                speedSound = 35400,
-                                method = c('fast', 'accurate')[2]) {
-  if (!is.numeric(formants) | length(formants) < 1) return(NA)
-  if (method == 'fast') {
-    l = length(formants)
-    if (l > 1) {
-      formantDispersion = mean(diff(formants))
-    } else {
-      formantDispersion = 2 * formants
-    }
-  } else if (method == 'accurate') {
-    # Reby et al. (2005) "Red deer stags use formants..."
-    deltaF = (2 * (1:length(formants)) - 1) / 2
-    # plot(deltaF, formants)
-    mod = lm(formants ~ deltaF - 1)  # NB: no intercept, i.e. forced to pass through 0
-    formantDispersion = summary(mod)$coef[1]
-  }
-  return(formantDispersion)
-}
-
 
 #' Prepare a list of formants
 #'
@@ -739,66 +687,6 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
   }
 
   return (formants)
-}
-
-#' Estimate vocal tract length
-#'
-#' Estimates the length of vocal tract based on formant frequencies, assuming
-#' that the vocal tract can be modeled as a tube open at both ends. Algorithm:
-#' first formant dispersion is estimated using the regression method described
-#' in Reby et al. (2005) "Red deer stags use formants as assessment cues during
-#' intrasexual agonistic interactions". The length of vocal tract is then
-#' calculated as \eqn{speed of sound / 2 / formant dispersion}. See also
-#' \code{\link{schwa}} for VTL estimation with additional information on formant
-#' frequencies.
-#' @inheritParams getSpectralEnvelope
-#' @param formants a character string like "aaui" referring to default presets
-#'   for speaker "M1"; a vector of formant frequencies; or a list of formant
-#'   times, frequencies, amplitudes, and bandwidths, with a single value of each
-#'   for static or multiple values of each for moving formants.
-#' @param checkFormat if TRUE, expands shorthand format specifications into the
-#'   canonical form of a list with four components: time, frequency, amplitude
-#'   and bandwidth for each format (as returned by the internal function
-#'   \code{reformatFormants})
-#' @return Returns the estimated vocal tract length in cm.
-#' @export
-#' @examples
-#' estimateVTL(NA)
-#' estimateVTL(500)
-#' estimateVTL(c(600, 1850, 3100))
-#' estimateVTL(formants = list(f1 = 600, f2 = 1650, f3 = 2400))
-#'
-#' # for moving formants, frequencies are averaged over time,
-#' # i.e. this is identical to the previous example
-#' estimateVTL(formants = list(f1 = c(500, 700), f2 = 1650, f3 = c(2200, 2600)))
-estimateVTL = function(formants, speedSound = 35400, checkFormat = TRUE) {
-  if (checkFormat) {
-    formants = reformatFormants(formants)
-  }
-  if (is.list(formants)) {
-    if (is.numeric(formants[[1]]$freq)) {
-      # if we don't know vocalTract, but at least one formant is defined,
-      # we guess the length of vocal tract
-      formant_freqs = unlist(sapply(formants, function(f) mean(f$freq)))
-      non_integer_formants = apply(as.matrix(names(formant_freqs)),
-                                   1,
-                                   function(x) {
-                                     grepl('.', x, fixed = TRUE)
-                                   })
-      formant_freqs = formant_freqs[!non_integer_formants]
-      formantDispersion = getFormantDispersion(formant_freqs,
-                                               speedSound = speedSound,
-                                               method = 'accurate')
-      vocalTract = ifelse(
-        is.numeric(formantDispersion),
-        speedSound / 2 / formantDispersion,
-        speedSound / 4 / formants$f1$freq
-      )
-    }
-  } else {
-    vocalTract = NA
-  }
-  return(vocalTract)
 }
 
 
@@ -1049,203 +937,217 @@ addFormants = function(sound,
 }
 
 
-#' Schwa-related formant conversion
+#' Transplant formants
 #'
-#' This function performs several conceptually related types of conversion of
-#' formant frequencies in relation to the neutral schwa sound based on the
-#' one-tube model of the vocal tract. Case 1: if we know vocal tract length
-#' (VTL) but not formant frequencies, \code{schwa()} estimates formants
-#' corresponding to a neutral schwa sound in this vocal tract, assuming that it
-#' is perfectly cylindrical. Case 2: if we know the frequencies of a few lower
-#' formants, \code{schwa()} estimates the deviation of observed formant
-#' frequencies from the neutral values expected in a perfectly cylindrical vocal
-#' tract (based on the VTL as specified or as estimated from formant
-#' dispersion). Case 3: if we want to geneate a sound with particular relative
-#' formant frequencies (e.g. high F1 and low F2 relative to the schwa for this
-#' vocal tract), \code{schwa()} calculates the corresponding formant frequencies
-#' in Hz. See examples below for an illustration of these three suggested uses.
+#' Takes the general spectral envelope of one sound (\code{donor}) and
+#' "transplants" it onto another sound (\code{recipient}). For biological sounds
+#' like speech or animal vocalizations, this has the effect of replacing the
+#' formants in the recipient sound while preserving the original intonation and
+#' (to some extent) voice quality. Note that \code{freqWindow_donor} and
+#' \code{freqWindow_recipient} are crucial parameters that regulate the amount
+#' of spectral smoothing in both sounds. The default is to set them to the
+#' estimated median pitch, but this is time-consuming and error-prone, so set
+#' them to reasonable values manually if possible. See also
+#' \code{\link{flatSpectrum}} and \code{\link{addFormants}}.
 #'
-#' Algorithm: the expected formant dispersion is given by \eqn{speedSound / (2 *
-#' vocalTract)}, and F1 is expected at half the value of formant dispersion. See
-#' e.g. Stevens (2000) "Acoustic phonetics", p. 139. Basically, we estimate
-#' vocal tract length and see if each formant is higher or lower than expected
-#' for this vocal tract. For this to work, we have to know either the
-#' frequencies of enough formants (not just the first two) or the true length of
-#' the vocal tract. See also \code{\link{estimateVTL}} on the algorithm for
-#' estimating formant dispersion if VTL is not known.
-#' @return Returns a list with the following components: \describe{
-#'   \item{vtl_measured}{VTL as provided by the user, cm}
-#'   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
-#'   provided by the user, cm}
-#'   \item{formantDispersion}{average distance between formants, Hz}
-#'   \item{ff_measured}{formant frequencies as
-#'   provided by the user, Hz}
-#'   \item{ff_schwa}{formant frequencies corresponding
-#'   to a neutral schwa sound in this vocal tract, Hz}
-#'   \item{ff_theoretical}{formant frequencies corresponding to the
-#'   user-provided relative formant frequencies, Hz}
-#'   \item{ff_relative}{deviation of formant frequencies from those expected for
-#'   a schwa, \% (e.g. if the first ff_relative is -25, it means that F1 is 25\%
-#'   lower than expected for a schwa in this vocal tract)}
-#'   \item{ff_relative_semitones}{deviation of formant frequencies from those expected for
-#'   a schwa, semitones}
-#' }
-#' @param formants a numeric vector of observed (measured) formant frequencies,
-#'   Hz
-#' @param vocalTract the length of vocal tract, cm
-#' @param formants_relative a numeric vector of target relative formant
-#'   frequencies, \% deviation from schwa (see examples)
-#' @param nForm the number of formants to estimate (integer)
-#' @inheritParams getSpectralEnvelope
+#' Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
+#' donor spectrogram, flattens the recipient spectrogram, multiplies the
+#' spectrograms, and transforms back into time domain with inverse STFT.
+#'
+#' @inheritParams spectrogram
+#' @param donor the sound that provides the formants
+#' @param recipient the sound that receives the formants
+#' @param freqWindow_donor,freqWindow_recipient the width of smoothing window.
+#'   Defaults to median pitch of each respective sound estimated by
+#'   \code{\link{analyze}}
 #' @export
 #' @examples
-#' ## CASE 1: known VTL
-#' # If vocal tract length is known, we calculate expected formant frequencies
-#' schwa(vocalTract = 17.5)
-#' schwa(vocalTract = 13, nForm = 5)
+#' \dontrun{
+#' # Objective: take formants from the bleating of a sheep and apply them to a
+#' # synthetic sound with any arbitrary duration, intonation, nonlinearities etc
+#' data(sheep, package = 'seewave')  # import a recording from seewave
+#' donor = as.numeric(scale(sheep@left))  # source of formants
+#' samplingRate = sheep@samp.rate
+#' playme(donor, samplingRate)
+#' spectrogram(donor, samplingRate, osc = TRUE)
+#' seewave::meanspec(donor, f = samplingRate, dB = 'max0')
 #'
-#' ## CASE 2: known (observed) formant frequencies
-#' # Let's take formant frequencies in three vocalizations
-#' #       (/a/, /i/, /roar/) by the same male speaker:
-#' formants_a = c(860, 1430, 2900, 4200, 5200)
-#' s_a = schwa(formants = formants_a)
-#' s_a
-#' # We get an estimate of VTL (s_a$vtl_apparent = 15.2 cm),
-#' #   same as with estimateVTL(formants_a)
-#' # We also get theoretical schwa formants: s_a$ff_schwa
-#' # And we get the difference (% and semitones) in observed vs expected
-#' #   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones')]
-#' # [a]: F1 much higher than expected, F2 slightly lower
+#' s1 = transplantFormants(
+#'   donor = donor,
+#'   recipient = soundgen(sylLen = 1200,
+#'                        pitch = c(100, 300, 250, 200),
+#'                        vibratoFreq = 9, vibratoDep = 1,
+#'                        samplingRate = samplingRate),
+#'   samplingRate = samplingRate)
+#' playme(s1, samplingRate)
+#' spectrogram(s1, samplingRate, osc = TRUE)
+#' seewave::meanspec(s1, f = samplingRate, dB = 'max0')
 #'
-#' formants_i = c(300, 2700, 3400, 4400, 5300, 6400)
-#' s_i = schwa(formants = formants_i)
-#' s_i
-#' # The apparent VTL is slightly smaller (14.5 cm)
-#' # [i]: very low F1, very high F2
-#'
-#' formants_roar = c(550, 1000, 1460, 2280, 3350,
-#'                   4300, 4900, 5800, 6900, 7900)
-#' s_roar = schwa(formants = formants_roar)
-#' s_roar
-#' # Note the enormous apparent VTL (22.5 cm!)
-#' # (lowered larynx and rounded lips exaggerate the apparent size)
-#' # s_roar$ff_relative: high F1 and low F2-F4
-#'
-#' schwa(formants = formants_roar[1:4])
-#' # based on F1-F4, apparent VTL is almost 28 cm!
-#' # Since the lowest formants are the most salient,
-#' # the apparent size is exaggerated even further
-#'
-#' # If you know VTL, a few lower formants are enough to get
-#' #   a good estimate of the relative formant values:
-#' schwa(formants = formants_roar[1:4], vocalTract = 19)
-#' # NB: in this case theoretical and relative formants are calculated
-#' #  based on user-provided VTL (vtl_measured) rather than vtl_apparent
-#'
-#' ## CASE 3: from relative to absolute formant frequencies
-#' # Say we want to generate a vowel sound with F1 20% below schwa
-#' #    and F2 40% above schwa, with VTL = 15 cm
-#' s = schwa(formants_relative = c(-20, 40), vocalTract = 15)
-#' # s$ff_schwa gives formant frequencies for a schwa, while
-#' #   s$ff_theoretical gives formant frequencies for a sound with
-#' #   target relative formant values (low F1, high F2)
-#' schwa(formants = s$ff_theoretical)
-schwa = function(formants = NULL,
-                 vocalTract = NULL,
-                 formants_relative = NULL,
-                 nForm = 8,
-                 speedSound = 35400) {
-  # check input
-  if (is.null(formants) & is.null(vocalTract)) {
-    stop('Please pecify formant frequencies and/or vocal tract length')
-  }
-  if (!is.null(formants)) {
-    if (!is.numeric(formants) | any(formants < 0)) {
-      stop('formants must be positive numbers (Hz)')
+#' s2 = transplantFormants(
+#'   donor = donor,
+#'   recipient = soundgen(sylLen = 1500,
+#'                        pitch = c(150, 200, 120),
+#'                        nonlinBalance = 50,
+#'                        subFreq = 80, subDep = 50, jitterDep = 0,
+#'                        noise = -20,
+#'                        samplingRate = samplingRate),
+#'   samplingRate = samplingRate)
+#' playme(s2, samplingRate)
+#' spectrogram(s2, samplingRate, osc = TRUE)
+#' seewave::meanspec(s2, f = samplingRate, dB = 'max0')
+#' }
+transplantFormants = function(donor,
+                              freqWindow_donor = NULL,
+                              recipient,
+                              freqWindow_recipient = NULL,
+                              samplingRate = NULL,
+                              dynamicRange = 80,
+                              windowLength = 50,
+                              step = NULL,
+                              overlap = 90,
+                              wn = 'gaussian',
+                              zp = 0) {
+  # First check that both sounds have the same sampling rate
+  samplingRate_donor = samplingRate_recipient = 0
+  if (is.character(donor)) {
+    extension = substr(donor, nchar(donor) - 2, nchar(donor))
+    if (extension == 'wav' | extension == 'WAV') {
+      donor_wav = tuneR::readWave(donor)
+    } else if (extension == 'mp3' | extension == 'MP3') {
+      donor_wav = tuneR::readMP3(donor)
+    } else {
+      stop('Donor not recognized: must be a numeric vector or wav/mp3 file')
     }
-  }
-  if (!is.null(formants_relative)) {
-    if (!is.numeric(formants_relative)) {
-      stop('formants_relative must be positive numbers (Hz)')
-    }
-  }
-  if (!is.null(vocalTract)) {
-    if (!is.numeric(vocalTract) | vocalTract < 0) {
-      stop('vocalTract must be a positive number (cm)')
-    }
-  }
-  if (!is.null(formants_relative)) {
-    if (is.null(vocalTract)) {
-      stop('vocalTract must be specified to convert relative formants to Hz')
-    }
+    samplingRate_donor = donor_wav@samp.rate
+    donor = as.numeric(donor_wav@left)
   }
 
-  if (is.null(formants_relative)) {
-    ## we don't know and want to calculate formants_relative
-    # calculate formant dispersion and apparent VTL
-    if (is.null(formants)) {
-      # we don't know formants, we know VTL
-      formantDispersion = speedSound / (2 * vocalTract)
-      vocalTract_apparent = NULL
+  if (is.character(recipient)) {
+    extension = substr(recipient, nchar(recipient) - 2, nchar(recipient))
+    if (extension == 'wav' | extension == 'WAV') {
+      recipient_wav = tuneR::readWave(recipient)
+    } else if (extension == 'mp3' | extension == 'MP3') {
+      recipient_wav = tuneR::readMP3(recipient)
     } else {
-      # we know formants
-      if (is.null(vocalTract)) {
-        # we don't know VTL
-        formantDispersion = getFormantDispersion(formants,
-                                                 speedSound = speedSound,
-                                                 method = 'accurate')
-        vocalTract_apparent = speedSound / (2 * formantDispersion)
-      } else {
-        # we know VTL
-        formantDispersion_apparent = getFormantDispersion(
-          formants,
-          speedSound = speedSound,
-          method = 'accurate'
-        )
-        formantDispersion = speedSound / (2 * vocalTract)
-        vocalTract_apparent = speedSound / (2 * formantDispersion_apparent)
-      }
+      stop('recipient not recognized: must be a numeric vector or wav/mp3 file')
     }
+    samplingRate_recipient = recipient_wav@samp.rate
+    recipient = as.numeric(recipient_wav@left)
+  }
 
-    # calculate relative formant frequencies
-    if (is.null(formants)) {
-      idx = 1:nForm
+  if (samplingRate_donor > 0 & samplingRate_recipient > 0) {
+    # two audio files
+    if (samplingRate_donor != samplingRate_recipient) {
+      stop('Please use two sounds with the same sampling rate')
     } else {
-      idx = 1:length(formants)
+      samplingRate = samplingRate_donor  # or recipient - they are the same
     }
-    ff_schwa = (2 * idx - 1) / 2 * formantDispersion
-    ff_relative = (formants / ff_schwa - 1) * 100
-    ff_relative_semitones = HzToSemitones(formants) - HzToSemitones(ff_schwa)
-    ff_theoretical = NULL
+  } else if (samplingRate_donor == 0 & samplingRate_recipient == 0) {
+    # two vectors
+    if (!is.numeric(samplingRate)) {
+      stop('Please specify sampling rate')
+    }
   } else {
-    ## we know formants_relative and vocalTract and want to convert ff to Hz
-
-    # make sure formants_relative is at least nForm long
-    if (length(formants_relative) < nForm) {
-      formants_relative = c(formants_relative,
-                            rep(0, nForm - length(formants_relative)))
+    # one audio file, one vector
+    if (!is.numeric(samplingRate)) {
+      samplingRate = max(samplingRate_donor, samplingRate_recipient)
+      message(paste('Sampling rate not specified; assuming the same',
+                    'as for the audio file, namely', samplingRate, 'Hz'))
+    } else if (samplingRate != max(samplingRate_donor, samplingRate_recipient)) {
+      stop('Please use two sounds with the same sampling rate')
     }
-
-    # calculate formants in Hz
-    formantDispersion = speedSound / (2 * vocalTract)
-    idx = 1:length(formants_relative)
-    ff_schwa = (2 * idx - 1) / 2 * formantDispersion
-    ff_theoretical = ff_schwa * (1 + formants_relative / 100)
-    vocalTract_apparent = NULL
-    ff_relative = formants_relative
-    ff_relative_semitones = HzToSemitones(ff_theoretical) - HzToSemitones(ff_schwa)
   }
 
-  # prepare the output
-  out = list(vtl_measured = vocalTract,
-             vtl_apparent = vocalTract_apparent,
-             formantDispersion = formantDispersion,
-             ff_measured = formants,
-             ff_schwa = ff_schwa,
-             ff_theoretical = ff_theoretical,
-             ff_relative = ff_relative,
-             ff_relative_semitones = ff_relative_semitones)
-  # do not return empty elements
-  out = out[lapply(out, length) > 0]
-  return(out)
+  windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
+  spec_recipient = spectrogram(
+    recipient,
+    samplingRate = samplingRate,
+    dynamicRange = dynamicRange,
+    windowLength = windowLength,
+    step = step,
+    overlap = overlap,
+    wn = wn,
+    zp = zp,
+    output = 'complex',
+    plot = FALSE
+  )
+  spec_donor = spectrogram(
+    donor,
+    samplingRate = samplingRate,
+    dynamicRange = dynamicRange,
+    windowLength = windowLength,
+    step = step,
+    overlap = overlap,
+    wn = wn,
+    zp = zp,
+    output = 'original',
+    plot = FALSE
+  )
+
+  # Make sure the donor spec has the same dimensions as the recipient spec
+  spec_donor_rightDim = interpolMatrix(m = spec_donor,
+                                       nr = nrow(spec_recipient),
+                                       nc = ncol(spec_recipient))
+  rownames(spec_donor_rightDim) = rownames(spec_recipient)
+
+
+  # Smooth the donor spectrogram
+  if (!is.numeric(freqWindow_donor)) {
+    anal_donor = analyze(donor, samplingRate, plot = FALSE)
+    freqWindow_donor = median(anal_donor$pitch, na.rm = TRUE)
+  }
+  freqRange_kHz_donor = diff(range(as.numeric(rownames(spec_donor_rightDim))))
+  freqBin_Hz_donor = freqRange_kHz_donor * 1000 / nrow(spec_donor_rightDim)
+  freqWindow_donor_bins = round(freqWindow_donor / freqBin_Hz_donor, 0)
+  if (freqWindow_donor_bins < 3) {
+    message(paste('freqWindow_donor has to be at least 3 bins wide;
+                  resetting to', ceiling(freqBin_Hz_donor * 3)))
+    freqWindow_donor_bins = 3
+  }
+  # plot(spec_donor_rightDim[, 10], type = 'l')
+  for (i in 1:ncol(spec_donor_rightDim)) {
+    spec_donor_rightDim[, i] = getEnv(
+      sound = spec_donor_rightDim[, i],
+      windowLength_points = freqWindow_donor_bins,
+      method = 'peak'
+    )
+  }
+
+  # Flatten the recipient spectrogram
+  if (!is.numeric(freqWindow_recipient)) {
+    anal_recipient = analyze(recipient, samplingRate, plot = FALSE)
+    freqWindow_recipient = median(anal_recipient$pitch, na.rm = TRUE)
+  }
+  freqRange_kHz_rec = diff(range(as.numeric(rownames(spec_recipient))))
+  freqBin_Hz_rec = freqRange_kHz_rec * 1000 / nrow(spec_recipient)
+  freqWindow_rec_bins = round(freqWindow_recipient / freqBin_Hz_rec, 0)
+  if (freqWindow_rec_bins < 3) {
+    message(paste('freqWindow_recipient has to be at least 3 bins wide;
+                  resetting to', ceiling(freqBin_Hz_rec * 3)))
+    freqWindow_rec_bins = 3
+  }
+  for (i in 1:ncol(spec_recipient)) {
+    abs_s = abs(spec_recipient[, i])
+    cor_coef = flatEnv(abs_s, method = 'peak',
+                       windowLength_points = freqWindow_rec_bins) / abs_s
+    spec_recipient[, i] = complex(
+      real = Re(spec_recipient[, i]) * cor_coef,
+      imaginary = Im(spec_recipient[, i])
+    )
+    # plot(abs(spec_recipient[, i]), type = 'l')
+  }
+
+  # Multiply the spectrograms and reconstruct the audio
+  spec_recipient_new = spec_recipient * spec_donor_rightDim
+  recipient_new = as.numeric(
+    seewave::istft(
+      spec_recipient_new,
+      f = samplingRate,
+      ovlp = overlap,
+      wl = windowLength_points,
+      output = "matrix"
+    )
+  )
+  # spectrogram(recipient_new, samplingRate)
+  return(recipient_new)
 }

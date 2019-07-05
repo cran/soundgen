@@ -249,7 +249,9 @@ range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
 
 \item{plot}{if TRUE, plots a spectrogram}
 
-\item{play}{if TRUE, plays the synthesized sound. In case of errors, try
+\item{play}{if TRUE, plays the synthesized sound using the default player on
+your system. If character, passed to \code{\link[tuneR]{play}} as the name
+of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
 setting another default player for \code{\link[tuneR]{play}}}
 
 \item{savePath}{full path for saving the output, e.g. '~/Downloads/temp.wav'.
@@ -275,7 +277,9 @@ animal or human non-linguistic vocalizations. For more information, see
 # NB: GUI for soundgen is available as a Shiny app.
 # Type "soundgen_app()" to open it in default browser
 
-playback = c(TRUE, FALSE)[2]  # set to TRUE to play back the audio from examples
+# Set "playback" to TRUE for default system player or the name of preferred
+# player (eg "aplay") to play back the audio from examples
+playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
 
 sound = soundgen(play = playback)
 # spectrogram(sound, 16000, osc = TRUE)

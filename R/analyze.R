@@ -20,7 +20,7 @@
 #'   descriptives after discarding all info above \code{cutFreq}.
 #'   Recommended if the original sampling rate varies across different analyzed
 #'   audio files
-#' @param nFormants the number of formants to extract per FFT frame. Calls
+#' @param nFormants the number of formants to extract per STFT frame. Calls
 #'   \code{\link[phonTools]{findformants}} with default settings
 #' @param pitchMethods methods of pitch estimation to consider for determining
 #'   pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
@@ -95,7 +95,7 @@
 #' @param summary if TRUE, returns only a summary of the measured acoustic
 #'   variables (mean, median and SD). If FALSE, returns a list containing
 #'   frame-by-frame values
-#' @param summaryStats a vector of names of functions used to summarize each
+#' @param summaryFun a vector of names of functions used to summarize each
 #'   acoustic characteristic
 #' @param plot if TRUE, produces a spectrogram with pitch contour overlaid
 #' @param showLegend if TRUE, adds a legend with pitch tracking methods
@@ -112,30 +112,34 @@
 #' @param ... other graphical parameters passed to \code{\link{spectrogram}}
 #' @return If \code{summary = TRUE}, returns a dataframe with one row and three
 #'   columns per acoustic variable (mean / median / SD). If \code{summary =
-#'   FALSE}, returns a dataframe with one row per FFT frame and one column per
+#'   FALSE}, returns a dataframe with one row per STFT frame and one column per
 #'   acoustic variable. The best guess at the pitch contour considering all
 #'   available information is stored in the variable called "pitch". In
 #'   addition, the output contains pitch estimates by separate algorithms
 #'   included in \code{pitchMethods} and a number of other acoustic descriptors:
-#'   \describe{\item{time}{time of the middle of each frame (ms)}
-#'   \item{ampl}{root mean square of amplitude per frame, calculated as
-#'   sqrt(mean(frame ^ 2))} \item{amplVoiced}{the same as ampl for voiced frames
-#'   and NA for unvoiced frames} \item{dom}{lowest dominant frequency band (Hz)
-#'   (see “Pitch tracking methods / Dominant frequency” in the vignette)}
-#'   \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
-#'   to 0: pure tone or tonal sound with nearly all energy in harmonics; close
-#'   to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
-#'   bandwidth of the first nFormants formants per FFT frame, as calculated by
-#'   phonTools::findformants with default settings} \item{harmonics}{the amount
-#'   of energy in upper harmonics, namely the ratio of total spectral mass
-#'   above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
-#'   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
-#'   by soundgen:::getPitchAutocor (see “Pitch tracking methods /
-#'   Autocorrelation”). If HNR = 0 dB, there is as much energy in harmonics as
-#'   in noise} \item{loudness}{subjective loudness, in sone, corresponding to
-#'   the chosen SPL_measured - see \code{\link{getLoudness}}}
-#'   \item{medianFreq}{50th quantile of the frame's spectrum}
-#'   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
+#'   \describe{
+#'   \item{duration}{total duration, s}
+#'   \item{duration_noSilence}{duration from the beginning of the first
+#'   non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
+#'   depends strongly on \code{windowLength} and \code{silence} settings)}
+#'   \item{time}{time of the middle of each frame (ms)} \item{ampl}{root mean
+#'   square of amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
+#'   \item{amplVoiced}{the same as ampl for voiced frames and NA for unvoiced
+#'   frames} \item{dom}{lowest dominant frequency band (Hz) (see "Pitch tracking
+#'   methods / Dominant frequency" in the vignette)} \item{entropy}{Weiner
+#'   entropy of the spectrum of the current frame. Close to 0: pure tone or
+#'   tonal sound with nearly all energy in harmonics; close to 1: white noise}
+#'   \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the first
+#'   nFormants formants per STFT frame, as calculated by phonTools::findformants
+#'   with default settings} \item{harmonics}{the amount of energy in upper
+#'   harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
+#'   total spectral mass below 1.25 x F0 (dB)} \item{HNR}{harmonics-to-noise
+#'   ratio (dB), a measure of harmonicity returned by soundgen:::getPitchAutocor
+#'   (see "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is
+#'   as much energy in harmonics as in noise} \item{loudness}{subjective
+#'   loudness, in sone, corresponding to the chosen SPL_measured - see
+#'   \code{\link{getLoudness}}} \item{medianFreq}{50th quantile of the frame's
+#'   spectrum} \item{peakFreq}{the frequency with maximum spectral power (Hz)}
 #'   \item{peakFreqCut}{the frequency with maximum spectral power below cutFreq
 #'   (Hz)} \item{pitch}{post-processed pitch contour based on all F0 estimates}
 #'   \item{pitchAutocor}{autocorrelation estimate of F0}
@@ -145,13 +149,13 @@
 #'   center of gravity of the frame’s spectrum, first spectral moment (Hz)}
 #'   \item{specCentroidCut}{the center of gravity of the frame’s spectrum below
 #'   cutFreq} \item{specSlope}{the slope of linear regression fit to the
-#'   spectrum below cutFreq} \item{voiced}{is the current FFT frame voiced? TRUE
+#'   spectrum below cutFreq} \item{voiced}{is the current STFT frame voiced? TRUE
 #'   / FALSE}
 #' }
 #' @export
 #' @examples
 #' sound = soundgen(sylLen = 300, pitch = c(900, 400, 2300),
-#'   noise = list(time = c(0, 300), value = c(-40, 00)),
+#'   noise = list(time = c(0, 300), value = c(-40, 0)),
 #'   temperature = 0.001, addSilence = 0)
 #' # playme(sound, 16000)
 #' a = analyze(sound, samplingRate = 16000, plot = TRUE)
@@ -159,7 +163,7 @@
 #' \dontrun{
 #' sound1 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
-#'   noise = list(time = c(0, 300), value = c(-40, 00)),
+#'   noise = list(time = c(0, 300), value = c(-40, 0)),
 #'   temperature = 0.001, addSilence = 0)
 #' # improve the quality of postprocessing:
 #' a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
@@ -172,7 +176,7 @@
 #' # the same pitch contour, but harder b/c of subharmonics and jitter
 #' sound2 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
-#'   noise = list(time = c(0, 900), value = c(-40, 20)),
+#'   noise = list(time = c(0, 900), value = c(-40, 0)),
 #'   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0.001)
 #' # playme(sound2, 16000)
 #' a2 = analyze(sound2, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
@@ -195,7 +199,11 @@
 #' # Different formatting options for output
 #' a = analyze(sound2, samplingRate = 16000, summary = FALSE)  # frame-by-frame
 #' a = analyze(sound2, samplingRate = 16000, summary = TRUE,
-#'             summaryStats = c('mean', 'range'))  # one row per sound
+#'             summaryFun = c('mean', 'range'))  # one row per sound
+#' # ...with custom summaryFun
+#' difRan = function(x) diff(range(x))
+#' a = analyze(sound2, samplingRate = 16000, summary = TRUE,
+#'             summaryFun = c('mean', 'difRan'))
 #'
 #' # Save the plot
 #' a = analyze(sound, samplingRate = 16000,
@@ -283,7 +291,7 @@ analyze = function(x,
                    smooth = 1,
                    smoothVars = c('pitch', 'dom'),
                    summary = FALSE,
-                   summaryStats = c('mean', 'median', 'sd'),
+                   summaryFun = c('mean', 'median', 'sd'),
                    plot = TRUE,
                    showLegend = TRUE,
                    savePath = NA,
@@ -368,6 +376,14 @@ analyze = function(x,
   sound = sound / max(abs(sound))
 
   # some derived pars, defaults
+  if (samplingRate < 2000) {
+    warning(paste('Sampling rate must be >2 KHz to resolve frequencies of at least 8 barks',
+                  'and estimate loudness in sone'))
+  } else if (samplingRate > 44100) {
+    message(paste('Sampling rate above 44100, but discarding frequencies above 27 barks',
+                  '(27 KHz) as inaudible to humans when estimating loudness'))
+  }
+
   if (!is.numeric(silence) | silence < 0 | silence > 1) {
     silence = 0.04
     warning('"silence" must be between 0 and 1; defaulting to 0.04')
@@ -614,6 +630,10 @@ analyze = function(x,
     as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
   cond_entropy = ampl > silence & entropy < entropyThres
   cond_entropy[is.na(cond_entropy)] = FALSE
+  non_silent_frames = which(cond_silence == TRUE)
+  time_start = step * (min(non_silent_frames) - 1)  # the beginning of the first non-silent frame
+  time_end = step * (max(non_silent_frames))        # the end of the last non-silent frame
+  duration_noSilence = (time_end - time_start) / 1000
 
   # autocorrelation for each frame
   autocorBank = matrix(NA, nrow = length(autoCorrelation_filter),
@@ -713,9 +733,10 @@ analyze = function(x,
   result$time = round(seq(0,
                           duration * 1000 - windowLength,
                           length.out = nrow(result)) + windowLength / 2, 0)
+  result$duration_noSilence = duration_noSilence
   result$duration = duration
-  c = ncol(result)
-  result = result[, c(rev((c-3):c), 1:(c-4))]  # change the order of columns
+  nc = ncol(result)
+  result = result[, c(rev((nc-4):nc), 1:(nc-5))]  # change the order of columns
 
   ## postprocessing
   # extract and prepare pitch candidates for the pathfinder algorithm
@@ -848,9 +869,9 @@ analyze = function(x,
   result$HNR = to_dB(result$HNR)
   result$harmonics = to_dB(result$harmonics)
 
-  # Arrange columns in alphabetical order (except the first two)
-  result = result[, c(colnames(result)[1:2],
-                      sort(colnames(result)[3:ncol(result)]))]
+  # Arrange columns in alphabetical order (except the first three)
+  result = result[, c(colnames(result)[1:3],
+                      sort(colnames(result)[4:ncol(result)]))]
 
   ## Add pitch contours to the spectrogram
   if (plot) {
@@ -871,7 +892,7 @@ analyze = function(x,
            ...)
     }
     # add pitch candidates to the plot
-    if (nrow(pitchCands) > 0) {
+    if (any(!is.na(pitchCands))) {
       if (is.null(candPlot$levels)) {
         candPlot$levels = pitchMethods # c('autocor', 'spec', 'dom', 'cep')
       }
@@ -945,37 +966,39 @@ analyze = function(x,
   }
 
   if (summary) {
-    vars = colnames(result)[!colnames(result) %in% c('duration', 'time', 'voiced')]
-    ls = length(summaryStats)
+    var_noSummary = c('duration', 'duration_noSilence', 'voiced')
+    vars = colnames(result)[!colnames(result) %in% c(var_noSummary, 'time')]
+    nVars_noSummary = 3
+    ls = length(summaryFun)
     out = as.data.frame(matrix(
-      ncol = 2 + ls * length(vars),  # 2 b/c dur & voiced are not summarized
+      ncol = nVars_noSummary + ls * length(vars),
       nrow = 1
     ))
-    colnames(out)[c(1:2)] = c('duration', 'voiced')
+    colnames(out)[c(1:nVars_noSummary)] = var_noSummary
     for (c in 1:length(vars)) {
       # specify how to summarize pitch etc values for each frame within each file
       # - save mean, median, sd, ...
       for (s in 1:ls) {
-        colnames(out)[2 + ls * (c - 1) + s] = paste0(vars[c], '_', summaryStats[s])
+        colnames(out)[nVars_noSummary + ls * (c - 1) + s] = paste0(vars[c], '_', summaryFun[s])
       }
     }
-    out$duration = result$duration[1]  # duration, ms
+    out$duration = result$duration[1]  # duration, s
+    out$duration_noSilence = result$duration_noSilence[1]
     out$voiced = mean(result$voiced)  # proportion of voiced frames
     # apply the specified summary function to each column of result
-    for (v in 3:(ncol(result) - 1)) {  # -1 for voiced (not summarized)
-      for (s in 1:length(summaryStats)) {
+    for (v in 4:(ncol(result) - 1)) {  # -1 for voiced (not summarized)
+      for (s in 1:length(summaryFun)) {
         if (any(is.finite(result[, colnames(result)[v]]))) {
-          mySummary = do.call(
-            summaryStats[s],
-            list(result[, colnames(result)[v]], na.rm = TRUE)
-          )
+          d = na.omit(result[, colnames(result)[v]])
+          f = eval(parse(text = summaryFun[s]))
+          mySummary = do.call(f, list(d))
           # for smth like range, collapse and convert to character
           if (length(mySummary) > 1) {
             mySummary = paste0(mySummary, collapse = ', ')
           }
-          out[1, ls * (v - 2 - 1) + s + 2] = mySummary
+          out[1, ls * (v - nVars_noSummary - 1) + s + nVars_noSummary] = mySummary
         } else {  # not finite, eg NA or -Inf - don't bother to calculate
-          out[1, ls * (v - 2 - 1) + s + 2] = NA
+          out[1, ls * (v - nVars_noSummary - 1) + s + nVars_noSummary] = NA
         }
       }
     }
@@ -1071,7 +1094,7 @@ analyzeFolder = function(myfolder,
                          smooth = 1,
                          smoothVars = c('pitch', 'dom'),
                          summary = TRUE,
-                         summaryStats = c('mean', 'median', 'sd'),
+                         summaryFun = c('mean', 'median', 'sd'),
                          plot = FALSE,
                          showLegend = TRUE,
                          savePlots = FALSE,

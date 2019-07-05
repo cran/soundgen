@@ -21,7 +21,7 @@ Soundgen uses a parametric algorithm, which means that sounds are synthesized de
   
 The rest of this vignette will unpack this last statement and demonstrate how soundgen can be used in practice. To simplify setting the control parameters and visualizing the output, soundgen library includes an interactive Shiny app. To start the app, type `soundgen_app()` from R or try it online at <a href="http://cogsci.se/soundgen.html">cogsci.se/soundgen.html</a>. To generate sounds from the console, use the function `soundgen`. Each section of the vignette focuses on a particular aspect of sound generation, both describing the relevant arguments of `soundgen` and explaining how they can be set in the Shiny app. Note that some advanced features, notably vectorization of several arguments, are not implemented in the app and are only accessible from the console.
   
-*TIP: this vignette is a hands-on, non-technical tutorial focusing on how to use soundgen in order to synthesize new sounds. For a more rigorous and theoretical discussion, please refer to Anikin, A. (2018). Soundgen: an open-source tool for synthesizing nonverbal vocalizations. Behavoir Research Methods, 1-15.*
+*TIP: this vignette is a hands-on, non-technical tutorial focusing on how to use soundgen in order to synthesize new sounds. For a more rigorous and theoretical discussion, please refer to Anikin, A. (2019). Soundgen: an open-source tool for synthesizing nonverbal vocalizations. Behavoir Research Methods, 51(2), 778-792.*
   
 ## Before you proceed: consider the alternatives
 There are several other R packages that offer sound synthesis, notably `tuneR`, `seewave`, and `phonTools`. Both `seewave` and `tuneR` implement straightforward ways to synthesize pulses and square, triangular, or sine waves as well as noise with adjustable (linear) spectral slope. You can also create multiple harmonics with both amplitude and frequency modulation using `seewave::synth()` and `seewave::synth2()`. There is even a function available for adding formants and thus creating different vowels: `phonTools::vowelsynth()`. Basic tonal synthesis and many acoustic manipulations can also be performed using the open-source program PRAAT. If this is ample for your needs, you might want to try these alternatives first. 
@@ -58,11 +58,14 @@ Having briefly looked at the fundamental principles of sound generation, we proc
 To generate a sound, you can either type `soundgen_app()` to open an interactive Shiny app or call `soundgen()` from R console with manually specified parameters. An object called `presets` contains a collection of presets that demonstrate some of the possibilities. More information is available on the project's homepage at <a href="http://cogsci.se/soundgen.html">http://cogsci.se/soundgen.html</a>.
   
 ## Audio playback
-Audio playback may fail, depending on your platform and installed software. Soundgen relies on `tuneR` library for audio playback, via a wrapper function called `playme()` that accepts both Wave objects and simple numeric vectors. If `soundgen(play = TRUE)` throws an error, make sure the audio can be played before you proceed with using soundgen. To do so, save some sound as a vector first: `sound = soundgen(play = FALSE)` or even simply `sound = rnorm(10000)`. Then try to find a way to play this vector `sound`. You may need to change the default player in `tuneR` or install additional software. See the <a href="https://CRAN.R-project.org/package=seewave">seewave vignette</a> on sound input/output for an in-depth discussion of audio playback in R. Some tips are also available <a href="http://music.informatics.indiana.edu/courses/I546/tuneR_play.pdf">here</a>.
+Audio playback may fail, depending on your platform and installed software. Soundgen relies on `tuneR` library for audio playback, via a wrapper function called `playme()` that accepts both Wave objects and simple numeric vectors. If `soundgen(play = TRUE)` throws an error, make sure the audio can be played before you proceed with using soundgen. To do so, save some sound as a vector first: `sound = soundgen(play = FALSE)` or even simply `sound = rnorm(10000)`. Then try to find a way to play this vector `sound`. You may need to change the default player in `tuneR` or install additional software. See the <a href="https://CRAN.R-project.org/package=seewave">seewave vignette</a> on sound input/output for an in-depth discussion of audio playback in R. Some tips are also available <a href="http://music.informatics.indiana.edu/courses/I546/tuneR_play.pdf">here</a>. Sueur (2018, p. 100) recommends Window Media Player on Windows, AudioUnits for Mac OS, SoX for Linux (the player is called "play"), or VLC on any platform.
   
-Because of possible errors, audio playback is disabled by default in the rest of this vignette. To turn it on without changing any code, simply set the global variable `playback = TRUE`:
+Because of possible errors, audio playback is disabled by default in the rest of this vignette. To turn it on without changing any code, simply set the global variable `playback` to the appropriate value for your specific OS, for ex.:
 ```{r}
-playback = c(TRUE, FALSE)[2]
+playback = FALSE  
+# TRUE means using "play" on Linux and the defaults of tuneR::play on Windows/Mac
+# FALSE means no sound playback
+# A string like "play", "aplay", "vlc" etc. calls a specific player
 ```
 
 ## From the console
@@ -1108,7 +1111,7 @@ cand2 = do.call(soundgen, c(m2$pars, list(play = playback, temperature = 0.001))
 
 # References
 
-Anikin, A. (2018). Soundgen: an open-source tool for synthesizing nonverbal vocalizations. Behavoir Research Methods, 1-15. https://doi.org/10.3758/s13428-018-1095-7
+Anikin, A. (2019). Soundgen: an open-source tool for synthesizing nonverbal vocalizations. Behavoir Research Methods, 51(2), 778-792. https://doi.org/10.3758/s13428-018-1095-7
 
 Fant, G. (1971). Acoustic theory of speech production: with calculations based on X-ray studies of Russian articulations (Vol. 2). Walter de Gruyter.
 

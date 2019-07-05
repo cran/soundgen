@@ -47,7 +47,9 @@ and fade-out)}
 dynamicRange under maximum amplitude are discarded to save computational
 resources}
 
-\item{play}{if TRUE, plays the synthesized sound. In case of errors, try
+\item{play}{if TRUE, plays the synthesized sound using the default player on
+your system. If character, passed to \code{\link[tuneR]{play}} as the name
+of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
 setting another default player for \code{\link[tuneR]{play}}}
 }
 \description{
@@ -80,7 +82,7 @@ noise3 = generateNoise(len = samplingRate * .25, noise = c(0, -40),
 # playme(c(noise2, noise3), samplingRate)
 
 \dontrun{
-playback = c(TRUE, FALSE)[2]
+playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
 # 1.2 s of noise with rolloff changing from 0 to -12 dB above 2 kHz
 noise = generateNoise(len = samplingRate * 1.2,
   rolloffNoise = c(0, -12), noiseFlatSpec = 2000,

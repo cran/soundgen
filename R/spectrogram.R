@@ -6,7 +6,7 @@
 #' is a simplified version of \code{\link[seewave]{spectro}} with fewer plotting
 #' options, but with added routines for noise reduction, smoothing in time and
 #' frequency domains, and controlling contrast and brightness. It also provides
-#' an options to plot the oscillogram on a dB scale.
+#' an option to plot the oscillogram on a dB scale.
 #' @param x path to a .wav or .mp3 file or a vector of amplitudes with specified
 #'   samplingRate
 #' @param samplingRate sampling rate of \code{x} (only needed if
@@ -41,8 +41,9 @@
 #' @param method plot spectrum ('spectrum') or spectral derivative
 #'   ('spectralDerivative')
 #' @param output specifies what to return: nothing ('none'), unmodified
-#'   spectrogram ('original'), or denoised and/or smoothed spectrogram
-#'   ('processed')
+#'   spectrogram ('original'), denoised and/or smoothed spectrogram
+#'   ('processed'), or unmodified spectrogram with the imaginary part giving
+#'   phase ('complex')
 #' @param ylim frequency range to plot, kHz (defaults to 0 to Nyquist frequency)
 #' @param plot should a spectrogram be plotted? TRUE / FALSE
 #' @param osc,osc_dB should an oscillogram be shown under the spectrogram? TRUE/
@@ -125,7 +126,7 @@ spectrogram = function(x,
                        contrast = .2,
                        brightness = 0,
                        method = c('spectrum', 'spectralDerivative')[1],
-                       output = c('none', 'original', 'processed')[1],
+                       output = c('none', 'original', 'processed', 'complex')[1],
                        ylim = NULL,
                        plot = TRUE,
                        osc = FALSE,
@@ -248,8 +249,9 @@ spectrogram = function(x,
   if (length(X) < 2) {
     stop('The sound is too short for plotting a spectrogram')
   }
-  Y = seq(0,
-          (samplingRate / 2) - (samplingRate / windowLength_points),
+  bin_width = samplingRate / 2 / windowLength_points
+  Y = seq(bin_width / 2,
+          samplingRate / 2 - bin_width / 2,
           length.out = nrow(z)) / 1000  # frequency stamp
   if (length(Y) < 2) {
     stop('The sound and/or the windowLength is too short for plotting a spectrogram')
@@ -389,6 +391,8 @@ spectrogram = function(x,
     return(t(Z))  # before denoising
   } else if (output == 'processed') {
     return(t(Z1))  # denoised spectrum / spectralDerivative
+  } else if (output == 'complex') {
+    return(z)  # with the imaginary part
   }
 }
 
@@ -586,12 +590,12 @@ getFrameBank = function(sound,
 #' Plots the oscillogram (waveform) of a sound on a logarithmic scale, in dB.
 #' Analogous to "Waveform (dB)" view in Audacity.
 #'
-#' Algorithm: centers and normalizes the sound, then takes a logarithm of the
-#' positive part and a flipped negative part.
+#' Algorithm: centers and normalizes the sound, then takes a logarithm of the positive part
+#' and a flipped negative part.
 #' @return Returns the input waveform on a dB scale: a vector with
 #'   range from `-dynamicRange` to `dynamicRange`.
-#' @param x path to a .wav file or a CENTERED (mean ~= 0) vector of amplitudes
-#'   with specified samplingRate
+#' @param x path to a .wav file or a vector of amplitudes with specified
+#'   samplingRate
 #' @param dynamicRange dynamic range of the oscillogram, dB
 #' @param maxAmpl the maximum theoretically possible value indicating on which
 #'   scale the sound is coded: 1 if the range is -1 to +1, 2^15 for 16-bit wav
@@ -654,8 +658,9 @@ osc_dB = function(x,
     mult = 1  # assume max loudness
   }
 
-  # normalize to range from -1 to +1, unless it is quieter than maxAmpl
-  s1 = sound / max(abs(sound)) * mult
+  # center and normalize to range from -1 to +1, unless it is quieter than maxAmpl
+  s1 = sound - mean(sound)
+  s1 = s1 / max(abs(s1)) * mult
 
   # indices of values above/below midline
   floor = 10^(-dynamicRange / 20)  # treat smaller values as 0 (beyond dynamic range)

@@ -48,7 +48,9 @@ analyzeFolder('~/Downloads/temp', pitchMethods = NULL,
 # (per STFT frame; should be very similar, but not identical, because
 # analyze() discards frames considered silent or too noisy)
 
-getLoudnessFolder('~/Downloads/temp', summaryFun = function(x) diff(range(x)))
+# custom summaryFun
+difRan = function(x) diff(range(x))
+getLoudnessFolder('~/Downloads/temp', summaryFun = c('mean', 'difRan'))
 
 # save loudness values per frame without summarizing
 l = getLoudnessFolder('~/Downloads/temp', summary = FALSE)

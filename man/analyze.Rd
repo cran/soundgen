@@ -20,7 +20,7 @@ analyze(x, samplingRate = NULL, dynamicRange = 80, silence = 0.04,
   annealPars = list(maxit = 5000, temp = 1000), certWeight = 0.5,
   snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
   smoothVars = c("pitch", "dom"), summary = FALSE,
-  summaryStats = c("mean", "median", "sd"), plot = TRUE,
+  summaryFun = c("mean", "median", "sd"), plot = TRUE,
   showLegend = TRUE, savePath = NA, plotSpec = TRUE,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
   candPlot = list(), ylim = NULL, xlab = "Time, ms", ylab = "kHz",
@@ -65,7 +65,7 @@ descriptives after discarding all info above \code{cutFreq}.
 Recommended if the original sampling rate varies across different analyzed
 audio files}
 
-\item{nFormants}{the number of formants to extract per FFT frame. Calls
+\item{nFormants}{the number of formants to extract per STFT frame. Calls
 \code{\link[phonTools]{findformants}} with default settings}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
@@ -168,7 +168,7 @@ deviation of ~4 semitones. To disable, set \code{smooth} to NULL}
 variables (mean, median and SD). If FALSE, returns a list containing
 frame-by-frame values}
 
-\item{summaryStats}{a vector of names of functions used to summarize each
+\item{summaryFun}{a vector of names of functions used to summarize each
 acoustic characteristic}
 
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}
@@ -198,30 +198,34 @@ individual pitch candidates. Set to \code{NULL} or \code{NA} to suppress}
 \value{
 If \code{summary = TRUE}, returns a dataframe with one row and three
   columns per acoustic variable (mean / median / SD). If \code{summary =
-  FALSE}, returns a dataframe with one row per FFT frame and one column per
+  FALSE}, returns a dataframe with one row per STFT frame and one column per
   acoustic variable. The best guess at the pitch contour considering all
   available information is stored in the variable called "pitch". In
   addition, the output contains pitch estimates by separate algorithms
   included in \code{pitchMethods} and a number of other acoustic descriptors:
-  \describe{\item{time}{time of the middle of each frame (ms)}
-  \item{ampl}{root mean square of amplitude per frame, calculated as
-  sqrt(mean(frame ^ 2))} \item{amplVoiced}{the same as ampl for voiced frames
-  and NA for unvoiced frames} \item{dom}{lowest dominant frequency band (Hz)
-  (see “Pitch tracking methods / Dominant frequency” in the vignette)}
-  \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
-  to 0: pure tone or tonal sound with nearly all energy in harmonics; close
-  to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
-  bandwidth of the first nFormants formants per FFT frame, as calculated by
-  phonTools::findformants with default settings} \item{harmonics}{the amount
-  of energy in upper harmonics, namely the ratio of total spectral mass
-  above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
-  \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
-  by soundgen:::getPitchAutocor (see “Pitch tracking methods /
-  Autocorrelation”). If HNR = 0 dB, there is as much energy in harmonics as
-  in noise} \item{loudness}{subjective loudness, in sone, corresponding to
-  the chosen SPL_measured - see \code{\link{getLoudness}}}
-  \item{medianFreq}{50th quantile of the frame's spectrum}
-  \item{peakFreq}{the frequency with maximum spectral power (Hz)}
+  \describe{
+  \item{duration}{total duration, s}
+  \item{duration_noSilence}{duration from the beginning of the first
+  non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
+  depends strongly on \code{windowLength} and \code{silence} settings)}
+  \item{time}{time of the middle of each frame (ms)} \item{ampl}{root mean
+  square of amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
+  \item{amplVoiced}{the same as ampl for voiced frames and NA for unvoiced
+  frames} \item{dom}{lowest dominant frequency band (Hz) (see "Pitch tracking
+  methods / Dominant frequency" in the vignette)} \item{entropy}{Weiner
+  entropy of the spectrum of the current frame. Close to 0: pure tone or
+  tonal sound with nearly all energy in harmonics; close to 1: white noise}
+  \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the first
+  nFormants formants per STFT frame, as calculated by phonTools::findformants
+  with default settings} \item{harmonics}{the amount of energy in upper
+  harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
+  total spectral mass below 1.25 x F0 (dB)} \item{HNR}{harmonics-to-noise
+  ratio (dB), a measure of harmonicity returned by soundgen:::getPitchAutocor
+  (see "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is
+  as much energy in harmonics as in noise} \item{loudness}{subjective
+  loudness, in sone, corresponding to the chosen SPL_measured - see
+  \code{\link{getLoudness}}} \item{medianFreq}{50th quantile of the frame's
+  spectrum} \item{peakFreq}{the frequency with maximum spectral power (Hz)}
   \item{peakFreqCut}{the frequency with maximum spectral power below cutFreq
   (Hz)} \item{pitch}{post-processed pitch contour based on all F0 estimates}
   \item{pitchAutocor}{autocorrelation estimate of F0}
@@ -231,7 +235,7 @@ If \code{summary = TRUE}, returns a dataframe with one row and three
   center of gravity of the frame’s spectrum, first spectral moment (Hz)}
   \item{specCentroidCut}{the center of gravity of the frame’s spectrum below
   cutFreq} \item{specSlope}{the slope of linear regression fit to the
-  spectrum below cutFreq} \item{voiced}{is the current FFT frame voiced? TRUE
+  spectrum below cutFreq} \item{voiced}{is the current STFT frame voiced? TRUE
   / FALSE}
 }
 }
@@ -244,7 +248,7 @@ details.
 }
 \examples{
 sound = soundgen(sylLen = 300, pitch = c(900, 400, 2300),
-  noise = list(time = c(0, 300), value = c(-40, 00)),
+  noise = list(time = c(0, 300), value = c(-40, 0)),
   temperature = 0.001, addSilence = 0)
 # playme(sound, 16000)
 a = analyze(sound, samplingRate = 16000, plot = TRUE)
@@ -252,7 +256,7 @@ a = analyze(sound, samplingRate = 16000, plot = TRUE)
 \dontrun{
 sound1 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
-  noise = list(time = c(0, 300), value = c(-40, 00)),
+  noise = list(time = c(0, 300), value = c(-40, 0)),
   temperature = 0.001, addSilence = 0)
 # improve the quality of postprocessing:
 a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
@@ -265,7 +269,7 @@ median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
 # the same pitch contour, but harder b/c of subharmonics and jitter
 sound2 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
-  noise = list(time = c(0, 900), value = c(-40, 20)),
+  noise = list(time = c(0, 900), value = c(-40, 0)),
   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0.001)
 # playme(sound2, 16000)
 a2 = analyze(sound2, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
@@ -288,7 +292,11 @@ a = analyze(sound2, samplingRate = 16000, plot = TRUE, plotSpec = FALSE)
 # Different formatting options for output
 a = analyze(sound2, samplingRate = 16000, summary = FALSE)  # frame-by-frame
 a = analyze(sound2, samplingRate = 16000, summary = TRUE,
-            summaryStats = c('mean', 'range'))  # one row per sound
+            summaryFun = c('mean', 'range'))  # one row per sound
+# ...with custom summaryFun
+difRan = function(x) diff(range(x))
+a = analyze(sound2, samplingRate = 16000, summary = TRUE,
+            summaryFun = c('mean', 'difRan'))
 
 # Save the plot
 a = analyze(sound, samplingRate = 16000,

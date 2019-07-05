@@ -40,7 +40,7 @@
 #' # playme(c(noise2, noise3), samplingRate)
 #'
 #' \dontrun{
-#' playback = c(TRUE, FALSE)[2]
+#' playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
 #' # 1.2 s of noise with rolloff changing from 0 to -12 dB above 2 kHz
 #' noise = generateNoise(len = samplingRate * 1.2,
 #'   rolloffNoise = c(0, -12), noiseFlatSpec = 2000,
@@ -128,7 +128,7 @@ generateNoise = function(len,
                          play = FALSE) {
   # wiggle pars
   if (temperature > 0) {  # set to 0 when called internally by soundgen()
-    len = rnorm_bounded(n = 1,
+    len = rnorm_truncated(n = 1,
                         mean = len,
                         sd = len * temperature * .5,
                         low = 0, high = samplingRate * 10,  # max 10 s
@@ -143,7 +143,7 @@ generateNoise = function(len,
         wiggleAllRows = TRUE
       )
     } else {
-      rolloffNoise = rnorm_bounded(
+      rolloffNoise = rnorm_truncated(
         n = length(rolloffNoise),
         mean = rolloffNoise,
         sd = abs(rolloffNoise) * temperature * .5,
@@ -151,11 +151,11 @@ generateNoise = function(len,
         high = 20
       )
     }
-    noiseFlatSpec = rnorm_bounded(n = 1,
+    noiseFlatSpec = rnorm_truncated(n = 1,
                                   mean = noiseFlatSpec,
                                   sd = noiseFlatSpec * temperature * .5,
                                   low = 0, high = samplingRate / 2)
-    attackLen = rnorm_bounded(n = length(attackLen),
+    attackLen = rnorm_truncated(n = length(attackLen),
                               mean = attackLen,
                               sd = attackLen * temperature * .5,
                               low = 0, high = len / samplingRate * 1000 / 2)
@@ -168,7 +168,7 @@ generateNoise = function(len,
       wiggleAllRows = TRUE
     )
     if (is.vector(spectralEnvelope)) {
-      spectralEnvelope = rnorm_bounded(
+      spectralEnvelope = rnorm_truncated(
         n = length(spectralEnvelope),
         mean = spectralEnvelope + .1,  # to wiggle zeros
         sd = spectralEnvelope * temperature * .5,
@@ -294,7 +294,10 @@ generateNoise = function(len,
     }
   }
   # plot(breathing, type = 'l')
-  if (play) playme(breathing, samplingRate = samplingRate)
+  if (play == TRUE) playme(breathing, samplingRate = samplingRate)
+  if (is.character(play)) {
+    playme(breathing, samplingRate = samplingRate, player = play)
+  }
   # spectrogram(breathing, samplingRate = samplingRate)
   # seewave::meanspec(breathing, f = samplingRate, wl = windowLength_points, dB = 'max0')
   return(breathing)
@@ -365,7 +368,7 @@ generateHarmonics = function(pitch,
                              temperature = .025,
                              pitchDriftDep = .5,
                              pitchDriftFreq = .125,
-                             amplDriftDep = 5,
+                             amplDriftDep = 1,
                              subDriftDep = 4,
                              rolloffDriftDep = 3,
                              randomWalk_trendStrength = .5,
@@ -655,6 +658,19 @@ generateHarmonics = function(pitch,
     }
   }
 
+    # pitch drift is accompanied by amplitude drift
+  if (temperature > 0 & amplDriftDep > 0) {
+    drift_ampl = zeroOne(drift) * temperature
+    drift_ampl = drift_ampl - mean(drift_ampl) + 1  # hist(drift_ampl)
+    gc_upsampled = upsample(pitch_per_gc, samplingRate = samplingRate)$gc
+    drift_upsampled = approx(drift_ampl,  # otherwise pitchDriftDep scales amplDriftDep
+                             n = length(waveform),
+                             x = gc_upsampled[-length(gc_upsampled)])$y
+    waveform = waveform * drift_upsampled ^ amplDriftDep
+    # plot(drift_upsampled, type = 'l')
+    # plot(waveform, type = 'l')
+  }
+
   # normalize to be on the same scale as breathing (NB: after adding attack,
   # b/c fading the ends can change the overall range if eg peak ampl is at the beg.)
   if (normalize) waveform = waveform / max(abs(waveform))
@@ -675,15 +691,6 @@ generateHarmonics = function(pitch,
     }
   }
 
-  # pitch drift is accompanied by amplitude drift
-  if (temperature > 0 & amplDriftDep > 0) {
-    gc_upsampled = upsample(pitch_per_gc, samplingRate = samplingRate)$gc
-    drift_upsampled = approx(drift,
-                             n = length(waveform),
-                             x = gc_upsampled[-length(gc_upsampled)])$y
-    waveform = waveform * drift_upsampled ^ amplDriftDep
-    # plot(drift_upsampled, type = 'l')
-  }
   # playme(waveform, samplingRate = samplingRate)
   # spectrogram(waveform, samplingRate = samplingRate)
   return(waveform)
@@ -895,11 +902,11 @@ fart = function(glottis = c(50, 200),
 
   # wiggle pars
   if (temperature > 0) {
-    rolloff = rnorm_bounded(n = 1,
+    rolloff = rnorm_truncated(n = 1,
                             mean = rolloff,
                             sd = rolloff * temperature * .5,
                             low = -50, high = 10)
-    sylLen = rnorm_bounded(n = 1,
+    sylLen = rnorm_truncated(n = 1,
                            mean = sylLen,
                            sd = sylLen * temperature * .5,
                            low = 0, high = 10000)
@@ -946,7 +953,10 @@ fart = function(glottis = c(50, 200),
 
   s = s / max(abs(s))
 
-  if (play) playme(s, samplingRate)
+  if (play == TRUE) playme(s, samplingRate)
+  if (is.character(play)) {
+    playme(s, samplingRate = samplingRate, player = play)
+  }
   if (plot) {
     time = (1:length(s)) / samplingRate * 1000
     plot(time, s, type = 'l', xlab = 'Time, ms')
@@ -1013,6 +1023,10 @@ beat = function(nSyl = 10,
     pause = rep(0, round(pauseLen / 1000 * samplingRate))
     beat = rep(c(beat, pause), nSyl)
   }
-  if (play) playme(beat, samplingRate)
+  beat = beat / max(abs(beat))  # normalize
+  if (play == TRUE) playme(beat, samplingRate)
+  if (is.character(play)) {
+    playme(beat, samplingRate = samplingRate, player = play)
+  }
   return(beat)
 }

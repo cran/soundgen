@@ -159,10 +159,13 @@ getRMS = function(x,
 #' # (per STFT frame, but should be very similar)
 #'
 #' User-defined summary functions:
-#' getRMSFolder('~/Downloads/temp', summaryFun = function(x) diff(range(x)))
-#' getRMSFolder('~/Downloads/temp',
-#'   summaryFun = function(x) paste0('mean = ', round(mean(x), 2),
-#'                                  '; sd = ', round(sd(x), 2)))
+#' difRan = function(x) diff(range(x))
+#' getRMSFolder('~/Downloads/temp', summaryFun = c('mean', 'difRan'))
+#'
+#' meanSD = function(x) {
+#'   paste0('mean = ', round(mean(x), 2), '; sd = ', round(sd(x), 2))
+#' }
+#' getRMSFolder('~/Downloads/temp', summaryFun = 'meanSD')
 #' }
 getRMSFolder = function(myfolder,
                         windowLength = 50,
@@ -176,6 +179,7 @@ getRMSFolder = function(myfolder,
                         verbose = TRUE) {
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
+  if (length(filenames) < 1) stop('No audio files to analyze')
   # in order to provide more accurate estimates of time to completion,
   # check the size of all files in the target folder
   filesizes = file.info(filenames)$size
@@ -198,7 +202,19 @@ getRMSFolder = function(myfolder,
   # prepare output
   if (summary == TRUE) {
     output = data.frame(sound = basename(filenames))
-    output$rms = unlist(lapply(result, summaryFun))
+    for (s in 1:length(summaryFun)) {
+      # for each summary function...
+      f = eval(parse(text = summaryFun[s]))
+      for (i in 1:length(result)) {
+        # for each sound file...
+        mySummary = do.call(f, list(na.omit(result[[i]])))
+        # for smth like range, collapse and convert to character
+        if (length(mySummary) > 1) {
+          mySummary = paste0(mySummary, collapse = ', ')
+        }
+        output[i, summaryFun[s]] = mySummary
+      }
+    }
   } else {
     output = result
     names(output) = basename(filenames)
@@ -342,9 +358,10 @@ normalizeFolder = function(myfolder,
     print('Saving...')
     if (!dir.exists(savepath)) dir.create(savepath)
     for (i in 1:n) {
+      file_wo_ext = sub("([^.]+)\\.[[:alnum:]]+$", "\\1", basename(filenames[i]))
       tuneR::writeWave(
         files[[i]],
-        filename = paste0(savepath, '/', basename(filenames[i]))
+        filename = paste0(savepath, '/', file_wo_ext, '.wav')
       )
     }
   }

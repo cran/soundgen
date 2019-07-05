@@ -1,3 +1,25 @@
+          CHANGES IN SOUNDGEN VERSION 1.4.1 [05-July-2019]
+NEW FUNCTIONS:
+  * flatSpectrum(): flattens the spectrum of a sound by smoothing in the frequency domain
+  * transplantFormants(): takes the general spectral envelope (formants) of one sound and "transplants" it onto another sound
+
+MINOR:
+  * soundgen(), playme(), generateNoise(), fart(), beat(): the previously boolean argument "play" can now also be a string to specify the audio player, eg play = 'aplay' or play = 'vlc'
+  * estimateVTL() offers three methods of estimating vocal tract length from formant frequencies
+  * analyze() and analyzeFolder() can summarize the output with arbitrary functions like "function(x) ..."
+  * analyze(), analyzeFolder(): argument "summaryStats" renamed to "summaryFun" to keep the terminology consistent with getLoudnessFolder() and getRMSFolder()
+  * analyze() and analyzeFolder() also return duration without counting silent frames at the beginning/end of the sound
+  * getSpectralEnvelope(): the output matrix contains frequency and time stamps as row/column names
+  * spectrogram(): new output option ("complex") returns a spectrogram with imaginary parts (phase)
+  * getLoudness() and getLoudnessFolder() support mp3
+
+BUG FIXES:
+  * analyze() no longer crashes with pitchMethods = NULL
+  * getLoudness() and analyze() no longer crash with sampling rates above 44100 (NB: frequencies above 27 barks are automatically discarded when calculating subjective loudness)
+  * morph(): proper handling of attackLen and other small debugging
+  * soundgen(): tempEffects(amplDriftDep) is no longer tied to pitchDriftDep, has a more reasonable default, and doesn't affect audio normalization
+
+
           CHANGES IN SOUNDGEN VERSION 1.4.0 [13-March-2019]
 MAJOR (affect back-compatibility):
   * soundgen(), fart(), beat(), generateNoise(): removed all deprecated parameters, notably "pitchAnchors", "noiseAnchors", etc. (now simply "pitch", "noise", etc.)
