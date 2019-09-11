@@ -5,12 +5,13 @@
 # usethis::use_data(permittedValues, defaults, presets, overwrite = TRUE)
 
 
-#' Defaults and ranges
+#' Defaults and ranges for soundgen()
 #'
-#' A dataset containing defaults and ranges of key variables in the Shiny app.
+#' A dataset containing defaults and ranges of key variables for soundgen() and
+#' soundgen_app().
 #' Adjust as needed.
 #'
-#' @format A matrix with 58 rows and 4 variables:
+#' @format A matrix with 58 rows and 4 columns:
 #' \describe{
 #'   \item{default}{default value}
 #'   \item{low}{lowest permitted value}
@@ -161,6 +162,74 @@ defaults = list(
   specDep = .1
 )
 # usethis::use_data(defaults, overwrite = TRUE)
+
+
+#' Defaults and ranges for analyze()
+#'
+#' A dataset containing defaults and ranges of key variables for analyze() and
+#' pitch_app(). Adjust as needed.
+#'
+#' @format A matrix with 58 rows and 4 columns:
+#' \describe{
+#'   \item{default}{default value}
+#'   \item{low}{lowest permitted value}
+#'   \item{high}{highest permitted value}
+#'   \item{step}{increment for adjustment}
+#'   ...
+#' }
+"defaults_analyze"
+defaults_analyze = matrix(c(
+  'windowLength', 50, 1, 500, 1,  # default, low, high, step
+  'step', 25, 1, 500, 1,
+  'overlap', 50, 0, 99, 1,
+  'dynamicRange', 80, 10, 200, 10,
+  'zp', 0, 0, 13, 1,
+
+  'silence', 0.04, 0, 1, .01,
+  'entropyThres', 0.6, 0, 1, 0.01,
+  'nCands', 3, 1, 10, 1,
+  'minVoicedCands', 2, 1, 4, 1,
+
+  'pitchFloor', 75, 1, 1000, 10,
+  'pitchCeiling', 2000, 10, 10000, 10,
+  'priorMean', 300, 10, 10000, 10,
+  'priorSD', 6, 0.1, 24, 1,
+
+  'autocorThres', 0.7, 0, 1, 0.01,
+  'autocorSmooth', 7, 1, 21, 2,
+  'domThres', 0.1, 0, 1, 0.01,
+  'domSmooth', 220, 1, 600, 10,
+  'cepThres', 0.3, 0, 1, 0.01,
+  'cepSmooth', 400, 10, 1000, 10,
+  'cepZp', 0, 0, 13, 1,
+  'specThres', 0.3, 0, 1, 0.01,
+  'specPeak', 0.35, 0, 1, 0.01,
+  'specHNRslope', 0.8, 0, 5, 0.05,
+  'specSmooth', 150, 1, 600, 10,
+  'specMerge', 1, 0.01, 10, 0.1,
+  'specSinglePeakCert', 0.4, 0, 1, 0.01,
+
+  'certWeight', 0.5, 0, 1, 0.01,
+  'shortestSyl', 20, 0, 500, 1,
+  'shortestPause', 60, 0, 500, 1,
+  'smooth', 1, 0, 10, 0.1,
+  'snakeStep', 0.05, 0, 2, 0.01,
+  'interpolWin', 75, 0, 1000, 5,
+  'interpolTol', 0.05, 0.01, 1, 0.01,
+  'interpolCert', 0.3, 0, 1, 0.01,
+
+  # pitch_app() settings, which are not needed for analyze()
+  'specContrast', .2, -1, 1, .05,
+  'specBrightness', 0, -1, 1, .05,
+  'spec_ylim', 5, 0, 22, 0.1
+), ncol=5, byrow=TRUE)
+temp = defaults_analyze[,1]
+defaults_analyze = apply(defaults_analyze[,2:5], 2, as.numeric)
+colnames(defaults_analyze) = c('default', 'low', 'high', 'step')
+rownames(defaults_analyze) = temp
+# usethis::use_data(defaults_analyze, overwrite = TRUE)
+
+
 
 # -------------------------------------------------------------
 # A library of presets for easy generation of a few nice sounds

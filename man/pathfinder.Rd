@@ -4,14 +4,16 @@
 \alias{pathfinder}
 \title{Pathfinder}
 \usage{
-pathfinder(pitchCands, pitchCert, certWeight = 0.5,
-  pathfinding = c("none", "fast", "slow")[2], annealPars = list(maxit =
-  5000, temp = 1000), interpolWin = 3, interpolTol = 0.05,
-  interpolCert = 0.3, snakeStep = 0.05, snakePlot = FALSE)
+pathfinder(pitchCands, pitchCert, pitchSource, manual = NULL,
+  certWeight = 0.5, pathfinding = c("none", "fast", "slow")[2],
+  annealPars = list(maxit = 5000, temp = 1000), interpolWin_bin = 3,
+  interpolTol = 0.05, interpolCert = 0.3, manualCert = 1,
+  snakeStep = 0.05, snakePlot = FALSE)
 }
 \arguments{
 \item{pitchCands}{a matrix of multiple pitch candidates per fft frame. Each
-column is one fft frame, each row is one candidate.}
+column is one fft frame, each row is one candidate (the last row is always
+"manual")}
 
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
@@ -28,8 +30,8 @@ candidates: 'none' = best candidate per frame, 'fast' = simple heuristic,
 pitch contour with SANN algorithm of \code{\link[stats]{optim}}. This is
 only relevant if \code{pathfinding = 'slow'}}
 
-\item{interpolWin}{when interpolating pitch candidates, the median is
-calculated over \code{plus-minus interpolWin}}
+\item{interpolWin_bin}{when interpolating pitch candidates, the median is
+calculated over \code{plus-minus interpolWin_bin}}
 
 \item{interpolTol}{when interpolating pitch candidates, the criterion
 for needing to interpolate is the absence of pitch candidates with values
@@ -41,9 +43,11 @@ interpolation window.}
 \item{interpolCert}{when interpolating pitch candidates, all generated pitch
 candidates are assigned a certainty equal to \code{interpolCert}}
 
+\item{manualCert}{the certainty in manually added pitch candidates}
+
 \item{snakeStep}{optimized path through pitch candidates is further
 processed to minimize the elastic force acting on pitch contour. To
-disable, set \code{snakeStep} to NULL}
+disable, set \code{snakeStep = 0}}
 
 \item{snakePlot}{if TRUE, plots the snake}
 }

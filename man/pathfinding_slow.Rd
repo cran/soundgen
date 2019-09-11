@@ -6,11 +6,12 @@
 \usage{
 pathfinding_slow(pitchCands = pitchCands, pitchCert = pitchCert,
   certWeight = certWeight, pitchCenterGravity = pitchCenterGravity,
-  annealPars = list(maxit = 5000, temp = 1000))
+  manual = NULL, annealPars = list(maxit = 5000, temp = 1000))
 }
 \arguments{
 \item{pitchCands}{a matrix of multiple pitch candidates per fft frame. Each
-column is one fft frame, each row is one candidate.}
+column is one fft frame, each row is one candidate (the last row is always
+"manual")}
 
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
@@ -22,6 +23,8 @@ tension of the resulting pitch curve}
 \item{pitchCenterGravity}{numeric vector giving the mean of all pitch
 candidates per fft frame weighted by our certainty in each of these
 candidates}
+
+\item{manual}{a dataframe of manual pitch candidates from pathfinder()}
 
 \item{annealPars}{a list of control parameters for postprocessing of
 pitch contour with SANN algorithm of \code{\link[stats]{optim}}. This is

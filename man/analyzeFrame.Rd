@@ -27,7 +27,8 @@ is above some threshold - specified in \code{\link{analyze}})}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
 pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
-'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band}
+'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band ('' or
+NULL = no pitch analysis)}
 
 \item{cutFreq}{(>0 to Nyquist, Hz) repeat the calculation of spectral
 descriptives after discarding all info above \code{cutFreq}.
@@ -55,9 +56,8 @@ voicing thresholds for detecting pitch candidates with three different
 methods: autocorrelation, cepstrum, and BaNa algorithm (see Details). Note
 that HNR is calculated even for unvoiced frames.}
 
-\item{cepSmooth}{the width of smoothing interval (in bins) for finding
-peaks in the cepstrum. Defaults to 31 for sampling rate 44100 and smaller
-odd numbers for lower values of sampling rate}
+\item{cepSmooth}{the width of smoothing interval (Hz) for finding peaks in
+the cepstrum}
 
 \item{cepZp}{zero-padding of the spectrum used for cepstral pitch detection
 (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)}
@@ -92,7 +92,7 @@ merged with boosted certainty}
 \code{dom}, which returns at most one candidate per frame), normally 1...4}
 }
 \value{
-Returns a list with two components: $pitch_array contains pitch
+Returns a list with two components: $pitchCands_frame contains pitch
   candidates for the frame, and $summaries contains other acoustic predictors
   like HNR, specSlope, etc.
 }

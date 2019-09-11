@@ -4,12 +4,13 @@
 \alias{interpolate}
 \title{Interpolate}
 \usage{
-interpolate(pitchCands, pitchCert, pitchCenterGravity, interpolWin = 3,
-  interpolTol = 0.3, interpolCert = 0.3)
+interpolate(pitchCands, pitchCert, pitchSource, pitchCenterGravity,
+  interpolWin_bin = 3, interpolTol = 0.3, interpolCert = 0.3)
 }
 \arguments{
 \item{pitchCands}{a matrix of multiple pitch candidates per fft frame. Each
-column is one fft frame, each row is one candidate.}
+column is one fft frame, each row is one candidate (the last row is always
+"manual")}
 
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
@@ -18,8 +19,8 @@ our certainty in pitch candidates}
 candidates per fft frame weighted by our certainty in each of these
 candidates}
 
-\item{interpolWin}{when interpolating pitch candidates, the median is
-calculated over \code{plus-minus interpolWin}}
+\item{interpolWin_bin}{when interpolating pitch candidates, the median is
+calculated over \code{plus-minus interpolWin_bin}}
 
 \item{interpolTol}{when interpolating pitch candidates, the criterion
 for needing to interpolate is the absence of pitch candidates with values
@@ -30,6 +31,9 @@ interpolation window.}
 
 \item{interpolCert}{when interpolating pitch candidates, all generated pitch
 candidates are assigned a certainty equal to \code{interpolCert}}
+
+\item{manualUnvoiced}{a vector with indices of frames that are manually
+specified as unvoiced and should not be interpolated}
 }
 \value{
 Returns a modified pitchCands matrix.

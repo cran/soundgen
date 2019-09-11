@@ -10,20 +10,19 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   overlap = 50, wn = "gaussian", zp = 0, cutFreq = 6000,
   nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
   entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
-  priorMean = HzToSemitones(300), priorSD = 6, priorPlot = FALSE,
-  nCands = 1, minVoicedCands = "autom", domThres = 0.1,
-  domSmooth = 220, autocorThres = 0.7, autocorSmooth = NULL,
-  cepThres = 0.3, cepSmooth = NULL, cepZp = 0, specThres = 0.3,
-  specPeak = 0.35, specSinglePeakCert = 0.4, specHNRslope = 0.8,
-  specSmooth = 150, specMerge = 1, shortestSyl = 20,
-  shortestPause = 60, interpolWin = 3, interpolTol = 0.3,
-  interpolCert = 0.3, pathfinding = c("none", "fast", "slow")[2],
-  annealPars = list(maxit = 5000, temp = 1000), certWeight = 0.5,
-  snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
-  smoothVars = c("pitch", "dom"), summary = TRUE,
-  summaryFun = c("mean", "median", "sd"), plot = FALSE,
-  showLegend = TRUE, savePlots = FALSE, plotSpec = TRUE,
-  pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
+  priorMean = 300, priorSD = 6, priorPlot = FALSE, nCands = 1,
+  minVoicedCands = "autom", domThres = 0.1, domSmooth = 220,
+  autocorThres = 0.7, autocorSmooth = NULL, cepThres = 0.3,
+  cepSmooth = NULL, cepZp = 0, specThres = 0.3, specPeak = 0.35,
+  specSinglePeakCert = 0.4, specHNRslope = 0.8, specSmooth = 150,
+  specMerge = 1, shortestSyl = 20, shortestPause = 60,
+  interpolWin = 75, interpolTol = 0.3, interpolCert = 0.3,
+  pathfinding = c("none", "fast", "slow")[2], annealPars = list(maxit =
+  5000, temp = 1000), certWeight = 0.5, snakeStep = 0.05,
+  snakePlot = FALSE, smooth = 1, smoothVars = c("pitch", "dom"),
+  summary = TRUE, summaryFun = c("mean", "median", "sd"),
+  plot = FALSE, showLegend = TRUE, savePlots = FALSE,
+  plotSpec = TRUE, pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
   candPlot = list(levels = c("autocor", "spec", "dom", "cep"), col =
   c("green", "red", "orange", "violet"), pch = c(16, 2, 3, 7), cex = 2),
   ylim = NULL, xlab = "Time, ms", ylab = "kHz", main = NULL,
@@ -47,7 +46,8 @@ not analyzed at all. NB: this number is dynamically updated: the actual
 silence threshold may be higher depending on the quietest frame, but it
 will never be lower than this specified number.}
 
-\item{SPL_measured}{sound pressure level at which the sound is presented, dB}
+\item{SPL_measured}{sound pressure level at which the sound is presented, dB
+(set to 0 to skip analyzing subjective loudness)}
 
 \item{Pref}{reference pressure, Pa}
 
@@ -67,12 +67,14 @@ descriptives after discarding all info above \code{cutFreq}.
 Recommended if the original sampling rate varies across different analyzed
 audio files}
 
-\item{nFormants}{the number of formants to extract per STFT frame. Calls
-\code{\link[phonTools]{findformants}} with default settings}
+\item{nFormants}{the number of formants to extract per STFT frame (0 = no
+formant analysis). Calls \code{\link[phonTools]{findformants}} with default
+settings}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
 pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
-'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band}
+'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band ('' or
+NULL = no pitch analysis)}
 
 \item{entropyThres}{pitch tracking is not performed for frames with Weiner
 entropy above \code{entropyThres}, but other spectral descriptives are
@@ -82,16 +84,16 @@ still calculated}
 
 \item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
-\item{priorMean}{specifies the mean and sd of gamma distribution
-describing our prior knowledge about the most likely pitch values for this
-file. Specified in semitones: \code{priorMean = HzToSemitones(300),
-priorSD = 6} gives a prior with mean = 300 Hz and SD of 6 semitones (half
+\item{priorMean}{specifies the mean (Hz) and standard deviation
+(semitones) of gamma distribution describing our prior knowledge about the
+most likely pitch values for this file. For ex., \code{priorMean = 300,
+priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 an octave)}
 
-\item{priorSD}{specifies the mean and sd of gamma distribution
-describing our prior knowledge about the most likely pitch values for this
-file. Specified in semitones: \code{priorMean = HzToSemitones(300),
-priorSD = 6} gives a prior with mean = 300 Hz and SD of 6 semitones (half
+\item{priorSD}{specifies the mean (Hz) and standard deviation
+(semitones) of gamma distribution describing our prior knowledge about the
+most likely pitch values for this file. For ex., \code{priorMean = 300,
+priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 an octave)}
 
 \item{priorPlot}{if TRUE, produces a separate plot of the prior}
@@ -99,9 +101,9 @@ an octave)}
 \item{nCands}{maximum number of pitch candidates per method (except for
 \code{dom}, which returns at most one candidate per frame), normally 1...4}
 
-\item{minVoicedCands}{minimum number of pitch candidates that
-have to be defined to consider a frame voiced (defaults to 2 if \code{dom}
-is among other candidates and 1 otherwise)}
+\item{minVoicedCands}{minimum number of pitch candidates that have to be
+defined to consider a frame voiced (if NULL, defaults to 2 if \code{dom} is
+among other candidates and 1 otherwise)}
 
 \item{domThres}{(0 to 1) to find the lowest dominant frequency band, we
 do short-term FFT and take the lowest frequency with amplitude at least
@@ -124,9 +126,8 @@ voicing thresholds for detecting pitch candidates with three different
 methods: autocorrelation, cepstrum, and BaNa algorithm (see Details). Note
 that HNR is calculated even for unvoiced frames.}
 
-\item{cepSmooth}{the width of smoothing interval (in bins) for finding
-peaks in the cepstrum. Defaults to 31 for sampling rate 44100 and smaller
-odd numbers for lower values of sampling rate}
+\item{cepSmooth}{the width of smoothing interval (Hz) for finding peaks in
+the cepstrum}
 
 \item{cepZp}{zero-padding of the spectrum used for cepstral pitch detection
 (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)}
@@ -162,18 +163,18 @@ means they shouldn't be merged into one voiced syllable}
 
 \item{interpolWin}{control the behavior of
 interpolation algorithm when postprocessing pitch candidates. To turn off
-interpolation, set \code{interpolWin} to NULL. See
-\code{soundgen:::pathfinder} for details.}
+interpolation, set \code{interpolWin = 0}. See \code{soundgen:::pathfinder}
+for details.}
 
 \item{interpolTol}{control the behavior of
 interpolation algorithm when postprocessing pitch candidates. To turn off
-interpolation, set \code{interpolWin} to NULL. See
-\code{soundgen:::pathfinder} for details.}
+interpolation, set \code{interpolWin = 0}. See \code{soundgen:::pathfinder}
+for details.}
 
 \item{interpolCert}{control the behavior of
 interpolation algorithm when postprocessing pitch candidates. To turn off
-interpolation, set \code{interpolWin} to NULL. See
-\code{soundgen:::pathfinder} for details.}
+interpolation, set \code{interpolWin = 0}. See \code{soundgen:::pathfinder}
+for details.}
 
 \item{pathfinding}{method of finding the optimal path through pitch
 candidates: 'none' = best candidate per frame, 'fast' = simple heuristic,
@@ -189,19 +190,19 @@ tension of the resulting pitch curve}
 
 \item{snakeStep}{optimized path through pitch candidates is further
 processed to minimize the elastic force acting on pitch contour. To
-disable, set \code{snakeStep} to NULL}
+disable, set \code{snakeStep = 0}}
 
 \item{snakePlot}{if TRUE, plots the snake}
 
 \item{smooth}{if \code{smooth} is a positive number, outliers of
 the variables in \code{smoothVars} are adjusted with median smoothing.
 \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
-deviation of ~4 semitones. To disable, set \code{smooth} to NULL}
+deviation of ~4 semitones. To disable, set \code{smooth = 0}}
 
 \item{smoothVars}{if \code{smooth} is a positive number, outliers of
 the variables in \code{smoothVars} are adjusted with median smoothing.
 \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
-deviation of ~4 semitones. To disable, set \code{smooth} to NULL}
+deviation of ~4 semitones. To disable, set \code{smooth = 0}}
 
 \item{summary}{if TRUE, returns only a summary of the measured acoustic
 variables (mean, median and SD). If FALSE, returns a list containing

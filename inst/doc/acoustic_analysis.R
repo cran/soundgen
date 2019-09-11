@@ -91,10 +91,10 @@ a = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4),
 par(mfrow = c(1, 2))
 # default prior in soundgen
 a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = HzToSemitones(300), priorSD = 6)  
+             priorMean = 300, priorSD = 6)  
 # narrow peak at 2 kHz
 a2 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = HzToSemitones(2000), priorSD = 1)
+             priorMean = 2000, priorSD = 1)
 par(mfrow = c(1, 1))
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
@@ -151,22 +151,24 @@ a = analyze(
   s1, 
   samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
   shortestSyl = 0, shortestPause = 0,  # any length of voiced fragments
-  interpolWin = NULL,     # don't interpolate missing f0 values
+  interpolWin = 0,        # don't interpolate missing f0 values
   pathfinding = 'none',   # don't look for optimal path through candidates
-  snakeStep = NULL,       # don't run the snake
-  smooth = NULL           # don't run median smoothing
+  snakeStep = 0,          # don't run the snake
+  smooth = 0              # don't run median smoothing
 )       
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
 par(mfrow = c(1, 2))
 a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
-             pitchMethods = 'cep', cepThres = .35, step = 25,
-             snakeStep = NULL, smooth = 0,
-             interpolWin = NULL, pathfinding = 'none',  # disable interpolation
+             pitchMethods = 'cep', cepThres = .4, step = 25,
+             snakeStep = 0, smooth = 0,
+             interpolWin = 0,   # disable interpolation
+             pathfinding = 'none',  
              main = 'No interpolation', showLegend = FALSE)
 a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
-             pitchMethods = 'cep', cepThres = .35, step = 25,
-             snakeStep = NULL, smooth = 0, 
+             pitchMethods = 'cep', cepThres = .4, step = 25,
+             pathfinding = 'none',
+             snakeStep = 0, smooth = 0, 
              main = 'Interpolation', showLegend = FALSE)  
 
 par(mfrow = c(1, 1))
@@ -175,14 +177,14 @@ par(mfrow = c(1, 1))
 par(mfrow = c(1, 2))
 a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
-             snakeStep = NULL, smooth = 0, interpolTol = Inf,
+             snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 0,  # minimize pitch jumps
              main = 'Minimize jumps', showLegend = FALSE)  
 a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
-             snakeStep = NULL, smooth = 0, interpolTol = Inf,
+             snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 1,  # minimize deviation from high-certainty candidates
-             main = 'Pass through candidates', showLegend = FALSE)  
+             main = 'Pass through top cand-s', showLegend = FALSE)  
 par(mfrow = c(1, 1))
 
 ## ----fig.height = 5, fig.width = 7---------------------------------------
@@ -196,11 +198,11 @@ a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
 par(mfrow = c(1, 2))
 a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
-             pathfinding = 'none', snakeStep = NULL, interpolTol = Inf,
+             pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
              smooth = 0, main = 'No smoothing', showLegend = FALSE)
 a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
-             pathfinding = 'none', snakeStep = NULL, interpolTol = Inf,
+             pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
              smooth = 1, main = 'Default smoothing', showLegend = FALSE)
 par(mfrow = c(1, 1))
 
@@ -211,7 +213,7 @@ a = analyze(s1, samplingRate = 16000, plot = TRUE, priorMean = NA,
             brightness = -0.5,
             colorTheme = 'seewave',
             ylim = c(0, 4),
-            # + other pars passed to seewave::filled.contour.modif2()
+            # + other pars passed to soundgen:::filled.contour.mod()
             
             # options for plotting the final pitch contour (line)
             pitchPlot = list(       

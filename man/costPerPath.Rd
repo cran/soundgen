@@ -4,14 +4,16 @@
 \alias{costPerPath}
 \title{Cost per path}
 \usage{
-costPerPath(path, pitchCands, pitchCert, certWeight, pitchCenterGravity)
+costPerPath(path, pitchCands, pitchCert, certWeight, pitchCenterGravity,
+  manual = NULL)
 }
 \arguments{
 \item{path}{evaluated path through pitch candidates (as integers specifying
 the rows in pitchCands, not the actual values of pitch)}
 
 \item{pitchCands}{a matrix of multiple pitch candidates per fft frame. Each
-column is one fft frame, each row is one candidate.}
+column is one fft frame, each row is one candidate (the last row is always
+"manual")}
 
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
@@ -23,6 +25,8 @@ tension of the resulting pitch curve}
 \item{pitchCenterGravity}{numeric vector giving the mean of all pitch
 candidates per fft frame weighted by our certainty in each of these
 candidates}
+
+\item{manual}{a dataframe of manual pitch candidates from pathfinder()}
 }
 \description{
 Internal soundgen function.

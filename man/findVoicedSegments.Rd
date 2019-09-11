@@ -5,7 +5,8 @@
 \title{Find voiced segments}
 \usage{
 findVoicedSegments(pitchCands, shortestSyl, shortestPause, step,
-  samplingRate, minVoicedCands)
+  samplingRate, minVoicedCands, pitchMethods, manualV = NULL,
+  manualUnv = NULL)
 }
 \arguments{
 \item{pitchCands}{matrix of possible pitch values per column. One column is
@@ -26,6 +27,8 @@ means they shouldn't be merged into one voiced syllable}
 many pitch candidates are not NA. Defaults to 2: since dom is usually
 defined, in practice this means that we also want at least one other pitch
 candidate (autocor, cep or BaNa)}
+
+\item{pitchMethods}{methods of pitch tracking in analyze()}
 }
 \value{
 Returns a dataframe specifying where each voiced segment starts and
@@ -37,6 +40,6 @@ Internal soundgen function.
 \details{
 Internal helper function for postprocessing of pitch contours. Merges voiced
 segments at least \code{shortestSyl} ms long and separated by less than
-\code{shortestPause} ms.
+\code{shortestPause} ms. Called by \code{\link{analyze}}
 }
 \keyword{internal}

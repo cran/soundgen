@@ -14,32 +14,36 @@
 #'   not analyzed at all. NB: this number is dynamically updated: the actual
 #'   silence threshold may be higher depending on the quietest frame, but it
 #'   will never be lower than this specified number.
-#' @param scale maximum possible amplitude of input used for normalization (not
-#'   needed for audio files)
+#' @param scale maximum possible amplitude of input used for normalization of
+#'   input vector (not needed if input is an audio file)
+#' @param SPL_measured sound pressure level at which the sound is presented, dB
+#'   (set to 0 to skip analyzing subjective loudness)
 #' @param cutFreq (>0 to Nyquist, Hz) repeat the calculation of spectral
 #'   descriptives after discarding all info above \code{cutFreq}.
 #'   Recommended if the original sampling rate varies across different analyzed
 #'   audio files
-#' @param nFormants the number of formants to extract per STFT frame. Calls
-#'   \code{\link[phonTools]{findformants}} with default settings
+#' @param nFormants the number of formants to extract per STFT frame (0 = no
+#'   formant analysis). Calls \code{\link[phonTools]{findformants}} with default
+#'   settings
 #' @param pitchMethods methods of pitch estimation to consider for determining
 #'   pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
-#'   'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band
+#'   'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band ('' or
+#'   NULL = no pitch analysis)
 #' @param entropyThres pitch tracking is not performed for frames with Weiner
 #'   entropy above \code{entropyThres}, but other spectral descriptives are
 #'   still calculated
 #' @param pitchFloor,pitchCeiling absolute bounds for pitch candidates (Hz)
-#' @param priorMean,priorSD specifies the mean and sd of gamma distribution
-#'   describing our prior knowledge about the most likely pitch values for this
-#'   file. Specified in semitones: \code{priorMean = HzToSemitones(300),
-#'   priorSD = 6} gives a prior with mean = 300 Hz and SD of 6 semitones (half
+#' @param priorMean,priorSD specifies the mean (Hz) and standard deviation
+#'   (semitones) of gamma distribution describing our prior knowledge about the
+#'   most likely pitch values for this file. For ex., \code{priorMean = 300,
+#'   priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 #'   an octave)
 #' @param priorPlot if TRUE, produces a separate plot of the prior
 #' @param nCands maximum number of pitch candidates per method (except for
 #'   \code{dom}, which returns at most one candidate per frame), normally 1...4
-#' @param minVoicedCands minimum number of pitch candidates that
-#'   have to be defined to consider a frame voiced (defaults to 2 if \code{dom}
-#'   is among other candidates and 1 otherwise)
+#' @param minVoicedCands minimum number of pitch candidates that have to be
+#'   defined to consider a frame voiced (if NULL, defaults to 2 if \code{dom} is
+#'   among other candidates and 1 otherwise)
 #' @param domThres (0 to 1) to find the lowest dominant frequency band, we
 #'   do short-term FFT and take the lowest frequency with amplitude at least
 #'   domThres
@@ -52,9 +56,8 @@
 #' @param autocorSmooth the width of smoothing interval (in bins) for
 #'   finding peaks in the autocorrelation function. Defaults to 7 for sampling
 #'   rate 44100 and smaller odd numbers for lower values of sampling rate
-#' @param cepSmooth the width of smoothing interval (in bins) for finding
-#'   peaks in the cepstrum. Defaults to 31 for sampling rate 44100 and smaller
-#'   odd numbers for lower values of sampling rate
+#' @param cepSmooth the width of smoothing interval (Hz) for finding peaks in
+#'   the cepstrum
 #' @param cepZp zero-padding of the spectrum used for cepstral pitch detection
 #'   (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)
 #' @param specPeak,specHNRslope when looking for putative harmonics in
@@ -73,8 +76,8 @@
 #'   means they shouldn't be merged into one voiced syllable
 #' @param interpolWin,interpolTol,interpolCert control the behavior of
 #'   interpolation algorithm when postprocessing pitch candidates. To turn off
-#'   interpolation, set \code{interpolWin} to NULL. See
-#'   \code{soundgen:::pathfinder} for details.
+#'   interpolation, set \code{interpolWin = 0}. See \code{soundgen:::pathfinder}
+#'   for details.
 #' @param pathfinding method of finding the optimal path through pitch
 #'   candidates: 'none' = best candidate per frame, 'fast' = simple heuristic,
 #'   'slow' = annealing. See \code{soundgen:::pathfinder}
@@ -86,12 +89,12 @@
 #'   tension of the resulting pitch curve
 #' @param snakeStep optimized path through pitch candidates is further
 #'   processed to minimize the elastic force acting on pitch contour. To
-#'   disable, set \code{snakeStep} to NULL
+#'   disable, set \code{snakeStep = 0}
 #' @param snakePlot if TRUE, plots the snake
 #' @param smooth,smoothVars if \code{smooth} is a positive number, outliers of
 #'   the variables in \code{smoothVars} are adjusted with median smoothing.
 #'   \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
-#'   deviation of ~4 semitones. To disable, set \code{smooth} to NULL
+#'   deviation of ~4 semitones. To disable, set \code{smooth = 0}
 #' @param summary if TRUE, returns only a summary of the measured acoustic
 #'   variables (mean, median and SD). If FALSE, returns a list containing
 #'   frame-by-frame values
@@ -161,6 +164,14 @@
 #' a = analyze(sound, samplingRate = 16000, plot = TRUE)
 #'
 #' \dontrun{
+#' # For maximum processing speed (just basic spectral descriptives):
+#' a = analyze(sound, samplingRate = 16000,
+#'   plot = FALSE,         # no plotting
+#'   pitchMethods = NULL,  # no pitch tracking
+#'   SPL_measured = NULL,  # no loudness analysis
+#'   nFormants = 0         # no formant analysis
+#' )
+#'
 #' sound1 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 300), value = c(-40, 0)),
@@ -260,17 +271,17 @@ analyze = function(x,
                    entropyThres = 0.6,
                    pitchFloor = 75,
                    pitchCeiling = 3500,
-                   priorMean = HzToSemitones(300),
+                   priorMean = 300,
                    priorSD = 6,
                    priorPlot = FALSE,
                    nCands = 1,
-                   minVoicedCands = 'autom',
+                   minVoicedCands = NULL,
                    domThres = 0.1,
                    domSmooth = 220,
                    autocorThres = 0.7,
                    autocorSmooth = NULL,
                    cepThres = 0.3,
-                   cepSmooth = NULL,
+                   cepSmooth = 400,
                    cepZp = 0,
                    specThres = 0.3,
                    specPeak = 0.35,
@@ -280,7 +291,7 @@ analyze = function(x,
                    specMerge = 1,
                    shortestSyl = 20,
                    shortestPause = 60,
-                   interpolWin = 3,
+                   interpolWin = 75,
                    interpolTol = 0.3,
                    interpolCert = 0.3,
                    pathfinding = c('none', 'fast', 'slow')[2],
@@ -362,12 +373,15 @@ analyze = function(x,
 
   # calculate scaling coefficient for loudness calculation, but don't convert
   # yet, since most routines in analyze() require scale [-1, 1]
-  scaleCorrection = max(abs(scaleSPL(sound * m / scale,
-                                     # NB: m / scale = 1 if the sound is normalized  to 0 dB (max amplitude)
-                                     scale = 1,
-                                     SPL_measured = SPL_measured,
-                                     Pref = Pref))) /  # peak ampl of rescaled
-    m  # peak ampl of original
+  scaleCorrection = NA
+  if (is.numeric(SPL_measured) && SPL_measured > 0) {
+    scaleCorrection = max(abs(scaleSPL(sound * m / scale,
+                                       # NB: m / scale = 1 if the sound is normalized  to 0 dB (max amplitude)
+                                       scale = 1,
+                                       SPL_measured = SPL_measured,
+                                       Pref = Pref))) /  # peak ampl of rescaled
+      m  # peak ampl of original
+  }
 
   # normalize to range from no less than -1 to no more than +1
   if (min(sound) > 0) {
@@ -375,22 +389,40 @@ analyze = function(x,
   }
   sound = sound / max(abs(sound))
 
-  # some derived pars, defaults
-  if (samplingRate < 2000) {
-    warning(paste('Sampling rate must be >2 KHz to resolve frequencies of at least 8 barks',
-                  'and estimate loudness in sone'))
-  } else if (samplingRate > 44100) {
-    message(paste('Sampling rate above 44100, but discarding frequencies above 27 barks',
-                  '(27 KHz) as inaudible to humans when estimating loudness'))
+  # Check simple numeric default pars
+  simplePars = c('silence', 'entropyThres', 'domThres',
+                 'autocorThres', 'autocorSmooth',
+                 'cepThres', 'cepSmooth',
+                 'specThres', 'specPeak',
+                 'specSinglePeakCert', 'certWeight',
+                 'interpolWin', 'interpolCert')
+  for (p in simplePars) {
+    gp = try(get(p), silent = TRUE)
+    if (class(gp) != "try-error") {
+      if (is.numeric(gp)) {
+        if (any(gp < defaults_analyze[p, 'low']) |
+            any(gp > defaults_analyze[p, 'high'])) {
+          # reset p to default, with a warning
+          assign(noquote(p), defaults_analyze[p, 'default'])
+          warning(paste0(
+            "\n", p, " should be between ", defaults_analyze[p, 'low'],
+            " and ", defaults_analyze[p, 'high'],
+            "; resetting to ", defaults_analyze[p, 'default']
+          ))
+        }
+      }
+    }
   }
 
-  if (!is.numeric(silence) | silence < 0 | silence > 1) {
-    silence = 0.04
-    warning('"silence" must be between 0 and 1; defaulting to 0.04')
-  }
-  if (!is.numeric(entropyThres) | entropyThres < 0 | entropyThres > 1) {
-    entropyThres = 0.6
-    warning('"entropyThres" must be between 0 and 1; defaulting to 0.6')
+  # Check defaults that depend on other pars or require customized warnings
+  if (SPL_measured != 0) {  # if analyzing loudness
+    if (samplingRate < 2000) {
+      warning(paste('Sampling rate must be >2 KHz to resolve frequencies of at least 8 barks',
+                    'and estimate loudness in sone'))
+    } else if (samplingRate > 44100) {
+      message(paste('Sampling rate above 44100, but discarding frequencies above 27 barks',
+                    '(27 KHz) as inaudible to humans when estimating loudness'))
+    }
   }
   duration = length(sound) / samplingRate
   if (!is.numeric(windowLength) | windowLength <= 0 |
@@ -402,6 +434,7 @@ analyze = function(x,
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
   # to ensure that the window length in points is a power of 2, say 2048 or 1024:
   # windowLength_points = 2^round (log(windowLength * samplingRate /1000)/log(2), 0)
+
   if (!is.numeric(step)) {
     if (!is.numeric(overlap) | overlap < 0 | overlap > 99) {
       overlap = 50
@@ -424,14 +457,7 @@ analyze = function(x,
     warning(paste('"step" should normally not be larger than "windowLength" ms:',
                   'you are skipping parts of the sound!'))
   }
-  supported_wn = c('bartlett', 'blackman', 'flattop', 'gaussian',
-                   'hamming', 'hanning', 'rectangle')
-  if (!wn %in% supported_wn) {
-    wn = 'gaussian'
-    warning(paste('Implemented "wn":',
-                  paste(supported_wn, collapse = ', '),
-                  '. Defaulting to "gaussian"'))
-  }
+
   if (!is.numeric(zp)) {
     zp = 0
   } else if (zp < 0) {
@@ -448,7 +474,7 @@ analyze = function(x,
     pitchFloor = 1
     warning(paste('"pitchFloor" must be between 0 and pitchCeiling;',
                   'defaulting to 1 Hz'))
-  } # 1 Hz ~ 4 octraves below C0
+  } # 1 Hz ~ 4 octaves below C0
   if (!is.numeric(pitchCeiling) | pitchCeiling > samplingRate / 2) {
     pitchCeiling = samplingRate / 2  # Nyquist
     warning(paste('"pitchCeiling" must be between 0 and Nyquist;',
@@ -461,11 +487,10 @@ analyze = function(x,
                   'defaulting to 1 Hz and samplingRate / 2, respectively'))
   }
   if (is.numeric(priorMean)) {
-    if (semitonesToHz(priorMean) > samplingRate / 2 |
-        semitonesToHz(priorMean) <= 0) {
-      priorMean = HzToSemitones(300)
+    if (priorMean > samplingRate / 2 | priorMean <= 0) {
+      priorMean = 300
       warning(paste('"priorMean" must be between 0 and Nyquist;',
-                    'defaulting to HzToSemitones(300); set to NULL to disable prior'))
+                    'defaulting to 300; set to NULL to disable prior'))
     }
   }
   if (is.numeric(priorSD)) {
@@ -480,73 +505,51 @@ analyze = function(x,
   } else if (!is.integer(nCands)) {
     nCands = round(nCands)
   }
-
-  if (!is.numeric(domThres) | domThres < 0 | domThres > 1) {
-    domThres = 0.1
-    warning('"domThres" must be between 0 and 1; defaulting to 0.1')
-  }
-  if (!is.numeric(autocorThres) | autocorThres < 0 | autocorThres > 1) {
-    autocorThres = 0.7
-    warning('"autocorThres" must be between 0 and 1; defaulting to 0.7')
-  }
-  if (!is.numeric(cepThres) | cepThres < 0 | cepThres > 1) {
-    cepThres = 0.3
-    warning('"cepThres" must be between 0 and 1; defaulting to 0.3')
-  }
-  if (!is.numeric(specThres) | specThres < 0 | specThres > 1) {
-    specThres = 0.3
-    warning('"specThres" must be between 0 and 1; defaulting to 0.3')
-  }
-  if (!is.numeric(specPeak) | specPeak < 0 | specPeak > 1) {
-    specPeak = 0.35
-    warning('"specPeak" must be between 0 and 1; defaulting to 0.35')
-  }
-  if (!is.numeric(specSinglePeakCert) | specSinglePeakCert < 0 |
-      specSinglePeakCert > 1) {
-    specSinglePeakCert = 0.4
-    warning('"specSinglePeakCert" must be between 0 and 1; defaulting to 0.4')
-  }
   if (!is.numeric(specMerge) | specMerge < 0) {
     specMerge = 1
     warning('"specMerge" must be non-negative; defaulting to 1 semitone')
   }
-
   if (!is.numeric(shortestSyl) | shortestSyl < 0) {
     shortestSyl = 0
-    warning('shortestSyl must be non-negative; defaulting to 0')
-  }
-  if (shortestSyl > duration * 1000) {
-    warning('"shortestSyl" is longer than the sound')
+    warning('shortestSyl must be non-negative; defaulting to 0 ms')
   }
   if (!is.numeric(shortestPause) | shortestPause < 0) {
     shortestPause = 0
-    warning('shortestPause must be a non-negative number; defaulting to 0')
+    warning('shortestPause must be a non-negative number; defaulting to 0 ms')
   }
-  if (shortestPause > 0 & is.numeric(interpolWin)) {
+  if (shortestPause > 0 & interpolWin > 0) {
     if (interpolWin * step < shortestPause / 2) {
       interpolWin = ceiling(shortestPause / 2 / step)
       warning(paste('"interpolWin" reset to', interpolWin,
                     ': interpolation must be able to bridge merged voiced fragments'))
     }
   }
-  if (is.numeric(interpolWin)) {
-    if (!is.numeric(interpolTol) | interpolTol <= 0) {
-      interpolTol = 0.3
-      warning('"interpolTol" must be positive; defaulting to 0.3')
-    }
-    if (!is.numeric(interpolCert) | interpolCert < 0 | interpolCert > 1) {
-      interpolCert = 0.3
-      warning('"interpolTol" must be between 0 and 1; defaulting to 0.3')
-    }
+  if (interpolTol <= 0) {
+    interpolTol = 0.3
+    warning('"interpolTol" must be positive; defaulting to 0.3')
+  }
+  if (!is.numeric(autocorSmooth)) {
+    autocorSmooth = 2 * ceiling(7 * samplingRate / 44100 / 2) - 1
+    # width of smoothing interval, chosen to be proportionate to samplingRate (7
+    # for samplingRate 44100), but always an odd number.
+    # for(i in seq(16000, 60000, length.out = 10)) {
+    #   print(paste(round(i), ':', 2 * ceiling(7 * i / 44100 / 2) - 1))
+    # }
+  }
+
+  # Check non-numeric defaults
+  supported_wn = c('bartlett', 'blackman', 'flattop', 'gaussian',
+                   'hamming', 'hanning', 'rectangle')
+  if (!wn %in% supported_wn) {
+    wn = 'gaussian'
+    warning(paste('Implemented "wn":',
+                  paste(supported_wn, collapse = ', '),
+                  '. Defaulting to "gaussian"'))
   }
   if (!pathfinding %in% c('none', 'fast', 'slow')) {
     pathfinding = 'fast'
     warning(paste('Implemented "pathfinding": "none", "fast", "slow";',
                   'defaulting to "fast"'))
-  }
-  if (!is.numeric(certWeight) | certWeight < 0 | certWeight > 1) {
-    certWeight = 0.5
-    warning('"certWeight" must be between 0 and 1; defaulting to 0.5')
   }
 
   # Set up filter for calculating pitchAutocor
@@ -634,6 +637,7 @@ analyze = function(x,
   time_start = step * (min(non_silent_frames) - 1)  # the beginning of the first non-silent frame
   time_end = step * (max(non_silent_frames))        # the end of the last non-silent frame
   duration_noSilence = (time_end - time_start) / 1000
+  framesToAnalyze = which(cond_silence)
 
   # autocorrelation for each frame
   autocorBank = matrix(NA, nrow = length(autoCorrelation_filter),
@@ -647,32 +651,36 @@ analyze = function(x,
   rownames(autocorBank) = samplingRate / (1:nrow(autocorBank))
 
   ## FORMANTS
-  framesToAnalyze = which(cond_silence)
-  formants = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
-  colnames(formants) = paste0('f', rep(1:nFormants, each = 2),
-                              rep(c('_freq', '_width'), nFormants))
-  for (i in framesToAnalyze) {
-    ff = try(phonTools::findformants(frameBank[, i],
-                                     fs = samplingRate,
-                                     verify = FALSE),
-             silent = TRUE)
-    if (class(ff) != 'try-error' & is.list(ff)) {
-      temp = matrix(NA, nrow = nFormants, ncol = 2)
-      availableRows = 1:min(nFormants, nrow(ff))
-      temp[availableRows, ] = as.matrix(ff[availableRows, ])
-      formants[i, ] = matrix(t(temp), nrow = 1)
+  formants = NULL
+  if (nFormants > 0) {
+    formants = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
+    colnames(formants) = paste0('f', rep(1:nFormants, each = 2),
+                                rep(c('_freq', '_width'), nFormants))
+    for (i in framesToAnalyze) {
+      ff = try(phonTools::findformants(frameBank[, i],
+                                       fs = samplingRate,
+                                       verify = FALSE),
+               silent = TRUE)
+      if (class(ff) != 'try-error' & is.list(ff)) {
+        temp = matrix(NA, nrow = nFormants, ncol = 2)
+        availableRows = 1:min(nFormants, nrow(ff))
+        temp[availableRows, ] = as.matrix(ff[availableRows, ])
+        formants[i, ] = matrix(t(temp), nrow = 1)
+      }
     }
   }
+
+
 
   ## PITCH and other spectral analysis of each frame from fft
   # set up an empty nested list to save values in - this enables us to analyze
   # only the non-silent and not-too-noisy frames but still have a consistently
   # formatted output
   frameInfo = rep(list(list(
-    'pitch_array' = data.frame(
+    'pitchCands_frame' = data.frame(
       'pitchCand' = NA,
-      'pitchAmpl' = NA,
-      'source' = NA,
+      'pitchCert' = NA,
+      'pitchSource' = NA,
       stringsAsFactors = FALSE,
       row.names = NULL
     ),
@@ -727,7 +735,7 @@ analyze = function(x,
   result = lapply(frameInfo, function(y) y[['summaries']])
   result = data.frame(matrix(unlist(result), nrow=length(frameInfo), byrow=TRUE))
   colnames(result) = names(frameInfo[[1]]$summaries)
-  result = cbind(result, formants)
+  if (!is.null(formants)) result = cbind(result, formants)
   result$entropy = entropy
   result$ampl = ampl
   result$time = round(seq(0,
@@ -740,111 +748,99 @@ analyze = function(x,
 
   ## postprocessing
   # extract and prepare pitch candidates for the pathfinder algorithm
-  pitch_list = lapply(frameInfo, function(y) y[['pitch_array']])
-  pitchCands = lapply(pitch_list, function(y) as.data.frame(t(y[['pitchCand']])))
-  pitchCands = t(plyr::rbind.fill(pitchCands)) # a matrix of pitch candidates per frame
-  pitchCert = lapply(pitch_list, function(y) as.data.frame(t(y[['pitchAmpl']])))
-  pitchCert = t(plyr::rbind.fill(pitchCert)) # a matrix of our certainty in pitch candidates
-  pitchSource = lapply(pitch_list, function(y) {
-    # NB: without StringsAsFactors=FALSE, the first row becomes "1"
-    # because of wrong NA recognition
-    as.data.frame(t(y[['source']]), stringsAsFactors = FALSE)
-  })
-  pitchSource = t(plyr::rbind.fill(pitchSource)) # a matrix of the sources of pitch candidates
-  pitch_na = which(is.na(pitchCands))
-  pitchCert[pitch_na] = NA
-  pitchSource[pitch_na] = NA
-
-  # PRIOR for adjusting the estimated pitch certainties. For ex., if primarily
-  # working with speech, we could prioritize pitch candidates in the expected
-  # pitch range (100-1000 Hz) and dampen candidates with very high or very low
-  # frequency as unlikely but still remotely possible in everyday vocalizing
-  # contexts (think a soft pitch ceiling)
-  if (is.numeric(priorMean) & is.numeric(priorSD)) {
-    shape = priorMean ^ 2 / priorSD ^ 2
-    rate = priorMean / priorSD ^ 2
-    prior_normalizer = max(dgamma(
-      seq(HzToSemitones(pitchFloor), HzToSemitones(pitchCeiling), length.out = 100),
-      shape = shape,
-      rate = rate
-    ))
-    pitchCert_multiplier = dgamma(
-      HzToSemitones(pitchCands),
-      shape = shape,
-      rate = rate
-    ) / prior_normalizer
-    pitchCert = pitchCert * pitchCert_multiplier
-  }
-
-  # divide the file into continuous voiced syllables
-  if (!is.numeric(minVoicedCands) | minVoicedCands < 1 |
-      minVoicedCands > length(pitchMethods)) {
-    if ('dom' %in% pitchMethods & length(pitchMethods) > 1) {
-      # since dom is usually defined, we want at least one more pitch candidate
-      # (unless dom is the ONLY method that the user wants for pitch tracking)
-      minVoicedCands = 2
-    } else {
-      minVoicedCands = 1
+  max_cands = max(unlist(lapply(frameInfo, function(y)
+    nrow(y[['pitchCands_frame']]))))
+  if (max_cands == 0) {  # no pitch candidates at all, purely unvoiced
+    result[, c('pitch', 'pitchAutocor', 'pitchCep', 'pitchSpec')] = NA
+  } else {
+    pitchCands_list = rep(list(matrix(
+      NA,
+      nrow = max_cands,
+      ncol = length(frameInfo),
+      dimnames = list(1:max_cands, result$time)
+    )), 3)
+    names(pitchCands_list) = c('freq', 'cert', 'source')
+    for (i in 1:length(frameInfo)) {
+      temp = frameInfo[[i]]$pitchCands_frame
+      n = nrow(temp)
+      if (n > 0) {
+        pitchCands_list[[1]][1:n, i] = temp[, 1]
+        pitchCands_list[[2]][1:n, i] = temp[, 2]
+        pitchCands_list[[3]][1:n, i] = temp[, 3]
+      }
     }
-  }
-  voicedSegments = findVoicedSegments(
-    pitchCands,
-    shortestSyl = shortestSyl,
-    shortestPause = shortestPause,
-    minVoicedCands = minVoicedCands,
-    step = step,
-    samplingRate = samplingRate
-  )
 
-  # for each syllable, impute NA's and find a nice path through pitch candidates
-  pitchFinal = rep(NA, ncol(pitchCands))
-  if (nrow(voicedSegments) > 0) {
-    # if we have found at least one putatively voiced syllable
-    for (syl in 1:nrow(voicedSegments)) {
-      myseq = voicedSegments$segmentStart[syl]:voicedSegments$segmentEnd[syl]
-      # compute the optimal path through pitch candidates
-      pitchFinal[myseq] = pathfinder(
-        pitchCands = pitchCands[, myseq, drop = FALSE],
-        pitchCert = pitchCert[, myseq, drop = FALSE],
-        certWeight = certWeight,
-        pathfinding = pathfinding,
-        annealPars = annealPars,
-        interpolWin = interpolWin,
-        interpolTol = interpolTol,
-        interpolCert = interpolCert,
-        snakeStep = snakeStep,
-        snakePlot = snakePlot
-      )
+    # add prior
+    if (is.numeric(priorMean) & is.numeric(priorSD)) {
+      pitchCert_multiplier = getPrior(priorMean = priorMean,
+                                      priorSD = priorSD,
+                                      pitchCands = pitchCands_list$freq,
+                                      pitchFloor = pitchFloor,
+                                      pitchCeiling = pitchCeiling,
+                                      plot = priorPlot)
+      pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier
     }
-  }
 
-  # save optimal pitch track and the best candidates separately for
-  # autocor, cepstrum and spectral
-  result$pitch = pitchFinal # optimal pitch track
-  result$pitchAutocor = as.numeric(lapply(pitch_list, function(x) {
-    x$pitchCand[x$source == 'autocor'] [which.max(x$pitchAmpl[x$source == 'autocor'])]
-  }))
-  result$pitchCep = as.numeric(lapply(pitch_list, function(x) {
-    x$pitchCand[x$source == 'cep'] [which.max(x$pitchAmpl[x$source == 'cep'])]
-  }))
-  result$pitchSpec = as.numeric(lapply(pitch_list, function(x) {
-    x$pitchCand[x$source == 'spec'] [which.max(x$pitchAmpl[x$source == 'spec'])]
-  }))
+    # divide the file into continuous voiced syllables
+    voicedSegments = findVoicedSegments(
+      pitchCands_list$freq,
+      shortestSyl = shortestSyl,
+      shortestPause = shortestPause,
+      minVoicedCands = minVoicedCands,
+      pitchMethods = pitchMethods,
+      step = step,
+      samplingRate = samplingRate
+    )
+
+    # for each syllable, impute NA's and find a nice path through pitch candidates
+    pitchFinal = rep(NA, ncol(pitchCands_list$freq))
+    if (nrow(voicedSegments) > 0) {
+      # if we have found at least one putatively voiced syllable
+      for (syl in 1:nrow(voicedSegments)) {
+        myseq = voicedSegments$segmentStart[syl]:voicedSegments$segmentEnd[syl]
+        # compute the optimal path through pitch candidates
+        pitchFinal[myseq] = pathfinder(
+          pitchCands = pitchCands_list$freq[, myseq, drop = FALSE],
+          pitchCert = pitchCands_list$cert[, myseq, drop = FALSE],
+          pitchSource = pitchCands_list$source[, myseq, drop = FALSE],
+          certWeight = certWeight,
+          pathfinding = pathfinding,
+          annealPars = annealPars,
+          interpolWin_bin = ceiling(interpolWin / step),
+          interpolTol = interpolTol,
+          interpolCert = interpolCert,
+          snakeStep = snakeStep,
+          snakePlot = snakePlot
+        )
+      }
+    }
+
+    # save optimal pitch track and the best candidates separately for
+    # autocor, cepstrum and spectral
+    result$pitch = pitchFinal # optimal pitch track
+    result$pitchAutocor = as.numeric(lapply(frameInfo, function(x) {
+      x$pitchCands_frame$pitchCand[x$pitchCands_frame$pitchSource == 'autocor'] [which.max(x$pitchCands_frame$pitchCert[x$pitchCands_frame$pitchSource == 'autocor'])]
+    }))
+    result$pitchCep = as.numeric(lapply(frameInfo, function(x) {
+      x$pitchCands_frame$pitchCand[x$pitchCands_frame$pitchSource == 'cep'] [which.max(x$pitchCands_frame$pitchCert[x$pitchCands_frame$pitchSource == 'autocor'])]
+    }))
+    result$pitchSpec = as.numeric(lapply(frameInfo, function(x) {
+      x$pitchCands_frame$pitchCand[x$pitchCands_frame$pitchSource == 'spec'] [which.max(x$pitchCands_frame$pitchCert[x$pitchCands_frame$pitchSource == 'autocor'])]
+    }))
+  }
 
   ## Median smoothing of specified contours (by default pitch & dom)
-  if (is.numeric(smooth)) {
-    if (smooth > 0) {
-      points_per_sec = nrow(result) / duration
-      # smooth of 1 means that smoothing window is ~100 ms
-      smoothing_ww = round(smooth * points_per_sec / 10, 0)
-      # the larger smooth, the heavier the smoothing (lower tolerance
-      # threshold before values are replaced by median over smoothing window).
-      # smooth of 1 gives smoothingThres of 4 semitones
-      smoothingThres = 4 / smooth
-      result[smoothVars] = medianSmoother(result[smoothVars],
-                                          smoothing_ww = smoothing_ww,
-                                          smoothingThres = smoothingThres)
-    }
+  if (smooth > 0) {
+    points_per_sec = nrow(result) / duration
+    # smooth of 1 means that smoothing window is ~100 ms
+    smoothing_ww = round(smooth * points_per_sec / 10, 0)
+    # the larger smooth, the heavier the smoothing (lower tolerance
+    # threshold before values are replaced by median over smoothing window).
+    # smooth of 1 gives smoothingThres of 4 semitones
+    smoothingThres = 4 / smooth
+    result[smoothVars] = medianSmoother(result[smoothVars],
+                                        smoothing_ww = smoothing_ww,
+                                        smoothingThres = smoothingThres)
   }
 
   ## Having decided upon the pitch for each frame, we save certain measurements
@@ -875,83 +871,19 @@ analyze = function(x,
 
   ## Add pitch contours to the spectrogram
   if (plot) {
-    # if plot_spec is FALSE, we first have to set up an empty plot
-    if (plot_spec == FALSE) {
-      if (is.null(ylim)) {
-        m = max(pitchCands, na.rm = TRUE) / 1000  # for ylim on the empty plot
-        if (is.na(m)) m = samplingRate / 2 / 1000
-        ylim = c(0, m)
-      }
-      plot(x = result$time,
-           y = rep(0, nrow(result)),
-           type = 'n',
-           ylim = ylim,
-           xlab = xlab,
-           ylab = ylab,
-           main = plotname,
-           ...)
-    }
-    # add pitch candidates to the plot
-    if (any(!is.na(pitchCands))) {
-      if (is.null(candPlot$levels)) {
-        candPlot$levels = pitchMethods # c('autocor', 'spec', 'dom', 'cep')
-      }
-      if (is.null(candPlot$col)) {
-        candPlot$col[candPlot$levels == 'autocor'] = 'green'
-        candPlot$col[candPlot$levels == 'spec'] = 'red'
-        candPlot$col[candPlot$levels == 'dom'] = 'orange'
-        candPlot$col[candPlot$levels == 'cep'] = 'violet' # c('green', 'red', 'orange', 'violet')
-      }
-      if (is.null(candPlot$pch)) {
-        candPlot$pch[candPlot$levels == 'autocor'] = 16
-        candPlot$pch[candPlot$levels == 'spec'] = 2
-        candPlot$pch[candPlot$levels == 'dom'] = 3
-        candPlot$pch[candPlot$levels == 'cep'] = 7
-        # candPlot$pch = c(16, 2, 3, 7)
-      }
-      if (is.null(candPlot$cex)) {
-        candPlot$cex = 2
-      }
-      pitchSource_1234 = matrix(match(pitchSource, candPlot$levels),
-                                ncol = ncol(pitchSource))
-      for (r in 1:nrow(pitchCands)) {
-        points(
-          x = result$time,
-          y = pitchCands[r, ] / 1000,
-          col = candPlot$col[pitchSource_1234[r, ]],
-          pch = candPlot$pch[pitchSource_1234[r, ]],
-          cex = pitchCert[r, ] * candPlot$cex
-        )
-      }
-      # add the final pitch contour to the plot
-      if (any(is.numeric(result$pitch))) {
-        if (is.null(pitchPlot$col)) {
-          pitchPlot$col = rgb(0, 0, 1, .75)
-        }
-        if (is.null(pitchPlot$lwd)) {
-          pitchPlot$lwd = 3
-        }
-        do.call('lines', c(list(
-          x = result$time,
-          y = result$pitch / 1000
-        ),
-        pitchPlot)
-        )
-      }
-      # add a legend
-      if (showLegend) {
-        candPlot = as.data.frame(candPlot)
-        candPlot = candPlot[candPlot$levels %in% c(pitchMethods, 'combined'), ]
-        legend("topright",
-               legend = c(as.character(candPlot$levels), 'combined'),
-               pch = c(candPlot$pch, NA),
-               lty = c(rep(NA, length(pitchMethods)),
-                       ifelse(!is.null(pitchPlot$lty), pitchPlot$lty, 1)),
-               lwd = c(rep(NA, length(pitchMethods)), pitchPlot$lwd),
-               col = c(as.character(candPlot$col), pitchPlot$col),
-               bg = "white")
-      }
-    }
+    addPitchCands(pitchCands = pitchCands_list$freq,
+                  pitchCert = pitchCands_list$cert,
+                  pitchSource = pitchCands_list$source,
+                  pitch = result$pitch,
+                  candPlot = candPlot,
+                  pitchPlot = pitchPlot,
+                  addToExistingPlot = plot_spec,
+                  showLegend = showLegend,
+                  ylim = ylim,
+                  xlab = xlab,
+                  ylab = ylab,
+                  main = plotname,
+                  ...)
   }
   if (is.character(savePath)) {
     dev.off()
@@ -959,13 +891,25 @@ analyze = function(x,
 
   # a separate plot of the prior
   if (priorPlot) {
-    freqs = seq(1, HzToSemitones(samplingRate / 2), length.out = 1000)
-    prior = dgamma(freqs, shape = shape, rate = rate) / prior_normalizer
-    plot(semitonesToHz(freqs), prior, type = 'l', xlab = 'Frequency, Hz',
-         ylab = 'Multiplier of certainty', main = 'Prior belief in pitch values')
+    # getPrior = function(priorMean,
+    #                 priorSD,
+    #                 pitchCands,
+    #                 pitchFloor = 1,
+    #                 pitchCeiling = 3000)
+    # freqs = seq(1, HzToSemitones(samplingRate / 2), length.out = 1000)
+    # prior = dgamma(freqs, shape = shape, rate = rate) / prior_normalizer
+    # plot(
+    #   x = semitonesToHz(freqs),
+    #   y = pitchCert_multiplier[, 2],
+    #   type = 'l',
+    #   log = 'x',
+    #   xlim = c(pitchFloor, pitchCeiling),
+    #   xlab = 'Frequency, Hz',
+    #   ylab = 'Multiplier of certainty', main = 'Prior belief in pitch values'
+    # )
   }
 
-  if (summary) {
+  if (summary == TRUE) {
     var_noSummary = c('duration', 'duration_noSilence', 'voiced')
     vars = colnames(result)[!colnames(result) %in% c(var_noSummary, 'time')]
     nVars_noSummary = 3
@@ -1002,8 +946,11 @@ analyze = function(x,
         }
       }
     }
-  } else {
+  } else if (summary == FALSE) {
     out = result
+  } else if (summary == 'extended') {
+    out = list(result = result,
+               pitchCands = pitchCands_list)
   }
   return(out)
 }
@@ -1063,7 +1010,7 @@ analyzeFolder = function(myfolder,
                          entropyThres = 0.6,
                          pitchFloor = 75,
                          pitchCeiling = 3500,
-                         priorMean = HzToSemitones(300),
+                         priorMean = 300,
                          priorSD = 6,
                          priorPlot = FALSE,
                          nCands = 1,
@@ -1083,7 +1030,7 @@ analyzeFolder = function(myfolder,
                          specMerge = 1,
                          shortestSyl = 20,
                          shortestPause = 60,
-                         interpolWin = 3,
+                         interpolWin = 75,
                          interpolTol = 0.3,
                          interpolCert = 0.3,
                          pathfinding = c('none', 'fast', 'slow')[2],

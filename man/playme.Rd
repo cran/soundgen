@@ -4,10 +4,11 @@
 \alias{playme}
 \title{Play audio}
 \usage{
-playme(sound, samplingRate = 16000, player = NULL)
+playme(sound, samplingRate = 16000, player = NULL, from = NULL,
+  to = NULL)
 }
 \arguments{
-\item{sound}{a vector of numbers on any scale or a path to a .wav file}
+\item{sound}{numeric vector or path to wav/mp3 file}
 
 \item{samplingRate}{sampling rate (only needed if sound is a vector)}
 
@@ -15,12 +16,15 @@ playme(sound, samplingRate = 16000, player = NULL)
 case of errors, try setting another default player for
 \code{\link[tuneR]{play}}}
 
+\item{from, to}{play a selected time range (s)}
+
 \item{...}{additional parameters passed to \code{\link[tuneR]{play}}}
 }
 \description{
-Plays an audio file or a numeric vector. This is a simple wrapper for the
-functionality provided by \code{\link[tuneR]{play}}. Recommended players on
-Linux: "play" from the "vox" library (default), "aplay".
+Plays an audio file (wav or mp3) or a numeric vector. This is a simple
+wrapper for the functionality provided by \code{\link[tuneR]{play}}.
+Recommended players on Linux: "play" from the "vox" library (default),
+"aplay".
 }
 \examples{
 # Play an audio file:
@@ -30,6 +34,7 @@ Linux: "play" from the "vox" library (default), "aplay".
 f0_Hz = 440
 sound = sin(2 * pi * f0_Hz * (1:16000) / 16000)
 # playme(sound, 16000)
+# playme(sound, 16000, from = .1, to = .5)  # play from 100 to 500 ms
 
 # In case of errors, look into tuneR::play(). For ex., you might need to
 # specify which player to use:

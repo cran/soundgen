@@ -4,15 +4,19 @@
 \alias{pathfinding_fast}
 \title{Path through pitch candidates: fast}
 \usage{
-pathfinding_fast(pitchCands = pitchCands, pitchCert = pitchCert,
-  pitchCenterGravity = pitchCenterGravity, certWeight = certWeight)
+pathfinding_fast(pitchCands, pitchCert, pitchSource, manual,
+  pitchCenterGravity, certWeight)
 }
 \arguments{
 \item{pitchCands}{a matrix of multiple pitch candidates per fft frame. Each
-column is one fft frame, each row is one candidate.}
+column is one fft frame, each row is one candidate (the last row is always
+"manual")}
 
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
+
+\item{manual}{dataframe giving manual pitch candidates, which the path
+MUST go through}
 
 \item{pitchCenterGravity}{numeric vector giving the mean of all pitch
 candidates per fft frame weighted by our certainty in each of these
