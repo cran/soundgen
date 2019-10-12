@@ -90,11 +90,9 @@ a = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4),
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
 par(mfrow = c(1, 2))
 # default prior in soundgen
-a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = 300, priorSD = 6)  
+getPrior(priorMean = 300, priorSD = 6)
 # narrow peak at 2 kHz
-a2 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = 2000, priorSD = 1)
+getPrior(priorMean = 2000, priorSD = 1)
 par(mfrow = c(1, 1))
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
@@ -132,7 +130,7 @@ s_withf0 = soundgen(sylLen = 600, pitch = 300,
 # playme(s_withf0)
 seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 4, fig.width = 5--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 6--------------------
 a_withf0 = analyze(s_withf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 
@@ -142,7 +140,7 @@ s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
 # playme(s_withoutf0)  # you can clearly hear the difference
 seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 4, fig.width = 5--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 6--------------------
 a_withoutf0 = analyze(s_withoutf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 
@@ -158,34 +156,36 @@ a = analyze(
 )       
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .4, step = 25,
              snakeStep = 0, smooth = 0,
              interpolWin = 0,   # disable interpolation
              pathfinding = 'none',  
-             main = 'No interpolation', showLegend = FALSE)
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             summary = FALSE,
+             plot = FALSE)
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .4, step = 25,
              pathfinding = 'none',
              snakeStep = 0, smooth = 0, 
-             main = 'Interpolation', showLegend = FALSE)  
+             summary = FALSE,
+             plot = FALSE)  
+plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3)
 
-par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+## ----fig.show = "hold", fig.height = 6, fig.width = 7--------------------
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
              snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 0,  # minimize pitch jumps
-             main = 'Minimize jumps', showLegend = FALSE)  
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             main = 'Minimize jumps', 
+             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))  
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
              snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 1,  # minimize deviation from high-certainty candidates
-             main = 'Pass through top cand-s', showLegend = FALSE)  
-par(mfrow = c(1, 1))
+             main = 'Pass through top cand-s', 
+             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))
 
 ## ----fig.height = 5, fig.width = 7---------------------------------------
 a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
@@ -195,25 +195,34 @@ a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
              snakeStep = 0.05, snakePlot = TRUE)
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
-             smooth = 0, main = 'No smoothing', showLegend = FALSE)
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             smooth = 0,  # no smoothing
+             summary = FALSE, plot = FALSE)
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
-             smooth = 1, main = 'Default smoothing', showLegend = FALSE)
-par(mfrow = c(1, 1))
+             smooth = 1,  # default smoothing
+             summary = FALSE, plot = FALSE)
+plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3, lwd = 2)
 
 ## ----fig.height = 5, fig.width = 7---------------------------------------
 a = analyze(s1, samplingRate = 16000, plot = TRUE, priorMean = NA,
+            xlab = 'Time (ms)',
+            main = 'My spectrogram',
+            
             # options for spectrogram(): see ?spectrogram
             contrast = .75,
             brightness = -0.5,
             colorTheme = 'seewave',
             ylim = c(0, 4),
             # + other pars passed to soundgen:::filled.contour.mod()
+            
+            # options for oscillogram
+            osc_dB = TRUE, 
+            heights = c(3, 1),
             
             # options for plotting the final pitch contour (line)
             pitchPlot = list(       

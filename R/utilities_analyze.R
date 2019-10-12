@@ -264,6 +264,10 @@ getDom = function(frame,
 #' of phonetic sciences (Vol. 17, No. 1193, pp. 97-110).
 #' @inheritParams analyzeFrame
 #' @inheritParams analyze
+#' @param upsample_to_res upsamples acf to this resolution (Hz) to improve
+#'   accuracy in high frequencies
+#' @param autocorBestPeak amplitude of the lowest best candidate relative to the
+#'   absolute max of the acf
 #' @return Returns a list of $HNR (NA or numeric) and $pitchAutocor_array
 #'   (either NULL or a dataframe of pitch candidates).
 #' @keywords internal
@@ -273,14 +277,41 @@ getPitchAutocor = function(autoCorrelation,
                            pitchFloor,
                            pitchCeiling,
                            samplingRate,
-                           nCands) {
+                           nCands,
+                           upsample_to_res = 25,
+                           autocorBestPeak = .975) {
   # autoCorrelation = autocorBank[, 13]
   pitchAutocor_array = NULL
-  a = data.frame('freq' = as.numeric(names(autoCorrelation)),
-                 'amp' = autoCorrelation)
-  rownames(a) = NULL
-  a = a[a$freq > pitchFloor &
-          a$freq < pitchCeiling, , drop = FALSE] # plot(a[,2], type='l')
+
+  # don't consider candidates above nyquist / 2 b/c there's not enough
+  # resolution in acf that high up
+  pitchCeiling = min(pitchCeiling, samplingRate / 4)
+
+  orig = data.frame('freq' = as.numeric(names(autoCorrelation)),
+                    'amp' = autoCorrelation)
+  rownames(orig) = NULL
+  a = orig[orig$freq > pitchFloor &
+             orig$freq < pitchCeiling, , drop = FALSE]
+  # plot(a$freq, a$amp, type='b')
+
+  # upsample to improve resolution in higher frequencies
+  if (upsample_to_res > 0) {
+    upsample_from_bin = 1  # in Hz, it's samplingRate / (upsample_from_bin + 1)
+    # same as which(a$freq < samplingRate / 4)[1], etc.
+    upsample_to_bin = which(diff(a$freq) > -upsample_to_res)[1]
+    upsample_len = round((a$freq[upsample_from_bin] - a$freq[upsample_to_bin]) /
+                           upsample_to_res)
+    if (pitchCeiling > a$freq[upsample_to_bin]) {
+      temp = spline(a$amp[upsample_from_bin:upsample_to_bin],
+                    n = upsample_len,
+                    x = a$freq[upsample_from_bin:upsample_to_bin])
+      # points(temp$x, temp$y, type = 'p', cex = .25, col = 'red')
+      a = rbind(a[1:upsample_from_bin, ],
+                data.frame(freq = rev(temp$x), amp = rev(temp$y)),
+                a[(upsample_to_bin + 1):nrow(a), ])
+    }
+  }
+
   HNR = max(a$amp) # HNR is here defined as the maximum autocorrelation
   # within the specified pitch range. It is also measured for the frames which
   # are later classified as unvoiced (i.e. HNR can be <voicedThres)
@@ -302,7 +333,7 @@ getPitchAutocor = function(autoCorrelation,
     # we are only interested in frequencies above half of the best candidate
     # (b/c otherwise we get false subharmonics)
     bestFreq = autocorPeaks$freq[which(autocorPeaks$amp >
-                                         0.975 * max(autocorPeaks$amp))[1]]
+                                         autocorBestPeak * max(autocorPeaks$amp))[1]]
     # bestFreq = autocorPeaks$freq[which.max(autocorPeaks$amp)]
     if (!is.na(bestFreq)) {
       autocorPeaks = try(autocorPeaks[autocorPeaks$freq > bestFreq / 1.8,
@@ -573,48 +604,65 @@ getPitchSpec = function(frame,
 
 #' Get prior for pitch candidates
 #'
-#' Internal soundgen function.
+#' Prior for adjusting the estimated pitch certainties in \code{\link{analyze}}.
+#' For ex., if primarily working with speech, we could prioritize pitch
+#' candidates in the expected pitch range (100-1000 Hz) and dampen candidates
+#' with very high or very low frequency as unlikely but still remotely possible
+#' in everyday vocalizing contexts (think a soft pitch ceiling). Algorithm: the
+#' multiplier for each pitch candidate is the density of gamma distribution with
+#' mean = priorMean (Hz) and sd = priorSD (semitones) normalized so max = 1 over
+#' [pitchFloor, pitchCeiling]. Useful for previewing the prior given to
+#' \code{\link{analyze}}.
 #'
-#' Prior for adjusting the estimated pitch certainties. For ex., if primarily
-#' working with speech, we could prioritize pitch candidates in the expected
-#' pitch range (100-1000 Hz) and dampen candidates with very high or very low
-#' frequency as unlikely but still remotely possible in everyday vocalizing
-#' contexts (think a soft pitch ceiling). Algorithm: the multiplier for each
-#' pitch candidate is the density of gamma distribution with mean = priorMean
-#' (Hz) and sd = priorSD (semitones) normalized so max = 1 over [pitchFloor,
-#' pitchCeiling]. Called by analyze().
-#' @return Returns a numeric matrix of the same dimensions as pitchCands for
-#'   multiplying the matrix of certainty of in pitch values.
+#' @seealso \code{\link{analyze}} \code{\link{pitch_app}}
+#'
+#' @return Returns a numeric vector of certainties of length \code{len} if
+#'   pitchCands is NULL and a numeric matrix of the same dimensions as
+#'   pitchCands otherwise.
 #' @inheritParams analyze
-#' @param pitchCands a matrix of pitch candidate frequencies
-#' @param plot if TRUE, produces a separate plot of the prior
-#' @keywords internal
+#' @param len the required length of output vector (resolution)
+#' @param plot if TRUE, plots the prior
+#' @param ... additional graphical parameters passed on to plot()
+#' @param pitchCands a matrix of pitch candidate frequencies (for internal
+#'   soundgen use)
+#' @export
 #' @examples
-#' soundgen:::getPrior(150, 2, pitchCands = NULL, plot = TRUE)
+#' soundgen:::getPrior(priorMean = 150,  # Hz
+#'                     priorSD = 2)      # semitones
+#' soundgen:::getPrior(150, 6)
+#' s = soundgen:::getPrior(450, 24, pitchCeiling = 6000)
+#' plot(s)
 getPrior = function(priorMean,
                     priorSD,
-                    pitchCands = NULL,
                     pitchFloor = 75,
                     pitchCeiling = 3000,
-                    plot = FALSE) {
+                    len = 100,
+                    plot = TRUE,
+                    pitchCands = NULL,
+                    ...) {
   priorMean_semitones = HzToSemitones(priorMean)
   shape = priorMean_semitones ^ 2 / priorSD ^ 2
   rate = priorMean_semitones / priorSD ^ 2
-  freqs = seq(HzToSemitones(pitchFloor), HzToSemitones(pitchCeiling), length.out = 100)
+  freqs = seq(HzToSemitones(pitchFloor),
+              HzToSemitones(pitchCeiling),
+              length.out = len)
   prior_normalizer = dgamma(
     freqs,
     shape = shape,
     rate = rate
   )
   prior_norm_max = max(prior_normalizer)
+  prior = prior_normalizer / prior_norm_max
   if (plot) {
     plot(
       x = semitonesToHz(freqs),
-      y = prior_normalizer / prior_norm_max,
+      y = prior,
       type = 'l',
       log = 'x',
       xlab = 'Frequency, Hz',
-      ylab = 'Multiplier of certainty', main = 'Prior belief in pitch values'
+      ylab = 'Multiplier of certainty',
+      main = 'Prior belief in pitch values',
+      ...
     )
   }
   if (!is.null(pitchCands)) {
@@ -624,5 +672,94 @@ getPrior = function(priorMean,
       rate = rate
     ) / prior_norm_max
     return(pitchCert_multiplier)
+  } else {
+    invisible(prior)
   }
+}
+
+#' Summarize the output of analyze()
+#'
+#' Internal soundgen function
+#' @param result dataframe returned by analyze(summary = FALSE)
+#' @param summaryFun summary functions
+#' @param var_noSummary variables that should not be summarized
+#' @keywords internal
+summarizeAnalyze = function(
+  result,
+  summaryFun = c('mean', 'sd'),
+  var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time')
+) {
+  ls = length(summaryFun)
+  vars = colnames(result)[!colnames(result) %in% var_noSummary]
+  vars_f = paste0(rep(vars, each = ls), '_', rep(summaryFun, ls))
+
+  # specify how to summarize pitch etc values for each frame within each file
+  # - for ex., save mean, median, sd, ...
+  out = result[1, c('duration', 'duration_noSilence')]
+  out$voiced = mean(!is.na(result$pitch))
+  out_sum = as.data.frame(matrix(ncol = length(vars_f)))
+  colnames(out_sum) = vars_f
+  out = cbind(out, out_sum)
+
+  # remove non-summarizable vars from result
+  for (v in var_noSummary) {
+    result[, v] = NULL
+  }
+
+  # pre-parse summary function names to speed things up
+  functions = vector('list', length(summaryFun))
+  for (f in 1:length(summaryFun)) {
+    functions[[f]] = eval(parse(text = summaryFun[f]))
+  }
+
+  # apply the specified summary function to each column of result
+  for (v in vars) {
+    for (s in 1:length(summaryFun)) {
+      var_values = na.omit(result[, v])
+      var_f_name = paste0(v, '_', summaryFun[s])
+      if (any(is.finite(var_values))) {
+        mySummary = do.call(functions[[s]], list(var_values))  # NAs already removed
+        # for smth like range, collapse and convert to character
+        if (length(mySummary) > 1) {
+          mySummary = paste0(mySummary, collapse = ', ')
+        }
+        out[1, var_f_name] = mySummary
+      } else {  # not finite, eg NA or -Inf - don't bother to calculate
+        out[1, var_f_name] = NA
+      }
+    }
+  }
+  return(out)
+}
+
+#' Update analyze
+#'
+#' Internal soundgen function
+#'
+#' Updates the output of analyze using manual pitch. Called by pitch_app().
+#' @param result the matrix of results returned by analyze()
+#' @param pitch_true manual pitch contour of length nrow(result), with NAs
+#' @param spectrogram spectrogram with ncol = nrow(result)
+#' @keywords internal
+updateAnalyze = function(result,
+                         pitch_true,
+                         spectrogram = NULL) {
+  # remove all pitch-related columns except dom
+  result = result[-which(grepl('pitch', colnames(result)))]
+  result$pitch = pitch_true
+  result$voiced = !is.na(pitch_true)
+  result$amplVoiced = ifelse(result$voiced, result$ampl, NA)
+  result$harmonics = NA
+  if (!is.null(spectrogram)) {
+    # Re-calculate the % of energy in harmonics based on the manual pitch estimates
+    threshold = 1.25 * result$pitch / 1000
+    result$harmonics = apply(matrix(1:ncol(spectrogram)), 1, function(x) {
+      ifelse(is.na(threshold[x]),
+             NA,
+             sum(spectrogram[as.numeric(rownames(spectrogram)) > threshold[x], x]) /
+               sum(spectrogram[, x]))
+    })
+  }
+  result = result[, c(1:3, 3 + order(colnames(result)[4:ncol(result)]))]
+  return(result)
 }

@@ -13,6 +13,9 @@
 #'
 #' Algorithm: paints a spectrogram with desired characteristics, sets phase to
 #' zero, and generates a time sequence via inverse FFT.
+#'
+#' @seealso \code{\link{soundgen}} \code{\link{fart}} \code{\link{beat}}
+#'
 #' @param len length of output
 #' @param spectralEnvelope (optional): as an alternative to using rolloffNoise,
 #'   we can provide the exact filter - a vector of non-negative numbers
@@ -99,7 +102,7 @@
 #' windowLength = c(5, 10, 50, 100)[1]  # try both narrow-band (eg 100 ms)
 #' # to get "harmonics" and wide-band (5 ms) to get only formants
 #' spectralEnvelope = spectrogram(sound_orig, windowLength = windowLength,
-#'   samplingRate = samplingRate, output = 'original')
+#'   samplingRate = samplingRate, output = 'original', padWithSilence = FALSE)
 #' sound_noise = generateNoise(len = length(sound_orig),
 #'   spectralEnvelope = spectralEnvelope, rolloffNoise = 0,
 #'   samplingRate = samplingRate, play = playback)
@@ -872,6 +875,10 @@ generateEpoch = function(pitch_per_gc,
 #' parameters. With default settings, execution time is ~ 10 ms per second of
 #' audio sampled at 16000 Hz. Principle: creates separate glottal cycles with
 #' harmonics, but no formants. See \code{\link{soundgen}} for more details.
+#'
+#' @seealso \code{\link{soundgen}} \code{\link{generateNoise}}
+#'   \code{\link{beat}}
+#'
 #' @inheritParams soundgen
 #' @param sylLen syllable length, ms (not vectorized)
 #' @param rolloff rolloff of harmonics in source spectrum, dB/octave (not
@@ -973,6 +980,10 @@ fart = function(glottis = c(50, 200),
 #' specific purpose, this is vastly faster and easier than to tinker with
 #' \code{\link{soundgen}} settings, especially since percussive syllables tend
 #' to be very short.
+#'
+#' @seealso \code{\link{soundgen}} \code{\link{generateNoise}}
+#'   \code{\link{fart}}
+#'
 #' @inheritParams soundgen
 #' @param nSyl the number of syllables to generate
 #' @param sylLen average duration of each syllable, ms

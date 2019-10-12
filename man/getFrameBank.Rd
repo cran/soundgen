@@ -5,13 +5,13 @@
 \title{Frame bank}
 \usage{
 getFrameBank(sound, samplingRate, windowLength_points, wn, step, zp,
-  normalize = TRUE, filter = NULL)
+  normalize = TRUE, filter = NULL, padWithSilence = FALSE)
 }
 \arguments{
 \item{sound}{numeric vector}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{windowLength_points}{length of fft window (points)}
 
@@ -25,6 +25,10 @@ blackman, flattop}
 \item{normalize}{if TRUE, scales input prior to FFT}
 
 \item{filter}{fft window filter (defaults to NULL)}
+
+\item{padWithSilence}{if TRUE, pads the sound with just enough silence to
+resolve the edges properly (only the original region is plotted, so
+apparent duration doesn't change)}
 }
 \value{
 A matrix with \code{nrow = windowLength_points/2} and \code{ncol}

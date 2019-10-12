@@ -8,20 +8,23 @@
 #' vocalizations. See vignette('acoustic_analysis', package = 'soundgen') for
 #' details.
 #'
+#' @seealso \code{\link{analyzeFolder}} \code{\link{pitch_app}}
+#'   \code{\link{getLoudness}} \code{\link{segment}} \code{\link{getRMS}}
+#'   \code{\link{modulationSpectrum}} \code{\link{ssm}}
+#'
 #' @inheritParams spectrogram
 #' @inheritParams getLoudness
 #' @param silence (0 to 1) frames with RMS amplitude below silence threshold are
 #'   not analyzed at all. NB: this number is dynamically updated: the actual
 #'   silence threshold may be higher depending on the quietest frame, but it
 #'   will never be lower than this specified number.
-#' @param scale maximum possible amplitude of input used for normalization of
-#'   input vector (not needed if input is an audio file)
 #' @param SPL_measured sound pressure level at which the sound is presented, dB
 #'   (set to 0 to skip analyzing subjective loudness)
-#' @param cutFreq (>0 to Nyquist, Hz) repeat the calculation of spectral
-#'   descriptives after discarding all info above \code{cutFreq}.
+#' @param cutFreq (2 * pitchCeiling to Nyquist, Hz) repeat the calculation of
+#'   spectral descriptives after discarding all info above \code{cutFreq}.
 #'   Recommended if the original sampling rate varies across different analyzed
-#'   audio files
+#'   audio files. Note that "entropyThres" applies only to this frequency range,
+#'   which also affects which frames will not be analyzed with pitchAutocor.
 #' @param nFormants the number of formants to extract per STFT frame (0 = no
 #'   formant analysis). Calls \code{\link[phonTools]{findformants}} with default
 #'   settings
@@ -38,7 +41,8 @@
 #'   most likely pitch values for this file. For ex., \code{priorMean = 300,
 #'   priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 #'   an octave)
-#' @param priorPlot if TRUE, produces a separate plot of the prior
+#' @param priorPlot deprecated; use \code{\link{getPrior}} to visualize the
+#'   prior
 #' @param nCands maximum number of pitch candidates per method (except for
 #'   \code{dom}, which returns at most one candidate per frame), normally 1...4
 #' @param minVoicedCands minimum number of pitch candidates that have to be
@@ -104,7 +108,7 @@
 #' @param showLegend if TRUE, adds a legend with pitch tracking methods
 #' @param savePath if a valid path is specified, a plot is saved in this folder
 #'   (defaults to NA)
-#' @param plotSpec if \code{FALSE}, the spectrogram will not be plotted
+#' @param plotSpec deprecated
 #' @param candPlot a list of graphical parameters for displaying
 #' individual pitch candidates. Set to \code{NULL} or \code{NA} to suppress
 #' @param pitchPlot a list of graphical parameters for displaying the final
@@ -159,7 +163,8 @@
 #' @examples
 #' sound = soundgen(sylLen = 300, pitch = c(900, 400, 2300),
 #'   noise = list(time = c(0, 300), value = c(-40, 0)),
-#'   temperature = 0.001, addSilence = 0)
+#'   temperature = 0.001,
+#'   addSilence = 50)  # NB: always have some silence before and after!!!
 #' # playme(sound, 16000)
 #' a = analyze(sound, samplingRate = 16000, plot = TRUE)
 #'
@@ -168,29 +173,32 @@
 #' a = analyze(sound, samplingRate = 16000,
 #'   plot = FALSE,         # no plotting
 #'   pitchMethods = NULL,  # no pitch tracking
-#'   SPL_measured = NULL,  # no loudness analysis
+#'   SPL_measured = 0,     # no loudness analysis
 #'   nFormants = 0         # no formant analysis
 #' )
 #'
 #' sound1 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 300), value = c(-40, 0)),
-#'   temperature = 0.001, addSilence = 0)
+#'   temperature = 0.001)
 #' # improve the quality of postprocessing:
-#' a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
+#' a1 = analyze(sound1, samplingRate = 16000, priorSD = 24,
+#'              plot = TRUE, pathfinding = 'slow')
 #' median(a1$pitch, na.rm = TRUE)
 #' # (can vary, since postprocessing is stochastic)
 #' # compare to the true value:
 #' median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
 #'   value = c(300, 900, 400, 2300)), len = 1000))
 #'
-#' # the same pitch contour, but harder b/c of subharmonics and jitter
+#' # the same pitch contour, but harder to analyze b/c of
+#' subharmonics and jitter
 #' sound2 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 900), value = c(-40, 0)),
 #'   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0.001)
 #' # playme(sound2, 16000)
-#' a2 = analyze(sound2, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
+#' a2 = analyze(sound2, samplingRate = 16000, priorSD = 24,
+#'              plot = TRUE, pathfinding = 'slow')
 #' # many candidates are off, but the overall contour should be mostly accurate
 #'
 #' # Fancy plotting options:
@@ -202,10 +210,8 @@
 #'     col = c('gray70', 'yellow', 'purple'),  # same order as pitchMethods
 #'     pch = c(1, 3, 5),
 #'     cex = 3),
-#'   pitchPlot = list(col = 'black', lty = 3, lwd = 3))
-#'
-#'# Plot pitch candidates w/o a spectrogram
-#' a = analyze(sound2, samplingRate = 16000, plot = TRUE, plotSpec = FALSE)
+#'   pitchPlot = list(col = 'black', lty = 3, lwd = 3),
+#'   osc_dB = TRUE, heights = c(2, 1))
 #'
 #' # Different formatting options for output
 #' a = analyze(sound2, samplingRate = 16000, summary = FALSE)  # frame-by-frame
@@ -253,80 +259,84 @@
 #'                    SPL_measured = 40)$loudness)
 #' median(getRMS(sound2, windowLength = 25, overlap = 50, scale = 1))
 #' }
-analyze = function(x,
-                   samplingRate = NULL,
-                   dynamicRange = 80,
-                   silence = 0.04,
-                   scale = NULL,
-                   SPL_measured = 70,
-                   Pref = 2e-5,
-                   windowLength = 50,
-                   step = NULL,
-                   overlap = 50,
-                   wn = 'gaussian',
-                   zp = 0,
-                   cutFreq = 6000,
-                   nFormants = 3,
-                   pitchMethods = c('autocor', 'spec', 'dom'),
-                   entropyThres = 0.6,
-                   pitchFloor = 75,
-                   pitchCeiling = 3500,
-                   priorMean = 300,
-                   priorSD = 6,
-                   priorPlot = FALSE,
-                   nCands = 1,
-                   minVoicedCands = NULL,
-                   domThres = 0.1,
-                   domSmooth = 220,
-                   autocorThres = 0.7,
-                   autocorSmooth = NULL,
-                   cepThres = 0.3,
-                   cepSmooth = 400,
-                   cepZp = 0,
-                   specThres = 0.3,
-                   specPeak = 0.35,
-                   specSinglePeakCert = 0.4,
-                   specHNRslope = 0.8,
-                   specSmooth = 150,
-                   specMerge = 1,
-                   shortestSyl = 20,
-                   shortestPause = 60,
-                   interpolWin = 75,
-                   interpolTol = 0.3,
-                   interpolCert = 0.3,
-                   pathfinding = c('none', 'fast', 'slow')[2],
-                   annealPars = list(maxit = 5000, temp = 1000),
-                   certWeight = .5,
-                   snakeStep = 0.05,
-                   snakePlot = FALSE,
-                   smooth = 1,
-                   smoothVars = c('pitch', 'dom'),
-                   summary = FALSE,
-                   summaryFun = c('mean', 'median', 'sd'),
-                   plot = TRUE,
-                   showLegend = TRUE,
-                   savePath = NA,
-                   plotSpec = TRUE,
-                   pitchPlot = list(
-                     col = rgb(0, 0, 1, .75),
-                     lwd = 3
-                   ),
-                   candPlot = list(),
-                   ylim = NULL,
-                   xlab = 'Time, ms',
-                   ylab = 'kHz',
-                   main = NULL,
-                   width = 900,
-                   height = 500,
-                   units = 'px',
-                   res = NA,
-                   ...) {
+analyze = function(
+  x,
+  samplingRate = NULL,
+  dynamicRange = 80,
+  silence = 0.04,
+  scale = NULL,
+  SPL_measured = 70,
+  Pref = 2e-5,
+  windowLength = 50,
+  step = NULL,
+  overlap = 50,
+  wn = 'gaussian',
+  zp = 0,
+  cutFreq = min(samplingRate / 2, max(7000, pitchCeiling * 2)),
+  nFormants = 3,
+  pitchMethods = c('autocor', 'spec', 'dom'),
+  entropyThres = 0.6,
+  pitchFloor = 75,
+  pitchCeiling = 3500,
+  priorMean = 300,
+  priorSD = 6,
+  priorPlot = 'deprecated',
+  nCands = 1,
+  minVoicedCands = NULL,
+  domThres = 0.1,
+  domSmooth = 220,
+  autocorThres = 0.7,
+  autocorSmooth = NULL,
+  cepThres = 0.3,
+  cepSmooth = 400,
+  cepZp = 0,
+  specThres = 0.3,
+  specPeak = 0.35,
+  specSinglePeakCert = 0.4,
+  specHNRslope = 0.8,
+  specSmooth = 150,
+  specMerge = 1,
+  shortestSyl = 20,
+  shortestPause = 60,
+  interpolWin = 75,
+  interpolTol = 0.3,
+  interpolCert = 0.3,
+  pathfinding = c('none', 'fast', 'slow')[2],
+  annealPars = list(maxit = 5000, temp = 1000),
+  certWeight = .5,
+  snakeStep = 0.05,
+  snakePlot = FALSE,
+  smooth = 1,
+  smoothVars = c('pitch', 'dom'),
+  summary = FALSE,
+  summaryFun = c('mean', 'median', 'sd'),
+  plot = TRUE,
+  showLegend = TRUE,
+  savePath = NA,
+  plotSpec = 'deprecated',
+  osc = TRUE,
+  osc_dB = FALSE,
+  pitchPlot = list(
+    col = rgb(0, 0, 1, .75),
+    lwd = 3
+  ),
+  candPlot = list(),
+  ylim = NULL,
+  xlab = 'Time, ms',
+  ylab = 'kHz',
+  main = NULL,
+  width = 900,
+  height = 500,
+  units = 'px',
+  res = NA,
+  ...
+) {
   ## preliminaries
-  if ('osc' %in% names(match.call()) |
-      'osc_dB' %in% names(match.call())) {
-    # we are working with frameBank, not raw waveform
-    osc = FALSE
-    message('Plotting a spectrogram with oscillogram from analyze() is currently not implemented')
+  if (!missing(priorPlot)) {
+    message('priorPlot is deprecated. Use getPrior(..., plot = TRUE) to preview the pitch prior')
+  }
+  if (!missing(plotSpec)) {
+    message('plotSpec is deprecated')
   }
 
   # import a sound
@@ -425,6 +435,7 @@ analyze = function(x,
     }
   }
   duration = length(sound) / samplingRate
+
   if (!is.numeric(windowLength) | windowLength <= 0 |
       windowLength > (duration * 1000)) {
     windowLength = min(50, duration / 2 * 1000)
@@ -580,14 +591,9 @@ analyze = function(x,
     step = step,
     zp = zp,
     normalize = TRUE,
-    filter = NULL
+    filter = NULL,
+    padWithSilence = FALSE
   )
-
-  if (plot == TRUE & plotSpec) {
-    plot_spec = TRUE
-  } else {
-    plot_spec = FALSE
-  }
 
   extraSpecPars = list(...)
   extraSpecPars$osc = NULL
@@ -602,23 +608,23 @@ analyze = function(x,
     wn = wn,
     step = step,
     main = plotname,
-    plot = plot_spec,
     normalize = FALSE,
     output = 'original',
     ylim = ylim,
     xlab = xlab,
-    ylab = ylab
+    ylab = ylab,
+    plot = FALSE
   ), extraSpecPars))
 
   # calculate rms amplitude of each frame
-  myseq = seq(1, (length(sound) - windowLength_points), length.out = ncol(s))
-  ampl = apply(as.matrix(1:ncol(s)), 1, function(x) {
+  myseq = (as.numeric(colnames(frameBank)) - step) * samplingRate / 1000 + 1
+  ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
     # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
     sqrt(mean((sound[myseq[x]:(myseq[x] + windowLength_points - 1)] * m / scale) ^ 2))
   })
   # dynamically adjust silence threshold
-  silence = max(silence, min(ampl))
+  silence = max(silence, min(ampl, na.rm = TRUE))
 
   # calculate entropy of each frame within the most relevant
   # vocal range only (up to to cutFreq Hz)
@@ -631,13 +637,18 @@ analyze = function(x,
   # if the frame is too quiet or too noisy, we will not analyze it
   cond_silence = ampl >= silence &
     as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
+  framesToAnalyze = which(cond_silence)
   cond_entropy = ampl > silence & entropy < entropyThres
   cond_entropy[is.na(cond_entropy)] = FALSE
-  non_silent_frames = which(cond_silence == TRUE)
-  time_start = step * (min(non_silent_frames) - 1)  # the beginning of the first non-silent frame
-  time_end = step * (max(non_silent_frames))        # the end of the last non-silent frame
-  duration_noSilence = (time_end - time_start) / 1000
-  framesToAnalyze = which(cond_silence)
+
+  # save duration of non-silent part of audio
+  if (length(framesToAnalyze) > 0) {
+    time_start = step * (min(framesToAnalyze) - 1)  # the beginning of the first non-silent frame
+    time_end = step * (max(framesToAnalyze))        # the end of the last non-silent frame
+    duration_noSilence = (time_end - time_start) / 1000
+  } else {
+    duration_noSilence = 0
+  }
 
   # autocorrelation for each frame
   autocorBank = matrix(NA, nrow = length(autoCorrelation_filter),
@@ -647,7 +658,8 @@ analyze = function(x,
                            windowLength_points,
                            plot = FALSE)$acf / autoCorrelation_filter
   }
-  # plot(autocorBank[, 13], type = 'l')
+  autocorBank = autocorBank[-1, ]  # b/c it starts with zero lag (identity)
+  # plot(autocorBank[, 78], type = 'l')
   rownames(autocorBank) = samplingRate / (1:nrow(autocorBank))
 
   ## FORMANTS
@@ -738,9 +750,7 @@ analyze = function(x,
   if (!is.null(formants)) result = cbind(result, formants)
   result$entropy = entropy
   result$ampl = ampl
-  result$time = round(seq(0,
-                          duration * 1000 - windowLength,
-                          length.out = nrow(result)) + windowLength / 2, 0)
+  result$time = as.numeric(colnames(frameBank))
   result$duration_noSilence = duration_noSilence
   result$duration = duration
   nc = ncol(result)
@@ -774,10 +784,10 @@ analyze = function(x,
     if (is.numeric(priorMean) & is.numeric(priorSD)) {
       pitchCert_multiplier = getPrior(priorMean = priorMean,
                                       priorSD = priorSD,
-                                      pitchCands = pitchCands_list$freq,
                                       pitchFloor = pitchFloor,
                                       pitchCeiling = pitchCeiling,
-                                      plot = priorPlot)
+                                      pitchCands = pitchCands_list$freq,
+                                      plot = FALSE)
       pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier
     }
 
@@ -871,88 +881,64 @@ analyze = function(x,
 
   ## Add pitch contours to the spectrogram
   if (plot) {
-    addPitchCands(pitchCands = pitchCands_list$freq,
-                  pitchCert = pitchCands_list$cert,
-                  pitchSource = pitchCands_list$source,
-                  pitch = result$pitch,
-                  candPlot = candPlot,
-                  pitchPlot = pitchPlot,
-                  addToExistingPlot = plot_spec,
-                  showLegend = showLegend,
-                  ylim = ylim,
-                  xlab = xlab,
-                  ylab = ylab,
-                  main = plotname,
-                  ...)
+    # we call spectrogram() a second time to get nice silence padding and to add
+    # pitch contours internally in spectrogram() - a hassle, but it only take
+    # a few ms, and otherwise it's hard to add pitch contours b/c the y-axis
+    # is messed up if spectrogram() calls layout() to add an oscillogram
+    do.call(spectrogram, c(list(
+      x = sound,
+      frameBank = frameBank,
+      dynamicRange = dynamicRange,
+      duration = duration,
+      samplingRate = samplingRate,
+      windowLength = windowLength,
+      zp = zp,
+      wn = wn,
+      step = step,
+      main = plotname,
+      normalize = FALSE,
+      scale = scale,
+      output = 'original',
+      ylim = ylim,
+      xlab = xlab,
+      ylab = ylab,
+      plot = TRUE,
+      osc = osc,
+      osc_dB = osc_dB,
+      pitch = list(
+        pitchCands = pitchCands_list$freq,
+        pitchCert = pitchCands_list$cert,
+        pitchSource = pitchCands_list$source,
+        pitch = result$pitch,
+        candPlot = candPlot,
+        pitchPlot = pitchPlot,
+        addToExistingPlot = TRUE,
+        showLegend = showLegend,
+        ylim = ylim,
+        xlab = xlab,
+        ylab = ylab,
+        main = plotname,
+        ...
+      )), extraSpecPars))
   }
   if (is.character(savePath)) {
     dev.off()
   }
 
-  # a separate plot of the prior
-  if (priorPlot) {
-    # getPrior = function(priorMean,
-    #                 priorSD,
-    #                 pitchCands,
-    #                 pitchFloor = 1,
-    #                 pitchCeiling = 3000)
-    # freqs = seq(1, HzToSemitones(samplingRate / 2), length.out = 1000)
-    # prior = dgamma(freqs, shape = shape, rate = rate) / prior_normalizer
-    # plot(
-    #   x = semitonesToHz(freqs),
-    #   y = pitchCert_multiplier[, 2],
-    #   type = 'l',
-    #   log = 'x',
-    #   xlim = c(pitchFloor, pitchCeiling),
-    #   xlab = 'Frequency, Hz',
-    #   ylab = 'Multiplier of certainty', main = 'Prior belief in pitch values'
-    # )
-  }
-
-  if (summary == TRUE) {
-    var_noSummary = c('duration', 'duration_noSilence', 'voiced')
-    vars = colnames(result)[!colnames(result) %in% c(var_noSummary, 'time')]
-    nVars_noSummary = 3
-    ls = length(summaryFun)
-    out = as.data.frame(matrix(
-      ncol = nVars_noSummary + ls * length(vars),
-      nrow = 1
-    ))
-    colnames(out)[c(1:nVars_noSummary)] = var_noSummary
-    for (c in 1:length(vars)) {
-      # specify how to summarize pitch etc values for each frame within each file
-      # - save mean, median, sd, ...
-      for (s in 1:ls) {
-        colnames(out)[nVars_noSummary + ls * (c - 1) + s] = paste0(vars[c], '_', summaryFun[s])
-      }
-    }
-    out$duration = result$duration[1]  # duration, s
-    out$duration_noSilence = result$duration_noSilence[1]
-    out$voiced = mean(result$voiced)  # proportion of voiced frames
-    # apply the specified summary function to each column of result
-    for (v in 4:(ncol(result) - 1)) {  # -1 for voiced (not summarized)
-      for (s in 1:length(summaryFun)) {
-        if (any(is.finite(result[, colnames(result)[v]]))) {
-          d = na.omit(result[, colnames(result)[v]])
-          f = eval(parse(text = summaryFun[s]))
-          mySummary = do.call(f, list(d))
-          # for smth like range, collapse and convert to character
-          if (length(mySummary) > 1) {
-            mySummary = paste0(mySummary, collapse = ', ')
-          }
-          out[1, ls * (v - nVars_noSummary - 1) + s + nVars_noSummary] = mySummary
-        } else {  # not finite, eg NA or -Inf - don't bother to calculate
-          out[1, ls * (v - nVars_noSummary - 1) + s + nVars_noSummary] = NA
-        }
-      }
-    }
-  } else if (summary == FALSE) {
+  # prepare the output
+  if (summary == TRUE | summary == 'extended') {
+    out = summarizeAnalyze(result, summaryFun)
+  } else {
     out = result
-  } else if (summary == 'extended') {
-    out = list(result = result,
-               pitchCands = pitchCands_list)
   }
-  return(out)
+  if (summary == 'extended') {
+    return(list(summary = out,
+                result = result,
+                pitchCands = pitchCands_list,
+                spectrogram = s))
+  } else {
+    return(out)
+  }
 }
 
 
@@ -960,6 +946,10 @@ analyze = function(x,
 #'
 #' Acoustic analysis of all wav/mp3 files in a folder. See \code{\link{analyze}}
 #' and vignette('acoustic_analysis', package = 'soundgen') for further details.
+#'
+#' @seealso \code{\link{analyze}} \code{\link{pitch_app}}
+#'   \code{\link{getLoudness}} \code{\link{segment}} \code{\link{getRMS}}
+#'
 #' @param myfolder full path to target folder
 #' @param verbose if TRUE, reports progress and estimated time left
 #' @inheritParams analyze
@@ -1014,7 +1004,7 @@ analyzeFolder = function(myfolder,
                          priorSD = 6,
                          priorPlot = FALSE,
                          nCands = 1,
-                         minVoicedCands = 'autom',
+                         minVoicedCands = NULL,
                          domThres = 0.1,
                          domSmooth = 220,
                          autocorThres = 0.7,
@@ -1045,7 +1035,7 @@ analyzeFolder = function(myfolder,
                          plot = FALSE,
                          showLegend = TRUE,
                          savePlots = FALSE,
-                         plotSpec = TRUE,
+                         plotSpec = 'deprecated',
                          pitchPlot = list(
                            col = rgb(0, 0, 1, .75),
                            lwd = 3

@@ -68,3 +68,6 @@ getRMSFolder('~/Downloads/temp/normalized', summaryFun = 'mean')  # same
 # try reconverting with ffmpeg (saving is handled by tuneR::writeWave)
 }
 }
+\seealso{
+\code{\link{getRMS}} \code{\link{analyze}}\code{\link{getLoudness}}
+}

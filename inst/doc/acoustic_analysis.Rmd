@@ -16,7 +16,7 @@ vignette: >
   
 # Purpose
   
-There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages. For in-depth analysis of individual mammalian sounds it's hard to beat <a href="http://www.fon.hum.uva.nl/praat/">PRAAT</a> (batch processing is possible, but a bit tricky, because PRAAT uses its own, rather unusual scripting language). For bird sounds, a sophisticated tool is Sound Analysis Pro. In R, the most extensive acoustic toolkit by far is the <a href="https://CRAN.R-project.org/package=seewave">seewave</a> package. Soundgen builds upon the functionality of seewave, adding high-level functions for sound synthesis (see the vignette on sound synthesis) and acoustic analysis, particularly pitch tracking and audio segmentation.
+There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages. For in-depth analysis of individual mammalian sounds it's hard to beat <a href="http://www.fon.hum.uva.nl/praat/">PRAAT</a> (batch processing is possible, but a bit tricky, because PRAAT uses its own, rather unusual scripting language). For bird sounds, a sophisticated tool is Sound Analysis Pro. In R, the most extensive acoustic toolkit by far is the <a href="https://CRAN.R-project.org/package=seewave">seewave</a> package. Soundgen builds upon the functionality of seewave, adding high-level functions for sound synthesis (see the vignette on sound synthesis), manipulation, and analysis.
   
 Reasons to use `soundgen` for acoustic analysis might be: 
   
@@ -217,20 +217,18 @@ a = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4),
 
 * `entropyThres`: all non-silent frames are analyzed to produce basic spectral descriptives. However, pitch tracking is both computationally costly and can be misleading if applied to obviously voiceless frames. To define what an "obviously voiceless" frame is, we set some cutoff value of Weiner entropy, above which we don't want to even try pitch tracking. To disable this feature and track pitch in all non-silent frames, set `entropyThres` to 1.
 * `pitchFloor`, `pitchCeiling`: absolute thresholds for pitch candidates. No values outside these bounds will be considered.
-* `priorMean` and `priorSD` specify the mean and sd of gamma distribution describing our prior knowledge about the most likely pitch values. The prior works by scaling the certainties associated with particular pitch candidates: candidates more than a couple of `priorSD`'s from `priorMean` have their weight reduced to nearly zero. If you are working with a single sound and know the correct pitch, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds with `analyzeFolder()`, the recommended approach is to set a vague, but still mildly informative prior. `priorMean` is specified in Hz, but the expected deviation from this typical value is calculated on a musical scale, so `priorSD` is in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted directly from `analyze`:
+* `priorMean` and `priorSD` specify the mean and sd of gamma distribution describing our prior knowledge about the most likely pitch values. The prior works by scaling the certainties associated with particular pitch candidates. If you are working with a single type of sound, such as speech by a male speaker or cricket sounds, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds with `analyzeFolder()`, the recommended approach is to set a vague, but still mildly informative prior. `priorMean` is specified in Hz, but the expected deviation from this typical value is calculated on a musical scale, so `priorSD` is in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted with `getPrior`:
 
 ```{r fig.show = "hold", fig.height = 5, fig.width = 7}
 par(mfrow = c(1, 2))
 # default prior in soundgen
-a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = 300, priorSD = 6)  
+getPrior(priorMean = 300, priorSD = 6)
 # narrow peak at 2 kHz
-a2 = analyze(s1, samplingRate = 16000, plot = FALSE, priorPlot = TRUE,
-             priorMean = 2000, priorSD = 1)
+getPrior(priorMean = 2000, priorSD = 1)
 par(mfrow = c(1, 1))
 ``` 
 
-*TIP The final pitch contour can still pass through low-certainty candidates, especially if no better candidates are available. You can therefore think of the prior as a soft alternative (or addition) to the inflexible bounds of `pitchFloor` and `pitchCeiling`*
+*TIP The final pitch contour can still pass through low-certainty candidates. You can think of the prior as a soft alternative (or addition) to the inflexible bounds of `pitchFloor` and `pitchCeiling`*
 
 * `nCands`: maximum number of pitch candidates to use per method. This only affects `pitchAutocor`, `pitchCep`, and `pitchSpec`. `dom` never returns more than one candidate per frame, since it doesn't make sense to consider several lowest dominant frequency bands - this simply drags the final pitch contour upwards without improving the accuracy.
 * `minVoicedCands`: minimum number of pitch candidates that have to be defined to consider a frame voiced. It defaults to 'autom', which means 2 if `dom` is among the candidates and 1 otherwise. The reason is that `dom` is usually defined, even if the frame is clearly voiceless, so we want another pitch candidate in addition to `dom` before we classify the frame as voiced.
@@ -330,7 +328,7 @@ seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
 ```
 
 The pitch is tracked correctly:
-```{r fig.show = "hold", fig.height = 4, fig.width = 5}
+```{r fig.show = "hold", fig.height = 6, fig.width = 6}
 a_withf0 = analyze(s_withf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 ```
@@ -344,7 +342,7 @@ seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 ```
 
 Again, no problem with pitch tracking, although now the pitch contour is following a partial that is no longer there:
-```{r fig.show = "hold", fig.height = 4, fig.width = 5}
+```{r fig.show = "hold", fig.height = 6, fig.width = 6}
 a_withoutf0 = analyze(s_withoutf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 ```
@@ -375,41 +373,43 @@ The next few blocks of postprocessing are performed by an internal function, `so
 ### Interpolation
 To make sure we have at least one pitch candidate for every frame in the supposedly continuous voiced fragment, we interpolate to fill in any missing values. The same algorithm also adds new pitch candidates with certainty `interpolCert` if a frame has no pitch candidates within `interpolTol` of the median of the "center of gravity" estimate over plus-minus `interpolWin` frames. The frequency of new candidates is equal to this median. For example, if `interpolTol = 0.05`, new candidates are calculated if there are none within 0.95 to 1.05 times the median over the interpolation window. You can also enable interpolation to fill in unvoiced frames, but without adding new pitch candidates in voiced frames. To do so, set `interpolTol = Inf`.
 
-As an illustration, compare the output of the following two commands:
+Here is an example (interpolated segments are shown with a dotted line)
+
 ```{r fig.show = "hold", fig.height = 3, fig.width = 7}
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .4, step = 25,
              snakeStep = 0, smooth = 0,
              interpolWin = 0,   # disable interpolation
              pathfinding = 'none',  
-             main = 'No interpolation', showLegend = FALSE)
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             summary = FALSE,
+             plot = FALSE)
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .4, step = 25,
              pathfinding = 'none',
              snakeStep = 0, smooth = 0, 
-             main = 'Interpolation', showLegend = FALSE)  
+             summary = FALSE,
+             plot = FALSE)  
+plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3)
 
-par(mfrow = c(1, 1))
 ```
-
 
 ### Pathfinding
 The next step after interpolation is pathfinding proper - searching for the optimal path through pitch candidates. If `pathfinding = "none"`, this step is skipped, so we just continue working with the path that lies as close as possible to the (possibly interpolated) center of gravity of pitch candidates. If `pathfinding = "fast"` (the default option), a simple heuristic is employed, in which we walk down the path twice, first left to right and then right to left, trying to minimize the cost measured as a weighted mean of the distance from the center of gravity and the deviation from a smooth contour. The key setting is `certWeight`, which specifies how much we prioritize the certainty of pitch candidates vs. pitch jumps / the internal tension of the resulting pitch curve. Low `certWeight` (close to 0): we are mostly concerned with avoiding rapid pitch fluctuations in our contour. High `certWeight` (close to 1): we mostly pay attention to our certainty in particular pitch candidates. The example below is intended as an illustration of how pathfinding works, so all other types of smoothing are disabled, forcing the final pitch contour to pass strictly through existing candidates.
 
-```{r fig.show = "hold", fig.height = 3, fig.width = 7}
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+```{r fig.show = "hold", fig.height = 6, fig.width = 7}
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
              snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 0,  # minimize pitch jumps
-             main = 'Minimize jumps', showLegend = FALSE)  
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             main = 'Minimize jumps', 
+             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))  
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
              snakeStep = 0, smooth = 0, interpolTol = Inf,
              certWeight = 1,  # minimize deviation from high-certainty candidates
-             main = 'Pass through top cand-s', showLegend = FALSE)  
-par(mfrow = c(1, 1))
+             main = 'Pass through top cand-s', 
+             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))
 ```
 
 The final option is `pathfinding = 'slow'`, which calls `stats::optim(method = 'SANN')` to perform simulated annealing. This is a more powerful algorithm than the simple heuristic in `pathfinding = 'fast'`, but it is called "slow" for a good reason. In case you have plenty of time, it does improve the results, but note that this algorithm is stochastic, so each run may produce different results. Use an additional argument, `annealPars`, to control the algorithm. See `?stats::optim` for more details. 
@@ -436,16 +436,18 @@ If `smooth` is a positive number, contours of the variables in `smoothVars` are 
 This smoothing can be applied to any measured value, not only the final pitch contour. The default is `smoothVars = c('pitch', 'dom')`. To turn off the median smoothing, set `smooth = 0` or `smoothVars = NULL`.
 
 ```{r fig.show = "hold", fig.height = 3, fig.width = 7}
-par(mfrow = c(1, 2))
-a1 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
-             smooth = 0, main = 'No smoothing', showLegend = FALSE)
-a2 = analyze(s1, samplingRate = 16000, plotSpec = FALSE, priorMean = NA,
+             smooth = 0,  # no smoothing
+             summary = FALSE, plot = FALSE)
+a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
-             smooth = 1, main = 'Default smoothing', showLegend = FALSE)
-par(mfrow = c(1, 1))
+             smooth = 1,  # default smoothing
+             summary = FALSE, plot = FALSE)
+plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3, lwd = 2)
 ```
 
 *TIP Pathfinding ("slow", "fast" or "none") is the only postprocessing module that does not deviate from pitch candidates actually returned by pitch tracking algorithms. Interpolation, snake, and median smoothing produce new pitch values per frame, which may be quite different from any actual candidates*
@@ -455,12 +457,19 @@ When analyzing a sound, and even when batch-processing an entire folder, it is o
 
 ```{r fig.height = 5, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, plot = TRUE, priorMean = NA,
+            xlab = 'Time (ms)',
+            main = 'My spectrogram',
+            
             # options for spectrogram(): see ?spectrogram
             contrast = .75,
             brightness = -0.5,
             colorTheme = 'seewave',
             ylim = c(0, 4),
             # + other pars passed to soundgen:::filled.contour.mod()
+            
+            # options for oscillogram
+            osc_dB = TRUE, 
+            heights = c(3, 1),
             
             # options for plotting the final pitch contour (line)
             pitchPlot = list(       

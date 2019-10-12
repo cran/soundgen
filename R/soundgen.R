@@ -1,6 +1,8 @@
-# TODO: morphing produces duplicate time anchors (check ex in vignette); add @seealso tags in most function descriptions; soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO: test upsampling in pitchAutocor - maybe also lower the .975 threshold (optimize formally); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
-#' @import stats graphics utils grDevices
+# pitch_app: check what happens with temp.csv on shinyapps.io; load audio + results to double-check old work; maybe prior from sel should affect only current file (?)
+
+#' @import stats graphics utils grDevices shinyBS
 #' @encoding UTF-8
 NULL
 
@@ -15,6 +17,10 @@ NULL
 #' animal or human non-linguistic vocalizations. For more information, see
 #' \url{http://cogsci.se/soundgen.html} and vignette('sound_generation', package
 #' = 'soundgen').
+#'
+#' @seealso \code{\link{generateNoise}} \code{\link{generateNoise}}
+#'   \code{\link{fart}} \code{\link{beat}}
+#'
 #' @param repeatBout number of times the whole bout should be repeated
 #' @param nSyl number of syllables in the bout. `pitchGlobal`, `amplGlobal`, and
 #'   `formants` span multiple syllables, but not multiple bouts
@@ -239,7 +245,8 @@ NULL
 #'   nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
 #'   pitch = c(559, 785, 557),
 #'   mouth = c(0, 0.5, 0),
-#'   vocalTract = 5, play = playback)
+#'   vocalTract = 5, formants = NULL,
+#'   play = playback, plot = TRUE)
 #'
 #' # Use nonlinRandomWalk to crease reproducible examples of sounds with
 #' nonlinear effects. For ex., to make a sound with no effect in the first
@@ -367,6 +374,12 @@ soundgen = function(
       'Negative pauseLen is allowed between bouts, but not between syllables.',
       'Use repeatBout instead of nSyl if you need syllables to overlap'
     ))
+  }
+
+  if (!interpol %in% c('approx', 'spline', 'loess')) {
+    warning(paste('Supported interpol: approx, spline, loess;',
+            'defaulting to loess'))
+    interpol = 'loess'
   }
 
   # check that the overlap setting is valid
@@ -1127,5 +1140,5 @@ soundgen = function(
                 windowLength = windowLength, overlap = overlap,
                 dynamicRange = dynamicRange, ...)
   }
-  return(bout)
+  invisible(bout)
 }

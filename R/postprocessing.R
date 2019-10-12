@@ -90,6 +90,9 @@ playme = function(sound,
 #'
 #' Applies fade-in and/or fade-out of variable length, shape, and steepness. The
 #' resulting effect softens the attack and release of a waveform.
+#'
+#' @seealso \code{\link{crossFade}}
+#'
 #' @param x zero-centered (!) numeric vector such as a waveform
 #' @param fadeIn,fadeOut length of segments for fading in and out, interpreted
 #'   as points if \code{samplingRate = NULL} and as ms otherwise (0 = no fade)
@@ -329,6 +332,9 @@ flatEnv = function(sound,
 #' gluing together epochs with different regimes of pitch effects (see the
 #' vignette on sound generation), but it can also be useful for joining two
 #' separately generated sounds without audible artifacts.
+#'
+#' @seealso \code{\link{fade}}
+#'
 #' @param ampl1,ampl2 two numeric vectors (waveforms) to be joined
 #' @param crossLenPoints (optional) the length of overlap in points
 #' @param crossLen the length of overlap in ms (overrides crossLenPoints)
@@ -433,6 +439,8 @@ crossFade = function(ampl1,
 #' STFT frame, and transforms back into time domain with inverse STFT (see also
 #' \code{\link{addFormants}}).
 #'
+#' @seealso \code{\link{addFormants}} \code{\link{transplantFormants}}
+#'
 #' @return Returns a numeric vector with the same sampling rate as the input.
 #' @inheritParams spectrogram
 #' @param freqWindow the width of smoothing window, Hz. Defaults to median
@@ -513,6 +521,7 @@ flatSpectrum = function(x,
                      wn = wn,
                      zp = zp,
                      output = 'complex',
+                     padWithSilence = FALSE,
                      plot = FALSE)
 
   # calculate the width of smoothing window in bins
@@ -550,4 +559,3 @@ flatSpectrum = function(x,
   # spectrogram(sound_new, samplingRate)
   return(sound_new)
 }
-

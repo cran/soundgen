@@ -223,7 +223,7 @@ getSmoothContour = function(anchors = data.frame(time = c(0, 1), value = c(0, 1)
       }
       lbls_semitones = unique(seq(ylim[1], ylim[2], length.out = 5))
       # unique to remove duplicates, max 5 labels
-      lbls_notes = soundgen::notesDict$note[lbls_semitones + 1]
+      lbls_notes = soundgen::notesDict$note[round(lbls_semitones) + 1]
       lbls_Hz = round(semitonesToHz(lbls_semitones))
 
       par(mar = c(5, 4, 4, 3)) # c(bottom, left, top, right)
@@ -343,7 +343,7 @@ drawContour = function(len,
         # weird cases of -120 (float) < -120 (integer)
         span = span / 1.1
         l = suppressWarnings(loess(anchors_long ~ time, span = span))
-        smoothContour = try (predict(l, time), silent = TRUE)
+        smoothContour = try(predict(l, time), silent = TRUE)
       }
     }
     smoothContour[smoothContour < valueFloor] = valueFloor

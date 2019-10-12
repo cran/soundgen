@@ -64,8 +64,8 @@ smoothing)}
 size}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as
-'heat.colors', 'cm.colors', etc}
+or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
+'cm.colors', etc}
 
 \item{xlab}{plotting parameters}
 
@@ -100,4 +100,7 @@ and/or measuring the roughness of multiple files. See
 \dontrun{
 ms = modulationSpectrumFolder('~/Downloads/temp', savePlots = TRUE, kernelSize = 15)
 }
+}
+\seealso{
+\code{\link{modulationSpectrum}}
 }

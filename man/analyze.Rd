@@ -7,31 +7,33 @@
 analyze(x, samplingRate = NULL, dynamicRange = 80, silence = 0.04,
   scale = NULL, SPL_measured = 70, Pref = 2e-05, windowLength = 50,
   step = NULL, overlap = 50, wn = "gaussian", zp = 0,
-  cutFreq = 6000, nFormants = 3, pitchMethods = c("autocor", "spec",
-  "dom"), entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
-  priorMean = 300, priorSD = 6, priorPlot = FALSE, nCands = 1,
-  minVoicedCands = NULL, domThres = 0.1, domSmooth = 220,
-  autocorThres = 0.7, autocorSmooth = NULL, cepThres = 0.3,
-  cepSmooth = 400, cepZp = 0, specThres = 0.3, specPeak = 0.35,
-  specSinglePeakCert = 0.4, specHNRslope = 0.8, specSmooth = 150,
-  specMerge = 1, shortestSyl = 20, shortestPause = 60,
-  interpolWin = 75, interpolTol = 0.3, interpolCert = 0.3,
-  pathfinding = c("none", "fast", "slow")[2], annealPars = list(maxit =
-  5000, temp = 1000), certWeight = 0.5, snakeStep = 0.05,
-  snakePlot = FALSE, smooth = 1, smoothVars = c("pitch", "dom"),
-  summary = FALSE, summaryFun = c("mean", "median", "sd"),
-  plot = TRUE, showLegend = TRUE, savePath = NA, plotSpec = TRUE,
-  pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
-  candPlot = list(), ylim = NULL, xlab = "Time, ms", ylab = "kHz",
-  main = NULL, width = 900, height = 500, units = "px", res = NA,
-  ...)
+  cutFreq = min(samplingRate/2, max(7000, pitchCeiling * 2)),
+  nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
+  entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
+  priorMean = 300, priorSD = 6, priorPlot = "deprecated",
+  nCands = 1, minVoicedCands = NULL, domThres = 0.1,
+  domSmooth = 220, autocorThres = 0.7, autocorSmooth = NULL,
+  cepThres = 0.3, cepSmooth = 400, cepZp = 0, specThres = 0.3,
+  specPeak = 0.35, specSinglePeakCert = 0.4, specHNRslope = 0.8,
+  specSmooth = 150, specMerge = 1, shortestSyl = 20,
+  shortestPause = 60, interpolWin = 75, interpolTol = 0.3,
+  interpolCert = 0.3, pathfinding = c("none", "fast", "slow")[2],
+  annealPars = list(maxit = 5000, temp = 1000), certWeight = 0.5,
+  snakeStep = 0.05, snakePlot = FALSE, smooth = 1,
+  smoothVars = c("pitch", "dom"), summary = FALSE,
+  summaryFun = c("mean", "median", "sd"), plot = TRUE,
+  showLegend = TRUE, savePath = NA, plotSpec = "deprecated",
+  osc = TRUE, osc_dB = FALSE, pitchPlot = list(col = rgb(0, 0, 1,
+  0.75), lwd = 3), candPlot = list(), ylim = NULL, xlab = "Time, ms",
+  ylab = "kHz", main = NULL, width = 900, height = 500,
+  units = "px", res = NA, ...)
 }
 \arguments{
 \item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
 samplingRate}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -60,10 +62,11 @@ blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
 
-\item{cutFreq}{(>0 to Nyquist, Hz) repeat the calculation of spectral
-descriptives after discarding all info above \code{cutFreq}.
+\item{cutFreq}{(2 * pitchCeiling to Nyquist, Hz) repeat the calculation of
+spectral descriptives after discarding all info above \code{cutFreq}.
 Recommended if the original sampling rate varies across different analyzed
-audio files}
+audio files. Note that "entropyThres" applies only to this frequency range,
+which also affects which frames will not be analyzed with pitchAutocor.}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
 formant analysis). Calls \code{\link[phonTools]{findformants}} with default
@@ -86,7 +89,8 @@ most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 an octave)}
 
-\item{priorPlot}{if TRUE, produces a separate plot of the prior}
+\item{priorPlot}{deprecated; use \code{\link{getPrior}} to visualize the
+prior}
 
 \item{nCands}{maximum number of pitch candidates per method (except for
 \code{dom}, which returns at most one candidate per frame), normally 1...4}
@@ -179,7 +183,15 @@ acoustic characteristic}
 \item{savePath}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
 
-\item{plotSpec}{if \code{FALSE}, the spectrogram will not be plotted}
+\item{plotSpec}{deprecated}
+
+\item{osc}{should an oscillogram be shown under the spectrogram? TRUE/
+FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
+\code{\link{osc_dB}} for details}
+
+\item{osc_dB}{should an oscillogram be shown under the spectrogram? TRUE/
+FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
+\code{\link{osc_dB}} for details}
 
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{NULL} or \code{NA} to suppress}
@@ -250,7 +262,8 @@ details.
 \examples{
 sound = soundgen(sylLen = 300, pitch = c(900, 400, 2300),
   noise = list(time = c(0, 300), value = c(-40, 0)),
-  temperature = 0.001, addSilence = 0)
+  temperature = 0.001,
+  addSilence = 50)  # NB: always have some silence before and after!!!
 # playme(sound, 16000)
 a = analyze(sound, samplingRate = 16000, plot = TRUE)
 
@@ -259,29 +272,32 @@ a = analyze(sound, samplingRate = 16000, plot = TRUE)
 a = analyze(sound, samplingRate = 16000,
   plot = FALSE,         # no plotting
   pitchMethods = NULL,  # no pitch tracking
-  SPL_measured = NULL,  # no loudness analysis
+  SPL_measured = 0,     # no loudness analysis
   nFormants = 0         # no formant analysis
 )
 
 sound1 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
   noise = list(time = c(0, 300), value = c(-40, 0)),
-  temperature = 0.001, addSilence = 0)
+  temperature = 0.001)
 # improve the quality of postprocessing:
-a1 = analyze(sound1, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
+a1 = analyze(sound1, samplingRate = 16000, priorSD = 24,
+             plot = TRUE, pathfinding = 'slow')
 median(a1$pitch, na.rm = TRUE)
 # (can vary, since postprocessing is stochastic)
 # compare to the true value:
 median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
   value = c(300, 900, 400, 2300)), len = 1000))
 
-# the same pitch contour, but harder b/c of subharmonics and jitter
+# the same pitch contour, but harder to analyze b/c of
+subharmonics and jitter
 sound2 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
   noise = list(time = c(0, 900), value = c(-40, 0)),
   subDep = 100, jitterDep = 0.5, nonlinBalance = 100, temperature = 0.001)
 # playme(sound2, 16000)
-a2 = analyze(sound2, samplingRate = 16000, plot = TRUE, pathfinding = 'slow')
+a2 = analyze(sound2, samplingRate = 16000, priorSD = 24,
+             plot = TRUE, pathfinding = 'slow')
 # many candidates are off, but the overall contour should be mostly accurate
 
 # Fancy plotting options:
@@ -293,10 +309,8 @@ a = analyze(sound2, samplingRate = 16000, plot = TRUE,
     col = c('gray70', 'yellow', 'purple'),  # same order as pitchMethods
     pch = c(1, 3, 5),
     cex = 3),
-  pitchPlot = list(col = 'black', lty = 3, lwd = 3))
-
-# Plot pitch candidates w/o a spectrogram
-a = analyze(sound2, samplingRate = 16000, plot = TRUE, plotSpec = FALSE)
+  pitchPlot = list(col = 'black', lty = 3, lwd = 3),
+  osc_dB = TRUE, heights = c(2, 1))
 
 # Different formatting options for output
 a = analyze(sound2, samplingRate = 16000, summary = FALSE)  # frame-by-frame
@@ -344,4 +358,9 @@ median(getLoudness(sound2, windowLength = 25, overlap = 50,
                    SPL_measured = 40)$loudness)
 median(getRMS(sound2, windowLength = 25, overlap = 50, scale = 1))
 }
+}
+\seealso{
+\code{\link{analyzeFolder}} \code{\link{pitch_app}}
+  \code{\link{getLoudness}} \code{\link{segment}} \code{\link{getRMS}}
+  \code{\link{modulationSpectrum}} \code{\link{ssm}}
 }

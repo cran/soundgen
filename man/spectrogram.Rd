@@ -6,22 +6,24 @@
 \usage{
 spectrogram(x, samplingRate = NULL, dynamicRange = 80,
   windowLength = 50, step = NULL, overlap = 70, wn = "gaussian",
-  zp = 0, normalize = TRUE, smoothFreq = 0, smoothTime = 0,
-  qTime = 0, percentNoise = 10, noiseReduction = 0, contrast = 0.2,
-  brightness = 0, method = c("spectrum", "spectralDerivative")[1],
-  output = c("none", "original", "processed", "complex")[1],
-  ylim = NULL, plot = TRUE, osc = FALSE, osc_dB = FALSE,
-  heights = c(3, 1), colorTheme = c("bw", "seewave", "...")[1],
-  xlab = "Time, ms", ylab = "Frequency, kHz", mar = c(5.1, 4.1, 4.1,
-  2), main = "", grid = NULL, frameBank = NULL, duration = NULL,
-  ...)
+  zp = 0, normalize = TRUE, scale = NULL, smoothFreq = 0,
+  smoothTime = 0, qTime = 0, percentNoise = 10, noiseReduction = 0,
+  contrast = 0.2, brightness = 0, method = c("spectrum",
+  "spectralDerivative")[1], output = c("original", "processed",
+  "complex")[1], ylim = NULL, yScale = c("linear", "log")[1],
+  plot = TRUE, osc = FALSE, osc_dB = FALSE, heights = c(3, 1),
+  padWithSilence = TRUE, colorTheme = c("bw", "seewave", "heat.colors",
+  "...")[1], units = c("ms", "kHz"), xlab = paste("Time,", units[1]),
+  ylab = paste("Frequency,", units[2]), mar = c(5.1, 4.1, 4.1, 2),
+  main = "", grid = NULL, frameBank = NULL, duration = NULL,
+  pitch = NULL, ...)
 }
 \arguments{
 \item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
 samplingRate}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -39,17 +41,19 @@ blackman, flattop}
 
 \item{normalize}{if TRUE, scales input prior to FFT}
 
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (not needed if input is an audio file)}
+
 \item{smoothFreq, smoothTime}{length of the window, in data points (0 to
 +inf), for calculating a rolling median. Applies median smoothing to
 spectrogram in frequency and time domains, respectively}
 
-\item{qTime}{the quantile to be subtracted for each frequency
-bin. For ex., if qTime = 0.5, the median of each frequency
-bin (over the entire sound duration) will be calculated and subtracted from
-each frame (see examples)}
+\item{qTime}{the quantile to be subtracted for each frequency bin. For ex.,
+if qTime = 0.5, the median of each frequency bin (over the entire sound
+duration) will be calculated and subtracted from each frame (see examples)}
 
-\item{percentNoise}{percentage of frames (0 to 100\%) used for calculating noise
-spectrum}
+\item{percentNoise}{percentage of frames (0 to 100\%) used for calculating
+noise spectrum}
 
 \item{noiseReduction}{how much noise to remove (0 to +inf, recommended 0 to
 2). 0 = no noise reduction, 2 = strong noise reduction: \eqn{spectrum -
@@ -73,6 +77,9 @@ phase ('complex')}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
 
+\item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
+logarithmic}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
 \item{osc, osc_dB}{should an oscillogram be shown under the spectrogram? TRUE/
@@ -80,19 +87,24 @@ FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
 \code{\link{osc_dB}} for details}
 
 \item{heights}{a vector of length two specifying the relative height of the
-spectrogram and the oscillogram}
+spectrogram and the oscillogram (including time axes labels)}
+
+\item{padWithSilence}{if TRUE, pads the sound with just enough silence to
+resolve the edges properly (only the original region is plotted, so
+apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as
-'heat.colors', 'cm.colors', etc}
+or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
+'cm.colors', etc}
+
+\item{units}{c('ms', 'kHz') is the default, and anything else is interpreted
+as s (for time) and Hz (for frequency)}
 
 \item{xlab, ylab, main, mar}{graphical parameters}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{frameBank}{ignore (only needed for pitch tracking)}
-
-\item{duration}{ignore (only needed for pitch tracking)}
+\item{frameBank, duration, pitch}{ignore (only used internally)}
 
 \item{...}{other graphical parameters}
 }
@@ -109,6 +121,13 @@ routines for noise reduction, smoothing in time and frequency domains, manual
 control of contrast and brightness, plotting the oscillogram on a dB scale,
 grid, etc.
 }
+\details{
+Many soundgen functions call \code{spectrogram}, and you can pass along most
+of its graphical parameters from functions like \code{\link{soundgen}},
+\code{\link{analyze}}, etc. However, in some cases this will not work (eg for
+"units") or may produce unexpected results. If in doubt, omit extra graphical
+parameters.
+}
 \examples{
 # synthesize a sound 1 s long, with gradually increasing hissing noise
 sound = soundgen(sylLen = 1000, temperature = 0.001, noise = list(
@@ -121,12 +140,16 @@ spectrogram(sound, samplingRate = 16000)
 
 # add bells and whistles
 spectrogram(sound, samplingRate = 16000,
-  osc = TRUE, noiseReduction = 1.1,
-  brightness = -1, colorTheme = 'heat.colors',
-  ylim = c(0, 5), cex.lab = .75,
-  main = 'My spectrogram',
-  yaxp = c(0, 8, 16),  # tip: for base graphics, see ?par
-  grid = 5  # tip: to customize, add manually with graphics::grid()
+  osc = TRUE,  # plot oscillogram under the spectrogram
+  noiseReduction = 1.1,  # subtract the spectrum of noisy parts
+  brightness = -1,  # reduce brightness
+  colorTheme = 'heat.colors',  # pick color theme
+  cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
+  grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
+  units = c('s', 'Hz'),  # plot in s or ms, Hz or kHz
+  ylim = c(0, 5000),  # in specified units (Hz)
+  main = 'My spectrogram' # title
+  # + axis labels, etc
 )
 
 \dontrun{
@@ -140,6 +163,10 @@ spectrogram(sound, samplingRate = 16000, osc = TRUE)
 # oscillogram on a dB scale, same height as spectrogram
 spectrogram(sound, samplingRate = 16000,
             osc_dB = TRUE, heights = c(1, 1))
+
+# frequencies on a logarithmic scale
+spectrogram(sound, samplingRate = 16000,
+            yScale = 'log', ylim = c(.05, 8))
 
 # broad-band instead of narrow-band
 spectrogram(sound, samplingRate = 16000, windowLength = 5)
@@ -158,5 +185,15 @@ spectrogram(sound, samplingRate = 16000, smoothFreq = 5,
 
 # increase contrast, reduce brightness
 spectrogram(sound, samplingRate = 16000, contrast = 1, brightness = -1)
+
+# specify location of tick marks etc - see ?par() for base graphics
+spectrogram(sound, samplingRate = 16000,
+            ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, 1400, 4))
 }
+}
+\seealso{
+\code{\link{modulationSpectrum}} \code{\link{ssm}}
+  \code{\link{osc_dB}}
+
+\code{\link{modulationSpectrum}} \code{\link{ssm}}
 }

@@ -15,8 +15,8 @@ samplingRate}
 \item{freqWindow}{the width of smoothing window, Hz. Defaults to median
 pitch estimated by \code{\link{analyze}}}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -79,4 +79,7 @@ playme(sheep_aii, samplingRate)
 # spectrogram(sheep_aii, samplingRate)
 # seewave::spec(sheep_aii, f = samplingRate, dB = 'max0')
 }
+}
+\seealso{
+\code{\link{addFormants}} \code{\link{transplantFormants}}
 }

@@ -497,7 +497,7 @@ getSpectralEnvelope = function(nr,
           ...)
   }
 
-  return(spectralEnvelope_lin)
+  invisible(spectralEnvelope_lin)
 }
 
 
@@ -686,7 +686,7 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
     }
   }
 
-  return (formants)
+  return(formants)
 }
 
 
@@ -704,6 +704,10 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
 #' the spectral filter containing the specified formants, and transforms back to
 #' a time series via inverse STFT. This is a subroutine in
 #' \code{\link{soundgen}}, but it can also be used on any existing sound.
+#'
+#' @seealso \code{\link{getSpectralEnvelope}} \code{\link{transplantFormants}}
+#'   \code{\link{soundgen}}
+#'
 #' @param sound numeric vector with \code{samplingRate}
 #' @param action 'add' = add formants to the sound, 'remove' = remove formants
 #'   (inverse filtering)
@@ -947,12 +951,14 @@ addFormants = function(sound,
 #' \code{freqWindow_recipient} are crucial parameters that regulate the amount
 #' of spectral smoothing in both sounds. The default is to set them to the
 #' estimated median pitch, but this is time-consuming and error-prone, so set
-#' them to reasonable values manually if possible. See also
-#' \code{\link{flatSpectrum}} and \code{\link{addFormants}}.
+#' them to reasonable values manually if possible.
 #'
 #' Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
 #' donor spectrogram, flattens the recipient spectrogram, multiplies the
 #' spectrograms, and transforms back into time domain with inverse STFT.
+#'
+#' @seealso \code{\link{getSpectralEnvelope}} \code{\link{addFormants}}
+#'   \code{\link{soundgen}}
 #'
 #' @inheritParams spectrogram
 #' @param donor the sound that provides the formants
@@ -1069,6 +1075,7 @@ transplantFormants = function(donor,
     wn = wn,
     zp = zp,
     output = 'complex',
+    padWithSilence = FALSE,
     plot = FALSE
   )
   spec_donor = spectrogram(
@@ -1081,6 +1088,7 @@ transplantFormants = function(donor,
     wn = wn,
     zp = zp,
     output = 'original',
+    padWithSilence = FALSE,
     plot = FALSE
   )
 

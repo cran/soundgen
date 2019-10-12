@@ -1,6 +1,10 @@
 #' Self-similarity matrix
 #'
 #' Calculates the self-similarity matrix and novelty vector of a sound.
+#'
+#' @seealso \code{\link{spectrogram}} \code{\link{modulationSpectrum}}
+#'   \code{\link{segment}}
+#'
 #' @references \itemize{
 #'   \item El Badawy, D., Marmaroli, P., & Lissek, H. (2013). Audio
 #'   Novelty-Based Segmentation of Music Concerts. In Acoustics 2013 (No.
@@ -39,28 +43,32 @@
 #' @param returnSSM if TRUE, returns the SSM
 #' @param plot if TRUE, plots the SSM
 #' @param heights relative sizes of the SSM and spectrogram/novelty plot
-#' @param specPars graphical parameters passed to
-#'   \code{seewave::filled.contour.modif2} and affecting the spectrogram
-#' @param ssmPars graphical parameters passed to
-#'   \code{seewave::filled.contour.modif2} and affecting the plot of SSM
+#' @param specPars graphical parameters passed to \code{filled.contour.mod} and
+#'   affecting the \code{\link{spectrogram}}
+#' @param ssmPars graphical parameters passed to \code{filled.contour.mod} and
+#'   affecting the plot of SSM
 #' @param noveltyPars graphical parameters passed to
 #'   \code{\link[graphics]{lines}} and affecting the novelty contour
 #' @return If \code{returnSSM} is TRUE, returns a list of two components: $ssm
 #'   contains the self-similarity matrix, and $novelty contains the novelty
-#'   vector. If \code{returnSSM} is FALSE, only produces a plot.
+#'   vector.
 #' @export
+#' @seealso \code{\link{spectrogram}} \code{\link{modulationSpectrum}}
 #' @examples
 #' sound = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70,
 #'           formants = NA, pitch = c(500, 330)))
 #' # playme(sound)
-#' m1 = ssm(sound, samplingRate = 16000,
+#' ssm(sound, samplingRate = 16000,
 #'          input = 'audiogram', simil = 'cor', norm = FALSE,
 #'          ssmWin = 10, kernelLen = 150)  # detailed, local features
 #' \dontrun{
-#' m2 = ssm(sound, samplingRate = 16000,
+#' m = ssm(sound, samplingRate = 16000,
 #'          input = 'mfcc', simil = 'cosine', norm = TRUE,
-#'          ssmWin = 50, kernelLen = 600)  # more global
-#' # plot(m2$novelty, type='b')  # use for peak detection, etc
+#'          ssmWin = 50, kernelLen = 600,  # global features
+#'          specPars = list(colorTheme = 'heat.colors'),
+#'          ssmPars = list(colorTheme = 'bw'),
+#'          noveltyPars = list(type = 'l', lty = 3, lwd = 2))
+#' # plot(m$novelty, type='b')  # use for peak detection, etc
 #' }
 ssm = function(x,
                samplingRate = NULL,
@@ -74,7 +82,7 @@ ssm = function(x,
                input = c('mfcc', 'audiogram', 'spectrum')[1],
                norm = FALSE,
                simil = c('cosine', 'cor')[1],
-               returnSSM = TRUE,
+               returnSSM = 'deprecated',
                kernelLen = 200,
                kernelSD = .2,
                padWith = 0,
@@ -82,14 +90,14 @@ ssm = function(x,
                heights = c(2, 1),
                specPars = list(
                  levels = seq(0, 1, length = 30),
-                 color.palette = seewave::spectro.colors,
+                 colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
                  xlab = 'Time, s',
                  ylab = 'kHz',
                  ylim = c(0, maxFreq / 1000)
                ),
                ssmPars = list(
                  levels = seq(0, 1, length = 30),
-                 color.palette = seewave::spectro.colors,
+                 colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
                  xlab = 'Time, s',
                  ylab = 'Time, s',
                  main = 'Self-similarity matrix'
@@ -100,6 +108,10 @@ ssm = function(x,
                  col = 'black',
                  lwd = 3
                )) {
+  if (!missing('returnSSM')) {
+    message('returnSSM is deprecated; the result is returned invisibly anyway')
+  }
+
   ## import a sound
   if (class(x) == 'character') {
     sound = tuneR::readWave(x)
@@ -120,7 +132,7 @@ ssm = function(x,
   duration = length(sound) / samplingRate
   frame_points = samplingRate * windowLength / 1000
   kernelSize = round(kernelLen * samplingRate / 1000 / frame_points /
-                        2) * 2  # kernel size in frames, guaranteed to be even
+                       2) * 2  # kernel size in frames, guaranteed to be even
   if (is.null(nBands)) {
     nBands = 100 * windowLength / 20
   }
@@ -138,7 +150,7 @@ ssm = function(x,
     hoptime = step / 1000,
     maxfreq = maxFreq,
     nbands = nBands,
-    spec_out = T,
+    spec_out = TRUE,
     numcep = max(MFCC)
   )
   if (input == 'mfcc') {
@@ -169,17 +181,35 @@ ssm = function(x,
 
   ## plot
   if (plot) {
+    # log-transform and normalize spectrogram
     if (input == 'audiogram') {
-      spec = zeroOne(log(mel$aspectrum + 1e-16))
+      spec = log(zeroOne(mel$aspectrum) + 1e-4)  # dynamic range ~ 80 dB or 1e-4
     } else {
-      spec = zeroOne(log(mel$pspectrum + 1e-16))
+      spec = log(zeroOne(mel$pspectrum) + 1e-4)
     }
+    spec = zeroOne(spec)
+
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
     layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
     par(mar = c(5.1, 4.1, 0, 2.1),
         xaxt = 's',
         yaxt = 's')
+
     # spectrogram
+    specPars1 = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = 'seewave',
+      xlab = 'Time, s',
+      ylab = 'kHz',
+      ylim = c(0, maxFreq / 1000)
+    )
+    for (i in 1:length(specPars)) {
+      n = names(specPars)[i]
+      specPars1[[n]] = specPars[[n]]
+    }
+    specPars1$color.palette = switchColorTheme(specPars1$colorTheme)
+    specPars1[['colorTheme']] = NULL
+
     do.call(filled.contour.mod, c(list(
       x = seq(0, duration, length.out = nrow(spec)),
       y = seq(
@@ -188,14 +218,24 @@ ssm = function(x,
         length.out = ncol(spec)
       ) / 1000,
       z = spec
-    ), specPars
+    ), specPars1
     ))
 
     # novelty
+    noveltyPars1 = list(
+      type = 'b',
+      pch = 16,
+      col = 'black',
+      lwd = 3
+    )
+    for (i in 1:length(noveltyPars)) {
+      n = names(noveltyPars)[i]
+      noveltyPars1[[n]] = noveltyPars[[n]]
+    }
     do.call(lines, c(list(
       x = seq(0, duration, length.out = length(novelty)),
       y = novelty / max(novelty, na.rm = TRUE) * maxFreq / 1000
-      ), noveltyPars
+    ), noveltyPars1
     ))
     axis(side = 1, labels = TRUE)
     par(mar = c(0, 4.1, 2.1, 2.1),
@@ -204,20 +244,31 @@ ssm = function(x,
     xlab = ''
 
     # SSM
+    ssmPars1 = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = 'seewave',
+      xlab = 'Time, s',
+      ylab = 'Time, s',
+      main = 'Self-similarity matrix'
+    )
+    for (i in 1:length(ssmPars)) {
+      n = names(ssmPars)[i]
+      ssmPars1[[n]] = ssmPars[[n]]
+    }
+    ssmPars1$color.palette = switchColorTheme(ssmPars1$colorTheme)
+    ssmPars1[['colorTheme']] = NULL
     timestamps_ssm = seq(0, duration, length.out = nrow(s))
-    do.call(seewave::filled.contour.modif2, c(list(
+    do.call(filled.contour.mod, c(list(
       x = timestamps_ssm,
       y = timestamps_ssm,
       z = s
-    ), ssmPars
+    ), ssmPars1
     ))
     # restore original pars
     par('mar' = op$mar, 'xaxt' = op$xaxt, 'yaxt' = op$yaxt, 'mfrow' = op$mfrow)
   }
 
-  if (returnSSM) {
-    return(list(ssm = s, novelty = novelty))
-  }
+  invisible(list(ssm = s, novelty = novelty))
 }
 
 
@@ -268,8 +319,7 @@ selfsim = function(m,
         } else if (simil == 'cor') {
           out[i, j] = cor(mi, mj)
         }
-      }
-      else {
+      } else {
         # if at least one is a vector of zeros, set result to 0 (otherwise NA)
         out[i, j] = 0
       }

@@ -6,6 +6,9 @@
 #' very useful, but note that this gives us a nice logarithmic scale for
 #' generating natural pitch transitions with the added benefit of getting
 #' musical notation for free from \code{notesDict} (see examples).
+#'
+#' @seealso \code{\link{semitonesToHz}}
+#'
 #' @param h vector or matrix of frequencies (Hz)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
@@ -22,6 +25,9 @@ HzToSemitones = function(h, ref = 0.5109875) {
 #'
 #' Converts from semitones above C-5 (~0.5109875 Hz) to Hz. See
 #' \code{\link{HzToSemitones}}
+#'
+#' @seealso \code{\link{HzToSemitones}}
+#'
 #' @param s vector or matrix of frequencies (semitones above C0)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
@@ -199,12 +205,12 @@ getEntropy = function(x,
 #' soundgen:::rnorm_truncated(n = 3, mean = 10, sd = .1,
 #'   low = c(15, 0, 0), high = c(100, 100, 8), invalidArgAction = 'ignore')
 rnorm_truncated = function(n = 1,
-                         mean = 0,
-                         sd = 1,
-                         low = NULL,
-                         high = NULL,
-                         roundToInteger = FALSE,
-                         invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
+                           mean = 0,
+                           sd = 1,
+                           low = NULL,
+                           high = NULL,
+                           roundToInteger = FALSE,
+                           invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
   if (length(mean) < n) mean = spline(mean, n = n)$y
   if (length(sd) < n) sd = spline(sd, n = n)$y
   if (any(!is.finite(sd))) sd = mean / 10
@@ -519,6 +525,9 @@ matchColumns = function (matrix_short, nCol, padWith = 0) {
 #' longer vector. The location at which vector 2 is pasted is defined by
 #' insertionPoint. Algorithm: both vectors are padded with zeros to match in
 #' length and then added. All NA's are converted to 0.
+#'
+#' @seealso \code{\link{soundgen}}
+#'
 #' @param v1,v2 numeric vectors
 #' @param insertionPoint the index of element in vector 1 at which vector 2 will
 #'   be inserted (any integer, can also be negative)
@@ -877,6 +886,8 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #' Takes a matrix of numeric values and smoothes it by convolution with a
 #' symmetric Gaussian window function.
 #'
+#' @seealso \code{\link{modulationSpectrum}}
+#'
 #' @return Returns a numeric matrix of the same dimensions as input.
 #' @param m input matrix (numeric, on any scale, doesn't have to be square)
 #' @param kernelSize the size of the Gaussian kernel, in points
@@ -1021,4 +1032,22 @@ logMatrix = function(m, base = 2) {
   }
 
   return(m2)
+}
+
+#' Switch color theme
+#'
+#' Internal soundgen function
+#' @param colorTheme string like 'bw', 'seewave', or function name
+#' @keywords internal
+switchColorTheme = function(colorTheme) {
+  if (is.null(colorTheme)) return(NULL)
+  if (colorTheme == 'bw') {
+    color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
+  } else if (colorTheme == 'seewave') {
+    color.palette = seewave::spectro.colors
+  } else {
+    colFun = match.fun(colorTheme)
+    color.palette = function(x) rev(colFun(x))
+  }
+  return(color.palette)
 }

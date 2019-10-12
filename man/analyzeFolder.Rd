@@ -11,7 +11,7 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   nFormants = 3, pitchMethods = c("autocor", "spec", "dom"),
   entropyThres = 0.6, pitchFloor = 75, pitchCeiling = 3500,
   priorMean = 300, priorSD = 6, priorPlot = FALSE, nCands = 1,
-  minVoicedCands = "autom", domThres = 0.1, domSmooth = 220,
+  minVoicedCands = NULL, domThres = 0.1, domSmooth = 220,
   autocorThres = 0.7, autocorSmooth = NULL, cepThres = 0.3,
   cepSmooth = NULL, cepZp = 0, specThres = 0.3, specPeak = 0.35,
   specSinglePeakCert = 0.4, specHNRslope = 0.8, specSmooth = 150,
@@ -22,10 +22,10 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
   snakePlot = FALSE, smooth = 1, smoothVars = c("pitch", "dom"),
   summary = TRUE, summaryFun = c("mean", "median", "sd"),
   plot = FALSE, showLegend = TRUE, savePlots = FALSE,
-  plotSpec = TRUE, pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3),
-  candPlot = list(levels = c("autocor", "spec", "dom", "cep"), col =
-  c("green", "red", "orange", "violet"), pch = c(16, 2, 3, 7), cex = 2),
-  ylim = NULL, xlab = "Time, ms", ylab = "kHz", main = NULL,
+  plotSpec = "deprecated", pitchPlot = list(col = rgb(0, 0, 1, 0.75),
+  lwd = 3), candPlot = list(levels = c("autocor", "spec", "dom", "cep"),
+  col = c("green", "red", "orange", "violet"), pch = c(16, 2, 3, 7), cex =
+  2), ylim = NULL, xlab = "Time, ms", ylab = "kHz", main = NULL,
   width = 900, height = 500, units = "px", res = NA, ...)
 }
 \arguments{
@@ -35,8 +35,8 @@ analyzeFolder(myfolder, htmlPlots = TRUE, verbose = TRUE,
 
 \item{verbose}{if TRUE, reports progress and estimated time left}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -62,10 +62,11 @@ blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
 
-\item{cutFreq}{(>0 to Nyquist, Hz) repeat the calculation of spectral
-descriptives after discarding all info above \code{cutFreq}.
+\item{cutFreq}{(2 * pitchCeiling to Nyquist, Hz) repeat the calculation of
+spectral descriptives after discarding all info above \code{cutFreq}.
 Recommended if the original sampling rate varies across different analyzed
-audio files}
+audio files. Note that "entropyThres" applies only to this frequency range,
+which also affects which frames will not be analyzed with pitchAutocor.}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
 formant analysis). Calls \code{\link[phonTools]{findformants}} with default
@@ -96,7 +97,8 @@ most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 an octave)}
 
-\item{priorPlot}{if TRUE, produces a separate plot of the prior}
+\item{priorPlot}{deprecated; use \code{\link{getPrior}} to visualize the
+prior}
 
 \item{nCands}{maximum number of pitch candidates per method (except for
 \code{dom}, which returns at most one candidate per frame), normally 1...4}
@@ -217,7 +219,7 @@ acoustic characteristic}
 
 \item{savePlots}{if TRUE, saves plots as .png files}
 
-\item{plotSpec}{if \code{FALSE}, the spectrogram will not be plotted}
+\item{plotSpec}{deprecated}
 
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{NULL} or \code{NA} to suppress}
@@ -276,4 +278,8 @@ cor(key, trial, use = 'pairwise.complete.obs')
 plot(log(key), log(trial))
 abline(a=0, b=1, col='red')
 }
+}
+\seealso{
+\code{\link{analyze}} \code{\link{pitch_app}}
+  \code{\link{getLoudness}} \code{\link{segment}} \code{\link{getRMS}}
 }

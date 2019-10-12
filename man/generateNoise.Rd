@@ -141,7 +141,7 @@ samplingRate = sheep@samp.rate
 windowLength = c(5, 10, 50, 100)[1]  # try both narrow-band (eg 100 ms)
 # to get "harmonics" and wide-band (5 ms) to get only formants
 spectralEnvelope = spectrogram(sound_orig, windowLength = windowLength,
-  samplingRate = samplingRate, output = 'original')
+  samplingRate = samplingRate, output = 'original', padWithSilence = FALSE)
 sound_noise = generateNoise(len = length(sound_orig),
   spectralEnvelope = spectralEnvelope, rolloffNoise = 0,
   samplingRate = samplingRate, play = playback)
@@ -156,4 +156,7 @@ par(mfrow = c(1, 1))
 # (which sounds like noise if windowLength is ~5-10 ms,
 # but becomes more and more like the original at longer window lengths)
 }
+}
+\seealso{
+\code{\link{soundgen}} \code{\link{fart}} \code{\link{beat}}
 }

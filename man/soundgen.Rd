@@ -327,7 +327,8 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
   nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
   pitch = c(559, 785, 557),
   mouth = c(0, 0.5, 0),
-  vocalTract = 5, play = playback)
+  vocalTract = 5, formants = NULL,
+  play = playback, plot = TRUE)
 
 # Use nonlinRandomWalk to crease reproducible examples of sounds with
 nonlinear effects. For ex., to make a sound with no effect in the first
@@ -344,4 +345,8 @@ s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
 # Examples of code for creating human and animal vocalizations are available
 # on project's homepage: http://cogsci.se/soundgen.html
 }
+}
+\seealso{
+\code{\link{generateNoise}} \code{\link{generateNoise}}
+  \code{\link{fart}} \code{\link{beat}}
 }

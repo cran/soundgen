@@ -18,8 +18,8 @@ Defaults to median pitch of each respective sound estimated by
 
 \item{recipient}{the sound that receives the formants}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -44,8 +44,7 @@ formants in the recipient sound while preserving the original intonation and
 \code{freqWindow_recipient} are crucial parameters that regulate the amount
 of spectral smoothing in both sounds. The default is to set them to the
 estimated median pitch, but this is time-consuming and error-prone, so set
-them to reasonable values manually if possible. See also
-\code{\link{flatSpectrum}} and \code{\link{addFormants}}.
+them to reasonable values manually if possible.
 }
 \details{
 Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
@@ -87,4 +86,8 @@ playme(s2, samplingRate)
 spectrogram(s2, samplingRate, osc = TRUE)
 seewave::meanspec(s2, f = samplingRate, dB = 'max0')
 }
+}
+\seealso{
+\code{\link{getSpectralEnvelope}} \code{\link{addFormants}}
+  \code{\link{soundgen}}
 }

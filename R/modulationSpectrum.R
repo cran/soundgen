@@ -19,6 +19,9 @@
 #' averaged. This is different from the behavior of
 #' \code{\link{modulationSpectrumFolder}}, which produces a separate modulation
 #' spectrum per file, without averaging.
+#'
+#' @seealso \code{\link{modulationSpectrumFolder}} \code{\link{spectrogram}}
+#'
 #' @references \itemize{
 #'   \item Singh, N. C., & Theunissen, F. E. (2003). Modulation spectra of
 #'   natural sounds and ethological theories of auditory processing. The Journal
@@ -52,9 +55,8 @@
 #' @param xlab,ylab,main graphical parameters
 #' @param width,height,units,res parameters passed to
 #'   \code{\link[grDevices]{png}} if the plot is saved
-#' @param ... other graphical parameters passed on to
-#'   \code{\link[seewave]{filled.contour.modif2}} and
-#'   \code{\link[graphics]{contour}}
+#' @param ... other graphical parameters passed on to \code{filled.contour.mod}
+#'   and \code{\link[graphics]{contour}} (see \code{\link{spectrogram}})
 #' @return Returns a list with three components:
 #' \itemize{
 #' \item \code{$original} modulation spectrum prior to blurring and log-warping,
@@ -79,7 +81,7 @@
 #' # embellish
 #' ms = modulationSpectrum(s, samplingRate = 16000,
 #'   xlab = 'Temporal modulation, Hz', ylab = 'Spectral modulation, 1/KHz',
-#'   colorTheme = 'seewave', main = 'Modulation spectrum', lty = 3)
+#'   colorTheme = 'heat.colors', main = 'Modulation spectrum', lty = 3)
 #' \dontrun{
 #' # Input can also be a list of waveforms (numeric vectors)
 #' ss = vector('list', 10)
@@ -101,9 +103,8 @@
 #' ms = modulationSpectrum(s, samplingRate = 44100,
 #'   windowLength = 15, overlap = 80)  # a reasonable compromise
 #'
-#' # Input can be a wav/mp3 file
-#' ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')
-#' ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav',
+#' # customize the plot
+#' ms = modulationSpectrum(s, samplingRate = 44100,
 #'   kernelSize = 17,  # more smoothing
 #'   xlim = c(-20, 20), ylim = c(0, 4),  # zoom in on the central region
 #'   quantiles = c(.25, .5, .8),  # customize contour lines
@@ -111,6 +112,9 @@
 #'   logWarp = NULL,              # don't log-warp the modulation spectrum
 #'   power = 2)  # ^2
 #' # NB: xlim/ylim currently won't work properly with logWarp on
+#'
+#' # Input can be a wav/mp3 file
+#' ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')
 #'
 #' # Input can be path to folder with audio files (average modulation spectrum)
 #' ms = modulationSpectrum('~/Downloads/temp/', kernelSize = 11)
@@ -149,32 +153,34 @@
 #' ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = FALSE)
 #' ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = TRUE)
 #' }
-modulationSpectrum = function(x,
-                              samplingRate = NULL,
-                              maxDur = 5,
-                              logSpec = FALSE,
-                              windowLength = 25,
-                              step = NULL,
-                              overlap = 80,
-                              wn = 'gaussian',
-                              zp = 0,
-                              power = 1,
-                              roughRange = c(30, 150),
-                              plot = TRUE,
-                              savePath = NA,
-                              logWarp = 2,
-                              quantiles = c(.5, .8, .9),
-                              kernelSize = 5,
-                              kernelSD = .5,
-                              colorTheme = c('bw', 'seewave', '...')[1],
-                              xlab = 'Hz',
-                              ylab = '1/KHz',
-                              main = NULL,
-                              width = 900,
-                              height = 500,
-                              units = 'px',
-                              res = NA,
-                              ...) {
+modulationSpectrum = function(
+  x,
+  samplingRate = NULL,
+  maxDur = 5,
+  logSpec = FALSE,
+  windowLength = 25,
+  step = NULL,
+  overlap = 80,
+  wn = 'gaussian',
+  zp = 0,
+  power = 1,
+  roughRange = c(30, 150),
+  plot = TRUE,
+  savePath = NA,
+  logWarp = 2,
+  quantiles = c(.5, .8, .9),
+  kernelSize = 5,
+  kernelSD = .5,
+  colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+  xlab = 'Hz',
+  ylab = '1/KHz',
+  main = NULL,
+  width = 900,
+  height = 500,
+  units = 'px',
+  res = NA,
+  ...
+) {
   # determine the type of input
   if (is.character(x)) {
     # assume that this is a directory containing sound files
@@ -272,7 +278,8 @@ modulationSpectrum = function(x,
                      wn = wn,
                      zp = zp,
                      plot = FALSE,
-                     output = 'original')
+                     output = 'original',
+                     padWithSilence = FALSE)
     # image(t(s1))
     # log-transform amplitudes
     if (logSpec) {
@@ -353,17 +360,9 @@ modulationSpectrum = function(x,
   }
 
   if (plot) {
-    if (colorTheme == 'bw') {
-      color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
-    } else if (colorTheme == 'seewave') {
-      color.palette = seewave::spectro.colors
-    } else {
-      colFun = match.fun(colorTheme)
-      color.palette = function(x) rev(colFun(x))
-    }
-
+    color.palette = switchColorTheme(colorTheme)
     if (is.numeric(logWarp)) {
-      seewave::filled.contour.modif2(
+      filled.contour.mod(
         x = X, y = Y, z = out_transf,
         levels = seq(0, 1, length = 30),
         color.palette = color.palette,
@@ -419,7 +418,7 @@ modulationSpectrum = function(x,
       #      at  = yl1,
       #      labels = yl)
     } else {
-      seewave::filled.contour.modif2(
+      filled.contour.mod(
         x = X, y = Y, z = out_transf,
         levels = seq(0, 1, length = 30),
         color.palette = color.palette,
@@ -441,9 +440,9 @@ modulationSpectrum = function(x,
     if (is.character(savePath)) dev.off()
   }
 
-  return(list('original' = out_aggreg,
-              'processed' = out_transf,
-              'roughness' = roughness))
+  invisible(list('original' = out_aggreg,
+                 'processed' = out_transf,
+                 'roughness' = roughness))
 }
 
 
@@ -453,6 +452,9 @@ modulationSpectrum = function(x,
 #' each file, without averaging. Good for saving plots of the modulation spectra
 #' and/or measuring the roughness of multiple files. See
 #' \code{\link{modulationSpectrum}} for further details.
+#'
+#' @seealso \code{\link{modulationSpectrum}}
+#'
 #' @inheritParams analyzeFolder
 #' @inheritParams modulationSpectrum
 #' @inheritParams spectrogram

@@ -13,8 +13,8 @@ getRMS(x, samplingRate = NULL, windowLength = 50, step = NULL,
 \item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
 samplingRate}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if
-\code{x} is a numeric vector, rather than an audio file)}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector, rather than an audio file)}
 
 \item{windowLength}{length of FFT window, ms}
 
@@ -72,4 +72,8 @@ r = getRMS(s, samplingRate = 16000,
 \dontrun{
 r = getRMS('~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav')
 }
+}
+\seealso{
+\code{\link{getRMSFolder}}
+  \code{\link{analyze}}\code{\link{getLoudness}}
 }
