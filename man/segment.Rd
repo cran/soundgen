@@ -4,15 +4,35 @@
 \alias{segment}
 \title{Segment a sound}
 \usage{
-segment(x, samplingRate = NULL, windowLength = 40, overlap = 80,
-  shortestSyl = 40, shortestPause = 40, sylThres = 0.9,
-  interburst = NULL, interburstMult = 1, burstThres = 0.075,
-  peakToTrough = 3, troughLeft = TRUE, troughRight = FALSE,
-  summary = FALSE, plot = FALSE, savePath = NA, col = "green",
-  xlab = "Time, ms", ylab = "Amplitude", main = NULL, width = 900,
-  height = 500, units = "px", res = NA, sylPlot = list(lty = 1, lwd
-  = 2, col = "blue"), burstPlot = list(pch = 8, cex = 3, col = "red"),
-  ...)
+segment(
+  x,
+  samplingRate = NULL,
+  windowLength = 40,
+  overlap = 80,
+  shortestSyl = 40,
+  shortestPause = 40,
+  sylThres = 0.9,
+  interburst = NULL,
+  interburstMult = 1,
+  burstThres = 0.075,
+  peakToTrough = 3,
+  troughLeft = TRUE,
+  troughRight = FALSE,
+  summary = FALSE,
+  plot = FALSE,
+  savePath = NA,
+  col = "green",
+  xlab = "Time, ms",
+  ylab = "Amplitude",
+  main = NULL,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
+  sylPlot = list(lty = 1, lwd = 2, col = "blue"),
+  burstPlot = list(pch = 8, cex = 3, col = "red"),
+  ...
+)
 }
 \arguments{
 \item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
@@ -102,7 +122,8 @@ research: a validated corpus. Behavior Research Methods, 49(2): 758-771.
 sound = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70,
   pitch = c(368, 284), temperature = 0.1,
   noise = list(time = c(0, 67, 86, 186), value = c(-45, -47, -89, -120)),
-  rolloff_noise = -8, amplAnchorsGlobal = c(0, -20))
+  rolloff_noise = -8, amplGlobal = c(0, -20),
+  dynamicRange = 120)
 spectrogram(sound, samplingRate = 16000, osc = TRUE)
  # playme(sound, samplingRate = 16000)
 
@@ -113,6 +134,9 @@ s = segment(sound, samplingRate = 16000, plot = TRUE,
 
 # just a summary
 segment(sound, samplingRate = 16000, summary = TRUE)
+# Note that syllables are slightly longer and pauses shorter than they should
+# be (b/c of the smoothing of amplitude envelope), while interburst intervals
+# are right on target
 
 # customizing the plot
 s = segment(sound, samplingRate = 16000, plot = TRUE,

@@ -62,10 +62,10 @@ Audio playback may fail, depending on your platform and installed software. Soun
   
 Because of possible errors, audio playback is disabled by default in the rest of this vignette. To turn it on without changing any code, simply set the global variable `playback` to the appropriate value for your specific OS, for ex.:
 ```{r}
-playback = FALSE  
-# TRUE means using "play" on Linux and the defaults of tuneR::play on Windows/Mac
+playback = list(TRUE, FALSE, 'vlc', 'my-awesome-player')[[2]]
+# TRUE means defaulting to "play" on Linux, "afplay" on Mac, 
+# and the defaults of tuneR::play on Windows
 # FALSE means no sound playback
-# A string like "play", "aplay", "vlc" etc. calls a specific player
 ```
 
 ## From the console
@@ -229,8 +229,9 @@ s = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140, plot = TRUE, play = playbac
 ### Vibrato
 Vibrato adds frequency modulation (FM) to f0 contour by modifying f0 per glottal cycle. In contrast to irregular jitter and temperature-related random drift, however, this FM is regular, namely sinusoidal:
 ```{r fig.width = 5, fig.height = 5}
-s1 = soundgen(vibratoDep = 0:3, vibratoFreq = 7:5, sylLen = 2000, play = playback,
-              pitch = c(300, 280), plot = TRUE)
+s1 = soundgen(vibratoDep = 0:3, vibratoFreq = 7:5, 
+              sylLen = 2000, pitch = c(300, 280), 
+              play = playback, plot = TRUE)
 ```
 
 
@@ -281,7 +282,8 @@ mf = c(-1,  # male: 100% lower f0, 25% lower formants, 25% longer vocal tract
 # See e.g. http://www.santiagobarreda.com/vignettes/v1/v1.html
 
 for (i in mf) {
-  s = soundgen(maleFemale = i, formants = NA, vocalTract = 17, play = playback)
+  s = soundgen(maleFemale = i, formants = NA, pitch = 220, 
+               vocalTract = 15, play = playback)
   # Since `formants` are not specified, but temperature is above zero, a 
   # schwa-like sound with approximately equidistant formants is generated using
   # `vocalTract` (cm) to calculate the expected formant dispersion.
@@ -355,8 +357,8 @@ Argument `formants` (tab "Tract / Formants" in the app) sets the formants – fr
 Using presets for callers M1 and F1, you can directly specify a string of vowels. When you call `soundgen` with `formants = 'aouuuui'` or some such character string, the values are taken from `presets$M1$Formants` (or `presets$F1$Formants` if the speaker is "F1" in the Shiny app). Formants can remain the same throughout the vocalizations, or they can move. For example, `formants = 'ai'` produces a sound that goes smoothly from [a] to [i], while `formants = 'aaai'` produces mostly [a] with a rapid transition to [i] at the very end. Argument `formantStrength` ("Formant prominence" in the app) adjusts the overall effect of all formant filters at once, and `formantWidth` scales all bandwidths.
 
 ```{r}
-s = soundgen(formants = 'ai', play = playback)
-s = soundgen(formants = 'aaai', play = playback)
+soundgen(formants = 'ai', play = playback)
+soundgen(formants = 'aaai', play = playback)
 ```
 
 ### Manual formants
@@ -398,17 +400,45 @@ estimateVTL(formants = c(300, 1100, 2000))  # 22.8 cm
 It is usually useful to allow soundgen to create upper formants automatically based on the estimated VTL, since upper formants are typically less perceptually salient. As a result, we don't want to spend too much time specifying them manually, but still we don't want them to be completely absent, either, since that makes for very weak high frequencies in the spectrum. An approximation based on standard open-ended tube models is often good enough for calculating the missing formant frequencies. You can remove them by setting `temperature = 0` or `formantDepStoch = 0`, but note that without higher formants the entire spectrum loses energy at higher frequencies:
 
 ```{r fig.width = 7, fig.height = 4}
-s1 = soundgen(formants = c(800, 1200), play = playback, plot = TRUE)
-s1 = soundgen(formants = c(800, 1200), formantDepStoch = 0,
+soundgen(formants = c(800, 1200), play = playback, plot = TRUE)
+soundgen(formants = c(800, 1200), formantDepStoch = 0,
               play = playback, plot = TRUE)
 ```
 
 Another useful method is to specify vocal tract length without any formants. In this case soundgen() approximates a neutral schwa sound for an animal with a vocal tract that looks like a uniform tube of this length. Crude, but often sufficient. A toy example (check presets for some more realistic sounds created using this method):
 
 ```{r fig.width = 7, fig.height = 4}
-s1 = soundgen(formants = NULL, vocalTract = 24, play = playback, plot = TRUE)
-s1 = soundgen(formants = NULL, vocalTract = 12, play = playback, plot = TRUE)
+soundgen(formants = NULL, vocalTract = 24, play = playback, plot = TRUE)
+soundgen(formants = NULL, vocalTract = 12, play = playback, plot = TRUE)
 ```
+
+For very long vocal tracts, it is advisable to increase `formantCeiling` to ~5-10 times the Nyquist frequency, otherwise the filter dampens high frequencies too much. The default setting is `formantCeiling = 2`, which is much faster and not too inaccurate for human-length vocal tracts. Compare:
+```{r fig.width = 7, fig.height = 4}
+soundgen(formants = NULL, vocalTract = 35, pitch = 80, formantCeiling = 2, 
+         play = playback, plot = TRUE)
+soundgen(formants = NULL, vocalTract = 35, pitch = 80, formantCeiling = 5, 
+         play = playback, plot = TRUE)
+```
+
+Vocal tract length can be variable. This is an easy way to create parallel formant transitions. Unlike the argument "mouth", variable "vocalTract" parameter recalculates formant bandwidths and is thus more accurate, but it requires you to specify the actual length of the virtual vocal tract, in cm.
+```{r fig.width = 7, fig.height = 4}
+soundgen(sylLen = 800, formants = NULL, 
+         vocalTract = c(12, 18, 19), play = playback, plot = TRUE)
+```
+
+If you provide both a few formant frequencies and a variable `vocalTract`, formants are synthesized as specified at the initial value of `vocalTract` (that is, at the very beginning of the sound) and can deviate afterwards as VTL changes. Careful with such combinations: make sure the *initial* value of the VTL is reasonable for these formant frequencies (any VTL is fine towards the end of the sound - the user-specified formants will move accordingly). Examples:
+```{r fig.width = 7, fig.height = 4}
+formants = list(f1 = c(500, 250), f2 = c(1500, 2800), f3 = 3500, f4 = 4300)
+estimateVTL(formants)  # 13.7 cm - so the initial VTL should be close to 13.7
+soundgen(sylLen = 800, rolloff = -6, formants = formants, 
+         vocalTract = list(time = c(0, .3, 1), value = c(14, 28, 25)), 
+         play = playback, plot = TRUE, main = 'Good initial VTL')
+# wrong: VTL too high for these formants, causing an overlap
+soundgen(sylLen = 800, rolloff = -6, formants = formants, 
+         vocalTract = list(time = c(0, .3, 1), value = c(18, 28, 25)), 
+         play = playback, plot = TRUE, main = 'Bad initial VTL')
+```
+
 
 ### Spectral envelope
 Sometimes it may be useful to view moving formants before synthesizing the sound. The way to do this is to call explicitly the function that handles all formant processing under the hood, namely `getSpectralEnvelope`:
@@ -427,7 +457,7 @@ s = getSpectralEnvelope(nr = 1024,  # freq bins in FFT frame (window_length / 2)
 # This has the effect of amplifying higher frequencies to mimic lip radiation. 
 ```
 
-Note that, in addition to formants, lip and nose radiation is also handled by this function (see the next section on mouth opening).
+Note that, in addition to formants, lip and nose radiation are also handled by this function (see the next section on mouth opening).
 
 *TIP When using the app, you can start with a formant preset by typing in a vowel string, and then you can modify it. This way you don't have to remember the right format. If you edit the list of formants and nothing in the sound seems to be changing, there may be a misprint, missing comma, etc.*
 
@@ -447,17 +477,23 @@ formants = list(
                     amp = c(30, 20), width = c(120, 200)), 
   f3   = data.frame(time=c(0, 1), freq = c(2900, 3100), 
                     amp = 25, width = 200))
-# se = getSpectralEnvelope(nr = 512, nc = 100, formants = formants, plot = TRUE)
-s = soundgen(sylLen = 1500, play = playback, 
-             pitch = 140, formants = formants, rolloff = -2)
+s = soundgen(sylLen = 1500, play = playback, pitch = 140, formants = formants)
 spectrogram(s, samplingRate = 16000, ylim = c(0, 4), contrast = .5, 
             windowLength = 10, step = 5, colorTheme = 'seewave')
 # long-term average spectrum (less helpful for moving formants but very good for stationary):
 # seewave::meanspectrogram(s, f = 16000, wl = 256)  
 ```
 
+If you look at the filter towards the end of the sound, you can observe the additional zero-pole pair between the first and second formant:
+```{r fig.show = "hold", fig.width = 5, fig.height = 4}
+se = getSpectralEnvelope(nr = 512, nc = 100, formants = formants)
+plot(20 * log10(se[, ncol(se)]), type = 'l', xlab = '', ylab = 'dB')
+```
+
+
+
 ### Mouth opening
-A convenient shortcut for manipulating formants without coding all transitions by hand is provided by `mouth` argument (in the app, tab "Tract / Mouth opening"). This can be thought of as a hyper-parameter offering an easy way to define moving formants within a bout: all formants go down as the mouth closes and rise as it opens (see Moore, 2016). In addition, an open mouth has lip radiation, which has the effect of amplifying higher frequencies. Lip radiation is replaced by nose radiation when the mouth is completely closed, dampening the higher frequencies, and the vowel is automatically nasalized using a simple approximation (Hawkins & Stevens, 1985). Basically, with the mouth closed we switch from a tube open at one end to a tube closed at both ends and coupled with a (simplified) nasal cavity. Despite being a crude model of what really happens when a vocalizing animal closes its mouth, in many cases `mouth` can save you a lot of manual coding of formants. Here is a simple example, with the mouth gradually opening and closing again:
+In addition to variable vocal tract length (`vocalTract` argument), another convenient shortcut for creating parallel formant transitions without coding all transitions by hand is provided by the `mouth` argument (in the app, tab "Tract / Mouth opening"). This can be thought of as a hyper-parameter offering an easy way to define moving formants within a bout: all formants go down as the mouth closes and rise as it opens (see Moore, 2016). In addition, an open mouth has lip radiation, which has the effect of amplifying higher frequencies. Lip radiation is replaced by nose radiation when the mouth is completely closed, dampening the higher frequencies, and the vowel is automatically nasalized using a simple approximation (Hawkins & Stevens, 1985). Basically, with the mouth closed we switch from a tube open at one end to a tube closed at both ends and coupled with a (simplified) nasal cavity. Despite being a crude model of what really happens when a vocalizing animal closes its mouth, in many cases `mouth` can save you a lot of manual coding of formants. Here is a simple example, with the mouth gradually opening and closing again:
 ```{r fig.width = 7, fig.height = 5}
 s = soundgen(sylLen = 1200, play = playback, pitch = 140, 
              mouth = list(time = c(0, .3, .75, 1), 
@@ -472,6 +508,8 @@ spectrogram(s, samplingRate = 16000,
 
 ### Add formants to an existing sound
 For some purposes it may be useful to separate the generation of glottal source (or another source of acoustic excitation) from its spectral filtering. You may also need to add formants to an existing waveform. To do so, you can call the helper function `addFormants()`, which normally works under the hood in soundgen. The algorithm is to take an STFT, multiply the resulting spectrum by the filter, and then convert it back to time domain via inverse STFT. The same function can theoretically be used to perform inverse filtering - that is, to remove formants from a signal - as long as you can provide a very accurate formant filter. See `?addFormants` for more information.
+
+You can also lift formants off one sound and "transplant" them onto another. See `?transplantFormants` for more information and examples.
 
 
 ## Source spectrum (glottal source)
@@ -769,23 +807,23 @@ The perceptual quality of turbulent noise depends on its spectral composition, w
 1.  Noise with the same formant structure as the voiced component, the spectrum of which only depends on the `rolloffNoise` setting, while `formantsNoise` is `NULL` or `NA`. This is useful for adding noise that originates deep in the throat, close to the vocal cords. To generate breathing, specify `noise`, but leave `formantsNoise` blank (NA, which is its default value). Soundgen then assumes that the unvoiced component should have the same formant structure as the voiced component.
 
 ```{r fig.width = 5, fig.height = 5}
-s = soundgen(sylLen = 500, 
-             noise = data.frame(time = c(0, 800), value = c(-20, -10)),
-             formantsNoise = NA,  # breathing - same formants as for voiced
-             play = playback, plot = TRUE, osc = TRUE)
+soundgen(sylLen = 500, 
+         noise = data.frame(time = c(0, 800), value = c(-20, -10)),
+         formantsNoise = NA,  # breathing - same formants as for voiced
+         play = playback, plot = TRUE, osc = TRUE)
 # observe that the voiced and unvoiced components have exactly the same formants
 ```
 
 2.  Noise with a different formant structure than the voiced component. To generate such noise, you can use one of the available presets in the app (for now, only a few human consonants) or specify the formants for the unvoiced component (`formantsNoise`) manually in exactly the same format as for the voiced component (`formants`). 
 
 ```{r fig.width = 5, fig.height = 5}
-s = soundgen(sylLen = 500, 
-             noise = data.frame(time = c(0, 800), value = c(-20, -10)),
+s = soundgen(sylLen = 200, pitch = c(150, 120),
+             noise = data.frame(time = c(180, 250, 400), value = c(-20, -10, -50)),
              # specify noise filter ≠ voiced filter to get ~[s]
              formantsNoise = list(
-               f1 = data.frame(freq = 6000,
-                               amp = 50, 
-                               width = 1000)
+               f1 = data.frame(freq = 7000,
+                               amp = 40, 
+                               width = 1500)
              ), 
              rolloffNoise = 0,
              play = playback, plot = TRUE, osc = TRUE)
@@ -829,11 +867,12 @@ s4 = soundgen(vocalTract = 15.5,
 ```
 
 The excitation source for the unvoiced component can be synthesized as white noise (if `rolloffNoise = 0`) or as turbulent noise with a spectrum that linearly (not exponentially!) loses power above `noiseFlatSpec` (the default is 1200 Hz). The parameter `rolloffNoise` thus controls the source spectrum of the unvoiced component:
-```{r fig.width = 4, fig.height = 4}
+```{r fig.width = 6, fig.height = 6}
 s1 = soundgen(sylLen = 1500, vocalTract = 17.5, 
-              noise = 40, rolloffNoise = c(0, -20),
+              noise = 40, rolloffNoise = c(5, -20),
               formants = NULL, attackLen = 200, 
-              play = playback, plot = TRUE)
+              play = playback, plot = TRUE, osc = TRUE)
+# NB: noise amplitude may change as rolloffNoise changes
 ```
 
 ### Noise amplitude

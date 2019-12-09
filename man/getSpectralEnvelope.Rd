@@ -4,15 +4,35 @@
 \alias{getSpectralEnvelope}
 \title{Spectral envelope}
 \usage{
-getSpectralEnvelope(nr, nc, formants = NA, formantDep = 1,
-  formantWidth = 1, lipRad = 6, noseRad = 4, mouth = NA,
-  interpol = c("approx", "spline", "loess")[3], mouthOpenThres = 0.2,
-  openMouthBoost = 0, vocalTract = NULL, temperature = 0.05,
-  formDrift = 0.3, formDisp = 0.2, formantDepStoch = 20,
-  smoothLinearFactor = 1, samplingRate = 16000, speedSound = 35400,
-  plot = FALSE, duration = NULL, colorTheme = c("bw", "seewave",
-  "...")[1], nCols = 100, xlab = "Time", ylab = "Frequency, kHz",
-  ...)
+getSpectralEnvelope(
+  nr,
+  nc,
+  formants = NA,
+  formantDep = 1,
+  formantWidth = 1,
+  lipRad = 6,
+  noseRad = 4,
+  mouth = NA,
+  interpol = c("approx", "spline", "loess")[3],
+  mouthOpenThres = 0.2,
+  openMouthBoost = 0,
+  vocalTract = NULL,
+  temperature = 0.05,
+  formDrift = 0.3,
+  formDisp = 0.2,
+  formantDepStoch = 20,
+  smoothLinearFactor = 1,
+  formantCeiling = 2,
+  samplingRate = 16000,
+  speedSound = 35400,
+  plot = FALSE,
+  duration = NULL,
+  colorTheme = c("bw", "seewave", "...")[1],
+  nCols = 100,
+  xlab = "Time",
+  ylab = "Frequency, kHz",
+  ...
+)
 }
 \arguments{
 \item{nr}{the number of frequency bins = windowLength_points/2, where
@@ -30,7 +50,7 @@ specified in ms or an any other arbitrary scale.}
 \item{formantDep}{scale factor of formant amplitude (1 = no change relative
 to amplitudes in \code{formants})}
 
-\item{formantWidth}{= scale factor of formant bandwidth (1 = no change)}
+\item{formantWidth}{scale factor of formant bandwidth (1 = no change)}
 
 \item{lipRad}{the effect of lip radiation on source spectrum, dB/oct (the
 default of +6 dB/oct produces a high-frequency boost when the mouth is
@@ -56,7 +76,7 @@ radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1}
 \item{vocalTract}{the length of vocal tract, cm. Used for calculating formant
 dispersion (for adding extra formants) and formant transitions as the mouth
 opens and closes. If \code{NULL} or \code{NA}, the length is estimated
-based on specified formant frequencies (if any)}
+based on specified formant frequencies, if any (anchor format)}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
@@ -78,6 +98,10 @@ necessary because the input \code{formants} normally contains fewer
 sets of formant values than the number of fft steps.
 \code{smoothLinearFactor} = 0: close to default spline; >3: approaches
 linear extrapolation}
+
+\item{formantCeiling}{frequency to which stochastic formants are calculated,
+in multiples of the Nyquist frequency; increase up to ~10 for long vocal
+tracts to avoid losing energy in the upper part of the spectrum}
 
 \item{samplingRate}{sampling frequency, Hz}
 
@@ -122,13 +146,16 @@ e = getSpectralEnvelope(nr = 512, nc = 50,
   formants = soundgen:::convertStringToFormants('a'),
   temperature = 0.1, formantDepStoch = 20, plot = TRUE)
 
-# a schwa based on the length of vocal tract = 15.5 cm
-e = getSpectralEnvelope(nr = 512, nc = 50, formants = NA,
-  temperature = .1, vocalTract = 15.5, plot = TRUE)
+# a schwa based on variable length of vocal tract
+e = getSpectralEnvelope(nr = 512, nc = 100, formants = NA,
+  vocalTract = list(time = c(0, .4, 1), value = c(13, 18, 17)),
+  temperature = .1, plot = TRUE)
 
 # no formants at all, only lip radiation
-e = getSpectralEnvelope(nr = 512, nc = 50,
-  formants = NA, temperature = 0, plot = TRUE)
+e = getSpectralEnvelope(nr = 512, nc = 50, lipRad = 6,
+  formants = NA, temperature = 0, plot = FALSE)
+plot(e[, 1], type = 'l')              # linear scale
+plot(20 * log10(e[, 1]), type = 'l')  # dB scale - 6 dB/oct
 
 # mouth opening
 e = getSpectralEnvelope(nr = 512, nc = 50,
@@ -136,10 +163,14 @@ e = getSpectralEnvelope(nr = 512, nc = 50,
   mouth = data.frame(time = c(0, .5, 1), value = c(0, 0, .5)))
 
 # scale formant amplitude and/or bandwidth
-e = getSpectralEnvelope(nr = 512, nc = 50,
+e1 = getSpectralEnvelope(nr = 512, nc = 50,
   formants = soundgen:::convertStringToFormants('a'),
-  formantWidth = 2, formantDep = .5,
-  temperature = 0, plot = TRUE)
+  formantWidth = 1, formantDep = 1)  # defaults
+e2 = getSpectralEnvelope(nr = 512, nc = 50,
+  formants = soundgen:::convertStringToFormants('a'),
+  formantWidth = 1.5, formantDep = 1.5)
+plot(e2[, 1], type = 'l', col = 'red', lty = 2)
+points(e1[, 1], type = 'l')
 
 # manual specification of formants
 e = getSpectralEnvelope(nr = 512, nc = 50, plot = TRUE, samplingRate = 16000,

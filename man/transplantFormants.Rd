@@ -4,13 +4,23 @@
 \alias{transplantFormants}
 \title{Transplant formants}
 \usage{
-transplantFormants(donor, freqWindow_donor = NULL, recipient,
-  freqWindow_recipient = NULL, samplingRate = NULL,
-  dynamicRange = 80, windowLength = 50, step = NULL, overlap = 90,
-  wn = "gaussian", zp = 0)
+transplantFormants(
+  donor,
+  freqWindow_donor = NULL,
+  recipient,
+  freqWindow_recipient = NULL,
+  samplingRate = NULL,
+  dynamicRange = 80,
+  windowLength = 50,
+  step = NULL,
+  overlap = 90,
+  wn = "gaussian",
+  zp = 0
+)
 }
 \arguments{
-\item{donor}{the sound that provides the formants}
+\item{donor}{the sound that provides the formants or the desired spectral
+filter as returned by \code{\link{getSpectralEnvelope}}}
 
 \item{freqWindow_donor, freqWindow_recipient}{the width of smoothing window.
 Defaults to median pitch of each respective sound estimated by
@@ -44,7 +54,8 @@ formants in the recipient sound while preserving the original intonation and
 \code{freqWindow_recipient} are crucial parameters that regulate the amount
 of spectral smoothing in both sounds. The default is to set them to the
 estimated median pitch, but this is time-consuming and error-prone, so set
-them to reasonable values manually if possible.
+them to reasonable values manually if possible. Also ensure that both sounds
+have the same sampling rate.
 }
 \details{
 Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
@@ -62,32 +73,52 @@ playme(donor, samplingRate)
 spectrogram(donor, samplingRate, osc = TRUE)
 seewave::meanspec(donor, f = samplingRate, dB = 'max0')
 
+recipient = soundgen(sylLen = 1200,
+                     pitch = c(100, 300, 250, 200),
+                     vibratoFreq = 9, vibratoDep = 1,
+                     addSilence = 180,
+                     samplingRate = samplingRate)
+playme(recipient, samplingRate)
+spectrogram(recipient, samplingRate, osc = TRUE)
+
 s1 = transplantFormants(
   donor = donor,
-  recipient = soundgen(sylLen = 1200,
-                       pitch = c(100, 300, 250, 200),
-                       vibratoFreq = 9, vibratoDep = 1,
-                       samplingRate = samplingRate),
+  recipient = recipient,
   samplingRate = samplingRate)
 playme(s1, samplingRate)
 spectrogram(s1, samplingRate, osc = TRUE)
 seewave::meanspec(s1, f = samplingRate, dB = 'max0')
 
+# if needed, transplant amplitude envelopes as well:
+s2 = transplantEnv(donor = donor, samplingRateD = samplingRate,
+                   recipient = s1, windowLength = 10)
+playme(s2, samplingRate)
+spectrogram(s2, samplingRate, osc = TRUE)
+
+# Now we use human formants on sheep source: the sheep says "why?"
 s2 = transplantFormants(
-  donor = donor,
-  recipient = soundgen(sylLen = 1500,
-                       pitch = c(150, 200, 120),
-                       nonlinBalance = 50,
-                       subFreq = 80, subDep = 50, jitterDep = 0,
-                       noise = -20,
-                       samplingRate = samplingRate),
+  donor = soundgen(formants = 'uaaai',
+                   samplingRate = samplingRate),
+  recipient = donor,
   samplingRate = samplingRate)
 playme(s2, samplingRate)
 spectrogram(s2, samplingRate, osc = TRUE)
 seewave::meanspec(s2, f = samplingRate, dB = 'max0')
+
+# We can also transplant synthetic formants w/o synthesizing a donor sound to
+save time
+s3 = transplantFormants(
+  donor = getSpectralEnvelope(
+            nr = 512, nc = 100,  # fairly arbitrary dimensions
+            formants = 'uaaai',
+            samplingRate = samplingRate),
+  recipient = donor,
+  samplingRate = samplingRate)
+playme(s3, samplingRate)
+spectrogram(s3, samplingRate, osc = TRUE)
 }
 }
 \seealso{
-\code{\link{getSpectralEnvelope}} \code{\link{addFormants}}
-  \code{\link{soundgen}}
+\code{\link{transplantEnv}} \code{\link{getSpectralEnvelope}}
+  \code{\link{addFormants}} \code{\link{soundgen}}
 }

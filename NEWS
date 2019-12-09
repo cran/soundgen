@@ -1,3 +1,24 @@
+          CHANGES IN SOUNDGEN VERSION 1.6.0 [09-December-2019]
+BUGS FIXED:
+  * analyze(): proper plotting of oscillogram for audio files
+
+NEW FUNCTIONS:
+  * filterSoundByMS(): manipulates the modulation spectrum of a sound (for ex., removing amplitude and/or frequency modulation above a certain threshold)
+  * filterMS(): filters a modulation spectrum by removing a certain range of amplitude modulation (AM) and frequency modulation (FM) frequencies (called by filterSoundByMS)
+  * invertSpectrogram(): reconstructs audio from a spectrogram by trying to guess the phase
+  * specToMS(), msToSpec(): transform a spectrogram to a modulation spectrum and back again with proper AM/FM or time/frequency labels
+  * transplantEnv(): transplants the amplitude envelope from one sound to another
+
+MINOR:
+  * soundgen(): vectorized vocal tract length ("vocalTract" argument) - note that this is similar to the "mouth" argument, but with bandwidths adjusted appropriately and with no limitation on the magnitude of formant frequency shifts
+  * soundgen(): a new argument, "formantCeiling", adjusts the frequency to which formant are calculated - increase for extra precision, particularly for longer-than-human vocal tracts
+  * playme(), soundgen(): the default player on Mac is "afplay"
+  * pitch_app(): choose summary function, reset to defaults, etc.
+  * analyze() and analyzeFolder() accept manually checked pitch contours as produced by pitch_app ("pitchManual" argument)
+  * segment(), segmentFolder(): added oscillogram, improved accuracy of timing
+  * transplantFormants() accepts spectral filter produced by getSpectralEnvelope() as an alternative to donor sound
+
+
           CHANGES IN SOUNDGEN VERSION 1.5.1 [12-October-2019]
 BUGS FIXED:
   * pitch_app() runs locally, new layout, multiple new features, integrated with analyze()

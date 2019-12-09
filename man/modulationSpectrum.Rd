@@ -4,14 +4,36 @@
 \alias{modulationSpectrum}
 \title{Modulation spectrum}
 \usage{
-modulationSpectrum(x, samplingRate = NULL, maxDur = 5,
-  logSpec = FALSE, windowLength = 25, step = NULL, overlap = 80,
-  wn = "gaussian", zp = 0, power = 1, roughRange = c(30, 150),
-  plot = TRUE, savePath = NA, logWarp = 2, quantiles = c(0.5, 0.8,
-  0.9), kernelSize = 5, kernelSD = 0.5, colorTheme = c("bw",
-  "seewave", "heat.colors", "...")[1], xlab = "Hz", ylab = "1/KHz",
-  main = NULL, width = 900, height = 500, units = "px", res = NA,
-  ...)
+modulationSpectrum(
+  x,
+  samplingRate = NULL,
+  maxDur = 5,
+  logSpec = FALSE,
+  windowLength = 25,
+  step = NULL,
+  overlap = 80,
+  wn = "hanning",
+  zp = 0,
+  power = 1,
+  roughRange = c(30, 150),
+  returnComplex = FALSE,
+  aggregComplex = TRUE,
+  plot = TRUE,
+  savePath = NA,
+  logWarp = 2,
+  quantiles = c(0.5, 0.8, 0.9),
+  kernelSize = 5,
+  kernelSD = 0.5,
+  colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  xlab = "Hz",
+  ylab = "1/KHz",
+  main = NULL,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
+  ...
+)
 }
 \arguments{
 \item{x}{folder, path to a wav/mp3 file, a numeric vector representing a
@@ -44,6 +66,14 @@ blackman, flattop}
 \item{roughRange}{the range of temporal modulation frequencies that
 constitute the "roughness" zone, Hz}
 
+\item{returnComplex}{if TRUE, returns a complex modulation spectrum (without
+normalization and warping)}
+
+\item{aggregComplex}{if TRUE, aggregates complex MS from multiple inputs,
+otherwise returns the complex MS of the first input (recommended when
+filtering and inverting the MS of a single sound, e.g. with
+\code{\link{filterSoundByMS}})}
+
 \item{plot}{if TRUE, plots the modulation spectrum}
 
 \item{savePath}{if a valid path is specified, a plot is saved in this folder
@@ -74,15 +104,17 @@ or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 and \code{\link[graphics]{contour}} (see \code{\link{spectrogram}})}
 }
 \value{
-Returns a list with three components:
+Returns a list with four components:
 \itemize{
 \item \code{$original} modulation spectrum prior to blurring and log-warping,
 but after squaring if \code{power = TRUE}, a matrix of nonnegative values.
-Rownames are temporal modulation frequencies (Hz), and colnames are
-spectral modulation frequencies (cycles/KHz).
+Rownames are spectral modulation frequencies (cycles/KHz), and colnames are
+temporal modulation frequencies (Hz).
 \item \code{$processed} modulation spectrum after blurring and log-warping
 \item \code{$roughness} proportion of energy / amplitude of the modulation
 spectrum within \code{roughRange} of temporal modulation frequencies, \%
+\item \code{$complex} untransformed complex modulation spectrum (returned
+only if returnComplex = TRUE)
 }
 }
 \description{
@@ -93,7 +125,7 @@ ripples of various frequencies and directions. Algorithm: prepare a
 \code{\link{spectrogram}}, take its logarithm (if \code{logSpec = TRUE}),
 center, perform a 2D Fourier transform (see also spec.fft() in the "spectral"
 package), take the upper half of the resulting symmetric matrix, and raise it
-to \code{power = 2}. The result is returned as \code{$original}. Roughness is
+to \code{power}. The result is returned as \code{$original}. Roughness is
 calculated as the proportion of energy / amplitude of the modulation spectrum
 within \code{roughRange} of temporal modulation frequencies. By default, the
 modulation matrix is then smoothed with Gaussian blur (see
@@ -128,8 +160,18 @@ for (i in 1:length(ss)) {
     pitch = runif(3, 400, 600))
 }
 # lapply(ss, playme)
-ms = modulationSpectrum(ss[[1]], samplingRate = 16000)  # the first sound
-ms = modulationSpectrum(ss, samplingRate = 16000)  # all 10 sounds
+ms1 = modulationSpectrum(ss[[1]], samplingRate = 16000)  # the first sound
+dim(ms1$original)
+ms2 = modulationSpectrum(ss, samplingRate = 16000)  # all 10 sounds
+dim(ms2$original)
+
+# Careful with complex MS of multiple inputs:
+ms3 = modulationSpectrum(ss, samplingRate = 16000,
+  returnComplex = TRUE, aggregComplex = FALSE)
+dim(ms3$complex)  # complex MS of the first input only
+ms4 = modulationSpectrum(ss, samplingRate = 16000,
+  returnComplex = TRUE, aggregComplex = TRUE)
+dim(ms4$complex)  # aggregated over inputs
 
 # As with spectrograms, there is a tradeoff in time-frequency resolution
 s = soundgen(pitch = 500, amFreq = 50, amDep = 100, samplingRate = 44100)
@@ -158,8 +200,6 @@ ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')
 ms = modulationSpectrum('~/Downloads/temp/', kernelSize = 11)
 # NB: longer files will be split into fragments <maxDur in length
 
-# "power = 2" returns squared modulation spectrum - note that this affects
-the roughness measure!
 # A sound with ~3 syllables per second and only downsweeps in F0 contour
 s = soundgen(nSyl = 8, sylLen = 200, pauseLen = 100, pitch = c(300, 200))
 # playme(s)
@@ -167,6 +207,9 @@ ms = modulationSpectrum(s, samplingRate = 16000, maxDur = .5,
   xlim = c(-25, 25), colorTheme = 'seewave', logWarp = NULL,
   power = 2)
 # note the asymmetry b/c of downsweeps
+
+# "power = 2" returns squared modulation spectrum - note that this affects
+# the roughness measure!
 ms$roughness
 # compare:
 modulationSpectrum(s, samplingRate = 16000, maxDur = .5,
@@ -190,6 +233,11 @@ modulationSpectrum(s, samplingRate = 16000, kernelSize = 17)$roughness
 # Log-transform the spectrogram prior to 2D FFT (affects roughness):
 ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = FALSE)
 ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = TRUE)
+
+# Complex modulation spectrum with phase preserved
+ms = modulationSpectrum(soundgen(), samplingRate = 16000,
+                        returnComplex = TRUE)
+image(t(log(abs(ms$complex))))
 }
 }
 \references{

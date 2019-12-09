@@ -8,7 +8,7 @@
 server = function(input, output, session) {
     myPars = reactiveValues()
     myPars$zoomFactor = 2     # zoom buttons ch+ange zoom by this factor
-    myPars$print = TRUE       # if TRUE, some functions print a meassage to the console when called
+    myPars$print = FALSE       # if TRUE, some functions print a meassage to the console when called
     myPars$out = NULL         # for storing the output
     myPars$drawSpec = TRUE
     myPars$shinyTip_show = 1000      # delay until showing a tip (ms)
@@ -53,12 +53,30 @@ server = function(input, output, session) {
         # (only draw it after extracting it)
     }
 
+    resetSliders = function() {
+        sliders_to_reset = names(input)[which(names(input) %in% rownames(defaults_analyze))]
+        for (v in sliders_to_reset) {
+            new_value = defaults_analyze[v, 'default']
+            try(updateSliderInput(session, v, value = new_value))
+            try(updateNumericInput(session, v, value = new_value))
+            updateSelectInput(session, 'wn', selected = 'gaussian')
+            updateCheckboxGroupInput(session, 'pitchMethods', selected = c('dom', 'autocor'))
+            updateCheckboxGroupInput(session, 'summaryFun', selected = c('mean', 'sd'))
+            updateTextInput(session, 'summaryFun_text', value = '')
+            updateSelectInput(session, 'pathfinding', selected = 'fast')
+            updateSliderInput(session, 'spec_ylim', value=c(0, defaults_analyze['spec_ylim','default']))
+            updateRadioButtons(session, 'spec_colorTheme', selected='bw')
+            updateSelectInput(session, 'osc', selected = 'linear')
+        }
+    }
+    observeEvent(input$reset_to_def, resetSliders())
+
 
     observeEvent(input$loadAudio, {
         if (myPars$print) print('Loading audio...')
         myPars$n = 1   # file number in queue
         myPars$nFiles = nrow(input$loadAudio)  # number of uploaded files in queue
-
+        myPars$fileList = paste(input$loadAudio$name, collapse = ', ')
         # set up a list for storing manual anchors for each of uploaded files
         myPars$history = vector('list', length = myPars$nFiles)
         names(myPars$history) = input$loadAudio$name
@@ -103,6 +121,7 @@ server = function(input, output, session) {
 
         myPars$myAudio = as.numeric(myPars$temp_audio@left)
         myPars$samplingRate = myPars$temp_audio@samp.rate
+        updateSliderInput(session, 'spec_ylim', max = myPars$samplingRate / 2 / 1000)  # check!!!
         myPars$dur = round(length(myPars$temp_audio@left) / myPars$temp_audio@samp.rate * 1000)
         myPars$spec_xlim = c(0, myPars$dur)
         # for the first audio only, update autocorSmooth
@@ -173,7 +192,7 @@ server = function(input, output, session) {
     output$spectrogram = renderPlot({
         if (myPars$drawSpec == TRUE) {
             if (myPars$print) print('Drawing spectrogram...')
-            par(mar = c(0.2, 2, 0.5, 2))  # no need to save user's graphical par-s - revert to orig on exit
+            par(mar = c(ifelse(input$osc == 'none', 2, 0.2), 2, 0.5, 2))  # no need to save user's graphical par-s - revert to orig on exit
             if (is.null(myPars$myAudio_path) | is.null(myPars$spec)) {
                 plot(1:10, type = 'n', bty = 'n', axes = FALSE, xlab = '', ylab = '')
                 text(x = 5, y = 5, labels = 'Upload wav/mp3 file(s) to begin...\nSuggested max duration ~10 s')
@@ -193,12 +212,17 @@ server = function(input, output, session) {
                     levels = seq(0, 1, length = 30),
                     color.palette = color.palette,
                     xlim = myPars$spec_xlim,
-                    xaxt = 'n', # xaxs = 'i', xlab = 'Time, ms',
+                    xaxt = 'n',
+                    xaxs = 'i', xlab = '',
                     ylab = 'Frequency, kHz',
                     main = '',
                     ylim = c(input$spec_ylim[1], input$spec_ylim[2])
                 )
-                # axis(side = 2)
+                if (input$osc == 'none') {
+                    axis(side = 1)
+                    title(xlab = 'Time, ms')
+                }
+
                 # add manual values to the list of pitch candidates for seamless plotting
                 n = ncol(myPars$pitchCands$freq)
                 # if (length(n>0) == 0 | length(nrow(myPars$manual)>0) == 0) browser()
@@ -239,7 +263,7 @@ server = function(input, output, session) {
         output$oscillogram = renderPlot({
             if (!is.null(myPars$myAudio_path) & input$osc != 'none') {
                 par(mar = c(2, 2, 0, 2))
-                maxAmpl = max(abs(myPars$myAudio))
+                maxAmpl = 2 ^ (myPars$temp_audio@bit - 1) # max(abs(myPars$myAudio))
                 # to speed up plotting the osc of very long files
                 # convert osc_res [0,1] to smth that varies from 1000'ish to length(myPars$myAudio)
                 l = length(myPars$myAudio)
@@ -257,7 +281,7 @@ server = function(input, output, session) {
                                    maxAmpl = maxAmpl,
                                    plot = FALSE,
                                    returnWave = TRUE)[idx]
-                    ylim_osc = c(-input$dynamicRange, input$dynamicRange)
+                    ylim_osc = c(-2 * input$dynamicRange, 0)
                 } else {
                     sound = myPars$myAudio[idx]
                     ylim_osc = c(-maxAmpl, maxAmpl)
@@ -281,6 +305,14 @@ server = function(input, output, session) {
         }, height = input$osc_height)
     })
 
+    observe({
+        if (input$summaryFun_text != '') {
+            myPars$summaryFun = input$summaryFun_text
+        } else {
+            myPars$summaryFun = input$summaryFun
+        }
+        # print(myPars$summaryFun)
+    })
 
     obs_anal = observe({
         # analyze the file (executes every time a slider with arg value is changed)
@@ -647,7 +679,7 @@ server = function(input, output, session) {
             )
             summary_new = soundgen:::summarizeAnalyze(
                 result_new,
-                summaryFun = c('mean', 'sd'))
+                summaryFun = isolate(myPars$summaryFun),)
             new = cbind(new$file,
                         summary_new,
                         new[, c('time', 'pitch')])
@@ -719,6 +751,7 @@ server = function(input, output, session) {
     ## TOOLTIPS - have to be here instead of UI b/c otherwise problems with regulating delay
     # (see https://stackoverflow.com/questions/47477237/delaying-and-expiring-a-shinybsbstooltip)
     # STFT
+    shinyBS::addTooltip(session, id='reset_to_def', title = 'Reset all settings to default values', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms. Larger values improve frequency resolution at the expense of time resolution', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range of spectrogram, dB', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
@@ -753,6 +786,8 @@ server = function(input, output, session) {
     shinyBS::addTooltip(session, id='specSinglePeakCert', title = 'If pitch is calculated based on a single harmonic ratio (as opposed to several ratios converging on the same candidate), its certainty is taken to be specSinglePeakCert', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
 
     # pathfinder
+    shinyBS::addTooltip(session, id='summaryFun', title = "The function(s) used to summarize output", placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
+    shinyBS::addTooltip(session, id='summaryFun_text', title = "If specified, overrides the options above. For short column names, define and name your function in R prior to starting pitch_app", placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='pathfinding', title = "Method of finding the optimal path through pitch candidates: 'none' = best candidate per frame, 'fast' = simple heuristic, 'slow' = annealing (initial analysis only)", placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='certWeight', title = 'Specifies how much we prioritize the certainty of pitch candidates vs. pitch jumps', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
     shinyBS::addTooltip(session, id='shortestSyl', title = 'Shorter voiced segments (ms) will be treated as voiceless or merged with longer segments', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))

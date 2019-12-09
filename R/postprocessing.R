@@ -6,8 +6,9 @@
 #' "aplay".
 #' @param sound numeric vector or path to wav/mp3 file
 #' @param samplingRate sampling rate (only needed if sound is a vector)
-#' @param player the name of player to use, eg "aplay", "play", "vlc", etc. In
-#'   case of errors, try setting another default player for
+#' @param player the name of player to use, eg "aplay", "play", "vlc", etc.
+#'   Defaults to "play" on Linux, "afplay" on MacOS, and tuneR default on
+#'   Windows. In case of errors, try setting another default player for
 #'   \code{\link[tuneR]{play}}
 #' @param from,to play a selected time range (s)
 #' @param ... additional parameters passed to \code{\link[tuneR]{play}}
@@ -35,7 +36,7 @@ playme = function(sound,
                   from = NULL,
                   to = NULL) {
   # input: a vector of numbers on any scale or a path to a .wav file
-  if (class(sound) == 'character') {
+  if (class(sound)[1] == 'character') {
     extension = substr(sound, nchar(sound) - 2, nchar(sound))
     if (extension == 'wav' | extension == 'WAV') {
       soundWave = tuneR::readWave(sound)
@@ -44,7 +45,7 @@ playme = function(sound,
     } else {
       stop('Input not recognized: must be a numeric vector or wav/mp3 file')
     }
-  } else if (class(sound) == 'numeric' | class(sound) == 'integer') {
+  } else if (class(sound)[1] == 'numeric' | class(sound)[1] == 'integer') {
     soundWave = tuneR::Wave(
       left = sound,
       samp.rate = samplingRate,
@@ -72,7 +73,9 @@ playme = function(sound,
     os = Sys.info()[['sysname']]
     if (os == 'Linux' | os == 'linux') {
       p = tuneR::play(soundWave, 'play')
-    } else {  # windows | darwin
+    } else if (os == 'Darwin' | os == 'darwin') {
+       p = tuneR::play(soundWave, 'afplay')
+    } else {  # a good default on windows?
       p = tuneR::play(soundWave)
     }
   }
@@ -212,111 +215,6 @@ fade = function(x,
     abline(v = length(x) - fadeOut, col = 'blue')
   }
   return(x)
-}
-
-
-#' Flat envelope
-#'
-#' Flattens the amplitude envelope of a waveform. This is achieved by dividing
-#' the waveform by some function of its smoothed amplitude envelope (Hilbert,
-#' peak or root mean square).
-#' @param sound input vector oscillating about zero
-#' @param windowLength the length of smoothing window, ms
-#' @param samplingRate the sampling rate, Hz. Only needed if the length of
-#'   smoothing window is specified in ms rather than points
-#' @param method 'hil' for Hilbert envelope, 'rms' for root mean square
-#'   amplitude, 'peak' for peak amplitude per window
-#' @param windowLength_points the length of smoothing window, points. If
-#'   specified, overrides both \code{windowLength} and \code{samplingRate}
-#' @param killDC if TRUE, dynamically removes DC offset or similar deviations of
-#'   average waveform from zero
-#' @param dynamicRange parts of sound quieter than \code{-dynamicRange} dB will
-#'   not be amplified
-#' @param plot if TRUE, plots the original sound, smoothed envelope, and
-#'   flattened sound
-#' @export
-#' @examples
-#' a = rnorm(500) * seq(1, 0, length.out = 500)
-#' b = flatEnv(a, plot = TRUE, windowLength_points = 5)    # too short
-#' c = flatEnv(a, plot = TRUE, windowLength_points = 250)  # too long
-#' d = flatEnv(a, plot = TRUE, windowLength_points = 50)   # about right
-#'
-#' \dontrun{
-#' s = soundgen(sylLen = 1000, ampl = c(0, -40, 0), plot = TRUE, osc = TRUE)
-#' # playme(s)
-#' s_flat1 = flatEnv(s, plot = TRUE, windowLength = 50, method = 'hil')
-#' s_flat2 = flatEnv(s, plot = TRUE, windowLength = 10, method = 'rms')
-#' # playme(s_flat2)
-#'
-#' # Remove DC offset
-#' s1 = c(rep(0, 50), runif(1000, -1, 1), rep(0, 50)) +
-#'      seq(.3, 1, length.out = 1100)
-#' s2 = flatEnv(s1, plot = TRUE, windowLength_points = 50, killDC = FALSE)
-#' s3 = flatEnv(s1, plot = TRUE, windowLength_points = 50, killDC = TRUE)
-#' }
-flatEnv = function(sound,
-                   windowLength = 200,
-                   samplingRate = 16000,
-                   method = c('hil', 'rms', 'peak')[1],
-                   windowLength_points = NULL,
-                   killDC = FALSE,
-                   dynamicRange = 80,
-                   plot = FALSE) {
-  if (!is.numeric(windowLength_points)) {
-    if (is.numeric(windowLength)) {
-      if (is.numeric(samplingRate)) {
-        windowLength_points = windowLength / 1000 * samplingRate
-      } else {
-        stop(paste('Please, specify either windowLength (ms) plus samplingRate (Hz)',
-                   'or the length of smoothing window in points (windowLength_points)'))
-      }
-    }
-  }
-
-  m = max(abs(sound))       # original scale (eg -1 to +1 gives m = 1)
-  soundNorm = sound / m    # normalize
-  throwaway_lin = 10 ^ (-dynamicRange / 20)  # from dB to linear
-  # get smoothed amplitude envelope
-  if (method == 'hil') {
-    env = seewave::env(
-      soundNorm,
-      f = samplingRate,
-      envt = 'hil',
-      ssmooth = windowLength_points,
-      fftw = FALSE,
-      plot = FALSE
-    )
-    env = as.numeric(env)
-  } else {
-    env = getEnv(sound = soundNorm,
-                 windowLength_points = windowLength_points,
-                 method = method)
-  }
-  env = env / max(abs(env))
-
-  # don't amplify very quiet sections
-  env_cut = env
-  env_cut[env_cut < throwaway_lin] = 1
-  # flatten amplitude envelope
-  soundFlat = soundNorm / env_cut
-  # re-normalize to original scale
-  soundFlat = soundFlat / max(abs(soundFlat)) * m
-  # remove DC offset
-  if (killDC) {
-    soundFlat = killDC(sound = soundFlat,
-                       windowLength_points = windowLength_points,
-                       plot = FALSE)
-  }
-
-  if (plot) {
-    op = par('mfrow')
-    par(mfrow = c(1, 2))
-    plot(sound, type = 'l', main = 'Original')
-    points(env * m, type = 'l', lty = 1, col = 'blue')
-    plot(soundFlat, type = 'l', main = 'Flattened')
-    par(mfrow = op)
-  }
-  return(soundFlat)
 }
 
 

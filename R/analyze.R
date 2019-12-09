@@ -32,6 +32,9 @@
 #'   pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
 #'   'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band ('' or
 #'   NULL = no pitch analysis)
+#' @param pitchManual manually corrected pitch contour - a numeric vector of any
+#'   length, but ideally as returned by \code{\link{pitch_app}} with the same
+#'   windowLength and step as in current call to analyze
 #' @param entropyThres pitch tracking is not performed for frames with Weiner
 #'   entropy above \code{entropyThres}, but other spectral descriptives are
 #'   still calculated
@@ -275,6 +278,7 @@ analyze = function(
   cutFreq = min(samplingRate / 2, max(7000, pitchCeiling * 2)),
   nFormants = 3,
   pitchMethods = c('autocor', 'spec', 'dom'),
+  pitchManual = NULL,
   entropyThres = 0.6,
   pitchFloor = 75,
   pitchCeiling = 3500,
@@ -340,7 +344,7 @@ analyze = function(
   }
 
   # import a sound
-  if (class(x) == 'character') {
+  if (class(x)[1] == 'character') {
     extension = substr(x, nchar(x) - 2, nchar(x))
     if (extension == 'wav' | extension == 'WAV') {
       sound_wav = tuneR::readWave(x)
@@ -408,7 +412,7 @@ analyze = function(
                  'interpolWin', 'interpolCert')
   for (p in simplePars) {
     gp = try(get(p), silent = TRUE)
-    if (class(gp) != "try-error") {
+    if (class(gp)[1] != "try-error") {
       if (is.numeric(gp)) {
         if (any(gp < defaults_analyze[p, 'low']) |
             any(gp > defaults_analyze[p, 'high'])) {
@@ -617,7 +621,8 @@ analyze = function(
   ), extraSpecPars))
 
   # calculate rms amplitude of each frame
-  myseq = (as.numeric(colnames(frameBank)) - step) * samplingRate / 1000 + 1
+  myseq = (as.numeric(colnames(frameBank)) - windowLength / 2) * samplingRate / 1000 + 1
+  myseq[1] = 1  # just in case of rounding errors
   ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
     # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
@@ -673,7 +678,7 @@ analyze = function(
                                        fs = samplingRate,
                                        verify = FALSE),
                silent = TRUE)
-      if (class(ff) != 'try-error' & is.list(ff)) {
+      if (is.list(ff)) {
         temp = matrix(NA, nrow = nFormants, ncol = 2)
         availableRows = 1:min(nFormants, nrow(ff))
         temp[availableRows, ] = as.matrix(ff[availableRows, ])
@@ -853,6 +858,19 @@ analyze = function(
                                         smoothingThres = smoothingThres)
   }
 
+  ## Update results using manual pitch contour, if provided
+  if (!is.null(pitchManual)) {
+    # up/downsample pitchManual to the right length
+    pitchManual = upsamplePitchContour(pitch = pitchManual,
+                                       len = nrow(result),
+                                       plot = FALSE)
+    result = updateAnalyze(
+      result = result,
+      pitch_true = pitchManual,
+      spectrogram = s
+    )
+  }
+
   ## Having decided upon the pitch for each frame, we save certain measurements
   # only for voiced frames (with non-NA pitch)
   voiced_idx = which(!is.na(result$pitch))
@@ -897,7 +915,7 @@ analyze = function(
       step = step,
       main = plotname,
       normalize = FALSE,
-      scale = scale,
+      scale = scale / m,
       output = 'original',
       ylim = ylim,
       xlab = xlab,
@@ -917,8 +935,7 @@ analyze = function(
         ylim = ylim,
         xlab = xlab,
         ylab = ylab,
-        main = plotname,
-        ...
+        main = plotname
       )), extraSpecPars))
   }
   if (is.character(savePath)) {
@@ -952,6 +969,10 @@ analyze = function(
 #'
 #' @param myfolder full path to target folder
 #' @param verbose if TRUE, reports progress and estimated time left
+#' @param pitchManual normally the output of \code{\link{pitch_app}} with the
+#'   same windowLength and step as current call to analyzeFolder, with manually
+#'   corrected pitch contours: a dataframe with at least two columns: "file"
+#'   (w/o path, with extension) and "pitch" (character like "NA, 150, 175, NA")
 #' @inheritParams analyze
 #' @inheritParams spectrogram
 #' @inheritParams getLoudness
@@ -966,20 +987,33 @@ analyze = function(
 #' # http://cogsci.se/publications/anikin-persson_2017_nonlinguistic-vocs/260sounds_wav.zip
 #' # unzip them into a folder, say '~/Downloads/temp'
 #' myfolder = '~/Downloads/temp'  # 260 .wav files live here
-#' s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 15-30 minutes!
-#'
-#' # Save spectrograms with pitch contours plus an html file for easy access
-#' a = analyzeFolder('~/Downloads/temp', savePlots = TRUE,
-#'   showLegend = TRUE,
-#'   width = 20, height = 12,
-#'   units = 'cm', res = 300)
+#' s = analyzeFolder(myfolder, verbose = TRUE)  # ~ 10-20 minutes!
+#' # s = write.csv(s, paste0(myfolder, '/temp.csv'))  # save a backup
 #'
 #' # Check accuracy: import manually verified pitch values (our "key")
-#' key = pitchManual  # a vector of 260 floats
-#' trial = s$pitch_median
-#' cor(key, trial, use = 'pairwise.complete.obs')
-#' plot(log(key), log(trial))
+#' # ?pitchManual   # "ground truth" of mean pitch per sound
+#' # ?pitchContour  # "ground truth" of complete pitch contours per sound
+#' files_manual = paste0(names(pitchManual), '.wav')
+#' idx = match(s$sound, files_manual)  # in case the order is wrong
+#' s$key = pitchManual[idx]
+#'
+#' # Compare manually verified mean pitch with the output of analyzeFolder:
+#' cor(s$key, s$pitch_median, use = 'pairwise.complete.obs')
+#' plot(s$key, s$pitch_median, log = 'xy')
 #' abline(a=0, b=1, col='red')
+#'
+#' # Re-running analyzeFolder with manually corrected contours gives correct
+#' pitch-related descriptives like amplVoiced and harmonics (NB: you get it "for
+#' free" when running pitch_app)
+#' s1 = analyzeFolder(myfolder, verbose = TRUE, pitchManual = pitchContour)
+#' plot(s$harmonics_median, s1$harmonics_median)
+#' abline(a=0, b=1, col='red')
+#'
+#' # Save spectrograms with pitch contours plus an html file for easy access
+#' s2 = analyzeFolder('~/Downloads/temp', savePlots = TRUE,
+#'   showLegend = TRUE, pitchManual = pitchContour,
+#'   width = 20, height = 12,
+#'   units = 'cm', res = 300, ylim = c(0, 5))
 #' }
 analyzeFolder = function(myfolder,
                          htmlPlots = TRUE,
@@ -997,12 +1031,12 @@ analyzeFolder = function(myfolder,
                          cutFreq = 6000,
                          nFormants = 3,
                          pitchMethods = c('autocor', 'spec', 'dom'),
+                         pitchManual = NULL,
                          entropyThres = 0.6,
                          pitchFloor = 75,
                          pitchCeiling = 3500,
                          priorMean = 300,
                          priorSD = 6,
-                         priorPlot = FALSE,
                          nCands = 1,
                          minVoicedCands = NULL,
                          domThres = 0.1,
@@ -1035,7 +1069,6 @@ analyzeFolder = function(myfolder,
                          plot = FALSE,
                          showLegend = TRUE,
                          savePlots = FALSE,
-                         plotSpec = 'deprecated',
                          pitchPlot = list(
                            col = rgb(0, 0, 1, .75),
                            lwd = 3
@@ -1055,6 +1088,7 @@ analyzeFolder = function(myfolder,
                          units = 'px',
                          res = NA,
                          ...) {
+  warnAboutResetSummary = FALSE
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
   # in order to provide more accurate estimates of time to completion,
@@ -1069,7 +1103,7 @@ analyzeFolder = function(myfolder,
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'myfolder' , 'htmlPlots', 'verbose', 'savePlots',
-    'pitchPlot', 'candPlot')]
+    'pitchPlot', 'candPlot', 'pitchManual')]
   # exclude ...
   myPars = myPars[1:(length(myPars)-1)]
   # add plot pars correctly, without flattening the lists
@@ -1077,9 +1111,30 @@ analyzeFolder = function(myfolder,
   myPars$candPlot = candPlot
   if (savePlots) myPars$savePath = myfolder
 
+  # add pitchManual, if any
+  if (!is.null(pitchManual)) {
+    file_noExt = basename(filenames)
+    file_noExt = substr(file_noExt, 1, (nchar(file_noExt) - 4))
+    pitchManual_idx = match(file_noExt, pitchManual$file)
+  }
+
   result = list()
   for (i in 1:length(filenames)) {
-    result[[i]] = do.call(analyze, c(filenames[i], myPars, ...))
+    pitch_file = NULL
+    if (!is.null(pitchManual)) {
+      if (is.finite(pitchManual_idx[i])) {
+        pitch_file = suppressWarnings(as.numeric(unlist(strsplit(
+          pitchManual$pitch[pitchManual_idx[i]], ','))))
+      } else {
+        message(paste('File', file_noExt[i], 'not found in pitchManual$file'))
+        summary = FALSE
+        warnAboutResetSummary = TRUE
+      }
+    }
+    result[[i]] = do.call(analyze, c(filenames[i],
+                                     myPars,
+                                     list(pitchManual = pitch_file),
+                                     ...))
     if (verbose) {
       reportTime(i = i, nIter = length(filenames),
                  time_start = time_start, jobs = filesizes)
@@ -1087,6 +1142,9 @@ analyzeFolder = function(myfolder,
   }
 
   # prepare output
+  if (warnAboutResetSummary) {
+    message('Cannot summarize the results when some files are missing in pitchManual')
+  }
   if (summary == TRUE) {
     output = as.data.frame(t(sapply(result, function(x) unlist(rbind(x)))))
     output$sound = apply(matrix(1:length(filenames)), 1, function(x) {

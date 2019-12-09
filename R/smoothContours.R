@@ -26,6 +26,7 @@
 #' @param samplingRate sampling rate used to convert time values to points (Hz)
 #' @param voiced,contourLabel graphical pars for plotting breathing contours
 #'   (see examples below)
+#' @param NA_to_zero if TRUE, all NAs are replaced with zero
 #' @param main,xlim,ylim plotting options
 #' @param ... other plotting options passed to \code{plot()}
 #' @export
@@ -83,6 +84,7 @@ getSmoothContour = function(anchors = data.frame(time = c(0, 1), value = c(0, 1)
                             samplingRate = 16000,
                             voiced = NULL,
                             contourLabel = NULL,
+                            NA_to_zero = TRUE,
                             ...) {
   anchors = reformatAnchors(anchors, normalizeTime = normalizeTime)
   if (is.list(anchors)) {
@@ -269,7 +271,8 @@ getSmoothContour = function(anchors = data.frame(time = c(0, 1), value = c(0, 1)
     par("mar" = op)  # restore original margin settings
   }
   # NA's may arise if the first anchor time > 0
-  if (nrow(anchors) > 0) smoothContour[is.na(smoothContour)] = 0
+  if (nrow(anchors) > 0 & NA_to_zero)
+    smoothContour[is.na(smoothContour)] = 0
   if (thisIsPitch)
     smoothContour = semitonesToHz(smoothContour)
   return(smoothContour)
@@ -330,7 +333,7 @@ drawContour = function(len,
       # plot(time, smoothContour)
 
       # for long duration etc, larger span may be needed to avoid error in loess
-      while (class(smoothContour) == 'try-error') {
+      while (class(smoothContour)[1] == 'try-error') {
         span = span + 0.1
         l = suppressWarnings(loess(anchors_long ~ time, span = span))
         smoothContour = try (predict(l, time), silent = TRUE)
@@ -479,7 +482,7 @@ reformatAnchors = function(anchors, normalizeTime = TRUE) {
     )
   } else if (is.list(anchors)) {
     # for dataframes or lists, reformat if necessary
-    if (class(anchors) != 'dataframe') {
+    if (class(anchors)[1] != 'dataframe') {
       anchors_df = as.data.frame(anchors)
     }
     if (ncol(anchors_df) == 1) {

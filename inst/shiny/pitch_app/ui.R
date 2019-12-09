@@ -25,6 +25,7 @@ ui = fluidPage(
            tabsetPanel(id='parGroup',
                        navbarMenu("In",
                                   tabPanel("STFT",
+                                           actionButton('reset_to_def', label = 'Reset to defaults'),
                                            numericInput('windowLength', 'Window length, ms', value=defaults_analyze['windowLength','default'], min=defaults_analyze['windowLength', 'low'], max=defaults_analyze['windowLength', 'high'], step=defaults_analyze['windowLength','step']),
                                            sliderInput('overlap', 'Overlap, %', value=defaults_analyze['overlap','default'], min=defaults_analyze['overlap', 'low'], max=defaults_analyze['overlap', 'high'], step=defaults_analyze['overlap','step']),
                                            sliderInput('dynamicRange', 'Dynamic range, dB', value=defaults_analyze['dynamicRange','default'], min=defaults_analyze['dynamicRange', 'low'], max=defaults_analyze['dynamicRange', 'high'], step=defaults_analyze['dynamicRange','step']),
@@ -79,6 +80,11 @@ ui = fluidPage(
                        ),
 
                        navbarMenu("Out",
+                                  tabPanel("Output",
+                                           checkboxGroupInput('summaryFun', label = 'Summary function', choiceValues = c('mean', 'sd', 'median', 'min', 'max'), choiceNames = c('Mean', 'SD', 'Median', 'Min', 'Max'), selected = c('mean', 'sd')),
+                                           textInput('summaryFun_text', label = 'Manual summary function', value = '', placeholder = 'function(x) diff(range(x, na.rm = TRUE))')
+                                  ),
+
                                   tabPanel("Path",
                                            selectInput('pathfinding', 'Pathfinding method', choices = c('none', 'fast', 'slow'), selected = 'fast', multiple = FALSE),
                                            sliderInput('certWeight', 'Certainty weight', value=defaults_analyze['certWeight', 'default'], min=defaults_analyze['certWeight', 'low'], max=defaults_analyze['certWeight', 'high'], step=defaults_analyze['certWeight', 'step']),

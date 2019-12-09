@@ -770,11 +770,11 @@ getSigmoid = function(len,
 #'                upr = c(5, 6, 7.1))
 #' soundgen:::reportCI(a, 1)
 reportCI = function(n, digits = 2) {
-  if (class(n) == 'data.frame') {
+  if (class(n)[1] == 'data.frame') {
     n = as.matrix(n)
   }
   n = round(n, digits)
-  if (class(n) == 'matrix') {
+  if (class(n)[1] == 'matrix') {
     out = matrix(NA, nrow = nrow(n))
     rownames(out) = rownames(n)
     for (i in 1:nrow(n)) {
@@ -814,7 +814,7 @@ interpolMatrix = function(m,
                           nr = NULL,
                           nc = NULL,
                           interpol = c("approx", "spline")[1]) {
-  if (class(m) != 'matrix') {
+  if (class(m)[1] != 'matrix') {
     m = as.matrix(m)
     warning('non-matrix input m: converting to matrix')
   }
@@ -822,6 +822,7 @@ interpolMatrix = function(m,
   if (is.null(nc)) nc = ncol(m)
   # if (nr < 2) stop('nr must be >1')
   # if (nc < 2) stop('nc must be >1')
+  isComplex = is.complex(m[1, 1])
 
   # Downsample rows if necessary
   if (nrow(m) > nr) {
@@ -840,7 +841,15 @@ interpolMatrix = function(m,
     } else {
       temp = matrix(1, nrow = nr, ncol = ncol(m))
       for (c in 1:ncol(m)) {
-        temp[, c] = do.call(interpol, list(x = m[, c], n = nr))$y
+        if (isComplex) {
+          # approx doesn't work with complex numbers properly, so we treat the
+          # Re and Im parts separately
+          temp_re = approx(x = Re(m[, c]), n = nr)$y
+          temp_im = approx(x = Im(m[, c]), n = nr)$y
+          temp[, c] = complex(real = temp_re, imaginary = temp_im)
+        } else {
+          temp[, c] = do.call(interpol, list(x = m[, c], n = nr))$y
+        }
       }
     }
   } else {
@@ -854,7 +863,13 @@ interpolMatrix = function(m,
     } else {
       out = matrix(1, nrow = nr, ncol = nc)
       for (r in 1:nr) {
-        out[r, ] = do.call(interpol, list(x = temp[r, ], n = nc))$y
+        if (isComplex) {
+          temp_re = approx(x = Re(temp[r, ]), n = nc)$y
+          temp_im = approx(x = Im(temp[r, ]), n = nc)$y
+          out[r, ] = complex(real = temp_re, imaginary = temp_im)
+        } else {
+          out[r, ] = do.call(interpol, list(x = temp[r, ], n = nc))$y
+        }
       }
     }
   } else {

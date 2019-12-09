@@ -1,4 +1,4 @@
-## ----fig.width = 5, fig.height = 5---------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 library(soundgen)
 s1 = soundgen(sylLen = 900, temperature = 0,
               pitch = list(time = c(0, .3, .8, 1), 
@@ -8,13 +8,13 @@ s1 = soundgen(sylLen = 900, temperature = 0,
               plot = TRUE, ylim = c(0, 4))
 # playme(s1)  # replay as many times as needed w/o re-synthesizing the sound
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 true_pitch = getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
                                              value = c(300, 900, 400, 2300)),
                               len = 1000)  # any length will do
 median(true_pitch)  # 611 Hz
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4))
 # summary(a1)  # many acoustic predictors measured for each STFT frame
 median(true_pitch)  # true value, as synthesized above
@@ -22,18 +22,18 @@ median(a1$pitch, na.rm = TRUE)  # our estimate
 # Pitch postprocessing is stochastic (see below), so the contour may vary.
 # Many candidates are off target, mainly b/c of misleading subharmonics.
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 spec = seewave::spec(s1, f = 16000, plot = FALSE)  # FFT of the entire sound
 avSpec = seewave::meanspec(s1, f = 16000, plot = FALSE)  # STFT followed by averaging
 # either way, you get a dataframe with two columns: frequencies and their strength
 head(avSpec)
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 spgm = spectrogram(s1, samplingRate = 16000, output = 'original', plot = FALSE)
 # rownames give you frequencies in KHz, colnames are time stamps in ms
 str(spgm)
 
-## ------------------------------------------------------------------------
+## -----------------------------------------------------------------------------
 # Transform spectrum to pdf (all columns should sum to 1):
 spgm_norm = apply(spgm, 2, function(x) x / sum(x))
 # Set up a dataframe to store the output
@@ -61,7 +61,7 @@ for (i in 1:ncol(spgm_norm)) {
 }
 summary(out)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 dur = 2  # 2 s duration
 samplingRate = 16000
 f0 = seq(100, 8000, length.out = samplingRate * dur)
@@ -70,24 +70,24 @@ sweep = sin(2 * pi * cumsum(f0) / samplingRate)
 # spectrogram(sweep, 16000)
 # plot(sweep, type = 'l')
 
-## ----fig.height = 4, fig.width = 7---------------------------------------
+## ----fig.height = 4, fig.width = 7--------------------------------------------
 seewave::env(sweep, f = samplingRate, envt = 'abs', msmooth=c(50, 0))
 
-## ----fig.height = 4, fig.width = 7---------------------------------------
+## ----fig.height = 4, fig.width = 7--------------------------------------------
 a = analyze(sweep, samplingRate = samplingRate, pitchMethods = NULL, plot = FALSE)
 plot(seq(0, dur, length.out = length(a$ampl)), a$ampl, type = 'b', xlab= 'Time, s')
 
-## ----fig.height = 4, fig.width = 7---------------------------------------
+## ----fig.height = 4, fig.width = 7--------------------------------------------
 plot(seq(0, dur, length.out = length(a$loudness)), a$loudness, type = 'b', xlab= 'Time, s')
 
-## ----fig.height = 5, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7--------------------------------------------
 l = getLoudness(sweep, samplingRate = samplingRate)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4),
             pitchMethods = c('autocor', 'cep', 'dom', 'spec'))
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 par(mfrow = c(1, 2))
 # default prior in soundgen
 getPrior(priorMean = 300, priorSD = 6)
@@ -95,21 +95,21 @@ getPrior(priorMean = 300, priorSD = 6)
 getPrior(priorMean = 2000, priorSD = 1)
 par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
             plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'autocor',
             autocorThres = .45,
             nCands = 3)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a = analyze(s1, 
             samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'dom',
             domThres = .1,
             domSmooth = 500)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a = analyze(s1, 
             samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'cep',
@@ -117,34 +117,34 @@ a = analyze(s1,
             cepSmooth = 3,
             nCands = 2)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a = analyze(s1, 
             samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'spec',
             specPeak = .4,
             nCands = 2)
 
-## ----fig.show = "hold", fig.height = 3, fig.width = 4--------------------
+## ----fig.show = "hold", fig.height = 3, fig.width = 4-------------------------
 s_withf0 = soundgen(sylLen = 600, pitch = 300,
               rolloffExact = c(1, 1, 1, 1), formants = NULL, lipRad = 0)
 # playme(s_withf0)
 seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 6--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 6-------------------------
 a_withf0 = analyze(s_withf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 
-## ----fig.show = "hold", fig.height = 3, fig.width = 4--------------------
+## ----fig.show = "hold", fig.height = 3, fig.width = 4-------------------------
 s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
               rolloffExact = c(0, 1, 1, 1), formants = NULL, lipRad = 0)
 # playme(s_withoutf0)  # you can clearly hear the difference
 seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 6--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 6-------------------------
 a_withoutf0 = analyze(s_withoutf0, 16000, pitchMethods = c('autocor', 'cep', 'spec'),
              ylim = c(0, 3), dynamicRange = 60)
 
-## ----fig.height = 5, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(
   s1, 
   samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
@@ -155,7 +155,7 @@ a = analyze(
   smooth = 0              # don't run median smoothing
 )       
 
-## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .4, step = 25,
              snakeStep = 0, smooth = 0,
@@ -173,7 +173,7 @@ plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
 points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3)
 
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .15, nCands = 3,
              snakeStep = 0, smooth = 0, interpolTol = Inf,
@@ -187,14 +187,14 @@ a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              main = 'Pass through top cand-s', 
              showLegend = FALSE, osc = FALSE, ylim = c(0, 3))
 
-## ----fig.height = 5, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7--------------------------------------------
 a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', smooth = 0, interpolTol = Inf,
              certWeight = 0.1,  # like pathfinding, the snake is affected by certWeight
              snakeStep = 0.05, snakePlot = TRUE)
 
-## ----fig.show = "hold", fig.height = 3, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', cepThres = .2, nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
@@ -208,7 +208,7 @@ a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
 plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
 points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3, lwd = 2)
 
-## ----fig.height = 5, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(s1, samplingRate = 16000, plot = TRUE, priorMean = NA,
             xlab = 'Time (ms)',
             main = 'My spectrogram',
@@ -240,11 +240,11 @@ a = analyze(s1, samplingRate = 16000, plot = TRUE, priorMean = NA,
               cex = 3
             ))
 
-## ----eval = FALSE--------------------------------------------------------
+## ----eval = FALSE-------------------------------------------------------------
 #  a = analyze(s1, samplingRate = 16000, plot = TRUE, savePath = '~/Downloads',
 #              width = 900, height = 500, units = 'px')
 
-## ----fig.height = 3, fig.width = 7---------------------------------------
+## ----fig.height = 5, fig.width = 7--------------------------------------------
 # for info on using soundgen() function, see the vignette on sound synthesis 
 s2 = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70, temperature = 0,
               pitch = c(368, 284),
@@ -255,26 +255,21 @@ s2 = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70, temperature = 0,
 # playme(s2, samplingRate = 16000)
 a = segment(s2, samplingRate = 16000, plot = TRUE)
 
-## ----fig.show = "hold", fig.height = 7, fig.width = 5--------------------
-par(mfrow = c(3, 1))
+## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
              windowLength = 40, overlap = 0, main = 'overlap too low')
 a2 = suppressWarnings(segment(s2, samplingRate = 16000, plot = TRUE, 
              windowLength = 5, overlap = 80, main = 'window too short'))
 a3 = segment(s2, samplingRate = 16000, plot = TRUE, 
              windowLength = 150, overlap = 80, main = 'window too long')
-par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 7, fig.width = 5--------------------
-par(mfrow = c(2, 1))
+## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
              shortestSyl = 80)    # too long, but at least bursts are detected
 a2 = segment(s2, samplingRate = 16000, plot = TRUE, 
              shortestPause = 80)  # merges syllables
-par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
-par(mfrow = c(2, 1))
+## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
 # absolute threshold burstThres set too high
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
              burstThres = 0.5)
@@ -282,15 +277,14 @@ a1 = segment(s2, samplingRate = 16000, plot = TRUE,
 # specified interburst
 a2 = segment(s2, samplingRate = 16000, plot = TRUE, 
              shortestPause = 80, interburst = 100) 
-par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 s3 = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70, 
        formants = NA, pitch = c(500, 330)))
 # playme(s3, 16000)
 m = ssm(s3, samplingRate = 16000)
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 7--------------------
+## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 par(mfrow = c(2, 1))
 m1 = ssm(s3, samplingRate = 16000,
          input = 'audiogram', simil = 'cor', norm = FALSE, 
@@ -300,16 +294,16 @@ m2 = ssm(s3, samplingRate = 16000,
          ssmWin = 50, kernelLen = 600)  # more global
 par(mfrow = c(1, 1))
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 s = soundgen(pitch = 70, amFreq = 25, amDep = 80, rolloff = -15)
 ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
                         windowLength = 25, step = 25)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
                         windowLength = 40, step = 10)
 
-## ----fig.show = "hold", fig.height = 5, fig.width = 5--------------------
+## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 ms = modulationSpectrum(
   s, samplingRate = 16000, windowLength = 40, step = 10,
   logSpec = FALSE,  # log-transform the spectrogram before 2D FFT?
@@ -322,7 +316,7 @@ ms = modulationSpectrum(
 )
 ms$roughness  # percent of energy in the roughness range
 
-## ----eval = FALSE--------------------------------------------------------
+## ----eval = FALSE-------------------------------------------------------------
 #  # checking combinations of pitch tracking methods
 #  myfolder = 'path.to.260.wav.files'
 #  key = log(pitchManual)
@@ -347,7 +341,7 @@ ms$roughness  # percent of energy in the roughness range
 #  res[order(res$cor1, decreasing = TRUE), ]  # max correlation regardless of NA
 #  res[order(res$cor2, decreasing = TRUE), ]  # max correlation penalized for NA
 
-## ----eval = FALSE--------------------------------------------------------
+## ----eval = FALSE-------------------------------------------------------------
 #  myfolder = 'path.to.260.wav.files'
 #  key = log(pitchManual)
 #  out = list()

@@ -342,7 +342,7 @@ getPitchAutocor = function(autoCorrelation,
       autocorPeaks = try(autocorPeaks[order(autocorPeaks$amp, decreasing = TRUE),
                                       , drop = FALSE], silent = TRUE)
     }
-    if (class(autocorPeaks) != 'try-error') {
+    if (class(autocorPeaks)[1] != 'try-error') {
       if (nrow(autocorPeaks) > 0) {
         # if some peaks satisfy all criteria, return them:
         pitchAutocor_array = data.frame (
@@ -419,7 +419,7 @@ getPitchCep = function(frame,
   idx = zoo::index(temp)[zoo::coredata(temp)]
 
   absCepPeak = try(idx[which.max(b$cep[idx])], silent = TRUE)
-  if (class(absCepPeak) != 'try-error') {
+  if (class(absCepPeak)[1] != 'try-error') {
     idx = idx[b$freq[idx] > b$freq[absCepPeak] / 1.8]
   } # to avoid false subharmonics
   # plot (b, type = 'l')
@@ -753,13 +753,80 @@ updateAnalyze = function(result,
   if (!is.null(spectrogram)) {
     # Re-calculate the % of energy in harmonics based on the manual pitch estimates
     threshold = 1.25 * result$pitch / 1000
-    result$harmonics = apply(matrix(1:ncol(spectrogram)), 1, function(x) {
+    result$harmonics = to_dB(apply(matrix(1:ncol(spectrogram)), 1, function(x) {
       ifelse(is.na(threshold[x]),
              NA,
              sum(spectrogram[as.numeric(rownames(spectrogram)) > threshold[x], x]) /
                sum(spectrogram[, x]))
-    })
+    }))
   }
   result = result[, c(1:3, 3 + order(colnames(result)[4:ncol(result)]))]
   return(result)
+}
+
+
+#' Upsample pitch contour
+#'
+#' Internal soundgen function
+#'
+#' Intended to up- or downsample pitch contours containing NA values using
+#' linear interpolation ("approx"). The problem is that NA segments should also
+#' be expanded when upsampling, and approx() doesn't do that. Algorithm: when
+#' upsampling, first interpolates NAs (constant at beg/end, linear in the
+#' middle), then runs approx(), and finally puts NAs back in where they belong.
+#' @param pitch numeric vector of pitch values, including NAs (as returned by
+#'   pitch_app)
+#' @param len required length
+#' @param plot if TRUE, plots the old and new pitch contours
+#' @keywords internal
+#' @examples
+#' pitchManual = c(130, 150, 250, 290, 320, 300, 280, 270, 220)
+#' soundgen:::upsamplePitchContour(pitchManual, len = 5, plot = TRUE)
+#' soundgen:::upsamplePitchContour(pitchManual, len = 25, plot = TRUE)
+#'
+#' pitchManual = c(NA, 150, 250, NA, NA, 300, 280, 270, NA)
+#' soundgen:::upsamplePitchContour(pitchManual, len = 5, plot = TRUE)
+#' soundgen:::upsamplePitchContour(pitchManual, len = 25, plot = TRUE)
+#'
+#' soundgen:::upsamplePitchContour(c(NA, NA), len = 5)
+upsamplePitchContour = function(pitch, len, plot = FALSE) {
+  if (!any(!is.na(pitch))) return(rep(NA, len))
+  len_orig = length(pitch)
+  time_stamps1 = seq(0, 1, length.out = len_orig)
+
+  if (len_orig == len) {
+    return(pitch)
+  } else if (len_orig > len) {
+    # downsample
+    idx = round(seq(1, len_orig, length.out = len))
+    pitch1 = pitch[idx]
+  } else {
+    # upsample
+    # interpolate NAs, otherwise approx doesn't work correctly
+    # (esp. with NAs at beg/end)
+    idx_unv = which(is.na(pitch))  # remember where NAs were
+    pitch_int = intplPitch(pitch, idx_unv = idx_unv)
+    pitch1 = approx(x = pitch_int, n = len)$y
+
+    # find NA positions in the new sound
+    d = diff(is.na(pitch))  # 1 = beginning of NA episode, -1 = end of NA episode
+    beg = which(d == 1) + 1
+    end = which(d == -1) + 1
+    if (is.na(pitch[1])) beg = c(1, beg)
+    if (is.na(pitch[len_orig])) end = c(end, len_orig)
+    na_pos_01 = data.frame(beg = time_stamps1[beg], end = time_stamps1[end])
+    na_pos2 = round(na_pos_01 * len)  # from % to position indices
+    na_pos2_vector = unlist(apply(na_pos2, 1, function(x) x[1]:x[2]))
+
+    # put NAs back in
+    pitch1[na_pos2_vector] = NA
+  }
+
+  if (plot) {
+    plot(time_stamps1, pitch, type = 'p', log = 'y',
+         xlab = 'Relative position', ylab = 'Pitch')
+    points(x = seq(0, 1, length.out = len), y = pitch1,
+           type = 'b', col = 'red', pch = 3)
+   }
+  return(pitch1)
 }

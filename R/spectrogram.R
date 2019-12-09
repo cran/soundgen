@@ -84,14 +84,15 @@
 #' @seealso \code{\link{modulationSpectrum}} \code{\link{ssm}}
 #' @examples
 #' # synthesize a sound 1 s long, with gradually increasing hissing noise
-#' sound = soundgen(sylLen = 1000, temperature = 0.001, noise = list(
-#'   time = c(0, 1300), value = c(-40, 0)), formantsNoise = list(
+#' sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
+#'   time = c(0, 650), value = c(-40, 0)), formantsNoise = list(
 #'   f1 = list(freq = 5000, width = 10000)))
 #' # playme(sound, samplingRate = 16000)
 #'
 #' # basic spectrogram
 #' spectrogram(sound, samplingRate = 16000)
 #'
+#' \dontrun{
 #' # add bells and whistles
 #' spectrogram(sound, samplingRate = 16000,
 #'   osc = TRUE,  # plot oscillogram under the spectrogram
@@ -106,7 +107,6 @@
 #'   # + axis labels, etc
 #' )
 #'
-#' \dontrun{
 #' # change dynamic range
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
@@ -191,7 +191,7 @@ spectrogram = function(
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
 
   # import audio
-  if (class(x) == 'character') {
+  if (class(x)[1] == 'character') {
     extension = substr(x, nchar(x) - 2, nchar(x))
     if (extension == 'wav' | extension == 'WAV') {
       sound_wav = tuneR::readWave(x)
@@ -223,7 +223,7 @@ spectrogram = function(
       filter = NULL,
       padWithSilence = padWithSilence
     )
-  } else if (class(x) == 'numeric' & length(x) > 1) {
+  } else if (class(x)[1] == 'numeric' & length(x) > 1) {
     if (is.null(samplingRate)) {
       stop ('Please specify samplingRate, eg 44100')
     } else {
@@ -255,7 +255,7 @@ spectrogram = function(
       )
     }
   }
-  if (class(frameBank) != 'matrix') {
+  if (class(frameBank)[1] != 'matrix') {
     stop(
       'Input format not recognized. Please provide path to .wav or .mp3 file,
       a vector of amplitudes plus samplingRate, or a preprocessed frameBank'
@@ -388,7 +388,7 @@ spectrogram = function(
                        maxAmpl = maxAmpl,
                        plot = FALSE,
                        returnWave = TRUE)
-        ylim_osc = c(-dynamicRange, dynamicRange)
+        ylim_osc = c(-2 * dynamicRange, 0)
       } else {
         ylim_osc = c(-maxAmpl, maxAmpl)
       }
@@ -409,10 +409,12 @@ spectrogram = function(
       box()
       axis(side = 1, ...)
       if (osc_dB) {
-        axis(side = 4, at = seq(0, dynamicRange, by = 10), ...)
+        axis(side = 4, at = seq(-dynamicRange, 0, by = 10), ...)
+        abline(h = -dynamicRange, lty = 2, col = 'gray70')
         mtext("dB", side = 2, line = 3, ...)
+      } else {
+        abline(h = 0, lty = 2, col = 'gray70')
       }
-      abline(h = 0, lty = 2)
       par(mar = c(0, mar[2:4]), xaxt = 'n', yaxt = 's')
       xlab = ''
     } else {
@@ -780,7 +782,7 @@ osc_dB = function(x,
                   midline = TRUE,
                   ...) {
   # import a sound
-  if (class(x) == 'character') {
+  if (class(x)[1] == 'character') {
     sound_wav = tuneR::readWave(x)
     samplingRate = sound_wav@samp.rate
     sound = sound_wav@left
@@ -807,9 +809,9 @@ osc_dB = function(x,
   neg = which(s1 < -floor)
 
   # log-transform
-  sound[pos] = 20 * log10(s1[pos]) + dynamicRange
-  sound[neg] = -20 * log10(-s1[neg]) - dynamicRange
-  sound[zero] = 0
+  sound[pos] = 20 * log10(s1[pos])
+  sound[neg] = -20 * log10(-s1[neg]) - 2 * dynamicRange
+  sound[zero] = -dynamicRange
 
   # plot
   if (plot) {
@@ -822,9 +824,9 @@ osc_dB = function(x,
     }
     # plot(time, sound, type = 'l', xlab = xlab, ylab = ylab, ...)
     plot(time, sound, type = 'l', xlab = xlab, ylab = ylab,
-         bty = bty, yaxt = 'n', ylim = c(-dynamicRange, dynamicRange), ...)
-    axis(side = 2, at = seq(0, dynamicRange, by = 10))
-    if (midline) abline(h = 0, lty = 2, col = 'gray70')
+         bty = bty, yaxt = 'n', ylim = c(-2 * dynamicRange, 0), ...)
+    axis(side = 2, at = seq(-dynamicRange, 0, by = 10))
+    if (midline) abline(h = -dynamicRange, lty = 2, col = 'gray70')
   }
 
   if (returnWave) return(sound)
