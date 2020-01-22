@@ -8,6 +8,7 @@ generateNoise(
   len,
   rolloffNoise = 0,
   noiseFlatSpec = 1200,
+  rolloffNoiseExp = 0,
   spectralEnvelope = NULL,
   noise = NULL,
   temperature = 0.1,
@@ -16,16 +17,24 @@ generateNoise(
   samplingRate = 16000,
   overlap = 75,
   dynamicRange = 80,
+  interpol = c("approx", "spline", "loess")[3],
+  invalidArgAction = c("adjust", "abort", "ignore")[1],
   play = FALSE
 )
 }
 \arguments{
 \item{len}{length of output}
 
-\item{rolloffNoise}{linear rolloff of the excitation source for the unvoiced
-component, dB/kHz (anchor format)}
+\item{rolloffNoise}{linear rolloff of the excitation source for
+the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+above \code{noiseFlatSpec} Hz}
 
-\item{noiseFlatSpec}{keeps noise spectrum flat to this frequency, Hz}
+\item{noiseFlatSpec}{linear rolloff of the excitation source for
+the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+above \code{noiseFlatSpec} Hz}
+
+\item{rolloffNoiseExp}{exponential rolloff of the excitation source for the
+unvoiced component, dB/oct (anchor format) applied above 0 Hz}
 
 \item{spectralEnvelope}{(optional): as an alternative to using rolloffNoise,
 we can provide the exact filter - a vector of non-negative numbers
@@ -56,6 +65,15 @@ and fade-out)}
 \item{dynamicRange}{dynamic range, dB. Harmonics and noise more than
 dynamicRange under maximum amplitude are discarded to save computational
 resources}
+
+\item{interpol}{the method of smoothing envelopes based on provided anchors:
+'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
+= polynomial local smoothing function. NB: this does not affect contours for
+"noise", "glottal", and the smoothing of formants}
+
+\item{invalidArgAction}{what to do if an argument is invalid or outside the
+range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
+= stop execution, 'ignore' = throw a warning and continue (may crash)}
 
 \item{play}{if TRUE, plays the synthesized sound using the default player on
 your system. If character, passed to \code{\link[tuneR]{play}} as the name

@@ -121,6 +121,7 @@
 generateNoise = function(len,
                          rolloffNoise = 0,
                          noiseFlatSpec = 1200,
+                         rolloffNoiseExp = 0,
                          spectralEnvelope = NULL,
                          noise = NULL,
                          temperature = .1,
@@ -129,6 +130,8 @@ generateNoise = function(len,
                          samplingRate = 16000,
                          overlap = 75,
                          dynamicRange = 80,
+                         interpol = c('approx', 'spline', 'loess')[3],
+                         invalidArgAction = c('adjust', 'abort', 'ignore')[1],
                          play = FALSE) {
   # wiggle pars
   if (temperature > 0) {  # set to 0 when called internally by soundgen()
@@ -136,7 +139,8 @@ generateNoise = function(len,
                           mean = len,
                           sd = len * temperature * .5,
                           low = 0, high = samplingRate * 10,  # max 10 s
-                          roundToInteger = TRUE)
+                          roundToInteger = TRUE,
+                          invalidArgAction = 'adjust')
     if (is.list(rolloffNoise)) {
       rolloffNoise = wiggleAnchors(
         rolloffNoise,
@@ -144,6 +148,7 @@ generateNoise = function(len,
         temp_coef = .5,
         low = c(-Inf, permittedValues['rolloffNoise', 'low']),
         high = c(Inf, permittedValues['rolloffNoise', 'high']),
+        invalidArgAction = invalidArgAction,
         wiggleAllRows = TRUE
       )
     } else {
@@ -151,24 +156,56 @@ generateNoise = function(len,
         n = length(rolloffNoise),
         mean = rolloffNoise,
         sd = abs(rolloffNoise) * temperature * .5,
-        low = -20,
-        high = 20
+        low = permittedValues['rolloffNoise', 'low'],
+        high = permittedValues['rolloffNoise', 'high'],
+        invalidArgAction = invalidArgAction
       )
     }
-    noiseFlatSpec = rnorm_truncated(n = 1,
-                                    mean = noiseFlatSpec,
-                                    sd = noiseFlatSpec * temperature * .5,
-                                    low = 0, high = samplingRate / 2)
-    attackLen = rnorm_truncated(n = length(attackLen),
-                                mean = attackLen,
-                                sd = attackLen * temperature * .5,
-                                low = 0, high = len / samplingRate * 1000 / 2)
+    noiseFlatSpec = rnorm_truncated(
+      n = 1,
+      mean = noiseFlatSpec,
+      sd = noiseFlatSpec * temperature * .5,
+      low = permittedValues['noiseFlatSpec', 'low'],
+      high = permittedValues['noiseFlatSpec', 'high'], # samplingRate / 2,
+      invalidArgAction = invalidArgAction
+    )
+
+    if (is.list(rolloffNoiseExp)) {
+      rolloffNoiseExp = wiggleAnchors(
+        rolloffNoiseExp,
+        temperature = temperature,
+        temp_coef = .5,
+        low = c(-Inf, permittedValues['rolloffNoiseExp', 'low']),
+        high = c(Inf, permittedValues['rolloffNoiseExp', 'high']),
+        invalidArgAction = invalidArgAction,
+        wiggleAllRows = TRUE
+      )
+    } else {
+      rolloffNoiseExp = rnorm_truncated(
+        n = length(rolloffNoise),
+        mean = rolloffNoiseExp,
+        sd = abs(rolloffNoiseExp) * temperature * .5,
+        low = permittedValues['rolloffNoiseExp', 'low'],
+        high = permittedValues['rolloffNoiseExp', 'high'],
+        invalidArgAction = invalidArgAction
+      )
+    }
+
+    attackLen = rnorm_truncated(
+      n = length(attackLen),
+      mean = attackLen,
+      sd = attackLen * temperature * .5,
+      low = permittedValues['attackLen', 'low'],
+      high = len / samplingRate * 1000 / 2,
+      invalidArgAction = invalidArgAction
+    )
     noise = wiggleAnchors(
       reformatAnchors(noise),
       temperature = temperature,
       temp_coef = .5,
       low = c(0, -dynamicRange),
       high = c(1, 0),
+      invalidArgAction = invalidArgAction,
       wiggleAllRows = TRUE
     )
     if (is.vector(spectralEnvelope)) {
@@ -176,7 +213,8 @@ generateNoise = function(len,
         n = length(spectralEnvelope),
         mean = spectralEnvelope + .1,  # to wiggle zeros
         sd = spectralEnvelope * temperature * .5,
-        low = 0, high = Inf
+        low = 0, high = Inf,
+        invalidArgAction = 'adjust'
       )
     }
   }
@@ -187,6 +225,7 @@ generateNoise = function(len,
       len = len,
       anchors = noise,
       normalizeTime = FALSE,
+      interpol = interpol,
       valueFloor = permittedValues['noiseAmpl', 'low'],
       valueCeiling = permittedValues['noiseAmpl', 'high'],
       samplingRate = samplingRate,
@@ -216,11 +255,15 @@ generateNoise = function(len,
     binsPerKHz = round(1000 / bin)
     flatBins = round(noiseFlatSpec / bin)
     idx = (flatBins + 1):nr  # the bins affected by rolloffNoise
+
     if (is.list(rolloffNoise) |
         (is.numeric(rolloffNoise) & length(rolloffNoise) > 1)) {
+      # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1:
+      # spectrum of turbulent noise
       rolloffNoise = getSmoothContour(
         anchors = rolloffNoise,
         len = nc,
+        interpol = interpol,
         valueFloor = permittedValues['rolloffNoise', 'low'],
         valueCeiling = permittedValues['rolloffNoise', 'high']
       )
@@ -228,11 +271,34 @@ generateNoise = function(len,
       for (c in 1:nc) {
         spectralEnvelope[idx, c] = 10 ^ (rolloffNoise[c] / 20 * (idx - flatBins) / binsPerKHz)
       }
-      # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1: spectrum of turbulent noise
     } else {
       a = rep(1, nr)
       a[idx] = 10 ^ (rolloffNoise / 20 * (idx - flatBins) / binsPerKHz)
       spectralEnvelope = matrix(rep(a, nc), ncol = nc)
+    }
+
+    # exponential rolloff starting from 0 Hz (Klatt & Klatt, 1990)
+    if ((is.list(rolloffNoiseExp) && any(rolloffNoiseExp$value != 0)) |
+        (is.numeric(rolloffNoiseExp) && any(rolloffNoiseExp != 0))) {
+      if ((is.list(rolloffNoiseExp) && length(rolloffNoiseExp$value) > 1) |
+          (is.numeric(rolloffNoiseExp) && length(rolloffNoiseExp) > 1)) {
+        rolloffNoiseExp = getSmoothContour(
+          anchors = rolloffNoiseExp,
+          len = nc,
+          interpol = interpol,
+          valueFloor = permittedValues['rolloffNoiseExp', 'low'],
+          valueCeiling = permittedValues['rolloffNoiseExp', 'high']
+        )
+        for (c in 1:nc) {
+          spectralEnvelope[, c] = spectralEnvelope[, c] *
+            10 ^ (log2(1:nr) * rolloffNoiseExp[c] / 20)
+        }
+      } else {
+        r_exp = 10 ^ (log2(1:nr) * rolloffNoiseExp / 20)
+        for (c in 1:nc) {
+          spectralEnvelope[, c] = spectralEnvelope[, c] * r_exp
+        }
+      }
     }
     # image(t(spectralEnvelope))
   } else {
@@ -265,9 +331,9 @@ generateNoise = function(len,
     breathing = rep(0, len)
   } else {
     ## instead of synthesizing the time series and then doing fft-ifft,
-    #   we can simply synthesize spectral noise, convert to complex
-    #   (setting imaginary=0), and then do inverse FFT just once
-    # set up spectrum with white noise
+    # we can simply synthesize spectral noise, convert to complex
+    # (setting imaginary=0), and then do inverse FFT just once
+    # set up spectrum with white noise (works b/c phase doesn't matter for noise)
     z1 = matrix(as.complex(runif(nr * nc)), nrow = nr, ncol = nc)
     # multiply by filter
     z1_filtered = z1 * spectralEnvelope
@@ -448,6 +514,7 @@ generateHarmonics = function(pitch,
         len = nGC,
         valueFloor = -dynamicRange,
         valueCeiling = 0,
+        interpol = interpol,
         samplingRate = samplingRate
       )
       # plot(amplContour, type='l')
@@ -518,7 +585,7 @@ generateHarmonics = function(pitch,
     rw_smoothing = .9 - temperature * pitchDriftFreq -
       1.2 / (1 + exp(-.008 * (length(pitch_per_gc) - 10))) + .6
     # rw_range is 1 semitone per second at temp = .05 and pitchDriftDep = .5 (defaults)
-    rw_range = temperature * pitchDriftDep * 40 *  # 40 * .05 * .5 = 1
+    rw_range = temperature * 40 *  # 40 * .05 * .5 = 1
       length(pitch) / pitchSamplingRate / 12
     drift = getRandomWalk(
       len = length(pitch_per_gc),
@@ -526,12 +593,14 @@ generateHarmonics = function(pitch,
       rw_smoothing = rw_smoothing,
       method = 'spline'
     )
+    drift_centered = drift - mean(drift)
+    drift = 2 ^ drift_centered # plot (drift, type = 'l')
+    drift_pitch = 2 ^ (drift_centered * pitchDriftDep)
     # we get a separate random walk for this slow drift of intonation.
     #   Its smoothness vs wiggleness depends on temperature and duration
     #   (in glottal cycles). For ex., temperature * 2 means that pitch will
     #   vary within one octave if temperature == 1
-    drift = 2 ^ (drift - mean(drift)) # plot (drift, type = 'l')
-    pitch_per_gc = pitch_per_gc * drift  # plot(pitch_per_gc, type = 'l')
+    pitch_per_gc = pitch_per_gc * drift_pitch  # plot(pitch_per_gc, type = 'l')
   }
 
   # as a result of adding pitch effects, F0 might have dropped to indecent
@@ -629,9 +698,12 @@ generateHarmonics = function(pitch,
       }
     }
     r = unlist(r, recursive = FALSE)  # get rid of epochs
-    glottisClosed_per_gc = getSmoothContour(anchors = glottis,
-                                            len = nGC,
-                                            valueFloor = 0)
+    glottisClosed_per_gc = getSmoothContour(
+      anchors = glottis,
+      interpol = interpol,
+      len = nGC,
+      valueFloor = 0
+    )
     waveform = generateGC(pitch_per_gc = pitch_per_gc,
                           glottisClosed_per_gc = glottisClosed_per_gc,
                           rolloff_per_gc = r,
@@ -686,6 +758,7 @@ generateHarmonics = function(pitch,
         anchors = ampl,
         len = length(waveform),
         valueFloor = -dynamicRange,
+        interpol = interpol,
         samplingRate = samplingRate
       )
       # plot(amplEnvelope, type = 'l')
@@ -927,11 +1000,13 @@ fart = function(glottis = c(50, 200),
 
     glottis = wiggleAnchors(
       glottis, temperature, temp_coef = .5,
-      low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE
+      low = c(0, 0), high = c(1, 10000),
+      wiggleAllRows = TRUE
     )
     pitch = wiggleAnchors(
       pitch, temperature, temp_coef = 1,
-      low = c(0, 0), high = c(1, 10000), wiggleAllRows = TRUE
+      low = c(0, 0), high = c(1, 10000),
+      wiggleAllRows = TRUE
     )
   }
 

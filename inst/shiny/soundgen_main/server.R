@@ -63,7 +63,7 @@ server = function(input, output, session) {
     myPars$updateVTL = FALSE
 
     # first reset everything to defaults
-    for (v in rownames(permittedValues)[1:which(rownames(permittedValues) == 'rolloffNoise')]) {
+    for (v in rownames(permittedValues)[1:which(rownames(permittedValues) == 'rolloffNoiseExp')]) {
       updateSliderInput(session, v, value = permittedValues[v,'default'])
     }
     lists_to_default = c('pitch', 'pitchGlobal', 'mouth',
@@ -300,12 +300,12 @@ server = function(input, output, session) {
       myPars$formantsNoise = NA
       updateTextInput(session, inputId = 'formantsNoise', value = 'NA')
     } else if (nchar(input$noiseType) > 0) {  # TODO - check if this always works!!!
-      n = presets[[input$speaker]]$Formants$consonants[input$noiseType] [[1]]
+      n = presets[[input$speaker]]$Formants$consonants[input$noiseType][[1]]
       myPars$formantsNoise = n[3:length(n)]
       updateSliderInput(session, inputId = 'rolloffNoise',
                         value = n[['rolloffNoise']])
       updateTextInput(session, inputId = 'formantsNoise',
-                      value = as.character(call('print', myPars$formantsNoise)[2]))
+                      value = paste0('list(', toString(myPars$formantsNoise), ')'))
     }
   })
 
@@ -1187,7 +1187,6 @@ server = function(input, output, session) {
       maleFemale = input$maleFemale,
       creakyBreathy = input$creakyBreathy,
       nonlinBalance = input$nonlinBalance,
-      nonlinDep = input$nonlinDep,
       jitterDep = input$jitterDep,
       jitterLen = input$jitterLen,
       vibratoFreq = input$vibratoFreq,
@@ -1217,6 +1216,7 @@ server = function(input, output, session) {
       noise = myPars$noise,
       formantsNoise = myPars$formantsNoise,
       rolloffNoise = input$rolloffNoise,
+      rolloffNoiseExp = input$rolloffNoiseExp,
       mouth = myPars$mouth,
       ampl = myPars$ampl,
       amplGlobal = myPars$amplGlobal,
@@ -1356,7 +1356,6 @@ server = function(input, output, session) {
 
   # Source / nonlinear
   shinyBS::addTooltip(session, id='nonlinBalance', title = '3 regimes of nonlinear effects: none / subharmonics / subharmonics + jitter', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
-  shinyBS::addTooltip(session, id='nonlinDep', title = 'Modulates the strength of nonlinear effects specified in "Advanced" below, when these effects are added', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='shortestEpoch', title = 'Change nonlinear regime no sooner than after ... ms', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='subFreq', title = 'The approximate target frequency of subharmonics; the actual frequency is forced to be a fraction of f0 at every time point', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='subDep', title = 'Width of subharmonic sidebands, ie the strength of subharmonics depending on their distance from F-harmonics', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
@@ -1381,7 +1380,8 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='mouth_flatten', title = 'Revert to a flat mouth opening contour with opening degree equal to the first (left) anchor', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='mouthOpenThres', title = 'The degree of mouth opening at which lips separate and start to radiate', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='noiseType', title = "Breathing = glottal noise (same formants as for voiced part); snuffling = breathing through the nose; h / s / sh / f = sibilants", placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
-  shinyBS::addTooltip(session, id='rolloffNoise', title = 'Rolloff of the noise component (affects both breathing and supra-glottal noise)', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
+  shinyBS::addTooltip(session, id='rolloffNoise', title = 'Linear rolloff of the noise component, dB/kHz above 2 kHz (affects both breathing and supra-glottal noise)', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
+  shinyBS::addTooltip(session, id='rolloffNoiseExp', title = 'Exponential rolloff of the noise component, dB/oct (affects both breathing and supra-glottal noise)', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
 
   # spectrogram controls
   shinyBS::addTooltip(session, id='specWindowLength', title = 'Window length for FFT transform (Gaussian)', placement="below", trigger="hover", options = list(delay = list(show=1000, hide=0)))

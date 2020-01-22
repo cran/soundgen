@@ -2,17 +2,17 @@
 library(soundgen)
 s1 = soundgen(sylLen = 900, temperature = 0,
               pitch = list(time = c(0, .3, .8, 1), 
-                           value = c(300, 900, 400, 2300)),
-              noise = c(-40, -20), subDep = 100, 
-              jitterDep = 0.5, nonlinBalance = 100,
+                           value = c(300, 900, 400, 1300)),
+              noise = c(-40, -20), 
+              subDep = 100, jitterDep = 0.5, 
               plot = TRUE, ylim = c(0, 4))
 # playme(s1)  # replay as many times as needed w/o re-synthesizing the sound
 
 ## -----------------------------------------------------------------------------
 true_pitch = getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
-                                             value = c(300, 900, 400, 2300)),
+                                             value = c(300, 900, 400, 1300)),
                               len = 1000)  # any length will do
-median(true_pitch)  # 611 Hz
+median(true_pitch)  # 633 Hz
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4))
@@ -264,15 +264,17 @@ a3 = segment(s2, samplingRate = 16000, plot = TRUE,
              windowLength = 150, overlap = 80, main = 'window too long')
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
+# too long, but at least bursts are detected
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
-             shortestSyl = 80)    # too long, but at least bursts are detected
+             shortestSyl = 80, main = 'shortestSyl too long')    
+# merges syllables
 a2 = segment(s2, samplingRate = 16000, plot = TRUE, 
-             shortestPause = 80)  # merges syllables
+             shortestPause = 80, main = 'shortestPause too long')  
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
 # absolute threshold burstThres set too high
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
-             burstThres = 0.5)
+             burstThres = 0.5, main = 'burstThres too high')
 # improper syllable merging due to shortestPause, but overriden by manually 
 # specified interburst
 a2 = segment(s2, samplingRate = 16000, plot = TRUE, 

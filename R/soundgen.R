@@ -1,4 +1,4 @@
-# TODO: try quadratic interpolation from guessPhase_spsi in pitchAutocor etc; rolloffNoiseExp around -6 dB/oct so flat after lipRad (Klatt & Klatt, 1990); add aspiration noise as an intrinsic part of source to be exactly the same length as the voiced segment (+play with noise spectrum to replace upper harmonics); AM aspiration noise with source if synthesizing with a closed phase (glottis > 0); test upsampling in pitchAutocor - maybe also lower the .975 threshold (optimize formally); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?); option to adjust the filter to be flat regardless of the number of formants (?)
+# TODO: soundgen - add formantLocking (if >0, consider the first ~3 harmonics, 3 formants - if a harmonic is close to a formant, it is drawn to it); soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # pitch_app: see a list of all uploaded files (add button - doing it with tooltips doesn't work); load audio + results to double-check old work
 
@@ -64,9 +64,7 @@ NULL
 #'   proportion of sound with different regimes of pitch effects (none /
 #'   subharmonics only / subharmonics and jitter). 0\% = no noise; 100\% = the
 #'   entire sound has jitter + subharmonics. Ignored if temperature = 0
-#' @param nonlinDep hyperparameter for regulating the intensity of subharmonics
-#'   and jitter, 0 to 100\% (50\% = jitter and subharmonics are as specified,
-#'   <50\% weaker, >50\% stronger). Ignored if temperature = 0
+#' @param nonlinDep deprecated
 #' @param nonlinRandomWalk a numeric vector specifying the timing of nonliner
 #'   regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer
 #' @param jitterLen duration of stable periods between pitch jumps, ms. Use a
@@ -147,9 +145,11 @@ NULL
 #'   voiced component. If NA (default), the unvoiced component will be filtered
 #'   through the same formants as the voiced component, approximating aspiration
 #'   noise [h]
-#' @param rolloffNoise linear rolloff of the excitation source for the unvoiced
-#'   component, dB/kHz (anchor format)
-#' @param noiseFlatSpec keeps noise spectrum flat to this frequency, Hz
+#' @param rolloffNoise,noiseFlatSpec linear rolloff of the excitation source for
+#'   the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+#'   above \code{noiseFlatSpec} Hz
+#' @param rolloffNoiseExp exponential rolloff of the excitation source for the
+#'   unvoiced component, dB/oct (anchor format) applied above 0 Hz
 #' @param noiseAmpRef noise amplitude is defined relative to: "f0" = the
 #'   amplitude of the first partial (fundamental frequency), "source" = the
 #'   amplitude of the harmonic component prior to applying formants, "filtered"
@@ -279,11 +279,14 @@ soundgen = function(
   tempEffects = list(),
   maleFemale = 0,
   creakyBreathy = 0,
-  nonlinBalance = 0,
-  nonlinDep = 50,
+  nonlinBalance = 100,
+  nonlinDep = 'deprecated',
   nonlinRandomWalk = NULL,
+  subFreq = 100,
+  subDep = 0,
+  shortestEpoch = 300,
   jitterLen = 1,
-  jitterDep = 1,
+  jitterDep = 0,
   vibratoFreq = 5,
   vibratoDep = 0,
   shimmerDep = 0,
@@ -304,9 +307,6 @@ soundgen = function(
   formantWidth = 1,
   formantCeiling = 2,
   vocalTract = NA,
-  subFreq = 100,
-  subDep = 100,
-  shortestEpoch = 300,
   amDep = 0,
   amFreq = 30,
   amShape = 0,
@@ -314,6 +314,7 @@ soundgen = function(
   formantsNoise = NA,
   rolloffNoise = -4,
   noiseFlatSpec = 1200,
+  rolloffNoiseExp = 0,
   noiseAmpRef = c('f0', 'source', 'filtered')[3],
   mouth = data.frame(time = c(0, 1),
                      value = c(.5, .5)),
@@ -328,7 +329,7 @@ soundgen = function(
   addSilence = 100,
   pitchFloor = 1,
   pitchCeiling = 3500,
-  pitchSamplingRate = 3500,
+  pitchSamplingRate = 16000,
   dynamicRange = 80,
   invalidArgAction = c('adjust', 'abort', 'ignore')[1],
   plot = FALSE,
@@ -337,10 +338,9 @@ soundgen = function(
   ...
 ) {
   # deprecated pars
-  # if (!missing('throwaway')) {
-  #   dynamicRange = -throwaway
-  #   message('throwaway is deprecated; used dynamicRange instead')
-  # }
+  if (!missing('nonlinDep')) {
+    message('nonlinDep is deprecated; set subDep/jitterDep/shimmerDep manually')
+  }
 
   # check that values of numeric arguments are valid and within range
   pars_to_check = rownames(permittedValues)[1:which(
@@ -420,12 +420,16 @@ soundgen = function(
     assign(anchor, reformatAnchors(get(anchor)))
   }
   if (is.numeric(noise)) {
+    # if noise is numeric, fix exactly same timing as voiced
+    lockNoiseToVoiced = TRUE
     if (length(noise) > 0) {
       noise = data.frame(
         time = seq(0, sylLen[1], length.out = max(2, length(noise))),
         value = noise
       )
     }
+  } else {
+    lockNoiseToVoiced = FALSE
   }
   if (is.list(pitch)) {
     if (any(pitch$value < pitchFloor)) {
@@ -446,6 +450,17 @@ soundgen = function(
       pitchCeiling = samplingRate / 2
       message(paste('Some pitch values exceed pitchCeiling.',
                     'Resetting pitchCeiling to Nyquist frequency (samplingRate / 2).'))
+    }
+    mp = max(pitch$value)
+    if (mp * 10 > pitchSamplingRate) {
+      pitchSamplingRate = mp * 10
+      message(paste0('pitchSampingRate should be much higher than the ',
+                     'highest pitch; resetting to ', mp * 10, ' Hz'))
+    }
+    if (pitchSamplingRate > samplingRate) {
+      samplingRate = pitchSamplingRate
+      message(paste0('Resetting samplingRate to ',
+                     samplingRate, ' Hz because of high pitch'))
     }
   }
 
@@ -497,6 +512,14 @@ soundgen = function(
   # expand formants to full format for adjusting bandwidth if creakyBreathy > 0
   formants = reformatFormants(formants)
   formantsNoise = reformatFormants(formantsNoise)
+  if (is.list(formantsNoise) & !is.numeric(vocalTract) & !is.list(vocalTract)) {
+    # the only cond in which we do not create extra stochastic formants for
+    # noise is when we have user-specified formantsNoise (ie not just breathing)
+    # and we don't know VTL
+    formantDepStoch_noise = 0
+  } else {
+    formantDepStoch_noise = formantDepStoch
+  }
 
   ## adjust parameters according to the specified hyperparameters
   # effects of creakyBreathy hyper
@@ -548,20 +571,6 @@ soundgen = function(
     )
   }
 
-  # effects of nonlinDep hyper
-  subFreq$value = 2 * (subFreq$value - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50
-  # subFreq unchanged for nonlinDep=50%, raised for lower and
-  # lowered for higher noise intensities. Max set at 2*subFreq-50, min at 50 Hz.
-  # Jitter and shimmer go to 0 if nonlinDep = 0 and double if nonlinDep = 1
-  # Illustration: subFreq=250; nonlinDep=0:100; plot(nonlinDep,
-  #   2 * (subFreq - 50) / (1 + exp(-.1 * (50 - nonlinDep))) + 50, type = 'l')
-  jitterDep$value = 2 * jitterDep$value / (1 + exp(.1 * (50 - nonlinDep)))
-  # Illustration: jitterDep = 1; nonlinDep = 0:100;
-  # plot(nonlinDep, 2 * jitterDep / (1 + exp(.1 * (50 - nonlinDep))), type = 'l')
-  shimmerDep$value = 2 * shimmerDep$value / (1 + exp(.1 * (50 - nonlinDep)))
-  # Illustration: shimmerDep = 1.5; nonlinDep = 0:100;
-  # plot(nonlinDep, 2 * shimmerDep / (1 + exp(.1 * (50 - nonlinDep))), type = 'l')
-
   # effects of maleFemale hyper
   if (maleFemale != 0) {
     # adjust pitch and formants along the male-female dimension
@@ -588,7 +597,6 @@ soundgen = function(
 
   # prepare a list of pars for calling generateHarmonics()
   pars_to_vary = c(
-    'nonlinDep',
     'attackLen',
     'shortestEpoch'
   )  # don't add nonlinBalance, otherwise there is no simple way to remove noise at temp>0
@@ -625,7 +633,6 @@ soundgen = function(
     'subFreq' = subFreq,
     'subDep' = subDep,
     'nonlinBalance' = nonlinBalance,
-    'nonlinDep' = nonlinDep,
     'nonlinRandomWalk' = nonlinRandomWalk,
     'pitchFloor' = pitchFloor,
     'pitchCeiling' = pitchCeiling,
@@ -652,7 +659,7 @@ soundgen = function(
     }
   }
 
-  # make sure pitch$time range from 0 to 1
+  # make sure pitch$time ranges from 0 to 1
   if (is.list(pitch)) {
     if (min(pitch$time) < 0) {
       pitch$time = pitch$time - min(pitch$time)
@@ -663,8 +670,10 @@ soundgen = function(
   }
 
   wiggleNoise = FALSE
-  if (is.numeric(noise) | is.list(noise)) {
-    if (temperature > 0 & any(noise$value > -dynamicRange)) {
+  if (is.list(noise)) {
+    if (temperature > 0 &
+        any(noise$value > -dynamicRange) &
+        !lockNoiseToVoiced) {
       wiggleNoise = TRUE
     }
   }
@@ -882,14 +891,25 @@ soundgen = function(
       }
 
       # add syllable and pause to the growing bout
+      actualSylLen = length(syllable) / samplingRate * 1000
       voiced = c(voiced, syllable, pause)
 
       # update syllable timing info, b/c with temperature > 0, jitter etc
       # there may be deviations from the target duration
+      actualBoutLen = length(voiced) / samplingRate * 1000
       if (s < nrow(syllables)) {
-        correction = length(voiced) / samplingRate * 1000 - syllables[s + 1, 'start']
+        correction = actualBoutLen - syllables[s + 1, 'start']
         syllables[(s + 1):nrow(syllables), c('start', 'end')] =
           syllables[(s + 1):nrow(syllables), c('start', 'end')] + correction
+      }
+
+      # scale noise anchors again to take into account the actual sylLen
+      if (lockNoiseToVoiced) {
+        noise_syl[[s]]$time = scaleNoiseAnchors(
+          noiseTime = noise_syl[[s]]$time,
+          sylLen_old = max(noise_syl[[s]]$time),
+          sylLen_new = actualSylLen # syllables$dur[s]
+        )
       }
 
       # generate the unvoiced part, but don't add it to the sound just yet
@@ -911,7 +931,29 @@ soundgen = function(
               mean = rolloffNoise,
               sd = abs(rolloffNoise) * temperature * tempEffects$specDep,
               low = permittedValues['rolloffNoise', 'low'],
-              high = permittedValues['rolloffNoise', 'high']
+              high = permittedValues['rolloffNoise', 'high'],
+              invalidArgAction = invalidArgAction
+            )
+          }
+
+          if (is.list(rolloffNoiseExp)) {
+            rolloffNoiseExp_syl = wiggleAnchors(
+              rolloffNoiseExp,
+              temperature = temperature,
+              temp_coef = tempEffects$specDep,
+              low = c(-Inf, permittedValues['rolloffNoiseExp', 'low']),
+              high = c(Inf, permittedValues['rolloffNoiseExp', 'high']),
+              wiggleAllRows = TRUE,
+              invalidArgAction = invalidArgAction
+            )
+          } else {
+            rolloffNoiseExp_syl = rnorm_truncated(
+              n = length(rolloffNoiseExp),
+              mean = rolloffNoiseExp,
+              sd = abs(rolloffNoiseExp) * temperature * tempEffects$specDep,
+              low = permittedValues['rolloffNoiseExp', 'low'],
+              high = permittedValues['rolloffNoiseExp', 'high'],
+              invalidArgAction = invalidArgAction
             )
           }
           # synthesize the unvoiced part
@@ -919,6 +961,7 @@ soundgen = function(
             len = round(diff(range(noise_syl[[s]]$time)) * samplingRate / 1000),
             noise = noise_syl[[s]],
             rolloffNoise = rolloffNoise_syl,
+            rolloffNoiseExp = rolloffNoiseExp_syl,
             noiseFlatSpec = noiseFlatSpec,
             temperature = 0,  # wiggled separately in soundgen
             attackLen = attackLen,
@@ -926,6 +969,7 @@ soundgen = function(
             windowLength_points = windowLength_points,
             overlap = overlap,
             dynamicRange = dynamicRange,
+            invalidArgAction = invalidArgAction,
             spectralEnvelope = NULL # spectralEnvelopeNoise
           ) * amplEnvelope[s]  # correction of amplitude per syllable
           # plot(unvoiced[[s]], type = 'l')
@@ -984,12 +1028,6 @@ soundgen = function(
     # followed by independent normalization of voiced & unvoiced
     if (noiseAmpRef == 'filtered' & !is.list(formantsNoise)) {
       formantsNoise = formants
-      if (!is.list(vocalTract) & is.list(formantsNoise)) {
-        # estimate VTL, otherwise extra formants not added as we reinterpret
-        # "formants" as "formantsNoise"
-        vocalTract = estimateVTL(formants = formantsNoise,
-                                 checkFormat = FALSE)  # already checked
-      }
     }
 
     if (length(unvoiced) > 0) {
@@ -1029,14 +1067,11 @@ soundgen = function(
         }
         # add formants to unvoiced
         if (length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-          # add extra stochastic formants to unvoiced only if vocalTract is user-specified
-          fds_cond = is.null(vocalTract) || !any(is.na(vocalTract))
-          fds = ifelse(fds_cond, 0, formantDepStoch)
           unvoicedFiltered = do.call(addFormants, c(
             formantPars,
             list(sound = sound_unvoiced,
                  formants = formantsNoise,
-                 formantDepStoch = fds,
+                 formantDepStoch = formantDepStoch_noise,
                  normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
           ))
         } else {

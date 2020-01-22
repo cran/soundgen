@@ -29,9 +29,11 @@ permittedValues = matrix(c(
   'temperature', .025, 0, 1, .025,
   'maleFemale', 0, -1, 1, 0.1,
   'creakyBreathy', 0, -1, 1, 0.1,
-  'nonlinBalance', 0, 0, 100, 1,
-  'nonlinDep', 50, 0, 100, 1,
-  'jitterDep', 1, 0, 24, 0.1,
+  'nonlinBalance', 100, 0, 100, 1,
+  'subFreq', 100, 10, 1000, 10,
+  'subDep', 0, 0, 500, 10,
+  'shortestEpoch', 300, 50, 500, 25,
+  'jitterDep', 0, 0, 24, 0.1,
   'jitterLen', 1, 1, 100, 1,
   'vibratoFreq', 5, 1, 20, .5,
   'vibratoDep', 0, 0, 3, 0.125,
@@ -51,9 +53,6 @@ permittedValues = matrix(c(
   'formantDepStoch', 20, 0, 40, 5,
   'formantWidth', 1, .1, 10, .1,
   'formantCeiling', 2, 1, 20, .1,
-  'subFreq', 100, 10, 1000, 10,
-  'subDep', 100, 0, 500, 10,
-  'shortestEpoch', 300, 50, 500, 25,
   'amDep', 0, 0, 100, 5,
   'amFreq', 30, 1, 100, 1,
   'amShape', 0, -1, 1, .025,
@@ -61,6 +60,7 @@ permittedValues = matrix(c(
   'windowLength', 40, 5, 100, 2.5, # default, low, high, step
   'dynamicRange', 80, 10, 200, 10,
   'rolloffNoise', -4, -100, 100, 1,
+  'rolloffNoiseExp', 0, -30, 30, 1,
 
   # other soundgen settings, which are NOT updateable sliders in soundgen_app()
   'vocalTract', 15.5, 2, 100, .5,
@@ -68,7 +68,7 @@ permittedValues = matrix(c(
   'addSilence', 100, 0, 1000, 50,
   'pitchFloor', 1, 1, 1000, 1,
   'pitchCeiling', 3500, 10, 100000, 10,
-  'pitchSamplingRate', 3500, 10, 100000, 10,
+  'pitchSamplingRate', 16000, 10, 100000, 10,
   'noiseFlatSpec', 1200, 0, 4000, 100,
 
   # soundgen_app() settings, which are not needed for soundgen()
@@ -98,9 +98,11 @@ defaults = list(
   temperature = 0.025,
   maleFemale = 0,
   creakyBreathy = 0,
-  nonlinBalance = 0,
-  nonlinDep = 50,
-  jitterDep = 1,
+  nonlinBalance = 100,
+  subFreq = 100,
+  subDep = 0,
+  shortestEpoch = 300,
+  jitterDep = 0,
   jitterLen = 1,
   vibratoFreq = 5,
   vibratoDep = 0,
@@ -118,21 +120,19 @@ defaults = list(
   formantDep = 1,
   formantDepStoch = 20,
   formantWidth = 1,
-  subFreq = 100,
-  subDep = 100,
-  shortestEpoch = 300,
   amDep = 0,
   amFreq = 30,
   amShape = 0,
   samplingRate = 16000,
   windowLength = 40,
   rolloffNoise = -4,
+  rolloffNoiseExp = 0,
   windowLength_points = 512,
   overlap = 75,
   addSilence = 100,
   pitchFloor = 1,
   pitchCeiling = 3500,
-  pitchSamplingRate = 3500,
+  pitchSamplingRate = 16000,
   dynamicRange = 80,
   pitch = list(
     time = c(0, .1, .9, 1),
@@ -442,3 +442,5 @@ presets = list(
 # # playme(s, 16000)
 # # spectrogram(s, 16000, osc=T)
 # # seewave::savewav(s, f = 16000, '~/Downloads/cow_soundgen.wav')
+
+# a good ex. of a breathy [a]: s = soundgen(ampl = c(0, -20), sylLen = 1200, pitch = 200, formants = c(720, 1370, 2900, 3800, 4900, 5500, 6500), noise = -15, rolloffNoise = 0, rolloff = -24, plot = T, play = T, formantDep = 1.5, formantCeiling = 5)
