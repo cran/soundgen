@@ -386,6 +386,8 @@ generateNoise = function(len,
 #'   rate pitchSamplingRate, eg 3500 points/s. The pitch contour will be
 #'   upsampled before synthesis.
 #' @inheritParams soundgen
+#' @param specEnv a matrix representing the filter (only needed for formant
+#'   locking)
 #' @param pitchDriftDep scale factor regulating the effect of temperature on the
 #'   amount of slow random drift of f0 (like jitter, but slower): the higher,
 #'   the more f0 "wiggles" at a given temperature
@@ -435,6 +437,9 @@ generateHarmonics = function(pitch,
                              rolloffParabHarm = 3,
                              rolloff_perAmpl = 0,
                              rolloffExact = NULL,
+                             formantLocking = NULL,
+                             specEnv = NULL,
+                             formantSummary = NULL,
                              temperature = .025,
                              pitchDriftDep = .5,
                              pitchDriftFreq = .125,
@@ -558,6 +563,53 @@ generateHarmonics = function(pitch,
     vocalFry_on = jitter_on = shimmer_on = rep(TRUE, nGC)
   }
 
+
+  ## prepare the harmonic stack
+  if (is.null(rolloffExact)) {
+    # calculate the number of harmonics to generate (from lowest pitch to Nyquist)
+    nHarmonics = floor(samplingRate / 2 / min(pitch_per_gc))
+    # get rolloff
+    if (length(rolloff) < nGC) {
+      rolloff = spline(rolloff, n = nGC)$y
+    }
+    rolloff_source = getRolloff(
+      pitch_per_gc = pitch_per_gc,
+      nHarmonics = nHarmonics,
+      rolloff = (rolloff + rolloffAmpl) * rw ^ rolloffDriftDep,
+      rolloffOct = rolloffOct,
+      rolloffKHz = rolloffKHz,
+      rolloffParab = rolloffParab,
+      rolloffParabHarm = rolloffParabHarm,
+      samplingRate = samplingRate,
+      dynamicRange = dynamicRange
+    )
+  } else {
+    rolloff_user = as.matrix(rolloffExact)
+    rolloff_source = interpolMatrix(
+      rolloff_user,
+      nr = nrow(rolloff_user),  # don't change the number of harmonics
+      nc = nGC,                 # interpolate over time
+      interpol = 'approx'
+    )
+  }
+  # NB: rolloff_source at this stage should be a matrix WITH NUMBERED ROWS
+
+  # add formantLocking
+  if (!is.null(formantLocking) && !is.null(specEnv) && !is.null(formantSummary)) {
+    shortestEpoch_points = shortestEpoch / 1000 * samplingRate
+    median_gc_points = samplingRate / median(pitch)
+    pitch_per_gc = lockToFormants(
+      pitch = pitch_per_gc,
+      specEnv = specEnv,
+      formantSummary = formantSummary,
+      rolloffMatrix = rolloff_source,
+      lockProb = formantLocking,
+      minLength = round(shortestEpoch_points / median_gc_points),
+      plot = FALSE
+    )
+    # if we want to be super-precise, we could actually recalculate rolloff_source
+  }
+
   # calculate jitter (random variation of F0)
   if (any(jitterDep > 0) & any(jitter_on)) {
     jitter_per_gc = wiggleGC(dep = jitterDep / 12,
@@ -607,37 +659,14 @@ generateHarmonics = function(pitch,
   #   values, so we double-check and flatten
   pitch_per_gc[pitch_per_gc > pitchCeiling] = pitchCeiling
   pitch_per_gc[pitch_per_gc < pitchFloor] = pitchFloor
-
-  ## prepare the harmonic stack
-  if (is.null(rolloffExact)) {
-    # calculate the number of harmonics to generate (from lowest pitch to Nyquist)
-    nHarmonics = floor(samplingRate / 2 / min(pitch_per_gc))
-    # get rolloff
-    if (length(rolloff) < nGC) {
-      rolloff = spline(rolloff, n = nGC)$y
+  # make sure we don't have harmonics above Nyquist with the changed pitch
+  nHarmonics = floor(samplingRate / 2 / pitch_per_gc)
+  nr = nrow(rolloff_source)
+  for (c in 1:ncol(rolloff_source)) {
+    if (nHarmonics[c] < nr) {
+      rolloff_source[nHarmonics[c]:nr] = 0
     }
-    rolloff_source = getRolloff(
-      pitch_per_gc = pitch_per_gc,
-      nHarmonics = nHarmonics,
-      rolloff = (rolloff + rolloffAmpl) * rw ^ rolloffDriftDep,
-      rolloffOct = rolloffOct,
-      rolloffKHz = rolloffKHz,
-      rolloffParab = rolloffParab,
-      rolloffParabHarm = rolloffParabHarm,
-      samplingRate = samplingRate,
-      dynamicRange = dynamicRange
-    )
-  } else {
-    rolloff_user = as.matrix(rolloffExact)
-    rolloff_source = interpolMatrix(
-      rolloff_user,
-      nr = nrow(rolloff_user),  # don't change the number of harmonics
-      nc = nGC,                 # interpolate over time
-      interpol = 'approx'
-    )
   }
-  # NB: rolloff_source at this stage should be a matrix WITH NUMBERED ROWS
-
   # NB: this whole pitch_per_gc trick is purely for computational efficiency.
   #   The entire pitch contour can be fed in, but then it takes up to 1 s
   #   per s of audio

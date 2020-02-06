@@ -312,6 +312,19 @@ spectrogram(s, samplingRate = 16000,
             windowLength = 10, step = 5, 
             colorTheme = 'seewave', osc = TRUE)
 
+## ----fig.width = 7, fig.height = 5--------------------------------------------
+s = soundgen(
+  sylLen = 1500, rolloff = -20,
+  pitch = c(500, 1000, 1800, 1700, 500),
+  formants = NULL, vocalTract = 55,
+  formantLocking = c(0, 1, 1, 1, 1, 0),  # except the beginning and end
+  shortestEpoch = 200,  # affects both subharmonics (if any) and formantLocking
+  noise = -20,  # just to make formants visible in this example
+  temperature = .1,
+  samplingRate = 22000, pitchSamplingRate = 22000,
+  play = playback, plot = TRUE, ylim = c(0, 8), osc = TRUE
+)
+
 ## ----fig.show = "hold", fig.width = 4, fig.height = 4-------------------------
 # strong F0, rolloff with a "shoulder"
 r = getRolloff(rolloff = c(-5, -20),  # rolloff parameters are vectorized

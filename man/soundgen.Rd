@@ -43,6 +43,7 @@ soundgen(
   formantDepStoch = 20,
   formantWidth = 1,
   formantCeiling = 2,
+  formantLocking = 0,
   vocalTract = NA,
   amDep = 0,
   amFreq = 30,
@@ -143,7 +144,7 @@ strength of subharmonics fades as they move away from harmonics in f0 stack
 (anchor format)}
 
 \item{shortestEpoch}{minimum duration of each epoch with unchanging
-subharmonics regime, in ms}
+subharmonics regime or formant locking, in ms}
 
 \item{jitterLen}{duration of stable periods between pitch jumps, ms. Use a
 low value for harsh noise, a high value for irregular vibrato or shaky
@@ -219,6 +220,10 @@ above the highest specified formant, dB (only if temperature > 0)}
 \item{formantCeiling}{frequency to which stochastic formants are calculated,
 in multiples of the Nyquist frequency; increase up to ~10 for long vocal
 tracts to avoid losing energy in the upper part of the spectrum}
+
+\item{formantLocking}{the approximate proportion of sound in which one of the
+harmonics is locked to the nearest formant, 0 = none, 1 = the entire sound
+(anchor format)}
 
 \item{vocalTract}{the length of vocal tract, cm. Used for calculating formant
 dispersion (for adding extra formants) and formant transitions as the mouth
@@ -382,9 +387,9 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
   play = playback, plot = TRUE)
 
 # Use nonlinRandomWalk to crease reproducible examples of sounds with
-nonlinear effects. For ex., to make a sound with no effect in the first
-third, subharmonics in the second third, and jitter in the final third of the
-total duration:
+# nonlinear effects. For ex., to make a sound with no effect in the first
+# third, subharmonics in the second third, and jitter in the final third of the
+# total duration:
 a = c(rep(0, 100), rep(1, 100), rep(2, 100))
 s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
              subFreq = 100, subDep = 70, jitterDep = 1,

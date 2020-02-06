@@ -25,6 +25,9 @@ generateHarmonics(
   rolloffParabHarm = 3,
   rolloff_perAmpl = 0,
   rolloffExact = NULL,
+  formantLocking = NULL,
+  specEnv = NULL,
+  formantSummary = NULL,
   temperature = 0.025,
   pitchDriftDep = 0.5,
   pitchDriftFreq = 0.125,
@@ -121,6 +124,13 @@ in higher frequencies}
 matrix with one row per harmonic, scale 0 to 1 (overrides all other rolloff
 parameters)}
 
+\item{formantLocking}{the approximate proportion of sound in which one of the
+harmonics is locked to the nearest formant, 0 = none, 1 = the entire sound
+(anchor format)}
+
+\item{specEnv}{a matrix representing the filter (only needed for formant
+locking)}
+
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
 
@@ -137,7 +147,7 @@ is to get high in the middle and low at the beginning and end (i.e. max
 effect amplitude in the middle of a sound)}
 
 \item{shortestEpoch}{minimum duration of each epoch with unchanging
-subharmonics regime, in ms}
+subharmonics regime or formant locking, in ms}
 
 \item{subFreq}{target frequency of subharmonics, Hz (lower than f0, adjusted
 dynamically so f0 is always a multiple of subFreq) (anchor format)}

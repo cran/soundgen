@@ -1,3 +1,12 @@
+          CHANGES IN SOUNDGEN VERSION 1.6.2 [06-February-2020]
+BUGS FIXED:
+  * playme(): '...' removed from documentation (new CRAN requirements)
+
+MINOR:
+  * soundgen(): new argument "formantLocking" for temporarily locking a harmonic to a formant (a form of source-filter interaction)
+  * soundgen(): formant drift occurs regardless of whether formants are specified as moving or static
+
+
           CHANGES IN SOUNDGEN VERSION 1.6.1 [22-January-2020]
 BUGS FIXED:
   * soundgen(): stochastic formants properly added to breathing noise even without specifying VTL (bug introduced in v1.6.0)
