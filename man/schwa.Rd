@@ -41,8 +41,8 @@ Returns a list with the following components: \describe{
   \item{ff_relative}{deviation of formant frequencies from those expected for
   a schwa, \% (e.g. if the first ff_relative is -25, it means that F1 is 25\%
   lower than expected for a schwa in this vocal tract)}
-  \item{ff_relative_semitones}{deviation of formant frequencies from those expected for
-  a schwa, semitones}
+  \item{ff_relative_semitones}{deviation of formant frequencies from those
+  expected for a schwa, semitones}
 }
 }
 \description{
@@ -78,12 +78,12 @@ schwa(vocalTract = 17.5)
 schwa(vocalTract = 13, nForm = 5)
 
 ## CASE 2: known (observed) formant frequencies
-# Let's take formant frequencies in three vocalizations
-#       (/a/, /i/, /roar/) by the same male speaker:
-formants_a = c(860, 1430, 2900, 4200, 5200)
+# Let's take formant frequencies in three vocalizations, namely
+# (/a/, /i/, /roar/) by the same male speaker:
+formants_a = c(860, 1430, 2900, NA, 5200)  # NAs are OK - here F4 is unknown
 s_a = schwa(formants = formants_a)
 s_a
-# We get an estimate of VTL (s_a$vtl_apparent = 15.2 cm),
+# We get an estimate of VTL (s_a$vtl_apparent),
 #   same as with estimateVTL(formants_a)
 # We also get theoretical schwa formants: s_a$ff_schwa
 # And we get the difference (\% and semitones) in observed vs expected

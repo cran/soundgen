@@ -604,18 +604,35 @@ getSpectralEnvelope = function(nr,
 #' Checks that the formants are formatted in a valid way and expands them to a
 #' standard list of dataframes with time, frequency, amplitude, and bandwidth of
 #' each formant specified explicitly.
-#' @param formants either a character string like "aoiu" or a list with an entry
-#'   for each formant
+#' @param formants character string like "aoiu", numeric vector like "c(500,
+#'   1500, 2400)", or a list with an entry for each formant
+#' @param output 'all' (default) includes times stamps, freqs, amplitudes, and
+#'   bandwidths; 'freqs' includes only frequencies
+#' @param keepNonInteger if FALSE, fractional (anti)formants like 'f1.5' are
+#'   removed
 #' @keywords internal
 #' @examples
-#' formants = soundgen:::reformatFormants('aau')
-#' formants = soundgen:::reformatFormants(c(500, 1500, 2500))
-#' formants = soundgen:::reformatFormants(list(f1 = 500, f2 = c(1500, 1700)))
-#' formants = soundgen:::reformatFormants(list(
+#' soundgen:::reformatFormants(NA)
+#' soundgen:::reformatFormants('aau')
+#' soundgen:::reformatFormants(c(500, 1500, 2500))
+#' soundgen:::reformatFormants(list(f1 = 500, f2 = c(1500, 1700)))
+#' soundgen:::reformatFormants(list(
 #'      f1 = list(freq = 800, amp = 30),
 #'      f2 = list(freq = c(1500, 1700, 2200), width = c(100, 150, 175))
 #' ))
-reformatFormants = function(formants) {
+#'
+#' f = list(f1 = c(550, 600), f2 = c(1100, NA, 1600), f2.5 = 2500, f3 = 3000)
+#' soundgen:::reformatFormants(f)
+#' soundgen:::reformatFormants(f, output = 'freqs')
+#' soundgen:::reformatFormants(f, output = 'freqs', keepNonInteger = FALSE)
+#'
+#' soundgen:::reformatFormants(c(500, 1400), output = 'freqs')
+#' soundgen:::reformatFormants(list(f1 = 500, f2 = 1400), output = 'freqs')
+#' soundgen:::reformatFormants(list(f1 = c(570, 750),
+#'   f2 = NA, f3 = c(2400, 2200, NA)), output = 'freqs')
+reformatFormants = function(formants,
+                            output = c('all', 'freqs')[1],
+                            keepNonInteger = TRUE) {
   if (class(formants)[1] == 'character') {
     # "aui" etc - read off values from presets$M1
     formants = convertStringToFormants(formants)
@@ -624,11 +641,18 @@ reformatFormants = function(formants) {
     freqs = formants
     formants = vector('list', length(freqs))
     names(formants) = paste0('f', 1:length(freqs))
-    for (f in 1:length(freqs)) {
-      formants[[f]] = data.frame(time = 0,
-                                 freq = freqs[f],
-                                 amp = NA,
-                                 width = getBandwidth(freqs[f]))
+    if (output == 'all') {
+      for (f in 1:length(freqs)) {
+        formants[[f]] = data.frame(time = 0,
+                                   freq = freqs[f],
+                                   amp = NA,
+                                   width = getBandwidth(freqs[f]))
+      }
+    } else {
+      # just the frequencies
+      for (f in 1:length(freqs)) {
+        formants[[f]] = data.frame(freq = freqs[f])
+      }
     }
   }
   if (is.list(formants)) {
@@ -636,40 +660,66 @@ reformatFormants = function(formants) {
       names(formants) = paste0('f', 1:length(formants))
     }
     for (f in 1:length(formants)) {
-      formant = formants[[f]]
+      formant = as.data.frame(formants[[f, drop = FALSE]])
+      if (ncol(formant) == 1) colnames(formant) = 'freq'
       if (is.list(formant)) {
         if ('freq' %in% names(formant)) {
-          # expand to full format from e.g. f1 = list(freq = 550, amp = 30)
-          formant = as.data.frame(formant)
-          if (is.null(formant$time)) {
-            formant$time = seq(0, 1, length.out = nrow(formant))
-          }
-          if (is.null(formant$amp)) {
-            formant$amp = NA
-          }
-          if (is.null(formant$width)) {
-            formant$width = getBandwidth(formant$freq)
+          if (output == 'all') {
+            # expand to full format from e.g. f1 = list(freq = 550, amp = 30)
+            if (is.null(formant$time)) {
+              formant$time = seq(0, 1, length.out = nrow(formant))
+            }
+            if (is.null(formant$amp)) {
+              formant$amp = NA
+            }
+            if (is.null(formant$width)) {
+              formant$width = getBandwidth(formant$freq)
+            }
           }
         }
-      } else if (is.numeric(formant)) {
+      } else {
         # expand to full format from e.g. f1 = 550
         # (numbers are assumed to represent frequency)
-        formant = data.frame(time = seq(0, 1, length.out = length(formant)),
-                             freq = formant,
-                             amp = rep(NA, length(formant)),
-                             width = getBandwidth(formant))
+        if (output == 'all') {
+          formant = data.frame(
+            time = seq(0, 1, length.out = length(formant)),
+            freq = formant,
+            amp = rep(NA, length(formant)),
+            width = getBandwidth(formant)
+          )
+        } else {
+          formant = data.frame(freq = as.numeric(formant))
+        }
       }
-      # make sure columns are in the right order (for esthetics & debugging)
-      formants[[f]] = formant[, c('time', 'freq', 'amp', 'width')]
+      if (output == 'all') {
+        # make sure columns are in the right order (for esthetics & debugging)
+        formants[[f]] = formant[, c('time', 'freq', 'amp', 'width')]
+      } else {
+        formants[[f]] = formant
+      }
     }
   } else if (!is.null(formants)) {
-    if (!is.na(formants)) {
+    if (any(!is.na(formants))) {
       stop('If defined, formants must be either a list or a string of characters
          from dictionary presets: a, o, i, e, u, 0 (schwa)')
+    } else {
+    return(NA)
     }
   }
+
+  if (!keepNonInteger) {
+    # remove non-integer (anti)formants, if any
+    non_integer_formants = apply(as.matrix(names(formants)),
+                                 1,
+                                 function(x) {
+                                   grepl('.', x, fixed = TRUE)
+                                 })
+    if (any(non_integer_formants)) formants =  formants[!non_integer_formants]
+  }
+
   return(formants)
 }
+
 
 
 #' Get bandwidth
@@ -867,7 +917,8 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
 #' sound_unfilt = soundgen(sylLen = 2500, pitch = pitch,
 #'   rolloff = 0, rolloffOct = 0, rolloffKHz = 0,
 #'   temperature = 0, jitterDep = 0, subDep = 0,
-#'   formants = NULL, lipRad = 0, samplingRate = samplingRate)
+#'   formants = NULL, lipRad = 0, samplingRate = samplingRate,
+#'   invalidArgAction = 'ignore')  # prevent soundgen from increasing samplingRate
 #' # playme(sound_unfilt, samplingRate)
 #' # seewave::meanspec(sound_unfilt, f = samplingRate, dB = 'max0')  # ~flat
 #'
@@ -1091,7 +1142,8 @@ addFormants = function(sound,
 #'                      pitch = c(100, 300, 250, 200),
 #'                      vibratoFreq = 9, vibratoDep = 1,
 #'                      addSilence = 180,
-#'                      samplingRate = samplingRate)
+#'                      samplingRate = samplingRate,
+#'                      invalidArgAction = 'ignore')  # keep low samplingRate
 #' playme(recipient, samplingRate)
 #' spectrogram(recipient, samplingRate, osc = TRUE)
 #'
@@ -1112,7 +1164,8 @@ addFormants = function(sound,
 #' # Now we use human formants on sheep source: the sheep says "why?"
 #' s2 = transplantFormants(
 #'   donor = soundgen(formants = 'uaaai',
-#'                    samplingRate = samplingRate),
+#'                    samplingRate = samplingRate,
+#'                    invalidArgAction = 'ignore'),
 #'   recipient = donor,
 #'   samplingRate = samplingRate)
 #' playme(s2, samplingRate)
@@ -1120,7 +1173,7 @@ addFormants = function(sound,
 #' seewave::meanspec(s2, f = samplingRate, dB = 'max0')
 #'
 #' # We can also transplant synthetic formants w/o synthesizing a donor sound to
-#' save time
+#' # save time
 #' s3 = transplantFormants(
 #'   donor = getSpectralEnvelope(
 #'             nr = 512, nc = 100,  # fairly arbitrary dimensions

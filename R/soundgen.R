@@ -64,7 +64,6 @@ NULL
 #'   proportion of sound with different regimes of pitch effects (none /
 #'   subharmonics only / subharmonics and jitter). 0\% = no noise; 100\% = the
 #'   entire sound has jitter + subharmonics. Ignored if temperature = 0
-#' @param nonlinDep deprecated
 #' @param nonlinRandomWalk a numeric vector specifying the timing of nonliner
 #'   regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer
 #' @param jitterLen duration of stable periods between pitch jumps, ms. Use a
@@ -128,11 +127,20 @@ NULL
 #'   dispersion (for adding extra formants) and formant transitions as the mouth
 #'   opens and closes. If \code{NULL} or \code{NA}, the length is estimated
 #'   based on specified formant frequencies, if any (anchor format)
-#' @param subFreq target frequency of subharmonics, Hz (lower than f0, adjusted
-#'   dynamically so f0 is always a multiple of subFreq) (anchor format)
-#' @param subDep the width of subharmonic band, Hz. Regulates how quickly the
-#'   strength of subharmonics fades as they move away from harmonics in f0 stack
-#'   (anchor format)
+#' @param subRatio a positive integer giving the ratio of f0 (the main
+#'   fundamental) to g0 (a lower frequency): 1 = no subharmonics, 2 = period
+#'   doubling regardless of pitch changes, 3 = period tripling, etc; subRatio
+#'   overrides subFreq (anchor format)
+#' @param subFreq instead of a specific number of subharmonics (subRatio), we
+#'   can specify the approximate g0 frequency (Hz), which is used only if
+#'   subRatio = 1 and is adjusted to f0 so f0/g0 is always an integer (anchor
+#'   format)
+#' @param subDep the depth of subharmonics relative to the main frequency
+#'   component (f0), \%. 0: no subharmonics; 100: g0 harmonics are as strong as
+#'   the nearest f0 harmonic (anchor format)
+#' @param subWidth Width of subharmonic sidebands - regulates how rapidly
+#'   g-harmonics weaken away from f-harmonics: large values like the default
+#'   10000 means that all g0 harmonics are equally strong (anchor format)
 #' @param shortestEpoch minimum duration of each epoch with unchanging
 #'   subharmonics regime or formant locking, in ms
 #' @param amDep amplitude modulation depth, \%. 0: no change; 100: amplitude
@@ -240,7 +248,7 @@ NULL
 #'   pitchGlobal = data.frame(time = c(0, .5, 1), value = c(-6, 7, 0)))
 #'
 #' # Subharmonics in sidebands (noisy scream)
-#' sound = soundgen (nonlinBalance = 100, subFreq = 75, subDep = 130,
+#' sound = soundgen (subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
 #'   pitch = data.frame(
 #'     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
 #'   sylLen = 800,
@@ -248,21 +256,11 @@ NULL
 #'
 #' # Jitter and mouth opening (bark, dog-like)
 #' sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
-#'   nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
+#'   subFreq = 100, subDep = 100, subWidth = 60, jitterDep = 1,
 #'   pitch = c(559, 785, 557),
 #'   mouth = c(0, 0.5, 0),
 #'   vocalTract = 5, formants = NULL,
 #'   play = playback, plot = TRUE)
-#'
-#' # Use nonlinRandomWalk to crease reproducible examples of sounds with
-#' # nonlinear effects. For ex., to make a sound with no effect in the first
-#' # third, subharmonics in the second third, and jitter in the final third of the
-#' # total duration:
-#' a = c(rep(0, 100), rep(1, 100), rep(2, 100))
-#' s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
-#'              subFreq = 100, subDep = 70, jitterDep = 1,
-#'              nonlinRandomWalk = a, plot = TRUE, ylim = c(0, 4))
-#' # playme(s)
 #'
 #' # See the vignette on sound generation for more examples and in-depth
 #' # explanation of the arguments to soundgen()
@@ -274,8 +272,8 @@ soundgen = function(
   nSyl = 1,
   sylLen = 300,
   pauseLen = 200,
-  pitch = data.frame(time = c(0, .1, .9, 1),
-                     value = c(100, 150, 135, 100)),
+  pitch = list(time = c(0, .1, .9, 1),
+               value = c(100, 150, 135, 100)),
   pitchGlobal = NA,
   glottis = 0,
   temperature = 0.025,
@@ -283,10 +281,11 @@ soundgen = function(
   maleFemale = 0,
   creakyBreathy = 0,
   nonlinBalance = 100,
-  nonlinDep = 'deprecated',
   nonlinRandomWalk = NULL,
-  subFreq = 100,
+  subRatio = 2,
+  subFreq = 0,
   subDep = 0,
+  subWidth = 10000,
   shortestEpoch = 300,
   jitterLen = 1,
   jitterDep = 0,
@@ -320,8 +319,8 @@ soundgen = function(
   noiseFlatSpec = 1200,
   rolloffNoiseExp = 0,
   noiseAmpRef = c('f0', 'source', 'filtered')[3],
-  mouth = data.frame(time = c(0, 1),
-                     value = c(.5, .5)),
+  mouth = list(time = c(0, 1),
+               value = c(.5, .5)),
   ampl = NA,
   amplGlobal = NA,
   interpol = c('approx', 'spline', 'loess')[3],
@@ -342,9 +341,9 @@ soundgen = function(
   ...
 ) {
   # deprecated pars
-  if (!missing('nonlinDep')) {
-    message('nonlinDep is deprecated; set subDep/jitterDep/shimmerDep manually')
-  }
+  # if (!missing('x')) {
+  #   message('x is deprecated; use y instead')
+  # }
   if (FALSE) shinyjs::info('adja')  # to avoid a NOTE on CRAN
 
   # check that values of numeric arguments are valid and within range
@@ -356,25 +355,8 @@ soundgen = function(
     gp = try(get(p), silent = TRUE)
     if (class(gp)[1] != "try-error") {
       if (is.numeric(gp)) {
-        if (any(gp < permittedValues[p, 'low']) |
-            any(gp > permittedValues[p, 'high'])) {
-          if (invalidArgAction == 'abort') {
-            # exit with a warning
-            stop(paste(p, 'must be between',
-                       permittedValues[p, 'low'],
-                       'and',
-                       permittedValues[p, 'high']))
-          } else if (invalidArgAction == 'ignore') {
-            # throw a warning and continue
-            warning(paste(p, "outside its range in 'permittedValues'"))
-          } else {
-            # reset p to default, with a warning
-            assign(noquote(p), permittedValues[p, 'default'])
-            warning(paste0("\n", p, " outside permitted range, reset to ", get(p),
-                           ". Edit 'permittedValues' or use ",
-                           "invalidArgAction = 'ignore' to force."))
-          }
-        }
+        assign(noquote(p),
+               validatePars(p, gp, permittedValues, invalidArgAction))
       }
     }
   }
@@ -418,7 +400,8 @@ soundgen = function(
   for (anchor in c('pitch', 'pitchGlobal', 'glottis',
                    'ampl', 'amplGlobal',
                    'mouth', 'vocalTract', 'formantLocking',
-                   'vibratoFreq', 'vibratoDep', 'subFreq', 'subDep',
+                   'vibratoFreq', 'vibratoDep',
+                   'subRatio', 'subFreq', 'subDep', 'subWidth',
                    'jitterLen', 'jitterDep', 'shimmerLen', 'shimmerDep',
                    'rolloff', 'rolloffOct', 'rolloffKHz',
                    'rolloffParab', 'rolloffParabHarm',
@@ -437,7 +420,7 @@ soundgen = function(
   } else {
     lockNoiseToVoiced = FALSE
   }
-  if (is.list(pitch)) {
+  if (is.list(pitch) & invalidArgAction != 'ignore') {
     if (any(pitch$value < pitchFloor)) {
       pitchFloor = 0.1
       message('Some pitch values are lower than pitchFloor; lowering to 0.1 Hz')
@@ -544,7 +527,7 @@ soundgen = function(
     jitterDep$value[jitterDep$value < 0] = 0
     shimmerDep$value = shimmerDep$value - creakyBreathy * 5
     shimmerDep$value[shimmerDep$value < 0] = 0
-    subDep$value = subDep$value * 2 ^ (-creakyBreathy)
+    subDep$value = subDep$value - 100 * creakyBreathy
   } else if (creakyBreathy > 0) {
     # for breathy voice, add breathing
     if (!is.list(noise)) {
@@ -621,7 +604,7 @@ soundgen = function(
     'shimmerLen', 'shimmerDep',
     'rolloff', 'rolloffKHz', 'rolloffOct',
     'rolloffParab', 'rolloffParabHarm')
-  pars_to_round = c('attackLen', 'subFreq', 'subDep')
+  pars_to_round = c('attackLen', 'subRatio', 'subFreq', 'subWidth')
   pars_list = list(
     'attackLen' = attackLen,
     'jitterDep' = jitterDep,
@@ -644,8 +627,10 @@ soundgen = function(
     'subDriftDep' = tempEffects$subDriftDep,
     'rolloffDriftDep' = tempEffects$rolloffDriftDep,
     'shortestEpoch' = shortestEpoch,
+    'subRatio' = subRatio,
     'subFreq' = subFreq,
     'subDep' = subDep,
+    'subWidth' = subWidth,
     'nonlinBalance' = nonlinBalance,
     'nonlinRandomWalk' = nonlinRandomWalk,
     'pitchFloor' = pitchFloor,
@@ -864,7 +849,7 @@ soundgen = function(
         # wiggle anchors except special cases (pitch, ampl, glottis)
         for (i in 4:length(anchors_to_wiggle)) {
           anchor = anchors_to_wiggle[i]
-          anchor_per_syl = paste0(anchor, '_per_syl')
+          # anchor_per_syl = paste0(anchor, '_per_syl')
           l = permittedValues[anchor, 'low']
           h = permittedValues[anchor, 'high']
           anchor_new = wiggleAnchors(
@@ -876,7 +861,8 @@ soundgen = function(
             sd_values = (h - l) * temperature * tempEffects$specDep,
             invalidArgAction = invalidArgAction
           )
-          assign(anchor_per_syl, anchor_new)
+          # assign(anchor_per_syl, anchor_new)
+          pars_syllable[[anchor]] = anchor_new
         }
       }
 

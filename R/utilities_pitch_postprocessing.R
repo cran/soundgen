@@ -830,6 +830,7 @@ findVoicedSegments = function(pitchCands,
 #' @param pitch best guess at pitch contour; length = ncol(pitchCands)
 #' @param candPlot,pitchPlot lists of graphical settings for plotting candidates
 #'   and pitch contour, respectively
+#' @param extraContour another contour to add to the plot, such as harmHeight, Hz
 #' @param addToExistingPlot if TRUE, assumes that a spectrogram is already
 #'   plotted; if FALSE, sets up a new plot
 #' @param showLegend if TRUE, shows a legend
@@ -851,94 +852,159 @@ addPitchCands = function(pitchCands,
                          pitchCert,
                          pitchSource,
                          pitch,
+                         timestamps = NULL,
                          candPlot = list(),
-                         pitchPlot = list(
-                           col = rgb(0, 0, 1, .75),
-                           lwd = 3
-                         ),
+                         pitchPlot = list(),
+                         extraContour = NULL,
+                         extraContour_pars = list(),
+                         priorMean = NULL,
+                         priorSD = NULL,
+                         pitchFloor = NULL,
+                         pitchCeiling = NULL,
                          addToExistingPlot = TRUE,
                          showLegend = TRUE,
                          ...) {
-  if (length(pitchCands) < 1) invisible()
-  # if plot_spec is FALSE, we first have to set up an empty plot
+  if (is.null(pitchCands) & is.null(pitch)) invisible()
+  if (length(pitchCands) < 1 & length(pitch) < 1) invisible()
+  if (is.null(timestamps) & !is.null(pitchCands)) {
+    timestamps = as.numeric(colnames(pitchCands))
+  }
+  if (is.null(pitchPlot$showPrior)) {
+    showPrior = TRUE
+  } else {
+    showPrior = pitchPlot$showPrior
+  }
+  if (showPrior & is.numeric(priorMean) & is.numeric(priorSD)) {
+    prior = getPrior(
+      priorMean = priorMean,
+      priorSD = priorSD,
+      pitchFloor = pitchFloor,
+      pitchCeiling = pitchCeiling,
+      len = 100,
+      plot = FALSE
+    )
+  } else {
+    prior = NULL
+  }
+  pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
+
+  # If addToExistingPlot is FALSE, we first have to set up an empty plot
   if (addToExistingPlot == FALSE) {
     arguments = list(...)  # save ... arguments as a list
     m = max(pitchCands, na.rm = TRUE) / 1000  # for ylim on the empty plot
     if (is.na(m)) m = 5  # samplingRate / 2 / 1000
     arguments$ylim = c(0, m)
     do.call(plot,   # need do.call, otherwise can't pass the modified ylim
-            args = c(list(x = as.numeric(colnames(pitchCands)),
+            args = c(list(x = timestamps,
                           y = rep(0, ncol(pitchCands)),
                           type = 'n'),
                      arguments))
   }
-  # add pitch candidates to the plot
-  pitchMethods = unique(na.omit(as.character(pitchSource)))
-  if (any(!is.na(pitchCands))) {
-    if (is.null(candPlot$levels)) {
-      candPlot$levels = pitchMethods # c('autocor', 'spec', 'dom', 'cep')
-    }
-    if (is.null(candPlot$col)) {
-      candPlot$col[candPlot$levels == 'autocor'] = 'green'
-      candPlot$col[candPlot$levels == 'spec'] = 'red'
-      candPlot$col[candPlot$levels == 'dom'] = 'orange'
-      candPlot$col[candPlot$levels == 'cep'] = 'violet' # c('green', 'red', 'orange', 'violet')
-      candPlot$col[candPlot$levels == 'manual'] = 'blue'
-    }
-    if (is.null(candPlot$pch)) {
-      candPlot$pch[candPlot$levels == 'autocor'] = 16
-      candPlot$pch[candPlot$levels == 'spec'] = 2
-      candPlot$pch[candPlot$levels == 'dom'] = 3
-      candPlot$pch[candPlot$levels == 'cep'] = 7
-      candPlot$pch[candPlot$levels == 'manual'] = 18
-      # candPlot$pch = c(16, 2, 3, 7)
-    }
-    if (is.null(candPlot$cex)) {
-      candPlot$cex = 2
-    }
-    pitchSource_1234 = matrix(match(pitchSource, candPlot$levels),
-                              ncol = ncol(pitchSource))
-    for (r in 1:nrow(pitchCands)) {
-      cex = pitchCert[r, ] * candPlot$cex
-      cex[!is.numeric(cex)] = 2  # for manual, certainty could be Inf
-      points(
-        x = as.numeric(colnames(pitchCands)),
-        y = pitchCands[r, ] / 1000,
-        col = candPlot$col[pitchSource_1234[r, ]],
-        pch = candPlot$pch[pitchSource_1234[r, ]],
-        cex = pitchCert[r, ] * candPlot$cex
-      )
-    }
-    # add the final pitch contour to the plot
-    if (any(is.numeric(pitch))) {
-      if (is.null(pitchPlot$col)) {
-        pitchPlot$col = rgb(0, 0, 1, .75)
+
+  # Prepare plot pars - combine user-defined with defaults
+  plotPars = defaults_analyze_pitchCand  # see presets.R
+  candPlot$final = pitchPlot
+
+  for (i in 1:length(candPlot)) {
+    temp = candPlot[[i]]
+    if (length(temp) > 0) {
+      method = names(candPlot)[i]
+      idx = which(plotPars$method == method)
+      if (length(idx) > 0) {
+        for (j in 1:length(temp)) {
+          property = names(temp[j])[1]
+          if (!property %in% colnames(plotPars)) {
+            # set to default, otherwise other rows become NA
+            if (property == 'cex') {
+              plotPars[, property] = 2
+            } else if (property == 'lty') {
+              plotPars[, property] = 1  # par(lty) gives "solid" - a character
+            } else {
+              plotPars[, property] = par(property)
+            }
+          }
+          plotPars[idx, property] = temp[j]
+        }
       }
-      if (is.null(pitchPlot$lwd)) {
-        pitchPlot$lwd = 3
-      }
-      do.call('lines', c(list(
-        x = as.numeric(colnames(pitchCands)),
-        y = pitch / 1000
-      ),
-      pitchPlot)
-      )
-    }
-    # add a legend
-    if (showLegend) {
-      candPlot = as.data.frame(candPlot)
-      candPlot = candPlot[candPlot$levels %in% c(pitchMethods, 'combined'), ]
-      legend("topright",
-             legend = c(as.character(candPlot$levels), 'combined'),
-             pch = c(candPlot$pch, NA),
-             lty = c(rep(NA, length(pitchMethods)),
-                     ifelse(!is.null(pitchPlot$lty), pitchPlot$lty, 1)),
-             lwd = c(rep(NA, length(pitchMethods)), pitchPlot$lwd),
-             col = c(as.character(candPlot$col), pitchPlot$col),
-             bg = "white")
     }
   }
+
+  # Add pitch candidates to the plot
+  pitchMethods = unique(na.omit(as.character(pitchSource)))
+  if (length(pitchMethods) > 0) {
+    for (r in 1:nrow(pitchCands)) {
+      method_r = as.character(pitchSource[r, ])
+      method_r[is.na(method_r)] = 'def'
+      pars_method = as.list(plotPars[match(method_r, plotPars$method), 2:ncol(plotPars)])
+      pars_method$cex = pars_method$cex *
+        plotPars$cex[plotPars$method == 'final'] *
+        pitchCert[r, ]
+      # for manual, certainty could be Inf, so we reset to 2
+      pars_method$cex[which(!is.na(pars_method$cex) &
+                              pars_method$cex == Inf)] = 2
+      # pars_method$cex[is.na(pars_method$cex)] = 0
+      do.call(points, c(pars_method,
+                        list(x = timestamps,
+                             y = pitchCands[r, ] / 1000)))
+    }
+  } else {
+    showLegend = FALSE
+  }
+
+  # Add the final pitch contour to the plot
+  if (any(is.numeric(pitch))) {
+    pars_pitchContour = as.list(plotPars[plotPars$method == 'final',
+                                         2:ncol(plotPars)])
+    do.call('lines', c(list(
+      x = timestamps,
+      y = pitch / 1000
+    ), pars_pitchContour))
+  }
+
+  # Add another contour such as harmHeight
+  if (!is.null(extraContour)) {
+    if (any(!is.na(extraContour)) & length(timestamps) > 0) {
+      if (is.null(extraContour_pars$type)) extraContour_pars$type = 'l'
+      if (extraContour_pars$type != 'n') {
+        if (is.null(extraContour_pars$lty)) extraContour_pars$lty = 2
+        if (is.null(extraContour_pars$lwd)) extraContour_pars$lwd = 2
+        if (is.null(extraContour_pars$col)) extraContour_pars$col = 'pink'
+        do.call(lines, c(list(x = timestamps, y = extraContour / 1000),
+                         extraContour_pars))
+      }
+    }
+  }
+
+  # Show prior
+  if (!is.null(prior)) {
+    ran_x_5 = (tail(timestamps, 1) - timestamps[1]) * .075   # 7.5% of plot width
+    points(x = prior$prob * ran_x_5,
+           y = prior$freq / 1000, type = 'l', lty = 2)
+    text(x = ran_x_5,
+         y = priorMean / 1000,
+         pos = 2, labels = 'Prior', cex = 0.65, offset = 0.25)
+  }
+  text(x = 0,
+       y = pitchFloor / 1000,
+       pos = 4, labels = 'floor', cex = 0.65, offset = 0)
+  text(x = 0,
+       y = pitchCeiling / 1000,
+       pos = 4, labels = 'ceiling', cex = 0.65, offset = 0)
+
+  # Add a legend
+  if (showLegend) {
+    pl = plotPars[plotPars$method %in% c(pitchMethods, 'final'), ]
+    legend("topright",
+           legend = pl$method,
+           pch = pl$pch,
+           lty = ifelse(pl$method == 'final', pl$lty, NA),
+           lwd = pl$lwd,
+           col = pl$col,
+           bg = "white")
+  }
+  invisible()
 }
+
 
 #' Interpolate pitch contour
 #'

@@ -26,6 +26,7 @@ getVocalFry_per_epoch = function(rolloff,
                                  pitch_per_gc,
                                  nSubharm,
                                  sideband_width_vector,
+                                 subDep_vector,
                                  throwaway01) {
   if (nSubharm < 1) {
     return(rolloff)
@@ -50,7 +51,8 @@ getVocalFry_per_epoch = function(rolloff,
   # is obviously a mirror symmetry, so we don't have to calculate multipl_upr
   # separately, just invert multipl_lwr
   multipl_lwr = list()
-  normaliz = dnorm(0, mean = 0, sd = sideband_width_vector) # the same for all g harmonics
+  # normaliz factor is the same for all g harmonics
+  normaliz = dnorm(0, mean = 0, sd = sideband_width_vector) / subDep_vector * 100
   for (s in 1:nSubharm) {
     dist_lwr = pitch_per_gc * s / (nSubharm + 1)
     dist_upr = pitch_per_gc - dist_lwr
@@ -58,6 +60,9 @@ getVocalFry_per_epoch = function(rolloff,
                              sd = sideband_width_vector) / normaliz
   }
   multipl_upr = rev(multipl_lwr)
+  addTwoFHarm = ifelse(pitch_per_gc > sideband_width_vector, 1, 0.5)
+  # 1 = add the influence of the lower and upper f-harmonic,
+  # 0.5 = average the influence of the lower and upper f-harmonic
 
   # insert g harmonics to each block between f harmonics
   # (0 to f0, f0 to 2*f0, etc)
@@ -70,12 +75,13 @@ getVocalFry_per_epoch = function(rolloff,
     # upper border of the block (upper f harmonic)
     row_upr = row_lwr + nSubharm + 1
     g_idx = (row_lwr + 1):(row_upr - 1) # rows to be filled with g harmonics
+
+    firstBlock = 2 ^ as.numeric(block == 1)  # double under f0
     for (g in 1:length(g_idx)) {
       # add up the contribution of the closest f harmonics immediately below and
       # above the current g harmonic
-      harm_g = rolloff_new[row_lwr] * multipl_lwr[[g]] +
-        rolloff_new[row_upr] * multipl_upr[[g]]
-      rolloff_new[g_idx[g],] = harm_g
+      rolloff_new[g_idx[g],] = (rolloff_new[row_lwr] * multipl_lwr[[g]]+
+                                  rolloff_new[row_upr] * multipl_upr[[g]]) * addTwoFHarm * firstBlock
     }
   }
 
@@ -107,14 +113,23 @@ getVocalFry_per_epoch = function(rolloff,
 #'   subFreq = 200, subDep = 150, shortestEpoch = 0)
 getVocalFry = function(rolloff,
                        pitch_per_gc,
-                       subFreq = 100,
-                       subDep = 100,
+                       subRatio = 2,
+                       subFreq = 0,
+                       subDep = 10,
+                       subWidth = 10000,
                        dynamicRange = 80,
                        shortestEpoch = 300) {
   # force subFreq to be a multiple of f0 at each point
-  nSubharm = round(pitch_per_gc / subFreq, 0) - 1
+  if (any(subFreq > 0)) {
+    # if subFreq is defined, we ignore subRatio
+    nSubharm = round(pitch_per_gc / subFreq, 0) - 1
+  } else {
+    subRatio = round(subRatio)
+    nSubharm = subRatio - 1
+  }
   nSubharm[nSubharm < 0] = 0
   if (max(nSubharm) < 1) {
+    # nothing to add
     return(list(
       'rolloff' = list(rolloff),
       'epochs' = data.frame('start' = 1, 'end' = length(pitch_per_gc))
@@ -147,8 +162,9 @@ getVocalFry = function(rolloff,
       rolloff = rolloff[, idx, drop = FALSE],
       pitch_per_gc = pitch_per_gc[idx],
       nSubharm = nSubharm_per_epoch[e],
-      sideband_width_vector = subDep[idx],
-      throwaway01 = throwaway01
+      sideband_width_vector = subWidth[idx],
+      throwaway01 = throwaway01,
+      subDep_vector = subDep[idx]
     )
     # View(rolloff_new[[1]])
   }

@@ -364,21 +364,26 @@ s2 = suppressWarnings(soundgen(pitch = c(1500, 800), glottis = 75,
 # Now this is what this feature is meant for: vocal fry
 s3 = soundgen(sylLen = 1500, pitch = c(110, 90), rolloff = -12,
               glottis = c(0, 500), 
-              nonlinBalance = 100,  
-              subDep = 0, # subharmonics with "glottis" not implemented
               jitterDep = 1, shimmerDep = 20,
+              # subharmonics not implemented with "glottis" 
               play = playback)
 spectrogram(s3, samplingRate = 16000, osc = TRUE, heights = c(1, 1))
 
-## ----fig.show = "hold", fig.width = 3, fig.height = 3-------------------------
-s1 = soundgen(subFreq = 400, subDep = 150, nonlinBalance = 100,
-              jitterDep = 0, shimmerDep = 0, temperature = 0, 
-              sylLen = 500, pitch = c(800, 900),
-              play = playback, plot = TRUE, ylim = c(0, 3))
-s2 = soundgen(subFreq = 400, subDep = 400, nonlinBalance = 100,
-              jitterDep = 0, shimmerDep = 0, temperature = 0, 
-              sylLen = 500, pitch = c(800, 900),
-              play = playback, plot = TRUE, ylim = c(0, 3))
+## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+soundgen(sylLen = 1500, pitch = c(170, 420, 400, 190),
+         nonlinBalance = 60,
+         subDep = 10, jitterDep = 1.5, shimmerDep = 25,
+         play = playback, plot = TRUE, ylim = c(0, 5))
+
+## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+soundgen(subRatio = 2, subDep = c(5, 20),
+         sylLen = 800, pitch = c(700, 1300), formants = NULL,
+         play = playback, plot = TRUE, ylim = c(0, 3))
+
+## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+soundgen(subFreq = 400, subDep = c(5, 20),
+         sylLen = 800, pitch = c(700, 1300), formants = NULL,
+         play = playback, plot = TRUE, ylim = c(0, 3))
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(sylLen = 800, 
@@ -386,11 +391,9 @@ s = soundgen(sylLen = 800,
                                 value = c(1200, 1547, 1487, 1154)),
              rolloff = -3, rolloffKHz = 0,
              # gradually increasing width of sidebands at 0-600 ms
-             nonlinBalance = 100,
-             subFreq = 75, 
-             subDep = data.frame(time = c(0, 600, 650, 800), 
-                                 value = c(0, 130, 0, 0)),  
-             jitterDep = 0, shimmerDep = 0, 
+             subFreq = 75, subDep = 25,
+             subWidth = data.frame(time = c(0, 600, 650, 800), 
+                                   value = c(0, 130, 0, 0)),  
              vocalTract = 12, mouth = c(.1, .8, .1),
              temperature = .001,
              pitchSamplingRate = 22050, samplingRate = 22050,
@@ -410,24 +413,21 @@ s = soundgen(sylLen = 800,
              pitchSamplingRate = 22050, samplingRate = 22050,
              play = playback, plot = TRUE, ylim = c(0, 5), osc = TRUE)
 
-## -----------------------------------------------------------------------------
-# To get jitter/shimmer without subharmonics, set `temperature = 0, subDep = 0`
-# or a positive temperature and `nonlinBalance = 100, subDep = 0`
-# and specify the required jitter depth and period
+## ----fig.width = 5, fig.height = 4--------------------------------------------
 s1 = soundgen(jitterLen = 40, jitterDep = 1,  # shaky voice
               shimmerLen = 30, shimmerDep = 30,   
-              sylLen = 1000, subDep = 0, nonlinBalance = 100,
-              pitch =  c(150, 170), play = playback, plot = TRUE)
+              sylLen = 1000, pitch =  c(150, 170), 
+              play = playback, plot = TRUE, ylim = c(0, 3))
 s2 = soundgen(jitterLen = 1, jitterDep = 1,   # harsh voice
               shimmerLen = 1, shimmerDep = 10, 
-              sylLen = 1000, subDep = 0, nonlinBalance = 100,
-              pitch =  c(150, 170), play = playback, plot = TRUE)
+              sylLen = 1000, pitch =  c(150, 170), 
+              play = playback, plot = TRUE, ylim = c(0, 3))
 
-## -----------------------------------------------------------------------------
+## ----fig.width = 5, fig.height = 4--------------------------------------------
 s = soundgen(repeatBout = 2, sylLen = 140, pauseLen = 100, 
              vocalTract = 8, formants = NULL, rolloff = 0,
              pitch = c(559, 785, 557), mouth =  c(0, 0.5, 0),
-             nonlinBalance = 100, jitterDep = 1, subDep = 60, play = playback) 
+             jitterDep = 1, subDep = 60, play = playback) 
 
 ## ----fig.width = 7, fig.height = 7--------------------------------------------
 s = soundgen(sylLen = 1200, 
@@ -435,7 +435,6 @@ s = soundgen(sylLen = 1200,
                time = c(0, 110, 111, 180, 350, 940, 941, 1100, 1200),
                value = c(700, 1150, 1550, 2000, 2240, 1940, 1180, 900, 500)),
              temperature = 0.05, tempEffects = list(pitchDep = 0),
-             nonlinBalance = 100, subDep = 0, 
              jitterDep = data.frame(time = c(0, 200, 201, 900, 901, 1200),
                                     value = c(0, 0,  1.7, 1.2, 0,   0)),
              formants = c(900, 1300, 3300, 4300),
@@ -455,20 +454,19 @@ s = soundgen(sylLen = 1200,
                          1620, 1540, 1220, 900)),
              temperature = 0.05, 
              tempEffects = list(pitchDep = 0),
-             nonlinBalance = 100, subDep = 0, jitterDep = .3,
+             jitterDep = .3,
              rolloffKHz = 0, rolloff = 0, formants = c(900, 1300, 3300, 4300),
              samplingRate = 22000, play = playback, plot = TRUE, osc = TRUE)
 
 ## -----------------------------------------------------------------------------
 # run several times to appreciate the randomness
-s = soundgen(sylLen = 800, 
+for (i in 1:5) s = soundgen(sylLen = 800, 
              mouth = rnorm(n = 5, mean = .5, sd = .3),
              play = playback)
 
 ## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 s = soundgen(
   # nonlinear settings
-  nonlinBalance = 100, subDep = 0,  
   jitterDep = c(0, 0, 1.5, .5), shimmerDep = c(0, 0, 15, 5),
   # settings for high precision
   temperature = .001, dynamicRange = 120,             
@@ -487,7 +485,6 @@ s = soundgen(
 ## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 s = soundgen(
   # nonlinear settings
-  nonlinBalance = 100, subDep = 0,  
   jitterDep = data.frame(
     time = c(0, 300, 301, 500, 501, 1000), 
     value = c(0, 0, 1.5, 1.5, 0, 0)
@@ -688,7 +685,7 @@ cow1 = soundgen(sylLen = 1400,
                              value = c(-45, -45)),
                 rolloffNoise = -4, addSilence = 0)
 cow2 = soundgen(sylLen = 310, pitch = c(359, 359), 
-                temperature = 0.05, nonlinBalance = 100, 
+                temperature = 0.05,
                 subFreq = 150, subDep = 70, jitterDep = 1.3, 
                 rolloff = -6, rolloffOct = -3, rolloffKHz = -0, 
                 formants = NULL, vocalTract = 36.5, 
@@ -702,24 +699,24 @@ s = crossFade(cow1 * 3, cow2,  # adjust the relative volume by scaling
 spectrogram(s, 16000, osc=T, ylim = c(0, 4))
 
 ## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
+samplingRate = 48000  # >10 times the highest pitch 
 sound1 = soundgen(sylLen = 700, pitch = 250:180, 
-                  formants = 'aaao', 
-                  addSilence = 100, play = playback)
+                  formants = 'aaao',  addSilence = 100, 
+                  samplingRate = samplingRate, play = playback)
 sound2 = soundgen(nSyl = 2, sylLen = 150, 
                   pitch = 4300:2200, attackLen = 10,
                   formants = NA, temperature = .001, 
-                  pitchCeiling = 8000, pitchSamplingRate = 8000,  # >pitch
+                  pitchCeiling = samplingRate, pitchSamplingRate = samplingRate,  
                   addSilence = 0, play = playback)
 
 insertionTime = .1 + .15  # silence + 150 ms
-samplingRate = 16000
 insertionPoint = insertionTime * samplingRate
 comb = addVectors(sound1, 
                   sound2 * .05,  # to make sound2 quieter relative to sound1
                   insertionPoint = insertionPoint)
 # sound1 and sound2 have attack of 50 and 10 ms, so no clicks
-# playme(comb)
-spectrogram(comb, 16000, windowLength = 10, ylim = c(0, 5), 
+# playme(comb, samplingRate)
+spectrogram(comb, samplingRate, windowLength = 10, ylim = c(0, 5), 
             contrast = .5, colorTheme = 'seewave')
 
 ## ----fig.show = "hold", fig.width = 7, fig.height = 3-------------------------

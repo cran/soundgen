@@ -9,7 +9,7 @@ soundgen(
   nSyl = 1,
   sylLen = 300,
   pauseLen = 200,
-  pitch = data.frame(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135, 100)),
+  pitch = list(time = c(0, 0.1, 0.9, 1), value = c(100, 150, 135, 100)),
   pitchGlobal = NA,
   glottis = 0,
   temperature = 0.025,
@@ -17,10 +17,11 @@ soundgen(
   maleFemale = 0,
   creakyBreathy = 0,
   nonlinBalance = 100,
-  nonlinDep = "deprecated",
   nonlinRandomWalk = NULL,
-  subFreq = 100,
+  subRatio = 2,
+  subFreq = 0,
   subDep = 0,
+  subWidth = 10000,
   shortestEpoch = 300,
   jitterLen = 1,
   jitterDep = 0,
@@ -54,7 +55,7 @@ soundgen(
   noiseFlatSpec = 1200,
   rolloffNoiseExp = 0,
   noiseAmpRef = c("f0", "source", "filtered")[3],
-  mouth = data.frame(time = c(0, 1), value = c(0.5, 0.5)),
+  mouth = list(time = c(0, 1), value = c(0.5, 0.5)),
   ampl = NA,
   amplGlobal = NA,
   interpol = c("approx", "spline", "loess")[3],
@@ -131,17 +132,26 @@ proportion of sound with different regimes of pitch effects (none /
 subharmonics only / subharmonics and jitter). 0\% = no noise; 100\% = the
 entire sound has jitter + subharmonics. Ignored if temperature = 0}
 
-\item{nonlinDep}{deprecated}
-
 \item{nonlinRandomWalk}{a numeric vector specifying the timing of nonliner
 regimes: 0 = none, 1 = subharmonics, 2 = subharmonics + jitter + shimmer}
 
-\item{subFreq}{target frequency of subharmonics, Hz (lower than f0, adjusted
-dynamically so f0 is always a multiple of subFreq) (anchor format)}
+\item{subRatio}{a positive integer giving the ratio of f0 (the main
+fundamental) to g0 (a lower frequency): 1 = no subharmonics, 2 = period
+doubling regardless of pitch changes, 3 = period tripling, etc; subRatio
+overrides subFreq (anchor format)}
 
-\item{subDep}{the width of subharmonic band, Hz. Regulates how quickly the
-strength of subharmonics fades as they move away from harmonics in f0 stack
-(anchor format)}
+\item{subFreq}{instead of a specific number of subharmonics (subRatio), we
+can specify the approximate g0 frequency (Hz), which is used only if
+subRatio = 1 and is adjusted to f0 so f0/g0 is always an integer (anchor
+format)}
+
+\item{subDep}{the depth of subharmonics relative to the main frequency
+component (f0), \%. 0: no subharmonics; 100: g0 harmonics are as strong as
+the nearest f0 harmonic (anchor format)}
+
+\item{subWidth}{Width of subharmonic sidebands - regulates how rapidly
+g-harmonics weaken away from f-harmonics: large values like the default
+10000 means that all g0 harmonics are equally strong (anchor format)}
 
 \item{shortestEpoch}{minimum duration of each epoch with unchanging
 subharmonics regime or formant locking, in ms}
@@ -372,7 +382,7 @@ sound = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140,
   pitchGlobal = data.frame(time = c(0, .5, 1), value = c(-6, 7, 0)))
 
 # Subharmonics in sidebands (noisy scream)
-sound = soundgen (nonlinBalance = 100, subFreq = 75, subDep = 130,
+sound = soundgen (subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
   pitch = data.frame(
     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
   sylLen = 800,
@@ -380,21 +390,11 @@ sound = soundgen (nonlinBalance = 100, subFreq = 75, subDep = 130,
 
 # Jitter and mouth opening (bark, dog-like)
 sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
-  nonlinBalance = 100, subFreq = 100, subDep = 60, jitterDep = 1,
+  subFreq = 100, subDep = 100, subWidth = 60, jitterDep = 1,
   pitch = c(559, 785, 557),
   mouth = c(0, 0.5, 0),
   vocalTract = 5, formants = NULL,
   play = playback, plot = TRUE)
-
-# Use nonlinRandomWalk to crease reproducible examples of sounds with
-# nonlinear effects. For ex., to make a sound with no effect in the first
-# third, subharmonics in the second third, and jitter in the final third of the
-# total duration:
-a = c(rep(0, 100), rep(1, 100), rep(2, 100))
-s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
-             subFreq = 100, subDep = 70, jitterDep = 1,
-             nonlinRandomWalk = a, plot = TRUE, ylim = c(0, 4))
-# playme(s)
 
 # See the vignette on sound generation for more examples and in-depth
 # explanation of the arguments to soundgen()

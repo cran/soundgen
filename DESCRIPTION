@@ -1,8 +1,8 @@
 Package: soundgen
 Type: Package
 Title: Parametric Voice Synthesis
-Version: 1.6.2
-Date: 2020-02-06
+Version: 1.7.0
+Date: 2020-05-24
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
@@ -17,11 +17,11 @@ LazyData: true
 Imports: stats, graphics, utils, tuneR, seewave (>= 2.1.0), zoo,
         reshape2, mvtnorm, dtw, phonTools, shiny, shinyjs
 Depends: R (>= 3.4), shinyBS
-RoxygenNote: 7.0.2
+RoxygenNote: 7.1.0
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2020-02-06 09:20:28 UTC; allgoodguys
+Packaged: 2020-05-24 13:53:26 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2020-02-06 10:20:09 UTC
+Date/Publication: 2020-05-24 14:20:02 UTC

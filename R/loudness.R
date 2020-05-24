@@ -74,11 +74,9 @@
 #'
 #' \dontrun{
 #'   s = soundgen()
-#'   l = getLoudness(s, SPL_measured = 70,
-#'                   samplingRate = 16000, plot = TRUE, osc = TRUE)
+#'   l = getLoudness(s, SPL_measured = 70, samplingRate = 16000)
 #'   # The estimated loudness in sone depends on target SPL
-#'   l = getLoudness(s, SPL_measured = 40,
-#'                   samplingRate = 16000, plot = TRUE)
+#'   l = getLoudness(s, SPL_measured = 40, samplingRate = 16000)
 #'
 #'   # ...but not (much) on windowLength and samplingRate
 #'   l = getLoudness(soundgen(), SPL_measured = 40, windowLength = 50,
@@ -98,6 +96,7 @@ getLoudness = function(x,
                        spreadSpectrum = TRUE,
                        plot = TRUE,
                        mar = c(5.1, 4.1, 4.1, 4.1),
+                       osc = TRUE,
                        ...) {
   # import sound
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
@@ -147,7 +146,7 @@ getLoudness = function(x,
     windowLength = windowLength, step = step,
     output = 'original', normalize = FALSE,
     padWithSilence = FALSE,
-    plot = plot, mar = mar, ...) ^ 2
+    plot = plot, mar = mar, osc = osc, ...) ^ 2
   # range(log10(powerSpec) * 10)
 
   # normalize power spectrum by the size of STFT frame
@@ -220,10 +219,8 @@ getLoudness = function(x,
     par(new = TRUE, mar = mar)
     # adjust the timing of loudness to match the actual time stamps
     # in getFrameBank (~the middle of each fft frame)
-    windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
+    X = as.numeric(colnames(powerSpec))
     duration = length(sound) / samplingRate
-    X = seq(1, max(1, (length(sound) - windowLength_points)),
-            step / 1000 * samplingRate) / samplingRate * 1000 + windowLength / 2
     plot(x = X,
          y = loudness,
          type = "b",
@@ -235,7 +232,7 @@ getLoudness = function(x,
     mtext("Loudness, sone", side = 4, line = 3)
     par('mar' = op$mar, 'new' = op$new)  # restore original pars
   }
-  return(list(specSone = specSone, loudness = loudness))
+  invisible(list(specSone = specSone, loudness = loudness))
 }
 
 # ## EMPIRICAL CALIBRATION OF LOUDNESS (SONE) RETURNED BY getLoudness()
@@ -319,12 +316,12 @@ getLoudness = function(x,
 #' @export
 #' @examples
 #' \dontrun{
-#' getLoudnessFolder('~/Downloads/temp')
+#' getLoudnessFolder('~/Downloads/temp1')
 #' # Compare:
-#' analyzeFolder('~/Downloads/temp', pitchMethods = NULL,
+#' analyzeFolder('~/Downloads/temp1', pitchMethods = NULL,
 #'               plot = FALSE)$loudness_mean
-#' # (per STFT frame; should be very similar, but not identical, because
-#' # analyze() discards frames considered silent or too noisy)
+#' # (per STFT frame; should be very similar, but not identical unless silence =
+#' 0, because # analyze() discards frames considered silent)
 #'
 #' # custom summaryFun
 #' difRan = function(x) diff(range(x))
@@ -344,7 +341,10 @@ getLoudnessFolder = function(myfolder,
                              summaryFun = 'mean',
                              verbose = TRUE) {
   time_start = proc.time()  # timing
-  filenames = list.files(myfolder, pattern = "*.wav|.mp3", full.names = TRUE)
+  filenames = list.files(myfolder, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
+  if (length(filenames) < 1) {
+    stop(paste('No wav/mp3 files found in', myfolder))
+  }
   # in order to provide more accurate estimates of time to completion,
   # check the size of all files in the target folder
   filesizes = file.info(filenames)$size
@@ -366,7 +366,7 @@ getLoudnessFolder = function(myfolder,
 
   # prepare output
   if (summary == TRUE) {
-    output = data.frame(sound = basename(filenames))
+    output = data.frame(file = basename(filenames))
     for (s in 1:length(summaryFun)) {
       # for each summary function...
       f = eval(parse(text = summaryFun[s]))
