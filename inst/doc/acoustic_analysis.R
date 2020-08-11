@@ -137,25 +137,22 @@ s_withf0 = soundgen(sylLen = 600, pitch = 300,
 # playme(s_withf0)
 seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 6-------------------------
-a_withf0 = analyze(s_withf0, 16000, pitchMethods = c('autocor', 'cep', 'spec', 'hps'),
-             ylim = c(0, 3), dynamicRange = 60)
-
 ## ----fig.show = "hold", fig.height = 3, fig.width = 4-------------------------
 s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
               rolloffExact = c(0, 1, 1, 1), formants = NULL, lipRad = 0)
 # playme(s_withoutf0)  # you can clearly hear the difference
 seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
-## ----fig.show = "hold", fig.height = 6, fig.width = 6-------------------------
-a_withoutf0 = analyze(s_withoutf0, 16000, pitchMethods = c('autocor', 'cep', 'spec', 'hps'),
-             ylim = c(0, 3), dynamicRange = 60)
+## ----fig.show = "hold", fig.height = 4, fig.width = 6-------------------------
+a_withoutf0 = analyze(s_withoutf0, 16000, 
+             pitchMethods = c('autocor', 'dom', 'cep', 'spec', 'hps'),
+             ylim = c(0, 2), dynamicRange = 60, osc = FALSE, priorMean = NA)
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(
   s1, 
   samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
-  shortestSyl = 0, shortestPause = 0,  # any length of voiced fragments
+  shortestSyl = 0,        # any length of voiced fragments
   interpolWin = 0,        # don't interpolate missing f0 values
   pathfinding = 'none',   # don't look for optimal path through candidates
   snakeStep = 0,          # don't run the snake
@@ -168,13 +165,13 @@ a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              snakeStep = 0, smooth = 0,
              interpolWin = 0,   # disable interpolation
              pathfinding = 'none',  
-             summary = FALSE,
+             summaryFun = NULL,
              plot = FALSE)
 a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', pitchCep = list(cepThres = .4), step = 25,
              pathfinding = 'none',
              snakeStep = 0, smooth = 0, 
-             summary = FALSE,
+             summaryFun = NULL,
              plot = FALSE)  
 plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
 points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3)
@@ -206,14 +203,13 @@ a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
              pitchMethods = 'cep', pitchCep = list(cepThres = .2), nCands = 2,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
              smooth = 0,  # no smoothing
-             summary = FALSE, plot = FALSE)
-a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .2), nCands = 2,
-             pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
-             smooth = 1,  # default smoothing
-             summary = FALSE, plot = FALSE)
-plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
-points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3, lwd = 2)
+             summaryFun = NULL, plot = FALSE)
+a1$pitch_smooth = soundgen:::medianSmoother(
+  data.frame(pitch = a1$pitch), smoothing_ww = 3, smoothingThres = 1
+)$pitch
+plot(pitch ~ time, data = a1, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(pitch_smooth ~ time, data = a1, type = 'l', col = 'red', lty = 3, lwd = 2)
+# dotted line = with median smoothing
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(
@@ -229,7 +225,7 @@ a = analyze(
   # + other pars passed to soundgen:::filled.contour.mod()
   
   # options for oscillogram
-  osc_dB = TRUE, 
+  osc = 'dB', 
   heights = c(3, 1),
   
   # options for plotting the final pitch contour (line)
@@ -248,6 +244,11 @@ a = analyze(
 ## ----eval = FALSE-------------------------------------------------------------
 #  a = analyze(s1, samplingRate = 16000, plot = TRUE, savePath = '~/Downloads',
 #              width = 900, height = 500, units = 'px')
+
+## ----eval = FALSE-------------------------------------------------------------
+#  timePeak = function(x) which.max(x) / length(x)
+#  # NB: don't omit NAs, otherwise the time is shifted
+#  analyze(mySound, summaryFun = c('mean', 'timePeak'))
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 # for info on using soundgen() function, see the vignette on sound synthesis 

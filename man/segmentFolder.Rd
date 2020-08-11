@@ -18,14 +18,15 @@ segmentFolder(
   troughRight = FALSE,
   windowLength = 40,
   overlap = 80,
-  summary = TRUE,
+  summary = NULL,
+  summaryFun = c("mean", "median", "sd"),
   plot = FALSE,
   savePlots = FALSE,
   savePath = NA,
   verbose = TRUE,
   reportEvery = 10,
   col = "green",
-  xlab = "Time, ms",
+  xlab = "",
   ylab = "Amplitude",
   main = NULL,
   width = 900,
@@ -87,6 +88,12 @@ window used to produce the amplitude envelope, see
 syllables and vocal bursts. If FALSE, returns a list containing full stats
 on each syllable and bursts (location, duration, amplitude, ...)}
 
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+list containing frame-by-frame values}
+
 \item{plot}{if TRUE, produces a segmentation plot}
 
 \item{savePlots}{if TRUE, saves plots as .png files in the target folder}
@@ -121,7 +128,7 @@ files and estimated time left}
 
 \item{burstPlot}{a list of graphical parameters for displaying the bursts}
 
-\item{...}{other graphical parameters passed to \code{\link[graphics]{plot}}}
+\item{...}{other graphical parameters passed to graphics::plot}
 }
 \value{
 If \code{summary} is TRUE, returns a dataframe with one row per audio

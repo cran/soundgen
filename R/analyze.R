@@ -58,6 +58,8 @@
 #'
 #' @inheritParams spectrogram
 #' @inheritParams getLoudness
+#' @param from,to if NULL (default), analyzes the whole sound, otherwise
+#'   from...to (s)
 #' @param silence (0 to 1) frames with RMS amplitude below silence threshold are
 #'   not analyzed at all. NB: this number is dynamically updated: the actual
 #'   silence threshold may be higher depending on the quietest frame, but it
@@ -74,7 +76,10 @@
 #'   \code{\link[phonTools]{findformants}} - an external function called to
 #'   perform LPC analysis
 #' @param nFormants the number of formants to extract per STFT frame (0 = no
-#'   formant analysis)
+#'   formant analysis, NULL = as many as possible)
+#' @param roughness a list of parameters passed to
+#'   \code{\link{modulationSpectrum}} for measuring roughness. Set
+#'   \code{roughness = list(amRes = 0)} to skip roughness analysis
 #' @param pitchMethods methods of pitch estimation to consider for determining
 #'   pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
 #'   'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band ('' or
@@ -82,9 +87,9 @@
 #' @param pitchManual manually corrected pitch contour - a numeric vector of any
 #'   length, but ideally as returned by \code{\link{pitch_app}} with the same
 #'   windowLength and step as in current call to analyze
-#' @param entropyThres pitch tracking is not performed for frames with Weiner
-#'   entropy above \code{entropyThres}, but other spectral descriptives are
-#'   still calculated
+#' @param entropyThres pitch tracking is only performed for frames with Weiner
+#'   entropy below \code{entropyThres}, but other spectral descriptives are
+#'   still calculated (NULL = analyze everything)
 #' @param pitchFloor,pitchCeiling absolute bounds for pitch candidates (Hz)
 #' @param priorMean,priorSD specifies the mean (Hz) and standard deviation
 #'   (semitones) of gamma distribution describing our prior knowledge about the
@@ -114,7 +119,9 @@
 #' @param shortestSyl the smallest length of a voiced segment (ms) that
 #'   constitutes a voiced syllable (shorter segments will be replaced by NA, as
 #'   if unvoiced)
-#' @param shortestPause the smallest gap between voiced syllables (ms) that
+#' @param shortestPause the smallest gap between voiced syllables (ms): large
+#'   value = interpolate and merge, small value = treat as separate syllables
+#'   separated by an unvoiced gap
 #'   means they shouldn't be merged into one voiced syllable
 #' @param interpolWin,interpolTol,interpolCert control the behavior of
 #'   interpolation algorithm when postprocessing pitch candidates. To turn off
@@ -137,11 +144,12 @@
 #'   the variables in \code{smoothVars} are adjusted with median smoothing.
 #'   \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
 #'   deviation of ~4 semitones. To disable, set \code{smooth = 0}
-#' @param summary if TRUE, returns only a summary of the measured acoustic
-#'   variables (mean, median and SD). If FALSE, returns a list containing
-#'   frame-by-frame values
-#' @param summaryFun a vector of names of functions used to summarize each
-#'   acoustic characteristic
+#' @param summary deprecated
+#' @param summaryFun functions used to summarize each acoustic characteristic,
+#'   eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+#'   are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+#'   take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+#'   list containing frame-by-frame values
 #' @param invalidArgAction what to do if an argument is invalid or outside the
 #'   range in \code{defaults_analyze}: 'adjust' = reset to default value,
 #'   'abort' = stop execution, 'ignore' = throw a warning and continue (may
@@ -216,7 +224,7 @@
 #' sound1 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 300), value = c(-40, 0)),
-#'   temperature = 0.001, samplingRate = 44100)
+#'   temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 #' # improve the quality of postprocessing:
 #' a1 = analyze(sound1, samplingRate = 44100, priorSD = 24,
 #'              plot = TRUE, pathfinding = 'slow', ylim = c(0, 5))
@@ -227,12 +235,12 @@
 #'   value = c(300, 900, 400, 2300)), len = 1000))
 #'
 #' # the same pitch contour, but harder to analyze b/c of
-#' subharmonics and jitter
+#' # subharmonics and jitter
 #' sound2 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 900), value = c(-40, -20)),
 #'   subDep = 10, jitterDep = 0.5,
-#'   temperature = 0.001, samplingRate = 44100)
+#'   temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 #' # playme(sound2, 44100)
 #' a2 = analyze(sound2, samplingRate = 44100, priorSD = 24,
 #'              pathfinding = 'slow', ylim = c(0, 5))
@@ -245,16 +253,21 @@
 #'   priorMean = NA,  # no prior info at all
 #'   pitchDom = list(col = 'red', domThres = .25),
 #'   pitchPlot = list(col = 'black', lty = 3, lwd = 3),
-#'   osc_dB = TRUE, heights = c(2, 1))
+#'   osc = 'dB', heights = c(2, 1))
 #'
-#' # Different formatting options for output
-#' a = analyze(sound1, 44100, summary = FALSE)  # frame-by-frame
-#' a = analyze(sound1, 44100, summary = TRUE,
+#' # Different options for summarizing the output
+#' a = analyze(sound1, 44100,
+#'             summaryFun = NULL)  # frame-by-frame
+#' a = analyze(sound1, 44100,
 #'             summaryFun = c('mean', 'range'))  # one row per sound
-#' # ...with custom summaryFun
-#' difRan = function(x) diff(range(x))
-#' a = analyze(sound2, samplingRate = 16000, summary = TRUE,
-#'             summaryFun = c('mean', 'difRan'))
+#' # ...with custom summaryFun, eg time of peak relative to duration (0 to 1)
+#' timePeak = function(x) which.max(x) / length(x)  # without omitting NAs
+#' timeTrough = function(x) which.min(x) / length(x)
+#' a = analyze(sound2, samplingRate = 16000,
+#'             summaryFun = c('mean', 'timePeak', 'timeTrough'))
+#'
+#' # Analyze a selection rather than the whole sound
+#' a = analyze(sound1, samplingRate = 16000, from = .4, to = .8)
 #'
 #' # Save the plot
 #' a = analyze(sound1, 44100, ylim = c(0, 5),
@@ -262,7 +275,7 @@
 #'             width = 20, height = 15, units = 'cm', res = 300)
 #'
 #' ## Amplitude and loudness: analyze() should give the same results as
-#' dedicated functions getRMS() / getLoudness()
+#' # dedicated functions getRMS() / getLoudness()
 #' # Create 1 kHz tone
 #' samplingRate = 16000; dur_ms = 50
 #' sound3 = sin(2*pi*1000/samplingRate*(1:(dur_ms/1000*samplingRate)))
@@ -275,7 +288,7 @@
 #' a1$ampl  # RMS amplitude per STFT frame
 #' getRMS(sound3, samplingRate = samplingRate, windowLength = 25,
 #'        overlap = 50, scale = 1)
-#' # or even simply: sqrt(mean(sound1 ^ 2))
+#' # or even simply: sqrt(mean(sound3 ^ 2))
 #'
 #' # The same sound as above, but with half the amplitude
 #' a_half = analyze(sound3 / 2, samplingRate = samplingRate, windowLength = 25,
@@ -309,6 +322,8 @@
 analyze = function(
   x,
   samplingRate = NULL,
+  from = NULL,
+  to = NULL,
   dynamicRange = 80,
   silence = 0.04,
   scale = NULL,
@@ -322,6 +337,7 @@ analyze = function(
   cutFreq = NULL,
   formants = list(verify = FALSE),
   nFormants = 3,
+  roughness = list(plot = FALSE),
   pitchMethods = c('dom', 'autocor'),
   pitchManual = NULL,
   entropyThres = 0.6,
@@ -349,14 +365,14 @@ analyze = function(
   snakePlot = FALSE,
   smooth = 1,
   smoothVars = c('pitch', 'dom'),
-  summary = FALSE,
-  summaryFun = c('mean', 'median', 'sd'),
+  summary = NULL,
+  summaryFun = NULL,
   invalidArgAction = c('adjust', 'abort', 'ignore')[1],
   plot = TRUE,
   showLegend = TRUE,
   savePath = NA,
-  osc = TRUE,
-  osc_dB = FALSE,
+  osc = 'linear',
+  osc_dB = NULL,
   pitchPlot = list(col = rgb(0, 0, 1, .75), lwd = 3, showPrior = TRUE),
   ylim = NULL,
   xlab = 'Time, ms',
@@ -369,10 +385,9 @@ analyze = function(
   ...
 ) {
   ## preliminaries - deprecated pars
-  # if (!missing(p)) {
-  #   message(paste0(p, ' is deprecated, use ... instead'))
-  # }
-
+  if (!is.null(summary)) {
+    message(paste0('summary', ' is deprecated, set "summaryFun = NULL" instead'))
+  }
 
   # import a sound
   if (class(x)[1] == 'character') {
@@ -431,12 +446,6 @@ analyze = function(
                                        SPL_measured = SPL_measured,
                                        Pref = Pref)))
   }
-
-  # normalize to range from no less than -1 to no more than +1
-  if (min(sound) > 0) {
-    sound = sound - mean(sound)  # center
-  }
-  sound = sound / max(abs(sound))
 
   # Check simple numeric default pars
   simplePars = c('silence', 'entropyThres', 'domThres',
@@ -521,7 +530,33 @@ analyze = function(
                     '(27 KHz) as inaudible to humans when estimating loudness'))
     }
   }
-  duration = length(sound) / samplingRate
+
+  # from...to selection
+  ls = length(sound)
+  if (any(is.numeric(c(from, to)))) {
+    if (!is.numeric(from)) {
+      from_points = 1
+    } else {
+      from_points = max(1, round(from * samplingRate))
+    }
+    if (!is.numeric(to)) {
+      to_points = ls
+    }  else {
+      to_points = min(ls, round(to * samplingRate))
+    }
+    sound = sound[from_points:to_points]
+    timeShift = from_points / samplingRate
+    ls = length(sound)
+  } else {
+    timeShift = 0
+  }
+  duration = ls / samplingRate
+
+  # normalize to range from no less than -1 to no more than +1
+  if (any(sound > 0)) {
+    sound = sound - mean(sound)  # center
+  }
+  sound = sound / max(abs(sound))
 
   if (!is.numeric(windowLength) | windowLength <= 0 |
       windowLength > (duration * 1000)) {
@@ -551,11 +586,23 @@ analyze = function(
     warning('"step" must be between 0 and sound_duration ms;
             defaulting to windowLength / 2')
   }
-  if (step > windowLength) {
+  if (step > windowLength)
     warning(paste('"step" should normally not be larger than "windowLength" ms:',
                   'you are skipping parts of the sound!'))
+  if (shortestPause < step) {
+    warning(paste0('shortestPause (', shortestPause,
+                   ' ms) is shorter than one STFT step (', step, ' ms)',
+                   '; setting shortestPause = ', 1.5 * step, ' ms'))
+    shortestPause = 1.5 * step
   }
-
+  if (shortestPause < 1000 / pitchFloor) {
+    warning(paste0(
+      'shortestPause (', shortestPause,
+      ' ms) is shorter than one glottal cycle = 1000 / pitchFloor (',
+      round(1000 / pitchFloor), ' ms); setting shortestPause = ',
+      round(1.5 * 1000 / pitchFloor), ' ms'))
+    shortestPause = round(1.5 * 1000 / pitchFloor)
+  }
   if (!is.numeric(zp)) {
     zp = 0
   } else if (zp < 0) {
@@ -565,7 +612,8 @@ analyze = function(
   if (!is.null(cutFreq) &&
       (!is.numeric(cutFreq) | cutFreq <= 0 | cutFreq > (samplingRate / 2))) {
     cutFreq = NULL
-    warning(paste('"cutFreq" must be between 0 and samplingRate / 2; ignoring'))
+    warning(paste('"cutFreq" must be between 0 and samplingRate / 2;',
+                  'setting cutFreq = NULL'))
   }
   if (!is.numeric(pitchFloor) | pitchFloor <= 0 |
       pitchFloor > samplingRate / 2) {
@@ -675,27 +723,25 @@ analyze = function(
     zp = zp,
     normalize = TRUE,
     filter = NULL,
-    padWithSilence = FALSE
+    padWithSilence = FALSE,
+    timeShift = timeShift
   )
+  timestamps = as.numeric(colnames(frameBank))
 
   extraSpecPars = list(...)
   extraSpecPars$osc = NULL
   s = do.call(spectrogram, c(list(
     x = NULL,
-    frameBank = frameBank,
+    internal = list(duration = duration,
+                    frameBank = frameBank),
     dynamicRange = dynamicRange,
-    duration = duration,
     samplingRate = samplingRate,
     windowLength = windowLength,
     zp = zp,
     wn = wn,
     step = step,
-    main = plotname,
     normalize = FALSE,
     output = 'original',
-    ylim = ylim,
-    xlab = xlab,
-    ylab = ylab,
     plot = FALSE
   ), extraSpecPars))
   if (is.na(s)[1]) {
@@ -707,7 +753,7 @@ analyze = function(
   freqs = as.numeric(rownames(s)) * 1000  # central bin freqs, Hz
 
   # calculate rms amplitude of each frame
-  myseq = (as.numeric(colnames(frameBank)) - windowLength / 2) * samplingRate / 1000 + 1
+  myseq = (timestamps - timeShift * 1000 - windowLength / 2) * samplingRate / 1000 + 1
   myseq[1] = 1  # just in case of rounding errors
   ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
@@ -733,15 +779,17 @@ analyze = function(
   cond_silence = ampl >= silence &
     as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
   framesToAnalyze = which(cond_silence)
-  cond_entropy = ampl > silence & entropy < entropyThres
+  if (!is.numeric(entropyThres)) entropyThres = Inf
+  cond_entropy = cond_silence & entropy < entropyThres
   cond_entropy[is.na(cond_entropy)] = FALSE
 
   # save duration of non-silent part of audio
-  if (length(framesToAnalyze) > 0) {
+  nf = length(framesToAnalyze)
+  if (nf > 0) {
     # the beginning of the first non-silent frame
-    time_start = step * (min(framesToAnalyze) - 1)
+    time_start = timestamps[framesToAnalyze[1]] - windowLength / 2
     # the end of the last non-silent frame
-    time_end = step * (max(framesToAnalyze))
+    time_end = timestamps[framesToAnalyze[nf]] + windowLength / 2
     duration_noSilence = (time_end - time_start) / 1000
   } else {
     duration_noSilence = 0
@@ -752,6 +800,7 @@ analyze = function(
   # autocorrelation for each frame
   autocorBank = matrix(NA, nrow = length(autoCorrelation_filter),
                        ncol = ncol(frameBank))
+
   for (i in which(cond_entropy)) {
     autocorBank[, i] = acf(frameBank[, i],
                            windowLength_points,
@@ -763,26 +812,58 @@ analyze = function(
 
   ## FORMANTS
   fmts = NULL
-  if (nFormants > 0) {
-    fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
-    colnames(fmts) = paste0('f', rep(1:nFormants, each = 2),
-                            rep(c('_freq', '_width'), nFormants))
-    for (i in framesToAnalyze) {
-      ff = try(do.call(phonTools::findformants,
-                       c(formants,
-                         list(frameBank[, i],
-                              fs = samplingRate))),
-               silent = TRUE)
-      if (is.list(ff)) {
-        temp = matrix(NA, nrow = nFormants, ncol = 2)
-        availableRows = 1:min(nFormants, nrow(ff))
-        temp[availableRows, ] = as.matrix(ff[availableRows, ])
-        fmts[i, ] = matrix(t(temp), nrow = 1)
+  no_formants = FALSE
+  if (is.null(nFormants)) nFormants = 1000
+  # try one frame to see how many formants are returned
+  fmts_list = vector('list', length = nf)
+  if (nFormants > 0 & nf > 0) {
+    # we don't really know how many formants will be returned by phonTools, so
+    # we save everything at first, and then trim to nFormants
+    for (i in 1:nf) {
+      fmts_list[[i]] = try(suppressWarnings(do.call(
+        phonTools::findformants,
+        c(formants,
+          list(frameBank[, framesToAnalyze[i]],
+               fs = samplingRate)))),
+        silent = TRUE)
+      if (class(fmts_list[[i]]) == 'try-error') {
+        fmts_list[[i]] = data.frame(formant = NA, bandwidth = NA)[-1, ]
       }
     }
+    # check how many formants we will/can save
+    nFormants_avail = min(nFormants, max(unlist(lapply(fmts_list, nrow))))
+    if (nFormants_avail > 0) {
+      nFormants = nFormants_avail
+      availableRows = 1:nFormants
+      fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
+      colnames(fmts) = paste0('f', rep(availableRows, each = 2),
+                              rep(c('_freq', '_width'), nFormants))
+      # iterate through the full formant list and save what's needed
+      for (i in 1:nf) {
+        ff = fmts_list[[i]]
+        if (is.list(ff)) {
+          nr = nrow(ff)
+          if (nr < nFormants) {
+            ff[(nr + 1):nFormants, ] = NA
+          }
+          temp = matrix(NA, nrow = nFormants, ncol = 2)
+          temp[availableRows, ] = as.matrix(ff[availableRows, ])
+          fmts[framesToAnalyze[i], ] = matrix(t(temp), nrow = 1)
+        }
+      }
+    } else {
+      no_formants = TRUE
+    }
+  } else if (nFormants > 0 && nf == 0) {
+    no_formants = TRUE
   }
-
-
+  if (no_formants) {
+    # no formant analysis
+    availableRows = 1:nFormants
+    fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
+    colnames(fmts) = paste0('f', rep(availableRows, each = 2),
+                            rep(c('_freq', '_width'), nFormants))
+  }
 
   ## PITCH and other spectral analysis of each frame from fft
   # set up an empty nested list to save values in - this enables us to analyze
@@ -839,7 +920,7 @@ analyze = function(
   colnames(result) = names(frameInfo[[1]]$summaries)
   if (!is.null(fmts)) result = cbind(result, fmts)
   result$entropy = entropy
-  result$ampl = ampl
+  result$ampl = result$amplVoiced = ampl
   result$time = as.numeric(colnames(frameBank))
   result$duration_noSilence = duration_noSilence
   result$duration = duration
@@ -954,9 +1035,15 @@ analyze = function(
     # threshold before values are replaced by median over smoothing window).
     # smooth of 1 gives smoothingThres of 4 semitones
     smoothingThres = 4 / smooth
-    result[, smoothVars] = medianSmoother(result[, smoothVars],
-                                          smoothing_ww = smoothing_ww,
-                                          smoothingThres = smoothingThres)
+    keep = apply(result[, smoothVars], 2, function(x) any(!is.na(x)))
+    smoothVars = smoothVars[keep]
+    if (length(smoothVars) > 0) {
+      result[, smoothVars] = medianSmoother(
+        result[, smoothVars, drop = FALSE],
+        smoothing_ww = smoothing_ww,
+        smoothingThres = smoothingThres
+      )
+    }
   }
 
   # Convert HNR to dB
@@ -974,6 +1061,21 @@ analyze = function(
   } else {
     pitch_true = result$pitch
   }
+
+  ## Roughness calculation
+  if (!is.null(roughness$amRes) && roughness$amRes == 0) {
+    # don't analyze the modulation spectrum
+    result$roughness = result$roughnessVoiced = NA
+  } else {
+    rough = do.call(modulationSpectrum, c(
+      list(x = sound,
+           samplingRate = samplingRate),
+      roughness))$roughness
+    result$roughness = result$roughnessVoiced =
+      upsamplePitchContour(rough, len = nrow(result), plot = FALSE)
+    result$roughness[!cond_silence] = NA
+  }
+
   result = updateAnalyze(
     result = result,
     pitch_true = pitch_true,
@@ -983,20 +1085,21 @@ analyze = function(
     harmHeight_pars = harmHeight,
     smooth = smooth,
     smoothing_ww = smoothing_ww,
-    smoothingThres = smoothing_ww
+    smoothingThres = smoothing_ww,
+    # NB: peakFreq & specCentroid are defined for unvoiced frames, but not quartiles
+    varsToUnv = c('amplVoiced', 'roughnessVoiced',
+                  'quartile25', 'quartile50', 'quartile75')
   )
 
   ## Add pitch contours to the spectrogram
   if (plot) {
     # we call spectrogram() a second time to get nice silence padding and to add
-    # pitch contours internally in spectrogram() - a hassle, but it only take
-    # a few ms, and otherwise it's hard to add pitch contours b/c the y-axis
-    # is messed up if spectrogram() calls layout() to add an oscillogram
+    # pitch contours internally in spectrogram() - a hassle, but it only take a
+    # few ms, and otherwise it's hard to add pitch contours b/c the y-axis is
+    # messed up if spectrogram() calls layout() to add an oscillogram
     do.call(spectrogram, c(list(
       x = sound,
-      frameBank = frameBank,
       dynamicRange = dynamicRange,
-      duration = duration,
       samplingRate = samplingRate,
       windowLength = windowLength,
       zp = zp,
@@ -1011,46 +1114,51 @@ analyze = function(
       ylab = ylab,
       plot = TRUE,
       osc = osc,
-      osc_dB = osc_dB,
-      pitch = list(
-        pitchCands = pitchCands_list$freq,
-        pitchCert = pitchCands_list$cert,
-        pitchSource = pitchCands_list$source,
-        pitch = result$pitch,
-        timestamps = result$time,
-        candPlot = list(
-          dom = pitchDom_plotPars,
-          autocor = pitchAutocor_plotPars,
-          cep = pitchCep_plotPars,
-          spec = pitchSpec_plotPars,
-          hps = pitchHps_plotPars
-        ),
-        pitchPlot = pitchPlot,
-        extraContour = result$harmHeight,
-        extraContour_pars = harmHeight_plotPars,
-        priorMean = priorMean,
-        priorSD = priorSD,
-        pitchFloor = pitchFloor,
-        pitchCeiling = pitchCeiling,
-        addToExistingPlot = TRUE,
-        showLegend = showLegend,
-        ylim = ylim,
-        xlab = xlab,
-        ylab = ylab,
-        main = plotname
-      )), extraSpecPars))
+      internal = list(
+        frameBank = frameBank,
+        duration = duration,
+        timeShift = timeShift,
+        pitch = list(
+          pitchCands = pitchCands_list$freq,
+          pitchCert = pitchCands_list$cert,
+          pitchSource = pitchCands_list$source,
+          pitch = result$pitch,
+          timestamps = result$time / 1000,  # spetcrogram always plots in s
+          candPlot = list(
+            dom = pitchDom_plotPars,
+            autocor = pitchAutocor_plotPars,
+            cep = pitchCep_plotPars,
+            spec = pitchSpec_plotPars,
+            hps = pitchHps_plotPars
+          ),
+          pitchPlot = pitchPlot,
+          extraContour = result$harmHeight,
+          extraContour_pars = harmHeight_plotPars,
+          priorMean = priorMean,
+          priorSD = priorSD,
+          pitchFloor = pitchFloor,
+          pitchCeiling = pitchCeiling,
+          addToExistingPlot = TRUE,
+          showLegend = showLegend,
+          ylim = ylim,
+          xlab = xlab,
+          ylab = ylab,
+          main = plotname,
+          timeShift = timeShift
+        ))), extraSpecPars))
   }
   if (is.character(savePath)) {
     dev.off()
   }
 
   # prepare the output
-  if (summary == TRUE | summary == 'extended') {
-    out = summarizeAnalyze(result, summaryFun)
+  sf = summaryFun[which(summaryFun != 'extended')]
+  if (!is.null(sf) && any(!is.na(sf))) {
+    out = summarizeAnalyze(result, sf)
   } else {
     out = result
   }
-  if (summary == 'extended') {
+  if ('extended' %in% summaryFun) {
     return(list(summary = out,
                 result = result,
                 pitchCands = pitchCands_list,
@@ -1164,9 +1272,10 @@ analyzeFolder = function(
   snakePlot = FALSE,
   smooth = 1,
   smoothVars = c('pitch', 'dom'),
-  summary = TRUE,
+  summary = NULL,
   summaryFun = c('mean', 'median', 'sd'),
   plot = FALSE,
+  osc = 'linear',
   showLegend = TRUE,
   savePlots = FALSE,
   pitchPlot = list(col = rgb(0, 0, 1, .75), lwd = 3, showPrior = TRUE),
@@ -1180,6 +1289,11 @@ analyzeFolder = function(
   res = NA,
   ...
 ) {
+  ## preliminaries - deprecated pars
+  if (!missing('summary')) {
+    message(paste0('summary', ' is deprecated, set "summaryFun = NULL" instead'))
+  }
+
   warnAboutResetSummary = FALSE
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
@@ -1238,7 +1352,7 @@ analyzeFolder = function(
   if (warnAboutResetSummary) {
     message('Cannot summarize the results when some files are missing in pitchManual')
   }
-  if (summary == TRUE) {
+  if (!is.null(summaryFun) && any(!is.na(summaryFun))) {
     # if some sounds are too short, analyze() returns only duration, so we pad
     # those with NA to the right length in order to run rbind afterwards
     nc = max(unlist(lapply(result, ncol)), na.rm = TRUE) - 1
@@ -1247,9 +1361,11 @@ analyzeFolder = function(
         result[[i]] = c(as.numeric(result[[i]]), rep(NA, nc))
       }
     }
-    output = as.data.frame(t(sapply(result, function(x) unlist(rbind(x)))))
-    output$file = filenames_base
-    output = output[, c('file', colnames(output)[1:(ncol(output) - 1)])]
+    output = cbind(data.frame(file = filenames_base),
+                   do.call(rbind, result))
+    # output = as.data.frame(t(sapply(result, function(x) unlist(rbind(x)))))
+    # output$file = filenames_base
+    # output = output[, c('file', colnames(output)[1:(ncol(output) - 1)])]
   } else {
     output = result
     names(output) = filenames_base

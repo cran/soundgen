@@ -114,14 +114,19 @@ spectrogram(target, samplingRate = samplingRate, osc = TRUE)
 
 # Remove AM above 3 Hz from a bit of speech (remove most temporal details)
 s_filt1 = filterSoundByMS(target, samplingRate = samplingRate,
-  amCond = 'abs(am) > 3', nIter = 15)
+  amCond = 'abs(am) > 3', action = 'remove', nIter = 15)
 playme(s_filt1, samplingRate)
 spectrogram(s_filt1, samplingRate = samplingRate, osc = TRUE)
 
-# Remove slow AM/FM (prosody) to achieve a "robotic" voice
+# Barely any change when AM in 5-25 Hz is preserved:
 s_filt2 = filterSoundByMS(target, samplingRate = samplingRate,
-  jointCond = 'am^2 + (fm*3)^2 < 300', nIter = 15)
+  amCond = 'abs(am) > 5 & abs(am) < 25', action = 'preserve', nIter = 15)
 playme(s_filt2, samplingRate)
+
+# Remove slow AM/FM (prosody) to achieve a "robotic" voice
+s_filt3 = filterSoundByMS(target, samplingRate = samplingRate,
+  jointCond = 'am^2 + (fm*3)^2 < 300', nIter = 15)
+playme(s_filt3, samplingRate)
 
 ## An alternative manual workflow w/o calling filterSoundByMS()
 # This way you can modify the MS directly and more flexibly
@@ -137,7 +142,7 @@ spectrogram(s_rev, samplingRate, osc = TRUE)
 
 # Get modulation spectrum starting from the sound...
 ms = modulationSpectrum(s, samplingRate = samplingRate, windowLength = 25,
-  overlap = 80, wn = 'hanning', maxDur = Inf, logSpec = FALSE,
+  overlap = 80, wn = 'hanning', amRes = NULL, maxDur = Inf, logSpec = FALSE,
   power = NA, returnComplex = TRUE, plot = FALSE)$complex
 # ... or starting from the spectrogram:
 # ms = specToMS(spec)
@@ -179,7 +184,7 @@ image(x = as.numeric(colnames(ms_new)), y = as.numeric(rownames(ms_new)),
 plot(as.numeric(colnames(ms)), log(abs(ms[nrow(ms) / 2, ])), type = 'l')
 points(as.numeric(colnames(ms_new)), log(ms_new[nrow(ms_new) / 2, ]), type = 'l',
   col = 'red', lty = 3)
-# AM peaks at 25 Hz are removed, but inverting the spectrogram adds a bit of noise
+# AM peaks at 25 Hz are removed, but inverting the spectrogram adds a lot of noise
 }
 }
 \seealso{

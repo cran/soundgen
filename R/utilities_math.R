@@ -287,9 +287,9 @@ Mode = function(x) {
 #' Random walk
 #'
 #' Generates a random walk with flexible control over its range, trend, and
-#' smoothness. It works by calling \code{\link[stats]{rnorm}} at each step and
-#' taking a cumulative sum of the generated values. Smoothness is controlled by
-#' initially generating a shorter random walk and upsampling.
+#' smoothness. It works by calling stats::rnorm at each step and taking a
+#' cumulative sum of the generated values. Smoothness is controlled by initially
+#' generating a shorter random walk and upsampling.
 #' @param len an integer specifying the required length of random walk. If len
 #'   is 1, returns a single draw from a gamma distribution with mean=1 and
 #'   sd=rw_range
@@ -298,8 +298,8 @@ Mode = function(x) {
 #' @param rw_smoothing specifies the amount of smoothing, from 0 (no smoothing)
 #'   to 1 (maximum smoothing to a straight line)
 #' @param method specifies the method of smoothing: either linear interpolation
-#'   ('linear', see \code{\link[stats]{approx}}) or cubic splines ('spline', see
-#'   \code{\link[stats]{spline}})
+#'   ('linear', see stats::approx) or cubic splines ('spline', see
+#'   stats::spline)
 #' @param trend mean of generated normal distribution (vectors are also
 #'   acceptable, as long as their length is an integer multiple of len). If
 #'   positive, the random walk has an overall upwards trend (good values are
@@ -820,6 +820,7 @@ interpolMatrix = function(m,
   }
   if (is.null(nr)) nr = nrow(m)
   if (is.null(nc)) nc = ncol(m)
+  if (nr == nrow(m) & nc == ncol(m)) return(m)
   # if (nr < 2) stop('nr must be >1')
   # if (nc < 2) stop('nc must be >1')
   isComplex = is.complex(m[1, 1])
@@ -852,8 +853,13 @@ interpolMatrix = function(m,
         }
       }
     }
+    if (!is.null(rownames(m))) {
+      rnms = as.numeric(rownames(m))
+      rownames(temp) = do.call(interpol, list(x = rnms, n = nr))$y
+    }
   } else {
     temp = m
+    rownames(temp) = rownames(m)
   }
 
   # Interpolate columns if necessary
@@ -872,10 +878,15 @@ interpolMatrix = function(m,
         }
       }
     }
+    if (!is.null(colnames(m))) {
+      cnms = as.numeric(colnames(m))
+      colnames(out) = do.call(interpol, list(x = cnms, n = nc))$y
+    }
   } else {
     out = temp
+    colnames(out) = colnames(temp)
   }
-  rownames(out) = 1:nrow(out)  # number rows for generateHarmonics()
+  rownames(out) = rownames(temp)
   return(out)
 }
 
@@ -930,6 +941,7 @@ gaussianSmooth2D = function(m,
     kernelSize = ceiling(nc / 2) - 1
   }
   if (kernelSize %% 2 == 0) kernelSize = kernelSize - 1  # make uneven
+  if (kernelSize < 2) return(m)
 
   # set up 2D Gaussian filter
   kernel = getCheckerboardKernel(

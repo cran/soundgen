@@ -1,6 +1,6 @@
-# TODO: soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO: some smart rbind_fill in all ...Folder functions() in case of missing columns; soundgen- use psola when synthesizing 1 gc at a time; gaussian wn implemented in seewave (check updates!); soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
-# pitch_app: see a list of all uploaded files (add button - doing it with tooltips doesn't work); load audio + results to double-check old work
+# Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
 #' @import stats graphics utils grDevices shinyBS
 #' @encoding UTF-8
@@ -171,15 +171,14 @@ NULL
 #'   format)
 #' @param amplGlobal global amplitude envelope spanning
 #'   multiple syllables (dB, 0 = no change) (anchor format)
-#' @param interpol the method of smoothing envelopes based on provided anchors:
-#'   'approx' = linear interpolation, 'spline' = cubic spline, 'loess' (default)
-#'   = polynomial local smoothing function. NB: this does not affect contours for
-#'   "noise", "glottal", and the smoothing of formants
-#' @param discontThres,jumpThres if two anchors are closer in time than
-#'   \code{discontThres}, the contour is broken into segments with a linear
-#'   transition between these anchors; if anchors are closer than
-#'   \code{jumpThres}, a new section starts with no transition at all (e.g. for
-#'   adding pitch jumps)
+#' @param smoothing a list of parameters that control the smoothing of pitch and
+#'   amplitude contours: \code{interpol} (loess, spline, or approx), loessSpan
+#'   (1 = strong, .5 = weak smoothing), discontThres, and jumpThres (if two
+#'   anchors are closer in time than \code{discontThres}, the contour is broken
+#'   into segments with a linear transition between these anchors; if anchors
+#'   are closer than \code{jumpThres}, a new section starts with no transition
+#'   at all (e.g. for adding pitch jumps). See \code{\link{getSmoothContour}}
+#' @param interpol,discontThres,jumpThres deprecated
 #' @param samplingRate sampling frequency, Hz
 #' @param windowLength length of FFT window, ms
 #' @param overlap FFT window overlap, \%. For allowed values, see
@@ -232,7 +231,7 @@ NULL
 #' s1 = eval(parse(text = presets$Chimpanzee$Scream_conflict))  # screaming chimp
 #' # playme(s1)
 #' s2 = eval(parse(text = presets$F1$Scream))  # screaming woman
-#' # playme(s2)
+#' # playme(s2, 18320)
 #' \dontrun{
 #' # unless temperature is 0, the sound is different every time
 #' for (i in 1:3) sound = soundgen(play = playback, temperature = .2)
@@ -323,9 +322,13 @@ soundgen = function(
                value = c(.5, .5)),
   ampl = NA,
   amplGlobal = NA,
-  interpol = c('approx', 'spline', 'loess')[3],
-  discontThres = .05,
-  jumpThres = .01,
+  smoothing = list(interpol = c('approx', 'spline', 'loess')[3],
+                   loessSpan = NULL,
+                   discontThres = .05,
+                   jumpThres = .01),
+  interpol = 'deprecated',
+  discontThres = 'deprecated',
+  jumpThres = 'deprecated',
   samplingRate = 16000,
   windowLength = 50,
   overlap = 75,
@@ -341,9 +344,18 @@ soundgen = function(
   ...
 ) {
   # deprecated pars
-  # if (!missing('x')) {
-  #   message('x is deprecated; use y instead')
-  # }
+  if (!missing('interpol')) {
+    smoothing$interpol = interpol
+    message('interpol is deprecated; use "smoothing" instead')
+  }
+  if (!missing('discontThres')) {
+    smoothing$discontThres = discontThres
+    message('discontThres is deprecated; use "smoothing" instead')
+  }
+  if (!missing('jumpThres')) {
+    smoothing$discontThres = discontThres
+    message('discontThres is deprecated; use "smoothing" instead')
+  }
   if (FALSE) shinyjs::info('adja')  # to avoid a NOTE on CRAN
 
   # check that values of numeric arguments are valid and within range
@@ -365,12 +377,6 @@ soundgen = function(
       'Negative pauseLen is allowed between bouts, but not between syllables.',
       'Use repeatBout instead of nSyl if you need syllables to overlap'
     ))
-  }
-
-  if (!interpol %in% c('approx', 'spline', 'loess')) {
-    warning(paste('Supported interpol: approx, spline, loess;',
-                  'defaulting to loess'))
-    interpol = 'loess'
   }
 
   # check that the overlap setting is valid
@@ -496,6 +502,38 @@ soundgen = function(
     } else {
       tempEffects[[e]] = defaults[[e]] * tempEffects[[e]]
     }
+  }
+
+  # Validate smoothing par-s
+  sm = c('discontThres', 'jumpThres', 'loessSpan', 'interpol')
+  for (s in 1:length(smoothing)) {
+    name_s = names(smoothing)[s]
+    if (!name_s %in% sm) {
+      message(paste0(name_s, ' is not among valid smoothing parameters (',
+                     paste(sm, collapse = ', '),
+                    '). See ?getSmoothContour'))
+    }
+  }
+  for (s in c('discontThres', 'jumpThres')) {
+    if (is.numeric(smoothing[[s]])) {
+      smoothing[[s]] = validatePars(
+        s, smoothing[[s]], permittedValues, invalidArgAction
+      )
+    } else {
+      smoothing[[s]] = defaults[[s]]
+    }
+  }
+  if (!is.null(smoothing$loessSpan)) {
+    smoothing$loessSpan = validatePars(
+      'loessSpan', smoothing$loessSpan, permittedValues, invalidArgAction
+    )
+  }
+  if (is.null(smoothing$interpol)) {
+    smoothing$interpol = 'loess'
+  } else if (!smoothing$interpol %in% c('approx', 'spline', 'loess')) {
+    warning(paste('Supported interpol: approx, spline, loess;',
+                  'defaulting to loess'))
+    smoothing$interpol = 'loess'
   }
 
   # expand formants to full format for adjusting bandwidth if creakyBreathy > 0
@@ -637,7 +675,7 @@ soundgen = function(
     'pitchCeiling' = pitchCeiling,
     'pitchSamplingRate' = pitchSamplingRate,
     'dynamicRange' = dynamicRange,
-    'interpol' = interpol,
+    'interpol' = smoothing$interpol,
     'samplingRate' = samplingRate,
     'overlap' = overlap
   )
@@ -695,16 +733,14 @@ soundgen = function(
   # per voiced syllable
   if (is.list(amplGlobal)) {
     if (any(amplGlobal$value != 0)) {
-      amplEnvelope = getSmoothContour(
-        anchors = amplGlobal,
-        len = nSyl,
-        interpol = interpol,
-        discontThres = discontThres,
-        jumpThres = jumpThres,
-        valueFloor = -dynamicRange,
-        valueCeiling = dynamicRange,
-        samplingRate = samplingRate
-      )
+      amplEnvelope = do.call(getSmoothContour, c(
+        smoothing, list(
+          anchors = amplGlobal,
+          len = nSyl,
+          valueFloor = -dynamicRange,
+          valueCeiling = dynamicRange,
+          samplingRate = samplingRate
+        )))
       # convert from dB to linear multiplier
       amplEnvelope = 10 ^ (amplEnvelope / 20)
     }
@@ -722,7 +758,7 @@ soundgen = function(
     noseRad = noseRad,
     mouthOpenThres = mouthOpenThres,
     mouth = mouth,
-    interpol = interpol,
+    interpol = smoothing$interpol,
     temperature = temperature,
     formDrift = tempEffects$formDrift,
     formDisp = tempEffects$formDisp,
@@ -869,17 +905,15 @@ soundgen = function(
       # generate smooth pitch contour for this particular syllable
       dur_syl = as.numeric(syllables[s, 'end'] - syllables[s, 'start'])
       if (is.list(pitch_per_syl) | is.numeric(pitch_per_syl)) {
-        pitchContour_syl = getSmoothContour(
-          anchors = pitch_per_syl,
-          len = round(dur_syl * pitchSamplingRate / 1000),
-          interpol = interpol,
-          discontThres = discontThres,
-          jumpThres = jumpThres,
-          samplingRate = pitchSamplingRate,
-          valueFloor = pitchFloor,
-          valueCeiling = pitchCeiling,
-          thisIsPitch = TRUE
-        ) * pitchDeltas[s]
+        pitchContour_syl = do.call(getSmoothContour, c(
+          smoothing, list(
+            anchors = pitch_per_syl,
+            len = round(dur_syl * pitchSamplingRate / 1000),
+            samplingRate = pitchSamplingRate,
+            valueFloor = pitchFloor,
+            valueCeiling = pitchCeiling,
+            thisIsPitch = TRUE
+          ))) * pitchDeltas[s]
         # plot(pitchContour_syl, type = 'l')
       }
 

@@ -7,6 +7,8 @@
 analyze(
   x,
   samplingRate = NULL,
+  from = NULL,
+  to = NULL,
   dynamicRange = 80,
   silence = 0.04,
   scale = NULL,
@@ -20,6 +22,7 @@ analyze(
   cutFreq = NULL,
   formants = list(verify = FALSE),
   nFormants = 3,
+  roughness = list(plot = FALSE),
   pitchMethods = c("dom", "autocor"),
   pitchManual = NULL,
   entropyThres = 0.6,
@@ -47,14 +50,14 @@ analyze(
   snakePlot = FALSE,
   smooth = 1,
   smoothVars = c("pitch", "dom"),
-  summary = FALSE,
-  summaryFun = c("mean", "median", "sd"),
+  summary = NULL,
+  summaryFun = NULL,
   invalidArgAction = c("adjust", "abort", "ignore")[1],
   plot = TRUE,
   showLegend = TRUE,
   savePath = NA,
-  osc = TRUE,
-  osc_dB = FALSE,
+  osc = "linear",
+  osc_dB = NULL,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3, showPrior = TRUE),
   ylim = NULL,
   xlab = "Time, ms",
@@ -73,6 +76,9 @@ samplingRate}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector, rather than an audio file)}
+
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -113,7 +119,11 @@ which frames will not be analyzed with pitchAutocor.}
 perform LPC analysis}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
-formant analysis)}
+formant analysis, NULL = as many as possible)}
+
+\item{roughness}{a list of parameters passed to
+\code{\link{modulationSpectrum}} for measuring roughness. Set
+\code{roughness = list(amRes = 0)} to skip roughness analysis}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
 pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
@@ -124,9 +134,9 @@ NULL = no pitch analysis)}
 length, but ideally as returned by \code{\link{pitch_app}} with the same
 windowLength and step as in current call to analyze}
 
-\item{entropyThres}{pitch tracking is not performed for frames with Weiner
-entropy above \code{entropyThres}, but other spectral descriptives are
-still calculated}
+\item{entropyThres}{pitch tracking is only performed for frames with Weiner
+entropy below \code{entropyThres}, but other spectral descriptives are
+still calculated (NULL = analyze everything)}
 
 \item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
@@ -168,7 +178,9 @@ harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
 if unvoiced)}
 
-\item{shortestPause}{the smallest gap between voiced syllables (ms) that
+\item{shortestPause}{the smallest gap between voiced syllables (ms): large
+value = interpolate and merge, small value = treat as separate syllables
+separated by an unvoiced gap
 means they shouldn't be merged into one voiced syllable}
 
 \item{interpolWin, interpolTol, interpolCert}{control the behavior of
@@ -199,12 +211,13 @@ the variables in \code{smoothVars} are adjusted with median smoothing.
 \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
 deviation of ~4 semitones. To disable, set \code{smooth = 0}}
 
-\item{summary}{if TRUE, returns only a summary of the measured acoustic
-variables (mean, median and SD). If FALSE, returns a list containing
-frame-by-frame values}
+\item{summary}{deprecated}
 
-\item{summaryFun}{a vector of names of functions used to summarize each
-acoustic characteristic}
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+list containing frame-by-frame values}
 
 \item{invalidArgAction}{what to do if an argument is invalid or outside the
 range in \code{defaults_analyze}: 'adjust' = reset to default value,
@@ -218,13 +231,10 @@ crash)}
 \item{savePath}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
 
-\item{osc}{should an oscillogram be shown under the spectrogram? TRUE/
-FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
-\code{\link{osc_dB}} for details}
+\item{osc}{should an oscillogram be shown under the spectrogram? none = no
+osc; linear = on the original scale; dB = in decibels}
 
-\item{osc_dB}{should an oscillogram be shown under the spectrogram? TRUE/
-FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
-\code{\link{osc_dB}} for details}
+\item{osc_dB}{deprecated}
 
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{list(type = 'n')} to suppress}
@@ -351,7 +361,7 @@ a = analyze(sound, samplingRate = 16000,
 sound1 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
   noise = list(time = c(0, 300), value = c(-40, 0)),
-  temperature = 0.001, samplingRate = 44100)
+  temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 # improve the quality of postprocessing:
 a1 = analyze(sound1, samplingRate = 44100, priorSD = 24,
              plot = TRUE, pathfinding = 'slow', ylim = c(0, 5))
@@ -362,12 +372,12 @@ median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
   value = c(300, 900, 400, 2300)), len = 1000))
 
 # the same pitch contour, but harder to analyze b/c of
-subharmonics and jitter
+# subharmonics and jitter
 sound2 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
   noise = list(time = c(0, 900), value = c(-40, -20)),
   subDep = 10, jitterDep = 0.5,
-  temperature = 0.001, samplingRate = 44100)
+  temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 # playme(sound2, 44100)
 a2 = analyze(sound2, samplingRate = 44100, priorSD = 24,
              pathfinding = 'slow', ylim = c(0, 5))
@@ -380,16 +390,21 @@ a = analyze(sound1, samplingRate = 44100,
   priorMean = NA,  # no prior info at all
   pitchDom = list(col = 'red', domThres = .25),
   pitchPlot = list(col = 'black', lty = 3, lwd = 3),
-  osc_dB = TRUE, heights = c(2, 1))
+  osc = 'dB', heights = c(2, 1))
 
-# Different formatting options for output
-a = analyze(sound1, 44100, summary = FALSE)  # frame-by-frame
-a = analyze(sound1, 44100, summary = TRUE,
+# Different options for summarizing the output
+a = analyze(sound1, 44100,
+            summaryFun = NULL)  # frame-by-frame
+a = analyze(sound1, 44100,
             summaryFun = c('mean', 'range'))  # one row per sound
-# ...with custom summaryFun
-difRan = function(x) diff(range(x))
-a = analyze(sound2, samplingRate = 16000, summary = TRUE,
-            summaryFun = c('mean', 'difRan'))
+# ...with custom summaryFun, eg time of peak relative to duration (0 to 1)
+timePeak = function(x) which.max(x) / length(x)  # without omitting NAs
+timeTrough = function(x) which.min(x) / length(x)
+a = analyze(sound2, samplingRate = 16000,
+            summaryFun = c('mean', 'timePeak', 'timeTrough'))
+
+# Analyze a selection rather than the whole sound
+a = analyze(sound1, samplingRate = 16000, from = .4, to = .8)
 
 # Save the plot
 a = analyze(sound1, 44100, ylim = c(0, 5),
@@ -397,7 +412,7 @@ a = analyze(sound1, 44100, ylim = c(0, 5),
             width = 20, height = 15, units = 'cm', res = 300)
 
 ## Amplitude and loudness: analyze() should give the same results as
-dedicated functions getRMS() / getLoudness()
+# dedicated functions getRMS() / getLoudness()
 # Create 1 kHz tone
 samplingRate = 16000; dur_ms = 50
 sound3 = sin(2*pi*1000/samplingRate*(1:(dur_ms/1000*samplingRate)))
@@ -410,7 +425,7 @@ getLoudness(sound3, samplingRate = samplingRate, windowLength = 25,
 a1$ampl  # RMS amplitude per STFT frame
 getRMS(sound3, samplingRate = samplingRate, windowLength = 25,
        overlap = 50, scale = 1)
-# or even simply: sqrt(mean(sound1 ^ 2))
+# or even simply: sqrt(mean(sound3 ^ 2))
 
 # The same sound as above, but with half the amplitude
 a_half = analyze(sound3 / 2, samplingRate = samplingRate, windowLength = 25,

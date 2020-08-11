@@ -1,27 +1,29 @@
 Package: soundgen
 Type: Package
-Title: Parametric Voice Synthesis
-Version: 1.7.0
-Date: 2020-05-24
+Title: Sound Synthesis and Acoustic Analysis
+Version: 1.8.0
+Date: 2020-08-11
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
-Description: Tools for sound synthesis and acoustic analysis.
-    Performs parametric synthesis of sounds with harmonic and noise components
-    such as animal vocalizations or human voice. Also includes tools for
-    spectral analysis, pitch tracking, audio segmentation, self-similarity
-    matrices, morphing, etc.
+BugReports: https://github.com/tatters/soundgen/issues
+Description: Performs parametric synthesis of sounds with harmonic and noise 
+    components such as animal vocalizations or human voice. Also offers tools 
+    for spectral analysis, audio segmentation, self-similarity matrices, 
+    modulation spectra, morphing, etc., as well as interactive web apps for 
+    manually corrected pitch tracking and formant measurement. Reference: 
+    Anikin (2019) <doi:10.3758/s13428-018-1095-7>.
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
 Imports: stats, graphics, utils, tuneR, seewave (>= 2.1.0), zoo,
         reshape2, mvtnorm, dtw, phonTools, shiny, shinyjs
 Depends: R (>= 3.4), shinyBS
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2020-05-24 13:53:26 UTC; allgoodguys
+Packaged: 2020-08-11 04:39:33 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2020-05-24 14:20:02 UTC
+Date/Publication: 2020-08-11 14:10:03 UTC

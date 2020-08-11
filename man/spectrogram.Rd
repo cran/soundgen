@@ -20,27 +20,27 @@ spectrogram(
   qTime = 0,
   percentNoise = 10,
   noiseReduction = 0,
-  contrast = 0.2,
-  brightness = 0,
   method = c("spectrum", "spectralDerivative")[1],
   output = c("original", "processed", "complex")[1],
+  plot = TRUE,
+  osc = c("none", "linear", "dB")[2],
+  osc_dB = NULL,
+  heights = c(3, 1),
   ylim = NULL,
   yScale = c("linear", "log")[1],
-  plot = TRUE,
-  osc = FALSE,
-  osc_dB = FALSE,
-  heights = c(3, 1),
+  contrast = 0.2,
+  brightness = 0,
+  maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
-  units = c("ms", "kHz"),
-  xlab = paste("Time,", units[1]),
-  ylab = paste("Frequency,", units[2]),
+  units = "deprecated",
+  xlab = NULL,
+  ylab = NULL,
+  xaxp = NULL,
   mar = c(5.1, 4.1, 4.1, 2),
   main = "",
   grid = NULL,
-  frameBank = NULL,
-  duration = NULL,
-  pitch = NULL,
+  internal = NULL,
   ...
 )
 }
@@ -87,12 +87,6 @@ noise spectrum}
 spectrum of frames with entropy exceeding the quantile set by
 \code{percentNoise}}
 
-\item{contrast}{spectrum is exponentiated by contrast (-inf to +inf,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
-
-\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
-
 \item{method}{plot spectrum ('spectrum') or spectral derivative
 ('spectralDerivative')}
 
@@ -101,19 +95,30 @@ spectrogram ('original'), denoised and/or smoothed spectrogram
 ('processed'), or unmodified spectrogram with the imaginary part giving
 phase ('complex')}
 
+\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+
+\item{osc}{should an oscillogram be shown under the spectrogram? none = no
+osc; linear = on the original scale; dB = in decibels}
+
+\item{osc_dB}{deprecated}
+
+\item{heights}{a vector of length two specifying the relative height of the
+spectrogram and the oscillogram (including time axes labels)}
+
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{contrast}{spectrum is exponentiated by contrast (-inf to +inf,
+recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
+sharpness}
 
-\item{osc, osc_dB}{should an oscillogram be shown under the spectrogram? TRUE/
-FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
-\code{\link{osc_dB}} for details}
+\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 
-\item{heights}{a vector of length two specifying the relative height of the
-spectrogram and the oscillogram (including time axes labels)}
+\item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
+and spectrogram; good for plotting long audio files; defaults to c(1e5,
+5e5)}
 
 \item{padWithSilence}{if TRUE, pads the sound with just enough silence to
 resolve the edges properly (only the original region is plotted, so
@@ -123,14 +128,13 @@ apparent duration doesn't change)}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
-\item{units}{c('ms', 'kHz') is the default, and anything else is interpreted
-as s (for time) and Hz (for frequency)}
+\item{units}{deprecated}
 
-\item{xlab, ylab, main, mar}{graphical parameters}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{frameBank, duration, pitch}{ignore (only used internally)}
+\item{internal}{ignore (only used internally)}
 
 \item{...}{other graphical parameters}
 }
@@ -167,14 +171,14 @@ spectrogram(sound, samplingRate = 16000)
 \dontrun{
 # add bells and whistles
 spectrogram(sound, samplingRate = 16000,
-  osc = TRUE,  # plot oscillogram under the spectrogram
+  osc = 'dB',  # plot oscillogram in dB
+  heights = c(2, 1),  # spectro/osc height ratio
   noiseReduction = 1.1,  # subtract the spectrum of noisy parts
   brightness = -1,  # reduce brightness
   colorTheme = 'heat.colors',  # pick color theme
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
   grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
-  units = c('s', 'Hz'),  # plot in s or ms, Hz or kHz
-  ylim = c(0, 5000),  # in specified units (Hz)
+  ylim = c(0, 5),  # always in kHz
   main = 'My spectrogram' # title
   # + axis labels, etc
 )
@@ -183,12 +187,8 @@ spectrogram(sound, samplingRate = 16000,
 spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
 
-# add an oscillogram
-spectrogram(sound, samplingRate = 16000, osc = TRUE)
-
-# oscillogram on a dB scale, same height as spectrogram
-spectrogram(sound, samplingRate = 16000,
-            osc_dB = TRUE, heights = c(1, 1))
+# remove the oscillogram
+spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 
 # frequencies on a logarithmic scale
 spectrogram(sound, samplingRate = 16000,
@@ -214,12 +214,18 @@ spectrogram(sound, samplingRate = 16000, contrast = 1, brightness = -1)
 
 # specify location of tick marks etc - see ?par() for base graphics
 spectrogram(sound, samplingRate = 16000,
-            ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, 1400, 4))
+            ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, .8, 10))
+
+# Plot long audio files with reduced resolution
+# (# ~4 s to process + 10 s to plot a 3-min song)
+sp = spectrogram('~/Downloads/temp.wav', overlap = 0,
+  maxPoints = c(1e5, 5e5),  # limit the number of pixels in osc/spec
+  output = 'original', ylim = c(0, 6))
+nrow(sp) * ncol(sp) / 5e5  # spec downsampled by a factor of ~9
 }
 }
 \seealso{
-\code{\link{modulationSpectrum}} \code{\link{ssm}}
-  \code{\link{osc_dB}}
+\code{\link{osc}} \code{\link{modulationSpectrum}} \code{\link{ssm}}
 
 \code{\link{modulationSpectrum}} \code{\link{ssm}}
 }

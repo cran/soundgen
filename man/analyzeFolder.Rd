@@ -48,9 +48,10 @@ analyzeFolder(
   snakePlot = FALSE,
   smooth = 1,
   smoothVars = c("pitch", "dom"),
-  summary = TRUE,
+  summary = NULL,
   summaryFun = c("mean", "median", "sd"),
   plot = FALSE,
+  osc = "linear",
   showLegend = TRUE,
   savePlots = FALSE,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3, showPrior = TRUE),
@@ -111,7 +112,7 @@ which frames will not be analyzed with pitchAutocor.}
 perform LPC analysis}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
-formant analysis)}
+formant analysis, NULL = as many as possible)}
 
 \item{pitchMethods}{methods of pitch estimation to consider for determining
 pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
@@ -123,9 +124,9 @@ a manually corrected pitch contour, ideally with the same windowLength and
 step as current call to analyzeFolder; a dataframe with at least two
 columns: "file" (w/o path) and "pitch" (character like "NA, 150, 175, NA")}
 
-\item{entropyThres}{pitch tracking is not performed for frames with Weiner
-entropy above \code{entropyThres}, but other spectral descriptives are
-still calculated}
+\item{entropyThres}{pitch tracking is only performed for frames with Weiner
+entropy below \code{entropyThres}, but other spectral descriptives are
+still calculated (NULL = analyze everything)}
 
 \item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
 
@@ -175,7 +176,9 @@ harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
 if unvoiced)}
 
-\item{shortestPause}{the smallest gap between voiced syllables (ms) that
+\item{shortestPause}{the smallest gap between voiced syllables (ms): large
+value = interpolate and merge, small value = treat as separate syllables
+separated by an unvoiced gap
 means they shouldn't be merged into one voiced syllable}
 
 \item{interpolWin}{control the behavior of
@@ -221,14 +224,18 @@ the variables in \code{smoothVars} are adjusted with median smoothing.
 \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
 deviation of ~4 semitones. To disable, set \code{smooth = 0}}
 
-\item{summary}{if TRUE, returns only a summary of the measured acoustic
-variables (mean, median and SD). If FALSE, returns a list containing
-frame-by-frame values}
+\item{summary}{deprecated}
 
-\item{summaryFun}{a vector of names of functions used to summarize each
-acoustic characteristic}
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+list containing frame-by-frame values}
 
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}
+
+\item{osc}{should an oscillogram be shown under the spectrogram? none = no
+osc; linear = on the original scale; dB = in decibels}
 
 \item{showLegend}{if TRUE, adds a legend with pitch tracking methods}
 

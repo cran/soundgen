@@ -18,11 +18,12 @@ segment(
   peakToTrough = 3,
   troughLeft = TRUE,
   troughRight = FALSE,
-  summary = FALSE,
+  summary = NULL,
+  summaryFun = NULL,
   plot = FALSE,
   savePath = NA,
   col = "green",
-  xlab = "Time, ms",
+  xlab = "",
   ylab = "Amplitude",
   main = NULL,
   width = 900,
@@ -79,6 +80,12 @@ on the left and/or right of it? Default to TRUE and FALSE, respectively}
 syllables and vocal bursts. If FALSE, returns a list containing full stats
 on each syllable and bursts (location, duration, amplitude, ...)}
 
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+list containing frame-by-frame values}
+
 \item{plot}{if TRUE, produces a segmentation plot}
 
 \item{savePath}{full path to the folder in which to save the plot. Defaults
@@ -93,7 +100,7 @@ to NA}
 
 \item{burstPlot}{a list of graphical parameters for displaying the bursts}
 
-\item{...}{other graphical parameters passed to \code{\link[graphics]{plot}}}
+\item{...}{other graphical parameters passed to graphics::plot}
 }
 \value{
 If \code{summary = TRUE}, returns only a summary of the number and
@@ -119,7 +126,7 @@ optimization against 260 human vocalizations in Anikin, A. & Persson, T.
 research: a validated corpus. Behavior Research Methods, 49(2): 758-771.
 }
 \examples{
-sound = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70,
+sound = soundgen(nSyl = 4, sylLen = 50, pauseLen = 70,
   pitch = c(368, 284), temperature = 0.1,
   noise = list(time = c(0, 67, 86, 186), value = c(-45, -47, -89, -120)),
   rolloff_noise = -8, amplGlobal = c(0, -20),
@@ -132,8 +139,8 @@ s = segment(sound, samplingRate = 16000, plot = TRUE)
 s = segment(sound, samplingRate = 16000, plot = TRUE,
   shortestSyl = 25, shortestPause = 25, sylThres = .2, burstThres = .05)
 
-# just a summary
-segment(sound, samplingRate = 16000, summary = TRUE)
+# just a summary (see examples in ?analyze for custom summaryFun)
+segment(sound, samplingRate = 16000, summaryFun = c('mean', 'sd'))
 # Note that syllables are slightly longer and pauses shorter than they should
 # be (b/c of the smoothing of amplitude envelope), while interburst intervals
 # are right on target (~120 ms)
@@ -145,7 +152,7 @@ s = segment(sound, samplingRate = 16000, plot = TRUE,
             col = 'black', lwd = .5,
             sylPlot = list(lty = 2, col = 'gray20'),
             burstPlot = list(pch = 16, col = 'gray80'),
-            xlab = 'ms', cex.lab = 1.2, main = 'My awesome plot')
+            xlab = 'Some custom label', cex.lab = 1.2, main = 'My awesome plot')
 
 \dontrun{
 # customize the resolution of saved plot

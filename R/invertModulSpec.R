@@ -47,14 +47,19 @@
 #'
 #' # Remove AM above 3 Hz from a bit of speech (remove most temporal details)
 #' s_filt1 = filterSoundByMS(target, samplingRate = samplingRate,
-#'   amCond = 'abs(am) > 3', nIter = 15)
+#'   amCond = 'abs(am) > 3', action = 'remove', nIter = 15)
 #' playme(s_filt1, samplingRate)
 #' spectrogram(s_filt1, samplingRate = samplingRate, osc = TRUE)
 #'
-#' # Remove slow AM/FM (prosody) to achieve a "robotic" voice
+#' # Barely any change when AM in 5-25 Hz is preserved:
 #' s_filt2 = filterSoundByMS(target, samplingRate = samplingRate,
-#'   jointCond = 'am^2 + (fm*3)^2 < 300', nIter = 15)
+#'   amCond = 'abs(am) > 5 & abs(am) < 25', action = 'preserve', nIter = 15)
 #' playme(s_filt2, samplingRate)
+#'
+#' # Remove slow AM/FM (prosody) to achieve a "robotic" voice
+#' s_filt3 = filterSoundByMS(target, samplingRate = samplingRate,
+#'   jointCond = 'am^2 + (fm*3)^2 < 300', nIter = 15)
+#' playme(s_filt3, samplingRate)
 #'
 #' ## An alternative manual workflow w/o calling filterSoundByMS()
 #' # This way you can modify the MS directly and more flexibly
@@ -70,7 +75,7 @@
 #'
 #' # Get modulation spectrum starting from the sound...
 #' ms = modulationSpectrum(s, samplingRate = samplingRate, windowLength = 25,
-#'   overlap = 80, wn = 'hanning', maxDur = Inf, logSpec = FALSE,
+#'   overlap = 80, wn = 'hanning', amRes = NULL, maxDur = Inf, logSpec = FALSE,
 #'   power = NA, returnComplex = TRUE, plot = FALSE)$complex
 #' # ... or starting from the spectrogram:
 #' # ms = specToMS(spec)
@@ -113,7 +118,7 @@
 #' plot(as.numeric(colnames(ms)), log(abs(ms[nrow(ms) / 2, ])), type = 'l')
 #' points(as.numeric(colnames(ms_new)), log(ms_new[nrow(ms_new) / 2, ]), type = 'l',
 #'   col = 'red', lty = 3)
-#' # AM peaks at 25 Hz are removed, but inverting the spectrogram adds a bit of noise
+#' # AM peaks at 25 Hz are removed, but inverting the spectrogram adds a lot of noise
 #' }
 filterSoundByMS = function(
   x,
@@ -168,6 +173,7 @@ filterSoundByMS = function(
     samplingRate = samplingRate,
     windowLength = windowLength,
     step = step, overlap = overlap, wn = wn,
+    amRes = NULL,  # no roughness contour, the whole sound at once
     maxDur = Inf, logSpec = logSpec,
     power = NA, returnComplex = TRUE,
     aggregComplex = FALSE,
@@ -178,7 +184,7 @@ filterSoundByMS = function(
   # Filter as needed
   ms_filt = filterMS(ms, amCond = amCond, fmCond = fmCond,
                      jointCond = jointCond,
-                     action = 'remove', plot = FALSE)
+                     action = action, plot = FALSE)
 
   # Convert back to a spectrogram
   spec_filt = msToSpec(ms_filt, windowLength = windowLength, step = step)
@@ -207,6 +213,7 @@ filterSoundByMS = function(
       samplingRate = samplingRate,
       windowLength = windowLength,
       step = step, overlap = overlap, wn = wn,
+      amRes = NULL,  # no roughness contour, the whole sound at once
       maxDur = Inf, logSpec = logSpec,
       power = NA, returnComplex = TRUE,
       aggregComplex = FALSE,
@@ -395,8 +402,12 @@ specToMS = function(spec, windowLength = NULL, step = NULL) {
   # Add labels
   if (addNames) {
     if (is.null(step)) step = diff(as.numeric(colnames(spec)))[1]
-    max_am = 1000 / step / 2
-    colnames(ms) = seq(-max_am, max_am, length.out = ncol(ms))   # AM
+    # AM
+    nc = ncol(ms)
+    bin_width = 1000 / step / nc
+    colnames(ms) = ((0:(nc - 1)) - nc / 2) * bin_width
+
+    # FM
     nr = nrow(ms)
     if (is.null(windowLength)) {
       samplingRate = (max(abs(as.numeric(rownames(spec)))) +  # middle of top bin
@@ -405,7 +416,7 @@ specToMS = function(spec, windowLength = NULL, step = NULL) {
       windowLength = nr * 2 / (samplingRate / 1000)
     }
     max_fm = windowLength / 2
-    rownames(ms) = seq(-max_fm, max_fm, length.out = nr)     # FM
+    rownames(ms) = seq(-max_fm, max_fm, length.out = nr)
   }
   return(ms)
 }
@@ -421,7 +432,7 @@ specToMS = function(spec, windowLength = NULL, step = NULL) {
 #' @inheritParams spectrogram
 #' @export
 #' @examples
-#' s = soundgen(sylLen = 500, amFreq = 25, amDep = 50,
+#' s = soundgen(sylLen = 250, amFreq = 25, amDep = 50,
 #'              pitch = 250, samplingRate = 16000)
 #' spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5)
 #' ms = specToMS(spec)
@@ -460,22 +471,10 @@ msToSpec = function(ms, windowLength = NULL, step = NULL) {
       windowLength = max_fm * 2
     }
     # From the def in spectrogram():
-    # windowLength_points = windowLength * samplingRate / 1000
-    # Y = seq(bin_width / 2,
-    #   samplingRate / 2 - bin_width / 2,
-    #   length.out = nrow(s2)) / 1000
-    # So:
-    # bin_width = samplingRate / 2 / windowLength_points =
-    # = samplingRate / 2 / windowLength / samplingRate * 1000 =
-    # = 1 / 2 / windowLength * 1000 = 1000 / windowLength / 2
-    bin_width = 1000 / windowLength / 2
     windowLength_points = nrow(s2) * 2
     samplingRate = windowLength_points / windowLength * 1000
-
     # frequency stamps
-    rownames(s2) = seq(bin_width / 2,
-                       samplingRate / 2 - bin_width / 2,
-                       length.out = nrow(s2)) / 1000
+    rownames(s2) = (0:(nrow(s2) - 1)) * samplingRate / windowLength_points / 1000
     # time stamps
     colnames(s2) = windowLength / 2 + (0:(ncol(s2) - 1)) * step
   }

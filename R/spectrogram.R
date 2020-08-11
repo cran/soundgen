@@ -14,8 +14,7 @@
 #' "units") or may produce unexpected results. If in doubt, omit extra graphical
 #' parameters.
 #'
-#' @seealso \code{\link{modulationSpectrum}} \code{\link{ssm}}
-#'   \code{\link{osc_dB}}
+#' @seealso \code{\link{osc}} \code{\link{modulationSpectrum}} \code{\link{ssm}}
 #'
 #' @param x path to a .wav or .mp3 file or a vector of amplitudes with specified
 #'   samplingRate
@@ -49,6 +48,9 @@
 #'   recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
 #'   sharpness
 #' @param brightness how much to "lighten" the image (>0 = lighter, <0 = darker)
+#' @param maxPoints the maximum number of "pixels" in the oscillogram (if any)
+#'   and spectrogram; good for plotting long audio files; defaults to c(1e5,
+#'   5e5)
 #' @param method plot spectrum ('spectrum') or spectral derivative
 #'   ('spectralDerivative')
 #' @param output specifies what to return: nothing ('none'), unmodified
@@ -59,9 +61,9 @@
 #' @param yScale scale of the frequency axis: 'linear' = linear, 'log' =
 #'   logarithmic
 #' @param plot should a spectrogram be plotted? TRUE / FALSE
-#' @param osc,osc_dB should an oscillogram be shown under the spectrogram? TRUE/
-#'   FALSE. If `osc_dB`, the oscillogram is displayed on a dB scale. See
-#'   \code{\link{osc_dB}} for details
+#' @param osc should an oscillogram be shown under the spectrogram? none = no
+#'   osc; linear = on the original scale; dB = in decibels
+#' @param osc_dB deprecated
 #' @param heights a vector of length two specifying the relative height of the
 #'   spectrogram and the oscillogram (including time axes labels)
 #' @param padWithSilence if TRUE, pads the sound with just enough silence to
@@ -70,12 +72,11 @@
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
 #'   or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 #'   'cm.colors', etc
-#' @param units c('ms', 'kHz') is the default, and anything else is interpreted
-#'   as s (for time) and Hz (for frequency)
-#' @param xlab,ylab,main,mar graphical parameters
+#' @param units deprecated
+#' @param xlab,ylab,main,mar,xaxp graphical parameters
 #' @param grid if numeric, adds n = \code{grid} dotted lines per kHz
 #' @param ... other graphical parameters
-#' @param frameBank,duration,pitch ignore (only used internally)
+#' @param internal ignore (only used internally)
 #' @export
 #' @return Returns nothing (if output = 'none'), absolute - not power! -
 #'   spectrum (if output = 'original'), denoised and/or smoothed spectrum (if
@@ -95,14 +96,14 @@
 #' \dontrun{
 #' # add bells and whistles
 #' spectrogram(sound, samplingRate = 16000,
-#'   osc = TRUE,  # plot oscillogram under the spectrogram
+#'   osc = 'dB',  # plot oscillogram in dB
+#'   heights = c(2, 1),  # spectro/osc height ratio
 #'   noiseReduction = 1.1,  # subtract the spectrum of noisy parts
 #'   brightness = -1,  # reduce brightness
 #'   colorTheme = 'heat.colors',  # pick color theme
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
 #'   grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
-#'   units = c('s', 'Hz'),  # plot in s or ms, Hz or kHz
-#'   ylim = c(0, 5000),  # in specified units (Hz)
+#'   ylim = c(0, 5),  # always in kHz
 #'   main = 'My spectrogram' # title
 #'   # + axis labels, etc
 #' )
@@ -111,12 +112,8 @@
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
 #'
-#' # add an oscillogram
-#' spectrogram(sound, samplingRate = 16000, osc = TRUE)
-#'
-#' # oscillogram on a dB scale, same height as spectrogram
-#' spectrogram(sound, samplingRate = 16000,
-#'             osc_dB = TRUE, heights = c(1, 1))
+#' # remove the oscillogram
+#' spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 #'
 #' # frequencies on a logarithmic scale
 #' spectrogram(sound, samplingRate = 16000,
@@ -142,7 +139,14 @@
 #'
 #' # specify location of tick marks etc - see ?par() for base graphics
 #' spectrogram(sound, samplingRate = 16000,
-#'             ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, 1400, 4))
+#'             ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, .8, 10))
+#'
+#' # Plot long audio files with reduced resolution
+#' # (# ~4 s to process + 10 s to plot a 3-min song)
+#' sp = spectrogram('~/Downloads/temp.wav', overlap = 0,
+#'   maxPoints = c(1e5, 5e5),  # limit the number of pixels in osc/spec
+#'   output = 'original', ylim = c(0, 6))
+#' nrow(sp) * ncol(sp) / 5e5  # spec downsampled by a factor of ~9
 #' }
 spectrogram = function(
   x,
@@ -160,30 +164,31 @@ spectrogram = function(
   qTime = 0,
   percentNoise = 10,
   noiseReduction = 0,
-  contrast = .2,
-  brightness = 0,
   method = c('spectrum', 'spectralDerivative')[1],
   output = c('original', 'processed', 'complex')[1],
+  plot = TRUE,
+  osc = c('none', 'linear', 'dB')[2],
+  osc_dB = NULL,
+  heights = c(3, 1),
   ylim = NULL,
   yScale = c('linear', 'log')[1],
-  plot = TRUE,
-  osc = FALSE,
-  osc_dB = FALSE,
-  heights = c(3, 1),
+  contrast = .2,
+  brightness = 0,
+  maxPoints = c(1e5, 5e5),
   padWithSilence = TRUE,
   colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
-  units = c('ms', 'kHz'),
-  xlab = paste('Time,', units[1]),
-  ylab = paste('Frequency,', units[2]),
+  units = 'deprecated',
+  xlab = NULL,
+  ylab = NULL,
+  xaxp = NULL,
   mar = c(5.1, 4.1, 4.1, 2),
   main = '',
   grid = NULL,
-  frameBank = NULL,
-  duration = NULL,
-  pitch = NULL,
+  internal = NULL,
   ...
 ) {
   sound = NULL
+  duration = internal$duration
   if (overlap < 0 | overlap > 100) {
     warning('overlap must be >0 and <= 100%; resetting to 70')
     overlap = 70
@@ -204,25 +209,15 @@ spectrogram = function(
     windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
     sound = sound_wav@left
     maxAmpl = 2^(sound_wav@bit - 1)
-    if (windowLength_points > (length(sound) / 2)) {
-      windowLength_points = floor(length(sound) / 4) * 2
+    ls = length(sound)
+    if (windowLength_points > (ls / 2)) {
+      windowLength_points = floor(ls / 4) * 2
       step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
     }
     if (windowLength_points == 0) {
       stop('The sound and/or the windowLength is too short for plotting a spectrogram')
     }
-    duration = length(sound) / samplingRate
-    frameBank = getFrameBank(
-      sound = sound,
-      samplingRate = samplingRate,
-      windowLength_points = windowLength_points,
-      step = step,
-      zp = zp,
-      normalize = normalize,
-      wn = wn,
-      filter = NULL,
-      padWithSilence = padWithSilence
-    )
+    duration = ls / samplingRate
   } else if (class(x)[1] == 'numeric' & length(x) > 1) {
     if (is.null(samplingRate)) {
       stop ('Please specify samplingRate, eg 44100')
@@ -233,27 +228,36 @@ spectrogram = function(
       } else {
         maxAmpl = scale
       }
-      duration = length(sound) / samplingRate
+      ls = length(sound)
+      duration = ls / samplingRate
       windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
-      if (windowLength_points > (length(sound) / 2)) {
-        windowLength_points = floor(length(sound) / 4) * 2
+      if (windowLength_points > (ls / 2)) {
+        windowLength_points = floor(ls / 4) * 2
         step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
       }
       if (windowLength_points == 0) {
         stop('The sound and/or the windowLength is too short for plotting a spectrogram')
       }
-      frameBank = getFrameBank(
-        sound = sound,
-        samplingRate = samplingRate,
-        windowLength_points = windowLength_points,
-        step = step,
-        zp = zp,
-        normalize = normalize,
-        wn = wn,
-        filter = NULL,
-        padWithSilence = padWithSilence
-      )
     }
+  }
+
+  # Get a bank of windowed frames
+  if (is.null(internal$timeShift)) internal$timeShift = 0
+  if (!is.null(sound)) {
+    frameBank = getFrameBank(
+      sound = sound,
+      samplingRate = samplingRate,
+      windowLength_points = windowLength_points,
+      step = step,
+      zp = zp,
+      normalize = normalize,
+      wn = wn,
+      filter = NULL,
+      padWithSilence = padWithSilence,
+      timeShift = internal$timeShift
+    )
+  } else {
+    frameBank = internal$frameBank
   }
   if (class(frameBank)[1] != 'matrix') {
     stop(
@@ -263,22 +267,15 @@ spectrogram = function(
   }
 
   # fix default settings
-  if (is.null(ylim)) {
-    if (units[2] == 'kHz') {
-      ylim = c(0, samplingRate / 2 / 1000)
-    } else {
-      ylim = c(0, samplingRate / 2)
-    }
-  }
   contrast_exp = exp(3 * contrast)
   brightness_exp = exp(3 * brightness)
   # visualization: plot(exp(3 * seq(-1, 1, by = .01)), type = 'l')
 
-  # FFT
+  # Prepare for FFT
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
   if (!is.null(sound)) {
-    if (windowLength_points > (length(sound) / 2)) {
-      windowLength_points = floor(length(sound) / 4) * 2
+    if (windowLength_points > (ls / 2)) {
+      windowLength_points = floor(ls / 4) * 2
       step = windowLength_points / samplingRate * 1000 * (1 - overlap / 100)
     }
   }
@@ -286,24 +283,29 @@ spectrogram = function(
     stop('The sound and/or the windowLength is too short for plotting a spectrogram')
   }
 
-  # fft of each frame
-  z = apply(frameBank, 2, function(x) stats::fft(x)[1:(floor(nrow(frameBank) / 2))])
-  if (!is.matrix(z)) z = matrix(z, ncol = 1)
+  # time stamps
+  X = as.numeric(colnames(frameBank))
   # adjust the timing of spectrogram to match the actual time stamps
   # in getFrameBank (~the middle of each fft frame)
-  X = as.numeric(colnames(frameBank))
   if (length(X) < 2) {
     message('The sound is too short for plotting a spectrogram')
     return(NA)
   }
-  bin_width = samplingRate / 2 / windowLength_points
-  Y = seq(bin_width / 2,
-          samplingRate / 2 - bin_width / 2,
-          length.out = nrow(z)) / 1000  # frequency stamp
+
+  # frequency stamps
+  zpExtra = max(0, floor((zp - windowLength_points) / 2) * 2)
+  windowLength_points = windowLength_points + zpExtra
+  n1 = floor(windowLength_points / 2)  # zpExtra
+  bin_width = samplingRate / windowLength_points
+  Y = (0:(n1 - 1)) * bin_width / 1000
   if (length(Y) < 2) {
     message('The sound and/or the windowLength is too short for plotting a spectrogram')
     return(NA)
   }
+
+  # fft of each frame
+  z = apply(frameBank, 2, function(x) stats::fft(x)[1:n1])
+  if (!is.matrix(z)) z = matrix(z, ncol = 1)
   rownames(z) = Y
   colnames(z) = X
   Z = t(abs(z))
@@ -378,27 +380,44 @@ spectrogram = function(
   }
 
   if (plot) {
-    # spectrogram of the modified fft
+    # produce a spectrogram of the modified fft
     color.palette = switchColorTheme(colorTheme)
+    if (osc == TRUE) osc = 'linear' else if (!is.character(osc)) osc = 'none'
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
-    if (osc | osc_dB) {
-      if (osc_dB) {
-        sound = osc_dB(sound,
-                       dynamicRange = dynamicRange,
-                       maxAmpl = maxAmpl,
-                       plot = FALSE,
-                       returnWave = TRUE)
+    if (is.null(xlab)) xlab = ''
+    if (!is.null(maxPoints)) {
+      if (length(maxPoints) == 1) maxPoints = c(maxPoints, maxPoints)
+    }
+    if (is.null(ylim)) ylim = c(0, samplingRate / 2 / 1000)
+
+    lx = length(X)
+    ly = length(Y)
+    x_ms = X[lx] < 1    # need to convert x-scale
+    y_Hz = ylim[2] < 1  # need to convert y-scale
+
+    if (osc %in% c('linear', 'dB')) {
+      # For long files, downsample before plotting
+      if (!is.null(maxPoints) && maxPoints[1] < ls) {
+        myseq = round(seq(1, ls, by = ls / maxPoints[1]))
+        sound = sound[myseq]
+        ls = length(myseq)
+      }
+
+      if (osc == 'dB') {
+        sound = osc(sound,
+                    dynamicRange = dynamicRange,
+                    dB = TRUE,
+                    maxAmpl = maxAmpl,
+                    plot = FALSE,
+                    returnWave = TRUE)
         ylim_osc = c(-2 * dynamicRange, 0)
       } else {
         ylim_osc = c(-maxAmpl, maxAmpl)
       }
+
       layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
       par(mar = c(mar[1:2], 0, mar[4]), xaxt = 's', yaxt = 's')
-      if (units[1] == 'ms') {
-        time_stamps = seq(0, duration * 1000, length.out = length(sound))
-      } else {
-        time_stamps = seq(0, duration, length.out = length(sound))
-      }
+      time_stamps = seq(0, duration, length.out = ls) + internal$timeShift
       plot(
         time_stamps,
         sound,
@@ -407,11 +426,14 @@ spectrogram = function(
         axes = FALSE, xaxs = "i", yaxs = "i", bty = 'o',
         xlab = xlab, ylab = '', main = '', ...)
       box()
-      axis(side = 1, ...)
-      if (osc_dB) {
+      time_location = axTicks(1, axp = xaxp)
+      time_labels = convert_sec_to_hms(time_location, 3)
+      axis(side = 1, at = time_location, labels = time_labels, ...)
+
+      if (osc == 'dB') {
         axis(side = 4, at = seq(-dynamicRange, 0, by = 10), ...)
         abline(h = -dynamicRange, lty = 2, col = 'gray70')
-        mtext("dB", side = 2, line = 3, ...)
+        # mtext("dB", side = 2, line = 3, ...)
       } else {
         abline(h = 0, lty = 2, col = 'gray70')
       }
@@ -421,36 +443,67 @@ spectrogram = function(
       par(mar = mar)
     }
 
-    min_log_freq = ifelse(units[2] == 'kHz', .01, 10)
-    if (yScale == 'log' & ylim[1] < min_log_freq)  ylim[1] = min_log_freq
-    if (units[1] == 'ms') {
-      xlim = c(0, duration * 1000)
+    if (x_ms) {
+      xlim = c(0, duration * 1000) + internal$timeShift * 1000
     } else {
       X = X / 1000
-      xlim = c(0, duration)
+      xlim = c(0, duration) + internal$timeShift
     }
-    if (units[2] != 'kHz') Y = Y * 1000
+    if (y_Hz) {
+      Y = Y * 1000
+      ylim = ylim * 1000
+      min_log_freq = 10
+      if (is.null(ylab)) ylab = 'Frequency, Hz'
+    }  else {
+      min_log_freq = .01
+      if (is.null(ylab)) ylab = 'Frequency, kHz'
+    }
+    if (yScale == 'log' & ylim[1] < min_log_freq)  ylim[1] = min_log_freq
+    idx_y = which(Y >= (ylim[1] / 1.05) & Y <= (ylim[2] * 1.05))
+    # 1.05 to avoid having a bit of white space
+    Y = Y[idx_y]
+    ly = length(Y)
+    Z1_plot = Z1[, idx_y]
+
+    # For long files, downsample before plotting
+    lxy = lx *ly
+    if (!is.null(maxPoints) && maxPoints[2] < lxy) {
+      message(paste('Plotting with reduced resolution;',
+                    'increase maxPoints or set to NULL to override'))
+      downs = sqrt(lxy / maxPoints[2])
+      seqx = round(seq(1, lx, length.out = lx / downs))
+      seqy = round(seq(1, ly, length.out = ly / downs))
+      X = X[seqx]
+      Y = Y[seqy]
+      Z1_plot = Z1[seqx, seqy]
+    }
+
     filled.contour.mod(
-      x = X, y = Y, z = Z1,
+      x = X, y = Y, z = Z1_plot,
       levels = seq(0, 1, length = 30),
       color.palette = color.palette,
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
-      xlim = xlim,
+      xlim = xlim, xaxt = 'n',
       log = ifelse(yScale == 'log', 'y', ''),
       ...
     )
+    if (!(osc %in% c('linear', 'dB'))) {
+      time_location = axTicks(1, axp = xaxp)
+      time_labels = convert_sec_to_hms(time_location, 3)
+      axis(side = 1, at = time_location, labels = time_labels, ...)
+    }
     if (is.numeric(grid)) {
       n_grid_per_kHz = diff(range(ylim)) * grid
-      if (units[2] != 'kHz') n_grid_per_kHz = n_grid_per_kHz / 1000
+      if (Y[length(Y)] < 1) n_grid_per_kHz = n_grid_per_kHz / 1000
       grid(nx = n_grid_per_kHz, ny = n_grid_per_kHz,
            col = rgb(0, 0, 0, .25, maxColorValue = 1), lty = 3)
       # grid(nx = NULL, ny = NULL,
       #      col = rgb(0, 0, 0, .25, maxColorValue = 1), lty = 3,
       #      equilogs = TRUE)
     }
-    if (!is.null(pitch)) {
-      do.call(addPitchCands, pitch)
+    if (!is.null(internal$pitch)) {
+      do.call(addPitchCands, internal$pitch)
     }
     # restore original pars
     par('mar' = op$mar, 'xaxt' = op$xaxt, 'yaxt' = op$yaxt, 'mfrow' = op$mfrow)
@@ -494,27 +547,27 @@ spectrogram = function(
 #'   '~/Downloads/temp',
 #'   windowLength = 40, overlap = 75,  # spectrogram pars
 #'   width = 1500, height = 900,        # passed to png()
-#'   osc = TRUE, osc_dB = TRUE, heights = c(1, 1)
+#'   osc = 'dB', heights = c(1, 1)
 #' )
 #' # note that the folder now also contains an html file with clickable plots
 #' }
-spectrogramFolder = function(myfolder,
-                             htmlPlots = TRUE,
-                             verbose = TRUE,
-                             windowLength = 50,
-                             step = NULL,
-                             overlap = 50,
-                             wn = 'gaussian',
-                             zp = 0,
-                             ylim = NULL,
-                             osc = TRUE,
-                             xlab = 'Time, ms',
-                             ylab = 'kHz',
-                             width = 900,
-                             height = 500,
-                             units = 'px',
-                             res = NA,
-                             ...) {
+spectrogramFolder = function(
+  myfolder,
+  htmlPlots = TRUE,
+  verbose = TRUE,
+  windowLength = 50,
+  step = NULL,
+  overlap = 50,
+  wn = 'gaussian',
+  zp = 0,
+  ylim = NULL,
+  xlab = 'Time, ms',
+  ylab = 'kHz',
+  width = 900,
+  height = 500,
+  units = 'px',
+  res = NA,
+  ...) {
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
   if (length(filenames) < 1) {
@@ -538,7 +591,6 @@ spectrogramFolder = function(myfolder,
       wn = wn,
       zp = zp,
       ylim = ylim,
-      osc = osc,
       xlab = xlab,
       ylab = ylab,
       main = basename(f),
@@ -566,7 +618,7 @@ spectrogramFolder = function(myfolder,
 #' @keywords internal
 #' @examples
 #' wns = c('bartlett', 'blackman', 'flattop', 'hamming', 'hanning', 'rectangle', 'gaussian')
-#' l = 200
+#' l = 16
 #' par(mfrow = c(4, 2))
 #' for (w in wns) {
 #'   plot(1:l, soundgen:::ftwindow_modif(wl = l, wn = w), type = 'b', main = w)
@@ -598,9 +650,11 @@ ftwindow_modif = function (wl, wn = "gaussian") {
 #' @param n window length, in points
 #' @keywords internal
 gaussian.w = function(n) {
-  if (n == 0)
-    stop("'n' must be a positive integer")
-  w = (exp(-12 * (((1:n) / n) - 0.5) ^ 2) - exp(-12)) / (1 - exp(-12))
+  if (n < 2)
+    stop("'n' must be a positive integer >1")
+  n1 = n - 1
+  e12 = exp(-12)
+  w = (exp(-12 * (((0:n1) / n1) - 0.5) ^ 2) - e12) / (1 - e12)
   # Boersma (PRAAT)
   return(w)
 }
@@ -616,6 +670,7 @@ gaussian.w = function(n) {
 #' @inheritParams spectrogram
 #' @param windowLength_points length of fft window (points)
 #' @param filter fft window filter (defaults to NULL)
+#' @param timeShift time (s) added to timestamps
 #' @return A matrix with \code{nrow = windowLength_points/2} and \code{ncol}
 #'   depending on \code{length(sound)} and \code{step}
 #' @keywords internal
@@ -629,7 +684,8 @@ getFrameBank = function(sound,
                         zp,
                         normalize = TRUE,
                         filter = NULL,
-                        padWithSilence = FALSE) {
+                        padWithSilence = FALSE,
+                        timeShift = NULL) {
   # # normalize to range from no less than -1 to no more than +1
   if (!is.numeric(sound)) return(NA)
   sound[is.na(sound)] = 0
@@ -654,12 +710,14 @@ getFrameBank = function(sound,
     time_stamps = (myseq - 1 + windowLength_points / 2) *
       1000 / samplingRate
   }
+  if (!is.null(timeShift)) time_stamps = time_stamps + round(timeShift * 1000)
 
   if (is.null(filter)) {
     filter = ftwindow_modif(wl = windowLength_points, wn = wn)
   }
-  zpExtra = floor((zp - windowLength_points) / 2) * 2 # how many extra zeroes
-  # we pad with. Made even
+
+  # zero padding
+  zpExtra = max(0, floor((zp - windowLength_points) / 2) * 2)
   if (zpExtra > 0) {
     frameBank = apply(as.matrix(myseq), 1, function(x) {
       c(rep(0, zpExtra / 2),
@@ -730,18 +788,20 @@ filled.contour.mod = function(
 }
 
 
-#' Oscillogram dB
+#' Oscillogram
 #'
-#' Plots the oscillogram (waveform) of a sound on a logarithmic scale, in dB.
-#' Analogous to "Waveform (dB)" view in Audacity.
-#'
-#' Algorithm: centers and normalizes the sound, then takes a logarithm of the positive part
-#' and a flipped negative part.
-#' @return Returns the input waveform on a dB scale: a vector with
-#'   range from `-dynamicRange` to `dynamicRange`.
+#' Plots the oscillogram (waveform) of a sound on a linear or logarithmic scale
+#' (in dB). To get a dB scale, centers and normalizes the sound, then takes a
+#' logarithm of the positive part and a flipped negative part, which is
+#' analogous to "Waveform (dB)" view in Audacity. For more plotting options,
+#' check \code{\link[seewave]{oscillo}}.
+#' @return If \code{returnWave = TRUE}, returns the input waveform on the
+#'   original or dB scale: a vector with range from `-dynamicRange` to
+#'   `dynamicRange`.
 #' @param x path to a .wav file or a vector of amplitudes with specified
 #'   samplingRate
 #' @param dynamicRange dynamic range of the oscillogram, dB
+#' @param dB if TRUE, plots on a dB instead of linear scale
 #' @param maxAmpl the maximum theoretically possible value indicating on which
 #'   scale the sound is coded: 1 if the range is -1 to +1, 2^15 for 16-bit wav
 #'   files, etc
@@ -752,40 +812,58 @@ filled.contour.mod = function(
 #' @param xlab,ylab axis labels
 #' @param bty box type (see `?par`)
 #' @param midline if TRUE, draws a line at 0 dB
+#' @param maxPoints the maximum number of points to plot (speeds up the plotting
+#'   of long audio files, but beware of antialiasing)
 #' @param ... Other graphical parameters passed on to `plot()`
 #' @export
 #' @examples
 #' sound = sin(1:2000/10) *
 #'         getSmoothContour(anchors = c(1, .01, .5), len = 2000)
 #'
-#' # Oscillogram on a linear scale
+#' # Oscillogram on a linear scale without bells and whistles, just base R
 #' plot(sound, type = 'l')
-#' # or, for fancy plotting options: seewave::oscillo(sound, f = 1000)
 #'
-#' # Oscillogram on a dB scale
-#' osc_dB(sound)
+#' # Oscillogram options with soundgen
+#' osc(sound)             # linear
+#' osc(sound, dB = TRUE)  # dB
 #'
-#' # Time in ms if samplingRate is specified
-#' osc_dB(sound, samplingRate = 5000)
-#'
-#' # Assuming that the waveform can range up to 50 instead of 1
-#' osc_dB(sound, maxAmpl = 50)
+#' # For numeric vectors, indicate max amplitude
+#' osc(sound, maxAmpl = 100, dB = TRUE)
 #'
 #' # Embellish and customize the plot
-#' o = osc_dB(sound, samplingRate = 1000, midline = FALSE,
-#'            main = 'My waveform', col = 'blue')
-#' abline(h = 0, col = 'orange', lty = 3)
-osc_dB = function(x,
-                  dynamicRange = 80,
-                  maxAmpl = NULL,
-                  samplingRate = NULL,
-                  returnWave = FALSE,
-                  plot = TRUE,
-                  xlab = NULL,
-                  ylab = 'dB',
-                  bty = 'n',
-                  midline = TRUE,
-                  ...) {
+#' o = osc(sound, dB = TRUE, samplingRate = 1000, midline = FALSE,
+#'         main = 'My waveform', col = 'blue', returnWave = TRUE)
+#' abline(h = -80, col = 'orange', lty = 3)
+#' o[1:10]  # the waveform in dB
+#'
+#' \dontrun{
+#' # audio file
+#' data(sheep, package = 'seewave')
+#' osc(sheep@left, samplingRate = sheep@samp.rate, dB = TRUE)
+#'
+#' # for long files, reduce the resolution to plot quickly (careful: if the
+#' # resolution is too low, antialiasing may cause artifacts)
+#' osc(sheep@left, samplingRate = sheep@samp.rate, dB = TRUE, maxPoints = 2500)
+#' osc(sound, samplingRate = 5000, maxPoints = 100)
+#'
+#' # files several minutes long can be plotted in under a second
+#' osc('~/Downloads/speechEx.wav', maxPoints = 20000)
+#' }
+osc = function(
+  x,
+  dynamicRange = 80,
+  dB = FALSE,
+  maxAmpl = NULL,
+  samplingRate = NULL,
+  returnWave = FALSE,
+  plot = TRUE,
+  xlab = NULL,
+  ylab = NULL,
+  bty = 'n',
+  midline = TRUE,
+  maxPoints = 10000,
+  ...
+) {
   # import a sound
   if (class(x)[1] == 'character') {
     sound_wav = tuneR::readWave(x)
@@ -797,42 +875,173 @@ osc_dB = function(x,
   }
 
   # get original range
+  rs = range(sound)
+  d = diff(rs)
   if (!is.null(maxAmpl)) {
-    mult = diff(range(sound)) / 2 / maxAmpl
+    mult = d / 2 / maxAmpl
+    m = maxAmpl
   } else {
     mult = 1  # assume max loudness
+    m = max(abs(rs))
   }
 
-  # center and normalize to range from -1 to +1, unless it is quieter than maxAmpl
-  s1 = sound - mean(sound)
-  s1 = s1 / max(abs(s1)) * mult
+  if (dB) {
+    # center and normalize to range from -1 to +1, unless it is quieter than maxAmpl
+    ms = mean(sound)
+    s1 = sound - ms
+    rs = rs - ms
+    s1 = s1 / max(abs(rs)) * mult
 
-  # indices of values above/below midline
-  floor = 10^(-dynamicRange / 20)  # treat smaller values as 0 (beyond dynamic range)
-  zero = which(abs(s1) < floor)
-  pos = which(s1 > floor)
-  neg = which(s1 < -floor)
+    # treat smaller values as 0 (beyond dynamic range)
+    floor = 10^(-dynamicRange / 20)
+    zero = which(abs(s1) < floor)
 
-  # log-transform
-  sound[pos] = 20 * log10(s1[pos])
-  sound[neg] = -20 * log10(-s1[neg]) - 2 * dynamicRange
-  sound[zero] = -dynamicRange
+    # get indices of values above/below midline
+    pos = which(s1 > floor)
+    neg = which(s1 < -floor)
+
+    # log-transform
+    sound[pos] = 20 * log10(s1[pos])
+    sound[neg] = -20 * log10(-s1[neg]) - 2 * dynamicRange
+    sound[zero] = -dynamicRange
+    midline_pos = -dynamicRange
+  } else {
+    midline_pos = mean(rs)
+  }
 
   # plot
   if (plot) {
+    # For long files, downsample before plotting
+    l = length(sound)
+    if (!is.null(maxPoints) && maxPoints < l) {
+      myseq = round(seq(1, l, by = l / maxPoints))
+      maxPoints = length(myseq)
+      sound_plot = sound[myseq]
+    } else {
+      maxPoints = l
+      sound_plot = sound
+    }
+
+    # Get time stamps
     if (!is.null(samplingRate)) {
-      time = 1:length(sound) / samplingRate * 1000
+      time = seq(1, l, length.out = maxPoints) / samplingRate * 1000
       if (is.null(xlab)) xlab = 'Time, ms'
     } else {
-      time = 1:length(sound)
+      time = seq(1, l, length.out = maxPoints)
       if (is.null(xlab)) xlab = 'Time, points'
     }
-    # plot(time, sound, type = 'l', xlab = xlab, ylab = ylab, ...)
-    plot(time, sound, type = 'l', xlab = xlab, ylab = ylab,
-         bty = bty, yaxt = 'n', ylim = c(-2 * dynamicRange, 0), ...)
-    axis(side = 2, at = seq(-dynamicRange, 0, by = 10))
-    if (midline) abline(h = -dynamicRange, lty = 2, col = 'gray70')
+    if (is.null(ylab)) if (dB) ylab = 'dB' else ylab = ''
+    if (dB) ylim = c(-2 * dynamicRange, 0) else ylim = c(-m, m)
+
+    # plot
+    plot(time, sound_plot, type = 'l', xlab = xlab, ylab = ylab,
+         bty = bty, xaxt = 'n', yaxt = 'n', ylim = ylim, ...)
+    time_location = axTicks(1)
+    if (!is.null(samplingRate)) {
+      time_labels = convert_sec_to_hms(time_location / 1000, 3)
+    } else {
+      time_labels = time_location
+    }
+    axis(side = 1, at = time_location, labels = time_labels)
+    if (dB) {
+      axis(side = 2, at = seq(-dynamicRange, 0, by = 10))
+    } else {
+      axis(side = 2)
+    }
+    if (midline) abline(h = midline_pos, lty = 2, col = 'gray70')
   }
 
-  if (returnWave) return(sound)
+  if (returnWave) invisible(sound)
 }
+
+#' Oscillogram on a decibell scale
+#'
+#' Deprecated; use \code{link{osc}} instead.
+#' @inheritParams osc
+#' @export
+#' @examples
+#' sound = sin(1:2000/10) *
+#'         getSmoothContour(anchors = c(1, .01, .5), len = 2000)
+#' osc_dB(sound)
+osc_dB = function(
+  x,
+  dynamicRange = 80,
+  dB = TRUE,
+  maxAmpl = NULL,
+  samplingRate = NULL,
+  returnWave = FALSE,
+  plot = TRUE,
+  xlab = NULL,
+  ylab = NULL,
+  bty = 'n',
+  midline = TRUE,
+  maxPoints = NULL,
+  ...
+) {
+  message("osc_dB is deprecated; please use osc(dB = TRUE) isntead")
+  myPars = mget(names(formals()), sys.frame(sys.nframe()))
+  # exclude ...
+  myPars = myPars[1:(length(myPars)-1)]
+  do.call(osc, myPars)
+}
+
+#' Get smooth spectrum
+#'
+#' Internal soundgen function.
+#' @param sound the audio (numeric, any scale)
+#' @inheritParams spectrogram
+#' @param a pre-extracted spectrum in dB with columns "freq" and "ampl"
+#' @param len the desired resolution of the output
+#' @param loessSpan passed to loess to control the amount of smoothing (.01 =
+#'   minimal smoothing, 1 = strong smoothing)
+#' @keywords internal
+#' @examples
+#' s = soundgen(sylLen = 100, pitch = 500, addSilence = FALSE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .01, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .1, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .5, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = 1, plot = TRUE)
+#'
+#' sp = seewave::meanspec(s, f = 16000, dB = 'max0')
+#' colnames(sp) = c('freq', 'ampl')
+#' soundgen:::getSmoothSpectrum(spectrum = sp, len = 500, loessSpan = .1, plot = TRUE)
+getSmoothSpectrum = function(sound,
+                             samplingRate = NULL,
+                             spectrum = NULL,
+                             len,
+                             loessSpan,
+                             windowLength = 100,
+                             overlap = 0,
+                             plot = FALSE,
+                             xlab = 'Frequency, kHz',
+                             ylab = 'dB',
+                             type = 'l',
+                             ...) {
+  if (is.null(spectrum)) {
+    # assume that input is a sound
+    # Get high-res mean spectrum with seewave
+    # (faster than smoothing the raw, super-long spectrum)
+    if (is.null(samplingRate)) stop('Please provide samplingRate')
+    wl = round(min(windowLength / 1000 * samplingRate, length(sound) - 1) / 2) * 2
+    # must be even, otherwise seewave complains
+    spectrum = as.data.frame(seewave::meanspec(
+      sound, f = samplingRate, wl = wl, ovlp = overlap,
+      dB = 'max0', plot = FALSE))
+    colnames(spectrum) = c('freq', 'ampl')
+    # plot(spectrum, type = 'l')
+  } else {
+    spectrum = as.data.frame(spectrum)
+  }
+
+  # Smooth this mean spectrum with loess and upsample to /len/
+  l = suppressWarnings(loess(spectrum$ampl ~ spectrum$freq, span = loessSpan))
+  # plot(spectrum$freq, predict(l), type = 'l')
+  freq_loess = seq(spectrum$freq[1], spectrum$freq[nrow(spectrum)], length.out = len)
+  ampl_loess = try(predict(l, freq_loess, silent = TRUE))
+  out = data.frame(freq = freq_loess, ampl = ampl_loess)
+
+  if (plot) plot(out, type = type, xlab = xlab, ylab = ylab, ...)
+
+  invisible(out)
+}
+

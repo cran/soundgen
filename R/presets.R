@@ -73,11 +73,15 @@ permittedValues = matrix(c(
   'pitchCeiling', 3500, 10, 100000, 10,
   'pitchSamplingRate', 16000, 10, 100000, 10,
   'noiseFlatSpec', 1200, 0, 4000, 100,
+  'loessSpan', .5, 0, Inf, .001,
+  'discontThres', .05, 0, 1, .001,
+  'jumpThres', .01, 0, 1, .001,
 
   # soundgen_app() settings, which are not needed for soundgen()
   'specWindowLength', 40, 5, 100, 2.5,
   'specContrast', .2, -1, 1, .05,
   'specBrightness', 0, -1, 1, .05,
+  'spec_ylim', 5, 0, 22, 1,
   'mouthOpening', .5, 0, 1, .05,
   'pitch', 100, 1, 3500, 1,  # set pitch range per species
   'pitchDeltas', 0, -24, 24, 1,  # pitchGlobal range
@@ -242,7 +246,11 @@ defaults_analyze = matrix(c(
   # pitch_app() settings, which are not needed for analyze()
   'specContrast', .2, -1, 1, .05,
   'specBrightness', 0, -1, 1, .05,
-  'spec_ylim', 5, 0, 22, 0.1
+  'spec_ylim', 5, 0, 22, 0.1,
+  'spec_maxPoints', 5.5, 3, 7, .25,
+  'spec_cex', 1, .1, 10, .1,
+  'osc_maxPoints', 5, 3, 7, .5,
+  'osc_height', 100, 25, 500, 25
 ), ncol=5, byrow=TRUE)
 temp = defaults_analyze[,1]
 defaults_analyze = apply(defaults_analyze[,2:5], 2, as.numeric)
@@ -280,6 +288,57 @@ for (p in c('pch', 'cex', 'lwd', 'lty')) {
   defaults_analyze_pitchCand[, p] = as.numeric(defaults_analyze_pitchCand[, p])
 }
 # usethis::use_data(defaults_analyze_pitchCand, overwrite = TRUE)
+
+
+#' Defaults and ranges for formant_app()
+#'
+#' Internal soundgen list of defaults.
+#'
+#' A dataset containing defaults and ranges of key variables for formant_app().
+#' Adjust as needed.
+#' @keywords internal
+#' @format A matrix with 4 columns:
+#' \describe{
+#'   \item{default}{default value}
+#'   \item{low}{lowest permitted value}
+#'   \item{high}{highest permitted value}
+#'   \item{step}{increment for adjustment}
+#'   ...
+#' }
+"def_form"
+def_form = matrix(c(
+  'nFormants', 4, 1, 10, 1,       # default, low, high, step
+  'silence', 0.04, 0, 1, .01,
+  'minformant', 200, 10, 5000, 10,
+  'maxbw', 600, 10, 5000, 10,
+
+  'windowLength_lpc', 10, 1, 100, 1,
+  'overlap_lpc', 50, 0, 99, 1,
+  'dynamicRange_lpc', 80, 10, 200, 10,
+  'zp_lpc', 0, 0, 13, 1,
+
+  'spec_ylim', 5, 0, 96, 0.1,
+  'specContrast', .2, -1, 1, .05,
+  'specBrightness', 0, -1, 1, .05,
+  'windowLength', 40, 1, 500, 1,
+  'overlap', 50, 0, 99, 1,
+  'dynamicRange', 80, 10, 200, 10,
+  'zp', 0, 0, 13, 1,
+  'spec_maxPoints', 5.5, 3, 7, .25,
+
+  'osc_height', 100, 25, 5000, 25,
+  'osc_maxPoints', 5, 3, 7, .5,
+
+  'spectrum_len', 500, 100, 5000, 25,
+  'spectrum_smooth', -1, -2, 0, .05,
+  'spectrum_xlim', 5, 0, 96, .1
+), ncol=5, byrow=TRUE)
+temp = def_form[,1]
+def_form = apply(def_form[,2:5], 2, as.numeric)
+colnames(def_form) = c('default', 'low', 'high', 'step')
+rownames(def_form) = temp
+def_form = as.data.frame(def_form)
+# usethis::use_data(def_form, overwrite = TRUE)
 
 
 # -------------------------------------------------------------

@@ -96,7 +96,6 @@ getLoudness = function(x,
                        spreadSpectrum = TRUE,
                        plot = TRUE,
                        mar = c(5.1, 4.1, 4.1, 4.1),
-                       osc = TRUE,
                        ...) {
   # import sound
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
@@ -146,7 +145,7 @@ getLoudness = function(x,
     windowLength = windowLength, step = step,
     output = 'original', normalize = FALSE,
     padWithSilence = FALSE,
-    plot = plot, mar = mar, osc = osc, ...) ^ 2
+    plot = plot, mar = mar, ...) ^ 2
   # range(log10(powerSpec) * 10)
 
   # normalize power spectrum by the size of STFT frame
@@ -298,25 +297,28 @@ getLoudness = function(x,
 
 #' Loudness per folder
 #'
-#' A wrapper around \code{\link{getLoudness}} that goes through all wav/mp3 files in
-#' a folder and returns either a list with loudness values per STFT frame from each file
-#' or, if \code{summary = TRUE}, a dataframe with a single summary value of loudness
-#' per file. This summary value can be mean, max and so on, as per
-#' \code{summaryFun}.
+#' A wrapper around \code{\link{getLoudness}} that goes through all wav/mp3
+#' files in a folder and returns either a list with loudness values per STFT
+#' frame from each file or, if \code{summaryFun} is not NULL, a dataframe with a
+#' single summary value of loudness per file. This summary value can be mean,
+#' max and so on, as per \code{summaryFun}.
 #'
 #' @seealso \code{\link{getLoudness}} \code{\link{getRMS}}
 #'   \code{\link{analyze}}
 #'
 #' @param myfolder path to folder containing wav/mp3 files
 #' @inheritParams getLoudness
-#' @param summary if TRUE, returns only a single value of loudness per file
-#' @param summaryFun the function used to summarize loudness values across all STFT frames (if
-#'   \code{summary = TRUE})
+#' @param summary deprecated
+#' @param summaryFun the function used to summarize loudness values across all STFT frames,
+#'   eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+#'   are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+#'   take care of NAs yourself; if \code{summaryFun = NULL}, analyze() returns a
+#'   list containing frame-by-frame values
 #' @param verbose if TRUE, reports estimated time left
 #' @export
 #' @examples
 #' \dontrun{
-#' getLoudnessFolder('~/Downloads/temp1')
+#' getLoudnessFolder('~/Downloads/temp')
 #' # Compare:
 #' analyzeFolder('~/Downloads/temp1', pitchMethods = NULL,
 #'               plot = FALSE)$loudness_mean
@@ -324,11 +326,11 @@ getLoudness = function(x,
 #' 0, because # analyze() discards frames considered silent)
 #'
 #' # custom summaryFun
-#' difRan = function(x) diff(range(x))
-#' getLoudnessFolder('~/Downloads/temp', summaryFun = c('mean', 'difRan'))
+#' ran = function(x) diff(range(x))
+#' getLoudnessFolder('~/Downloads/temp', summaryFun = c('mean', 'ran'))
 #'
 #' # save loudness values per frame without summarizing
-#' l = getLoudnessFolder('~/Downloads/temp', summary = FALSE)
+#' l = getLoudnessFolder('~/Downloads/temp', summaryFun = NULL)
 #' }
 getLoudnessFolder = function(myfolder,
                              windowLength = 50,
@@ -337,9 +339,14 @@ getLoudnessFolder = function(myfolder,
                              SPL_measured = 70,
                              Pref = 2e-5,
                              spreadSpectrum = TRUE,
-                             summary = TRUE,
+                             summary = NULL,
                              summaryFun = 'mean',
                              verbose = TRUE) {
+  ## preliminaries - deprecated pars
+  if (!missing('summary')) {
+    message(paste0('summary', ' is deprecated, set "summaryFun = NULL" instead'))
+  }
+
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
   if (length(filenames) < 1) {
@@ -365,21 +372,16 @@ getLoudnessFolder = function(myfolder,
   }
 
   # prepare output
-  if (summary == TRUE) {
-    output = data.frame(file = basename(filenames))
-    for (s in 1:length(summaryFun)) {
-      # for each summary function...
-      f = eval(parse(text = summaryFun[s]))
-      for (i in 1:length(result)) {
-        # for each sound file...
-        mySummary = do.call(f, list(na.omit(result[[i]])))
-        # for smth like range, collapse and convert to character
-        if (length(mySummary) > 1) {
-          mySummary = paste0(mySummary, collapse = ', ')
-        }
-        output[i, summaryFun[s]] = mySummary
-      }
+  if (!is.null(summaryFun) && any(!is.na(summaryFun))) {
+    temp = vector('list', length = length(result))
+    for (i in 1:length(result)) {
+      temp[[i]] = summarizeAnalyze(
+        data.frame(loudness = result[[i]]),
+        summaryFun = summaryFun,
+        var_noSummary = NULL)
     }
+    output = cbind(data.frame(file = basename(filenames)),
+                              do.call('rbind', temp))
   } else {
     output = result
     names(output) = basename(filenames)

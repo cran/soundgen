@@ -26,7 +26,7 @@ s = soundgen(formants = 'uai', repeatBout = 3, nSyl = 1, play = playback)
 s = soundgen(nSyl = 5, 
              sylLen = c(300, 100),   # linearly decreasing from 300 to 100 ms
              pauseLen = c(50, 150),  # increasing from 50 to 150 ms
-             plot = TRUE, osc = TRUE,
+             plot = TRUE,
              play = playback)
 # playme(s)
 
@@ -35,7 +35,7 @@ s = soundgen(
   nSyl = 10, 
   sylLen = c(60, 200, 90, 50, 50),  # quickly up to 200 and down to 50
   pauseLen = c(50, 60, 80, 150),    # growing ~exponentially
-  plot = TRUE, osc = TRUE,
+  plot = TRUE,
   play = playback
 )
 
@@ -44,7 +44,7 @@ s = soundgen(
   nSyl = 5, 
   sylLen = c(300, 100, 400, 50, 100),  # 5 syllables, 5 values
   pauseLen = c(50, 150, 50, 100),      # 4 pauses, 4 values
-  plot = TRUE, osc = TRUE,
+  plot = TRUE,
   play = playback
 )
 
@@ -54,7 +54,7 @@ s = soundgen(
   nSyl = 3, 
   sylLen = c(300, 100), 
   pauseLen = c(100, 50),     
-  plot = TRUE, osc = TRUE,
+  plot = TRUE,
   play = playback
 )
 
@@ -63,7 +63,7 @@ s = soundgen(
   repeatBout = 2,
   sylLen = c(300, 100), 
   pauseLen = -50,     
-  plot = TRUE, osc = TRUE,
+  plot = TRUE,
   play = playback,
   invalidArgAction = 'ignore'
 )
@@ -73,7 +73,7 @@ sound = soundgen(pitch = 440, play = playback)  # steady pitch at 440 Hz
 sound = soundgen(pitch = 3000:2000, play = playback)  # downward chirp
 sound = soundgen(pitch = c(150, 250, 100), sylLen = 700, play = playback)  # up and down
 
-## ----fig.show = "hold", fig.width = 7, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 7, fig.height = 5-------------------------
 anchors = (sin(1:70 / 3) * .25 + 1) * 350
 par(mfrow = c(1, 2))
 plot(anchors, type = 'l', xlab = 'Time (points)', ylab = 'Pitch (Hz)')
@@ -83,48 +83,45 @@ par(mfrow = c(1, 1))
 
 ## -----------------------------------------------------------------------------
 sound = soundgen(sylLen = 900, play = playback,
-                 pitch = data.frame(time = c(0, .1, 1),  # or (c(0, 30, 300)) - in ms
-                                    value = c(350, 700, 350)))
+                 pitch = list(time = c(0, .1, 1),  # or (c(0, 30, 300)) - in ms
+                              value = c(350, 700, 350)))
 
 ## ----fig.show = "hold", fig.width = 7, fig.height = 4-------------------------
 sylLen = 500  # desired syllable length, in ms
 samplingRate = 16000
 sylLen_points = sylLen / 1000 * samplingRate
+anchors = data.frame(time = c(0, .1, 1), 
+                       value = c(350, 700, 350))
 
-par(mfrow = c(1, 2))
+par(mfrow = c(1, 3))
 getSmoothContour(
-  anchors = data.frame(time = c(0, .1, 1), 
-                       value = c(350, 700, 350)),
+  anchors = anchors,
+  len = sylLen_points,
+  interpol = 'approx',
+  thisIsPitch = TRUE, plot = TRUE, 
+  main = 'No smoothing', samplingRate = samplingRate
+)
+getSmoothContour(
+  anchors = anchors,
   len = sylLen_points,
   loessSpan = 0.75,
   thisIsPitch = TRUE, plot = TRUE, 
   main = 'loessSpan = .75', samplingRate = samplingRate
 )
 getSmoothContour(
-  anchors = data.frame(time = c(0, .1, 1), 
-                       value = c(350, 700, 350)),
+  anchors = anchors,
   len = sylLen_points,
   loessSpan = 1,
   thisIsPitch = TRUE, plot = TRUE, 
   main = 'loessSpan = 1', samplingRate = samplingRate
 )
 par(mfrow = c(1, 1))
-
-## ----fig.width = 7, fig.height = 4--------------------------------------------
-par(mfrow = c(1, 2))
-pitch = getSmoothContour(len = 900 / 1000 * 16000,
-                         anchors = data.frame(time = c(0, .1, 1),  # or (c(0, 30, 300)) - in ms
-                                    value = c(350, 700, 350)),
-                         interpol = 'loess', loessSpan = 1.75,
-                         thisIsPitch = TRUE, plot = TRUE)
-sound = soundgen(sylLen = 900, play = playback,
-                 pitch = pitch, plot = TRUE)
-par(mfrow = c(1, 2))
+# likewise: soundgen(smoothing = list(interpol = 'loess', loessSpan = 1))
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(sylLen = 800, plot = TRUE, play = playback,
-             pitch = data.frame(time = c(0, .2, .201, .4, 1), 
-                                value = c(900, 1200, 1800, 2000, 1500)))
+             pitch = list(time = c(0, .2, .201, .4, 1), 
+                          value = c(900, 1200, 1800, 2000, 1500)))
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140, plot = TRUE, play = playback,
@@ -184,7 +181,7 @@ s = soundgen(nSyl = 4,
                                value = c(0, -10, 0)),
              amplGlobal = c(0, -20),  # this fade-out applies to noise as well
              noise = -10,
-             plot = TRUE, osc = TRUE, heights = c(1, 1), play = playback)
+             plot = TRUE, heights = c(1, 1), play = playback)
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(sylLen = 1000, formants = NA,
@@ -196,7 +193,7 @@ s = soundgen(sylLen = 1000, formants = NA,
              amShape = 0,  
              # asymmetrical attack: 20 ms at the beginning and 140 ms at the end
              attackLen = c(20, 140),
-             plot = TRUE, osc = TRUE, heights = c(1, 1), play = playback)
+             plot = TRUE, heights = c(1, 1), play = playback)
 
 ## ----fig.width = 7, fig.height = 3--------------------------------------------
 s = rnorm(500) * seq(1, 0, length.out = 500)
@@ -247,17 +244,17 @@ formants = list(
 estimateVTL(formants = c(500, 1500, 2550))  # 17.5 cm
 estimateVTL(formants = c(300, 1100, 2000))  # 22.8 cm
 
-## ----fig.width = 7, fig.height = 4--------------------------------------------
+## ----fig.width = 7, fig.height = 5--------------------------------------------
 soundgen(formants = c(800, 1200), play = playback, plot = TRUE)
 soundgen(formants = c(800, 1200), formantDepStoch = 0,
               play = playback, plot = TRUE)
 
-## ----fig.width = 7, fig.height = 4--------------------------------------------
+## ----fig.width = 7, fig.height = 5--------------------------------------------
 soundgen(sylLen = 800, formants = NULL, rolloff = -6,
          vocalTract = c(12, 18, 19), formantCeiling = 5, 
          play = playback, plot = TRUE)
 
-## ----fig.width = 7, fig.height = 4--------------------------------------------
+## ----fig.width = 7, fig.height = 5--------------------------------------------
 formants = list(f1 = c(500, 250), f2 = c(1500, 2800), f3 = 3500, f4 = 4300)
 estimateVTL(formants)  # 13.7 cm - so the initial VTL should be close to 13.7
 soundgen(sylLen = 800, rolloff = -6, formants = formants, 
@@ -281,7 +278,7 @@ s = getSpectralEnvelope(nr = 1024,  # freq bins in FFT frame (window_length / 2)
                         colorTheme = 'seewave',
                         lipRad = 6)  # lip radiation, dB/octave
 
-## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 formants = list(
   f1   = data.frame(time = c(0, 1), freq = c(880, 900), 
                     amp = c(30, 20), width = c(80, 120)), 
@@ -310,7 +307,7 @@ s = soundgen(sylLen = 1200, play = playback, pitch = 140,
 spectrogram(s, samplingRate = 16000, 
             ylim = c(0, 4), contrast = .5, 
             windowLength = 10, step = 5, 
-            colorTheme = 'seewave', osc = TRUE)
+            colorTheme = 'seewave')
 
 ## ----fig.width = 7, fig.height = 5--------------------------------------------
 s = soundgen(
@@ -322,10 +319,10 @@ s = soundgen(
   noise = -20,  # just to make formants visible in this example
   temperature = .1,
   samplingRate = 22000, pitchSamplingRate = 22000,
-  play = playback, plot = TRUE, ylim = c(0, 8), osc = TRUE
+  play = playback, plot = TRUE, ylim = c(0, 8)
 )
 
-## ----fig.show = "hold", fig.width = 4, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 # strong F0, rolloff with a "shoulder"
 r = getRolloff(rolloff = c(-5, -20),  # rolloff parameters are vectorized
                rolloffParab = -10, rolloffParabHarm = 13, 
@@ -336,7 +333,7 @@ s = soundgen(sylLen = 1000, rolloff = c(-5, -20), rolloffOct = 0,
              rolloffParab = -10, rolloffParabHarm = 13,
              pitch = c(170, 340),  play = playback)
 
-## ----fig.width = 4, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 rolloffExact = matrix(c(.1, .2, 1, .02, .2,  # strength of H1-H5 at time 0
                         1, .2, .01, .1, .4), # strength of H1-H5 at time 1000
                       ncol = 2)
@@ -344,7 +341,7 @@ s = soundgen(sylLen = 1000, pitch = c(400, 430), formants = NULL,
              rolloffExact = rolloffExact, 
              plot = TRUE, ylim = c(0, 4), play = playback)
 
-## ----fig.width = 4, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(sylLen = 1000, pitch = c(400, 430), formants = NULL,
              rolloffExact = c(.1, .5, .25, 1, .25, .08, .05, .02), 
              plot = TRUE, ylim = c(0, 4), play = playback)
@@ -367,20 +364,20 @@ s3 = soundgen(sylLen = 1500, pitch = c(110, 90), rolloff = -12,
               jitterDep = 1, shimmerDep = 20,
               # subharmonics not implemented with "glottis" 
               play = playback)
-spectrogram(s3, samplingRate = 16000, osc = TRUE, heights = c(1, 1))
+spectrogram(s3, samplingRate = 16000, heights = c(1, 1))
 
-## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 soundgen(sylLen = 1500, pitch = c(170, 420, 400, 190),
          nonlinBalance = 60,
          subDep = 10, jitterDep = 1.5, shimmerDep = 25,
          play = playback, plot = TRUE, ylim = c(0, 5))
 
-## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 soundgen(subRatio = 2, subDep = c(5, 20),
          sylLen = 800, pitch = c(700, 1300), formants = NULL,
          play = playback, plot = TRUE, ylim = c(0, 3))
 
-## ----fig.show = "hold", fig.width = 5, fig.height = 4-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 soundgen(subFreq = 400, subDep = c(5, 20),
          sylLen = 800, pitch = c(700, 1300), formants = NULL,
          play = playback, plot = TRUE, ylim = c(0, 3))
@@ -397,7 +394,7 @@ s = soundgen(sylLen = 800,
              vocalTract = 12, mouth = c(.1, .8, .1),
              temperature = .001,
              pitchSamplingRate = 22050, samplingRate = 22050,
-             play = playback, plot = TRUE, ylim = c(0, 5), osc = TRUE)
+             play = playback, plot = TRUE, ylim = c(0, 5))
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(sylLen = 800, 
@@ -411,9 +408,9 @@ s = soundgen(sylLen = 800,
              vocalTract = 12, mouth = c(.1, .8, .1),
              temperature = .001,
              pitchSamplingRate = 22050, samplingRate = 22050,
-             play = playback, plot = TRUE, ylim = c(0, 5), osc = TRUE)
+             play = playback, plot = TRUE, ylim = c(0, 5))
 
-## ----fig.width = 5, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 s1 = soundgen(jitterLen = 40, jitterDep = 1,  # shaky voice
               shimmerLen = 30, shimmerDep = 30,   
               sylLen = 1000, pitch =  c(150, 170), 
@@ -423,7 +420,7 @@ s2 = soundgen(jitterLen = 1, jitterDep = 1,   # harsh voice
               sylLen = 1000, pitch =  c(150, 170), 
               play = playback, plot = TRUE, ylim = c(0, 3))
 
-## ----fig.width = 5, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 s = soundgen(repeatBout = 2, sylLen = 140, pauseLen = 100, 
              vocalTract = 8, formants = NULL, rolloff = 0,
              pitch = c(559, 785, 557), mouth =  c(0, 0.5, 0),
@@ -439,7 +436,7 @@ s = soundgen(sylLen = 1200,
                                     value = c(0, 0,  1.7, 1.2, 0,   0)),
              formants = c(900, 1300, 3300, 4300),
              attackLen = c(10, 200),
-             samplingRate = 22000, play = playback, plot = TRUE, osc = TRUE)
+             samplingRate = 22000, play = playback, plot = TRUE)
 
 ## ----fig.width = 7, fig.height = 7--------------------------------------------
 s = soundgen(sylLen = 1200, 
@@ -456,7 +453,7 @@ s = soundgen(sylLen = 1200,
              tempEffects = list(pitchDep = 0),
              jitterDep = .3,
              rolloffKHz = 0, rolloff = 0, formants = c(900, 1300, 3300, 4300),
-             samplingRate = 22000, play = playback, plot = TRUE, osc = TRUE)
+             samplingRate = 22000, play = playback, plot = TRUE)
 
 ## -----------------------------------------------------------------------------
 # run several times to appreciate the randomness
@@ -479,7 +476,7 @@ s = soundgen(
                      value = c(-60, -45, -60, -80) + 10),
   rolloffNoise = 0,
   mouth = c(.55, .5, .45, .6),
-  play = playback, plot = TRUE, osc = TRUE, ylim = c(0, 4)
+  play = playback, plot = TRUE, ylim = c(0, 4)
 )
 
 ## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
@@ -505,7 +502,7 @@ s = soundgen(
                      value = c(-60, -45, -60, -80) + 30),
   rolloffNoise = -8,
   mouth = c(.55, .5, .45, .6),
-  play = playback, plot = TRUE, osc = TRUE, ylim = c(0, 4)
+  play = playback, plot = TRUE, ylim = c(0, 4)
 )
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
@@ -515,7 +512,7 @@ s = soundgen(sylLen = 800, pitch = 300, temperature = 0.001,
              nonlinRandomWalk = rw_bin, 
              play = playback, plot = TRUE, ylim = c(0, 4))
 
-## ----fig.show = "hold", fig.width = 5, fig.height = 3-------------------------
+## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 # set up a random walk (repeat until satisfied with the contour)
 rw = getRandomWalk(len = 1000, rw_range = 100, 
                    trend = c(0.5, -0.5), rw_smoothing = .3)
@@ -534,7 +531,7 @@ s2 = soundgen(sylLen = 800, pitch = 500, temperature = 0.001,
 soundgen(sylLen = 500, 
          noise = data.frame(time = c(0, 800), value = c(-20, -10)),
          formantsNoise = NA,  # breathing - same formants as for voiced
-         play = playback, plot = TRUE, osc = TRUE)
+         play = playback, plot = TRUE)
 # observe that the voiced and unvoiced components have exactly the same formants
 
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
@@ -547,7 +544,7 @@ s = soundgen(sylLen = 200, pitch = c(150, 120),
                                width = 1500)
              ), 
              rolloffNoise = 0,
-             play = playback, plot = TRUE, osc = TRUE)
+             play = playback, plot = TRUE)
 # observe that the voiced and unvoiced components have different formants
 
 ## -----------------------------------------------------------------------------
@@ -567,7 +564,7 @@ s3 = soundgen(vocalTract = 100, invalidArgAction = 'ignore',    # a whale
               sylLen = 800, pitch = NULL, noise = 0) 
 # Another way to remove the voiced component is to write pitch = NULL
 
-## ----fig.width = 4, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 # only two specified formants
 s3 = soundgen(pitch = NULL, 
               formantsNoise = c(1000, 2000),  
@@ -584,7 +581,7 @@ s4 = soundgen(vocalTract = 15.5,
 s1 = soundgen(sylLen = 1500, vocalTract = 17.5, 
               noise = 40, rolloffNoise = c(5, -20),
               formants = NULL, attackLen = 200, 
-              play = playback, plot = TRUE, osc = TRUE)
+              play = playback, plot = TRUE)
 # NB: noise amplitude may change as rolloffNoise changes
 
 ## -----------------------------------------------------------------------------
@@ -623,7 +620,7 @@ s8 = soundgen(noiseAmpRef = 'filtered', formants = 'u',
 ## ----fig.width = 7, fig.height = 5--------------------------------------------
 s = soundgen(nSyl = 2,
              noise = c(-10, 0),
-             plot = TRUE, osc = TRUE, ylim = c(0, 4), play = playback)
+             plot = TRUE, ylim = c(0, 4), play = playback)
 
 ## ----fig.width = 7, fig.height = 5--------------------------------------------
 s = soundgen(nSyl = 2, sylLen = 120, pauseLen = 120, 
@@ -632,7 +629,7 @@ s = soundgen(nSyl = 2, sylLen = 120, pauseLen = 120,
                                 value = c(-40, 0, -20)),
              formants = list(f1 = c(860, 530),  f2 = c(1280, 2400)),
              formantsNoise = list(f1 = c(420, 1200)),
-             plot = TRUE, osc = TRUE, ylim = c(0, 4), play = playback)
+             plot = TRUE, ylim = c(0, 4), play = playback)
 
 ## ----fig.width = 7, fig.height = 5--------------------------------------------
 s = soundgen(repeatBout = 2, nSyl = 2,
@@ -642,9 +639,9 @@ s = soundgen(repeatBout = 2, nSyl = 2,
                                 value = c(-40, 0, -20)),
              formants = list(f1 = c(860, 530),  f2 = c(1280, 2400)),
              formantsNoise = list(f1 = c(420, 1200)),
-             plot = TRUE, osc = TRUE, ylim = c(0, 4), play = playback)
+             plot = TRUE, ylim = c(0, 4), play = playback)
 
-## ----fig.width = 5, fig.height = 4--------------------------------------------
+## ----fig.width = 5, fig.height = 5--------------------------------------------
 a = getSmoothContour(anchors = data.frame(time = c(-50, 200, 300), 
                                           value = c(-80, 20, -80)),
                      voiced = 200, 
@@ -696,7 +693,7 @@ cow2 = soundgen(sylLen = 310, pitch = c(359, 359),
 s = crossFade(cow1 * 3, cow2,  # adjust the relative volume by scaling
               samplingRate = 16000, crossLen = 150)
 # playme(s, 16000)
-spectrogram(s, 16000, osc=T, ylim = c(0, 4))
+spectrogram(s, 16000, ylim = c(0, 4))
 
 ## ----fig.show = "hold", fig.width = 5, fig.height = 5-------------------------
 samplingRate = 48000  # >10 times the highest pitch 

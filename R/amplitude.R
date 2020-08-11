@@ -98,7 +98,7 @@ killDC = function(sound,
       if (is.numeric(samplingRate)) {
         windowLength_points = windowLength / 1000 * samplingRate
       } else {
-        stop(paste('Please, specify either windowLength (ms) plus samplingRate (Hz)',
+        stop(paste('Please specify either windowLength (ms) plus samplingRate (Hz)',
                    'or the length of smoothing window in points (windowLength_points)'))
       }
     }
@@ -115,6 +115,7 @@ killDC = function(sound,
     plot(sound, type = 'l', main = 'Original')
     points(env, type = 'l', lty = 1, col = 'blue')
     points(rep(0, length(sound)), type = 'l', lty = 2)
+
     plot(soundNorm, type = 'l', main = 'Env removed')
     points(rep(0, length(sound)), type = 'l', col = 'blue')
     par(mfrow = op)
@@ -159,11 +160,11 @@ killDC = function(sound,
 #' plot(s, type = 'l')
 #' r = getRMS(s, samplingRate = 16000,
 #'   windowLength = 40, overlap = 50, killDC = TRUE,
-#'   col = 'green', lty = 2, main = 'RMS envelope')
+#'   type = 'l', lty = 2, main = 'RMS envelope')
 #' # short window = jagged envelope
 #' r = getRMS(s, samplingRate = 16000,
 #'   windowLength = 5, overlap = 0, killDC = TRUE,
-#'   col = 'green', lty = 2, main = 'RMS envelope')
+#'   col = 'blue', pch = 13, main = 'RMS envelope')
 #' \dontrun{
 #' r = getRMS('~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav')
 #' }
@@ -177,10 +178,10 @@ getRMS = function(x,
                   normalize = TRUE,
                   windowDC = 200,
                   plot = TRUE,
-                  xlab = 'Time, ms',
+                  xlab = '',
                   ylab = '',
                   type = 'b',
-                  col = 'blue',
+                  col = 'green',
                   lwd = 2,
                   ...) {
   sound = NULL
@@ -255,7 +256,10 @@ getRMS = function(x,
   # plotting
   if (plot) {
     time = 1:length(sound) / samplingRate * 1000
-    plot(time, sound, type = 'n', xlab = xlab, ylab = ylab, ...)
+    plot(time, sound, type = 'n', xlab = xlab, ylab = ylab, xaxt = 'n', ...)
+    time_location = axTicks(1)
+    time_labels = convert_sec_to_hms(time_location / 1000, 3)
+    axis(side = 1, at = time_location, labels = time_labels)
     points(time, sound, type = 'l')
     points(as.numeric(names(r)), r, type = type, col = col, lwd = lwd, ...)
   }
@@ -269,17 +273,17 @@ getRMS = function(x,
 #'
 #' A wrapper around \code{\link{getRMS}} that goes through all wav/mp3 files in
 #' a folder and returns either a list with RMS values per frame from each file
-#' or, if \code{summary = TRUE}, a dataframe with a single summary value of RMS
-#' per file. This summary value can be mean, max and so on, as per
+#' or, if \code{summaryFun} is not NULL, a dataframe with a single summary value
+#' of RMS per file. This summary value can be mean, max and so on, as per
 #' \code{summaryFun}.
 #'
 #' @seealso \code{\link{getRMS}} \code{\link{analyze}}\code{\link{getLoudness}}
 #'
 #' @param myfolder path to folder containing wav/mp3 files
 #' @inheritParams getRMS
-#' @param summary if TRUE, returns only a single value of RMS per file
+#' @param summary deprecated
 #' @param summaryFun the function used to summarize RMS values across all frames
-#'   (if \code{summary = TRUE})
+#'   (NULL = no summary); see ?analyze for details
 #' @param verbose if TRUE, reports estimated time left
 #' @export
 #' @examples
@@ -291,8 +295,8 @@ getRMS = function(x,
 #' # (per STFT frame, but should be very similar)
 #'
 #' User-defined summary functions:
-#' difRan = function(x) diff(range(x))
-#' getRMSFolder('~/Downloads/temp', summaryFun = c('mean', 'difRan'))
+#' ran = function(x) diff(range(x))
+#' getRMSFolder('~/Downloads/temp', summaryFun = c('mean', 'ran'))
 #'
 #' meanSD = function(x) {
 #'   paste0('mean = ', round(mean(x), 2), '; sd = ', round(sd(x), 2))
@@ -306,7 +310,7 @@ getRMSFolder = function(myfolder,
                         normalize = TRUE,
                         killDC = FALSE,
                         windowDC = 200,
-                        summary = TRUE,
+                        summary = NULL,
                         summaryFun = 'mean',
                         verbose = TRUE) {
   time_start = proc.time()  # timing
@@ -334,25 +338,40 @@ getRMSFolder = function(myfolder,
   }
 
   # prepare output
-  if (summary == TRUE) {
-    output = data.frame(file = basename(filenames))
-    for (s in 1:length(summaryFun)) {
-      # for each summary function...
-      f = eval(parse(text = summaryFun[s]))
-      for (i in 1:length(result)) {
-        # for each sound file...
-        mySummary = do.call(f, list(na.omit(result[[i]])))
-        # for smth like range, collapse and convert to character
-        if (length(mySummary) > 1) {
-          mySummary = paste0(mySummary, collapse = ', ')
-        }
-        output[i, summaryFun[s]] = mySummary
-      }
+  if (!is.null(summaryFun) && any(!is.na(summaryFun))) {
+    temp = vector('list', length = length(result))
+    for (i in 1:length(result)) {
+      temp[[i]] = summarizeAnalyze(
+        data.frame(ampl = result[[i]]),
+        summaryFun = summaryFun,
+        var_noSummary = NULL)
     }
+    output = cbind(data.frame(file = basename(filenames)),
+                   do.call('rbind', temp))
   } else {
     output = result
     names(output) = basename(filenames)
   }
+
+  # if (summary == TRUE) {
+  #   output = data.frame(file = basename(filenames))
+  #   for (s in 1:length(summaryFun)) {
+  #     # for each summary function...
+  #     f = eval(parse(text = summaryFun[s]))
+  #     for (i in 1:length(result)) {
+  #       # for each sound file...
+  #       mySummary = do.call(f, list(na.omit(result[[i]])))
+  #       # for smth like range, collapse and convert to character
+  #       if (length(mySummary) > 1) {
+  #         mySummary = paste0(mySummary, collapse = ', ')
+  #       }
+  #       output[i, summaryFun[s]] = mySummary
+  #     }
+  #   }
+  # } else {
+  #   output = result
+  #   names(output) = basename(filenames)
+  # }
   return(output)
 }
 
@@ -701,21 +720,31 @@ transplantEnv = function(
     time_donor = seq(0, len_donor / samplingRateD, length.out = len_donor)
     max_donor = max(abs(donor))
 
-    time_recipient = seq(0, len_recipient / samplingRateR, length.out = len_recipient)
+    time_recipient = seq(0, len_recipient / samplingRateR,
+                         length.out = len_recipient)
     max_recipient = max(abs(recipient))
     max_out = max(abs(out))
 
     op = par('mfrow')
     par(mfrow = c(1, 3))
 
-    plot(time_donor, donor, type = 'l', main = 'Donor', ylim = c(-max_donor, max_donor), xlab = '', ylab = 'Amplitude')
-    points(time_donor, env_donor, type = 'l', lty = 1, col = 'blue')
+    plot(time_donor, donor, type = 'l', main = 'Donor',
+         ylim = c(-max_donor, max_donor),
+         xlab = '', ylab = 'Amplitude')
+    points(time_donor, env_donor, type = 'l',
+           lty = 1, col = 'blue')
 
-    plot(time_recipient, recipient, type = 'l', main = 'Recipient', ylim = c(-max_recipient, max_recipient), xlab = 'Time, s', ylab = '')
-    points(time_recipient, env_recipient, type = 'l', lty = 1, col = 'blue')
+    plot(time_recipient, recipient, type = 'l',
+         main = 'Recipient', ylim = c(-max_recipient, max_recipient),
+         xlab = 'Time, s', ylab = '')
+    points(time_recipient, env_recipient, type = 'l',
+           lty = 1, col = 'blue')
 
-    plot(time_recipient, out, type = 'l', main = 'Output', ylim = c(-max_out, max_out), xlab = '', ylab = '')
-    points(time_recipient, getEnv(out, windowLength_points_recip, method), type = 'l', lty = 1, col = 'blue')
+    plot(time_recipient, out, type = 'l',
+         main = 'Output', ylim = c(-max_out, max_out),
+         xlab = '', ylab = '')
+    points(time_recipient, getEnv(out, windowLength_points_recip, method),
+           type = 'l', lty = 1, col = 'blue')
 
     par(mfrow = op)
   }
