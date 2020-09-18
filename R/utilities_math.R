@@ -64,10 +64,13 @@ listDepth = function(x) ifelse(is.list(x), 1L + max(sapply(x, listDepth)), 0L)
 #' Normalized input vector to range from 0 to 1
 #' @param x numeric vector or matrix
 #' @param na.rm if TRUE, removed NA's when calculating min/max for normalization
+#' @param xmin,xmax min and max (to save time if already known)
 #' @keywords internal
-zeroOne = function(x, na.rm = FALSE) {
-  x = x - min(x, na.rm = na.rm)
-  x = x / max(x, na.rm = na.rm)
+zeroOne = function(x, na.rm = FALSE, xmin = NULL, xmax = NULL) {
+  if (is.null(xmin)) xmin = min(x, na.rm = na.rm)
+  if (is.null(xmax)) xmax = max(x, na.rm = na.rm)
+  x = x - xmin
+  x = x / (xmax - xmin)
   return(x)
 }
 
@@ -295,8 +298,9 @@ Mode = function(x) {
 #'   sd=rw_range
 #' @param rw_range the upper bound of the generated random walk (the lower bound
 #'   is set to 0)
-#' @param rw_smoothing specifies the amount of smoothing, from 0 (no smoothing)
-#'   to 1 (maximum smoothing to a straight line)
+#' @param rw_smoothing specifies the amount of smoothing, basically the number
+#'   of points used to construct the rw as a proportion of len, from 0 (no
+#'   smoothing) to 1 (maximum smoothing to a straight line)
 #' @param method specifies the method of smoothing: either linear interpolation
 #'   ('linear', see stats::approx) or cubic splines ('spline', see
 #'   stats::spline)
@@ -309,10 +313,13 @@ Mode = function(x) {
 #' @return Returns a numeric vector of length len and range from 0 to rw_range.
 #' @export
 #' @examples
+#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 0))
 #' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .2))
-#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .5))
+#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .95))
+#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .99))
+#' plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 1))
 #' plot(getRandomWalk(len = 1000, rw_range = 15,
-#'   rw_smoothing = .2, trend = c(.5, -.5)))
+#'   rw_smoothing = .2, trend = c(.1, -.1)))
 #' plot(getRandomWalk(len = 1000, rw_range = 15,
 #'   rw_smoothing = .2, trend = c(15, -1)))
 getRandomWalk = function(len,
@@ -325,7 +332,9 @@ getRandomWalk = function(len,
 
   # generate a random walk (rw) of length depending on rw_smoothing,
   # then linear extrapolation to len
-  n = floor(max(2, 2 ^ (1 / rw_smoothing)))
+  # n = floor(max(2, 2 ^ (1 / rw_smoothing)))
+  # n = 2 + (len - 1) / (1 + exp(10 * (rw_smoothing - .1)))
+  n = max(2, len * (1 - rw_smoothing))
   if (length(trend) > 1) {
     n = round(n / 2, 0) * 2 # force to be even
     trend_short = rep(trend, each = n / length(trend))
@@ -1097,6 +1106,11 @@ switchColorTheme = function(colorTheme) {
 parabPeakInterpol = function(threePoints, plot = FALSE) {
   if (any(is.na(threePoints)) | length(threePoints) < 3) {
     stop(paste('invalid input:', threePoints))
+  }
+  if (threePoints[2] < threePoints[1] |
+      threePoints[2] < threePoints[3]) {
+    # the central point is not a peak
+    return(list(p = 0, ampl_p = 0))
   }
   alpha = threePoints[1]
   beta = threePoints[2]

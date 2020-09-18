@@ -394,6 +394,10 @@ generateNoise = function(len,
 #' @param pitchDriftFreq scale factor regulating the effect of temperature on
 #'   the frequency of random drift of f0 (like jitter, but slower): the higher,
 #'   the faster f0 "wiggles" at a given temperature
+#' @param amplDriftDep drift of amplitude mirroring pitch drift
+#' @param subDriftDep drift of subharmonic frequency and bandwidth mirroring
+#'   pitch drift
+#' @param rolloffDriftDep drift of rolloff mirroring pitch drift
 #' @param randomWalk_trendStrength try 0 to 1 - the higher, the more likely rw
 #'   is to get high in the middle and low at the beginning and end (i.e. max
 #'   effect amplitude in the middle of a sound)
@@ -429,7 +433,6 @@ generateHarmonics = function(pitch,
                              vibratoDep = 0,
                              shimmerDep = 0,
                              shimmerLen = 1,
-                             creakyBreathy = 0,
                              rolloff = -9,
                              rolloffOct = 0,
                              rolloffKHz = 0,
@@ -446,7 +449,7 @@ generateHarmonics = function(pitch,
                              amplDriftDep = 1,
                              subDriftDep = 4,
                              rolloffDriftDep = 3,
-                             randomWalk_trendStrength = .5,
+                             randomWalk_trendStrength = .1,
                              shortestEpoch = 300,
                              subRatio = 1,
                              subFreq = 100,
@@ -538,7 +541,7 @@ generateHarmonics = function(pitch,
       len = nGC,
       rw_range = temperature,
       trend = c(randomWalk_trendStrength, -randomWalk_trendStrength),
-      rw_smoothing = .3
+      rw_smoothing = .95
     ) # plot(rw, type = 'l')
     rw = rw - mean(rw) + 1 # change mean(rw) to 1
     if (is.null(nonlinRandomWalk)) {
@@ -626,21 +629,24 @@ generateHarmonics = function(pitch,
     # plot(pitch_per_gc, type = 'l')
   }
 
-  # calculate random drift of F0 (essentially the same as jitter but slow)
+  # calculate random drift of F0 (unlike jitter, this is a random walk rather
+  # than random variation around a target value, and normally slower than
+  # jitter)
   if (temperature > 0) {
-    # # illustration of the effects of temperature and number of gc's
-    # #   on the amount of smoothing applied to the random drift of f0
-    # library(reshape2)
-    # library(plot3D)
-    # df = expand.grid(temperature = seq(0, 1, length.out = 30), n_gc = seq(1, 1000, length.out = 30))
-    # df$rw_smoothing = .9 - df$temperature / 8 - 1.2 / (1 + exp(-.008 * (df$n_gc - 10))) + .6 # 10 gc is "neutral"
-    # out_pred = as.matrix(dcast(df, temperature~n_gc, value.var = "rw_smoothing"))
-    # rownames(out_pred) = seq(0, 1, length.out = 30)
-    # out_pred = out_pred[, -1]
-    # persp3D (as.numeric(rownames(out_pred)), as.numeric(colnames(out_pred)), out_pred, theta=40, phi=50, zlab='rw_smoothing', xlab='Temperature', ylab='# of glottal cycles', colkey=FALSE, ticktype='detailed', cex.axis=0.75)
-    rw_smoothing = .9 - temperature * pitchDriftFreq -
-      1.2 / (1 + exp(-.008 * (length(pitch_per_gc) - 10))) + .6
-    # rw_range is 1 semitone per second at temp = .05 and pitchDriftDep = .5 (defaults)
+    # calculate the amount of smoothing to apply to the random walk
+    rw_smoothing = 2 / (1 + exp(100 * temperature * pitchDriftFreq))
+    # print(rw_smoothing)
+    # temp = seq(0, 1, .01)
+    # plot(temp, 2 / (1 + exp(100 * temp * .05)))
+
+    # rw_smoothing is ~n_points in getRandomWalk() as proportion of nGC, but
+    # gc's are shorter at higher pitch; to ensure that smoothing is consistent
+    # per s, we do * mean(pitch_per_gc) / 100 (ie default at 100 Hz)
+    rw_smoothing = 1 - (1 - rw_smoothing) / (mean(pitch_per_gc) / 100)
+    # print(paste('rw_smoothing =', rw_smoothing, 'n =', nGC * (1 - rw_smoothing)))
+
+    # rw_range is 1 semitone per second when temp = .05 and
+    # pitchDriftDep = .5 (defaults)
     rw_range = temperature * 40 *  # 40 * .05 * .5 = 1
       length(pitch) / pitchSamplingRate / 12
     drift = getRandomWalk(
@@ -650,17 +656,15 @@ generateHarmonics = function(pitch,
       method = 'spline'
     )
     drift_centered = drift - mean(drift)
-    drift = 2 ^ drift_centered # plot (drift, type = 'l')
+    drift = 2 ^ drift_centered
+    # plot (drift, type = 'l')
     drift_pitch = 2 ^ (drift_centered * pitchDriftDep)
-    # we get a separate random walk for this slow drift of intonation.
-    #   Its smoothness vs wiggleness depends on temperature and duration
-    #   (in glottal cycles). For ex., temperature * 2 means that pitch will
-    #   vary within one octave if temperature == 1
-    pitch_per_gc = pitch_per_gc * drift_pitch  # plot(pitch_per_gc, type = 'l')
+    pitch_per_gc = pitch_per_gc * drift_pitch
+    # plot(pitch_per_gc, type = 'l')
   }
 
   # as a result of adding pitch effects, F0 might have dropped to indecent
-  #   values, so we double-check and flatten
+  #   values, so we double-check and flatten if necessary
   pitch_per_gc[pitch_per_gc > pitchCeiling] = pitchCeiling
   pitch_per_gc[pitch_per_gc < pitchFloor] = pitchFloor
   # make sure we don't have harmonics above Nyquist with the changed pitch
@@ -684,8 +688,8 @@ generateHarmonics = function(pitch,
                               pitch_per_gc = pitch_per_gc,
                               rw = rw,
                               effect_on = shimmer_on)
-    rolloff_source = t(t(rolloff_source) * shimmer_per_gc)  # multiplies the first
-    # column of rolloff_source by shimmer_per_gc[1],
+    rolloff_source = t(t(rolloff_source) * shimmer_per_gc)
+    # multiplies the first column of rolloff_source by shimmer_per_gc[1],
     # the second column by shimmer_per_gc[2], etc
   }
 
@@ -722,17 +726,40 @@ generateHarmonics = function(pitch,
   ## WAVEFORM GENERATION
   if (synthesize_per_gc) {
     # synthesize one glottal cycle at a time
-    r = rolloff_source
+    rolSrc = rolloff_source
     for (e in 1:length(rolloff_source)) {
-      r[[e]] = rolloff_source[[e]]
-      r[[e]] = as.list(as.data.frame(r[[e]]))
-      for (i in 1:length(r[[e]])) {
-        r[[e]][[i]] = matrix(r[[e]][[i]],
-                             ncol = 1,
-                             dimnames = list(rownames(rolloff_source[[e]])))
+      rolSrc[[e]] = rolloff_source[[e]]
+      rolSrc[[e]] = as.list(as.data.frame(rolSrc[[e]]))
+      for (i in 1:length(rolSrc[[e]])) {
+        rolSrc[[e]][[i]] = matrix(rolSrc[[e]][[i]],
+                                  ncol = 1,
+                                  dimnames = list(rownames(rolloff_source[[e]])))
       }
     }
-    r = unlist(r, recursive = FALSE)  # get rid of epochs
+    rolSrc = unlist(rolSrc, recursive = FALSE)  # get rid of epochs
+    glottisClosed_per_gc = getSmoothContour(
+      anchors = glottis,
+      interpol = interpol,
+      len = nGC,
+      valueFloor = 0
+    )
+    # warp glottis anchors to ensure that their timing is not affected by the delay
+    # of adding extra silence between glottal cycles when glottis > 0
+    warpRows = (1:nrow(glottis))[-c(1, nrow(glottis))]
+    # except for first and last row (time = 0 or 1 - nowhere to move)
+    if (length(warpRows) > 0) {
+      # calculate the dur of each glottal cylce + pause, in ms
+      gc_dur = 1000 / pitch_per_gc * (1 + glottisClosed_per_gc / 100)
+      dur = sum(gc_dur)  # nominal dur with these gc's
+      cs = cumsum(gc_dur)
+      for (r in warpRows) {
+        # where it should be (time of glottis anchor, ms)
+        target_dur = glottis$time[r] * dur
+        # move the time anchor to where it will coincide with target_dur, given
+        # the modified dur of glottal cycles with pauses
+        glottis$time[r] = which(cs > target_dur)[1] / nGC
+      }
+    }
     glottisClosed_per_gc = getSmoothContour(
       anchors = glottis,
       interpol = interpol,
@@ -741,7 +768,7 @@ generateHarmonics = function(pitch,
     )
     waveform = generateGC(pitch_per_gc = pitch_per_gc,
                           glottisClosed_per_gc = glottisClosed_per_gc,
-                          rolloff_per_gc = r,
+                          rolloff_per_gc = rolSrc,
                           samplingRate = samplingRate)
   } else {
     # synthesize continuously
@@ -828,6 +855,7 @@ generateHarmonics = function(pitch,
 #'   first harmonic)
 #' @param samplingRate the sampling rate of generated sound, Hz
 #' @param wn windowing function applied to each glottal cycle (see ftwindow_modif)
+#' @param interpol method used to adjust the number of gc to target duration
 #' @return Returns a waveform as a non-normalized numeric vector centered at zero.
 #' @keywords internal
 #' @examples
@@ -844,7 +872,8 @@ generateGC = function(pitch_per_gc,
                       glottisClosed_per_gc,
                       rolloff_per_gc,
                       samplingRate,
-                      wn = 'none') {
+                      wn = 'none',
+                      interpol = 'approx') {
   gc_len = round(samplingRate / pitch_per_gc)  # length of each gc, points
   gc_closed = round(gc_len * glottisClosed_per_gc / 100)  # length of each pause, points
 
@@ -853,10 +882,20 @@ generateGC = function(pitch_per_gc,
   dur_target = sum(gc_len)
   dur_with_closed = dur_target + sum(gc_closed)
   nGC = round(dur_target / dur_with_closed * length(pitch_per_gc))
-  idx = round(seq(1, nGC_orig, length.out = nGC))
-  pitch_per_gc_adj = pitch_per_gc[idx]
-  glottisClosed_per_gc_adj = glottisClosed_per_gc[idx]
-  rolloff_per_gc_adj = rolloff_per_gc[idx]
+  if (interpol == 'approx') {
+    # use splines to reduce the number of gc's in a smart way
+    idx_orig = 1:nGC_orig
+    idx = seq(1, nGC_orig, length.out = nGC)
+    pitch_per_gc_adj = spline(x = idx_orig, y = pitch_per_gc, xout = idx)$y
+    glottisClosed_per_gc_adj = approx(x = idx_orig, y = glottisClosed_per_gc, xout = idx)$y
+    rolloff_per_gc_adj = rolloff_per_gc[round(idx)]  # too big for spline
+  } else {
+    # just pick enough gc's
+    idx = round(seq(1, nGC_orig, length.out = nGC))
+    pitch_per_gc_adj = pitch_per_gc[idx]
+    glottisClosed_per_gc_adj = glottisClosed_per_gc[idx]
+    rolloff_per_gc_adj = rolloff_per_gc[idx]
+  }
   gc_len_adj = round(samplingRate / pitch_per_gc_adj)
   gc_closed_adj = round(gc_len_adj * glottisClosed_per_gc_adj / 100)
   # gc_closed_adj[nGC] = 1  # don't add silence after the last gc
@@ -1066,7 +1105,7 @@ fart = function(glottis = c(50, 200),
     drift = getRandomWalk(
       len = 100,
       rw_range = temperature * 10,
-      rw_smoothing = .2,
+      rw_smoothing = .95,
       method = 'spline'
     ) + 1
     # plot(drift, type = 'l')

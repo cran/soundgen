@@ -75,7 +75,7 @@ seewave::env(sweep, f = samplingRate, envt = 'abs', msmooth=c(50, 0))
 
 ## ----fig.height = 4, fig.width = 7--------------------------------------------
 a = analyze(sweep, samplingRate = samplingRate, pitchMethods = NULL, plot = FALSE)
-plot(seq(0, dur, length.out = length(a$ampl)), a$ampl, type = 'b', xlab= 'Time, s')
+plot(seq(0, dur, length.out = length(a$ampl)), a$ampl, type = 'b', xlab = 'Time, s')
 
 ## ----fig.height = 4, fig.width = 7--------------------------------------------
 plot(seq(0, dur, length.out = length(a$loudness)), a$loudness, type = 'b', xlab= 'Time, s')

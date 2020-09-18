@@ -476,6 +476,7 @@ divideIntoSyllables = function (nSyl,
 #'   for breathing, FALSE for other anchors)
 #' @param sd_values (optional) the exact value of sd used by rnorm_truncated in
 #'   columns 2 and beyond
+#' @param roundToInteger if TRUE, rounds the values (not time points)
 #' @inheritParams soundgen
 #' @return Modified original dataframe.
 #' @keywords internal
@@ -518,6 +519,7 @@ wiggleAnchors = function(df,
                          high = c(1, Inf),
                          wiggleAllRows = FALSE,
                          sd_values = NULL,
+                         roundToInteger = FALSE,
                          invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
   if (temperature == 0 | temp_coef == 0) return(df)
   if (any(is.na(df))) return(NA)
@@ -545,6 +547,7 @@ wiggleAnchors = function(df,
                     as.numeric(df[1, idx] * temperature * temp_coef)),
         low = low[idx],
         high = high[idx],
+        roundToInteger = roundToInteger,
         invalidArgAction = invalidArgAction))
       if (class(newAnchor)[1] == 'try-error') {
         stop(paste('Failed to add an anchor to df:', paste(df, collapse = ', ')))
@@ -606,7 +609,7 @@ wiggleAnchors = function(df,
                   as.numeric(ranges[i] * temperature * temp_coef)),
       low = low[i],
       high = high[i],
-      roundToInteger = FALSE,
+      roundToInteger = roundToInteger,
       invalidArgAction = invalidArgAction
     ))
     if (class(w)[1] == 'try-error') {
@@ -760,4 +763,31 @@ validatePars = function(p, gp, def,
     }
   }
   return(gp)
+}
+
+#' Object to string
+#'
+#' Internal soundgen function. Converts any object to a string that preserves all internal structure and names.
+#' @param x any R object (unquoted)
+#' @keywords internal
+#' @examples
+#' soundgen:::objectToString('adja')
+#' soundgen:::objectToString(500)
+#' soundgen:::objectToString(c(870, 1250, 1900))
+#' soundgen:::objectToString(list(f1 = c(870, 1250), f2 = list(freq = 500, amp = 30)))
+#' soundgen:::objectToString(list(
+#'   pitch = list(time = c(0, 1), value = c(160, 150)),
+#'   noise = list(time = c(-1, 170, 362), value = c(-14, 0, -26)),
+#'   mouth = list(time = c(0, 0.07, 1), value = c(0, 0.48, 0.32))))
+#' # NB: no matter how long, the object is still returned as an unbroken string
+objectToString = function(x) {
+  if (is.character(x)) {
+    cp = x
+  } else {
+    # tried and failed: toString, capture.output(call('print', x)), etc.
+    cp = deparse(x, width.cutoff = 500, control = c('keepNA', 'niceNames'))
+    if (length(cp) > 1) cp = paste(cp, collapse = '')
+    # deparse1 comes close, but it require R 4.0 and mishandles strings
+  }
+  return(cp)
 }

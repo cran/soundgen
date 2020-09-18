@@ -169,7 +169,7 @@ server = function(input, output, session) {
       } else if (is.null(preset$vowelString) & !is.null(preset$formants)) {
         updateTextInput(session, inputId = 'vowelString', value = '')
         updateTextInput(session, inputId = 'formants',
-                        value = as.character(call('print', preset$formants)[2]))
+                        value = soundgen:::objectToString(preset$formants))
         myPars$formants = preset$formants
       } else { # if both are NULL
         updateTextInput(session, inputId = 'vowelString', value = '')
@@ -184,7 +184,7 @@ server = function(input, output, session) {
                  !is.null(preset$formantsNoise)) {
         updateTextInput(session, inputId = 'noiseType', value = '')
         updateTextInput(session, inputId = 'formantsNoise',
-                        value = as.character(call('print', preset$formantsNoise)[2]))
+                        value = soundgen:::objectToString(preset$formantsNoise))
         myPars$formantsNoise = preset$formantsNoise
       } else { # if both are NULL
         updateTextInput(session, inputId = 'noiseType', value = 'b')
@@ -279,7 +279,7 @@ server = function(input, output, session) {
           }
         }
         updateTextInput(session, inputId = 'formants',
-                        value = as.character(call('print', converted)[2]))
+                        value = soundgen:::objectToString(converted))
       })
     }
   })
@@ -1076,16 +1076,17 @@ server = function(input, output, session) {
 
   output$plotNonlin = renderPlot({
     # see source.R, "get a random walk for intra-syllable variation"
+    p = myPitchContour()
     rw = soundgen:::zeroOne(soundgen:::getRandomWalk(
-      len = 100,
+      len = length(p),
       rw_range = input$temperature,
-      trend = c(.5, -.5), # randomWalk_trendStrength
-      rw_smoothing = .3
+      trend = c(.1, -.1), # randomWalk_trendStrength
+      rw_smoothing = .95
     )) * 100
     rw_bin = soundgen:::getIntegerRandomWalk(
       rw,
       nonlinBalance = input$nonlinBalance,
-      minLength = ceiling(input$shortestEpoch / 1000 * myPitchContour()),
+      minLength = ceiling(input$shortestEpoch / 1000 * p),
       plot = TRUE
     )
   })
@@ -1242,13 +1243,11 @@ server = function(input, output, session) {
   })
 
   # show simplified function call as string to user for copy-pasting
-  observeEvent(mycall(),
-               updateTextInput(session, inputId = 'mycall',
-                               value = {
-                                 temp = as.character(call('print', mycall())[2])
-                                 paste0('soundgen', substr(temp, 5, nchar(temp)))
-                               })
-  )
+  observeEvent(mycall(), {
+    call_string = soundgen:::objectToString(mycall())
+    call_string  = paste0('soundgen', substr(call_string, 5, nchar(call_string)))
+    updateTextInput(session, inputId = 'mycall', value = call_string)
+  })
 
   output$htmlAudio = renderUI(
     tags$audio(src = "temp.wav", type = "audio/wav",

@@ -41,7 +41,8 @@ analyzeFrame = function(frame, bin, freqs,
   if (is.null(cutFreq)) {
     absSpec_cut = absSpec
   } else {
-    absSpec_cut = absSpec[absSpec$freq < cutFreq, ]
+    absSpec_cut = absSpec[absSpec$freq > cutFreq[1] &
+                            absSpec$freq < cutFreq[2], ]
     # Above 5-6 kHz or so, spectral energy depends too much on the original
     # sampling rate, noises etc. Besides, those frequencies are not super
     # relevant to human vocalizations in any case. So we cut away all info above
@@ -335,8 +336,12 @@ summarizeAnalyze = function(
 #' @param result the matrix of results returned by analyze()
 #' @param pitch_true manual pitch contour of length nrow(result), with NAs
 #' @param spectrogram spectrogram with ncol = nrow(result)
+#' @param freqs frequency labels of spectrogram bins
+#' @param bin spectrogram bin width
 #' @param harmHeight_pars same as argument "harmHeight" to analyze() - a list of
 #'   settings passed to soundgen:::harmHeight()
+#' @param smooth,smoothing_ww,smoothingThres smoothing parameters
+#' @param varsToUnv set these variables to NA in unvoiced frames
 #' @keywords internal
 updateAnalyze = function(
   result,
@@ -348,7 +353,7 @@ updateAnalyze = function(
   smooth,
   smoothing_ww,
   smoothingThres,
-  varsToUnv = c('amplVoiced', 'roughnessVoiced', 'quartile25', 'quartile50', 'quartile75')
+  varsToUnv = NULL
 ) {
   # remove all pitch-related columns except dom
   result = result[-which(grepl('pitch', colnames(result)))]
@@ -495,9 +500,9 @@ harmHeight = function(frame,
 
   # METHOD 1: look for peaks at multiples of f0
   lh_peaks = harmHeight_peaks(frame_dB, pitch, bin, freqs,
-                              harmThres = harmThres,
-                              harmTol = harmTol,
-                              plot = FALSE)
+                                  harmThres = harmThres,
+                                  harmTol = harmTol,
+                                  plot = FALSE)
 
   # METHODS 2 & 3: look for peaks separated by f0
   lh2 = harmHeight_dif(frame_dB, pitch, bin, freqs,
@@ -540,14 +545,25 @@ harmHeight_peaks = function(frame_dB,
     # peak within harmSmooth of where we expect to find it
     idx_peak = which.max(frame_dB[(bin_h - harmSmooth) : (bin_h + harmSmooth)])
     bin_peak = bin_h + idx_peak - harmSmooth - 1
-    # should be higher than both adjacent points
-    left_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > 0
-    right_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > 0
-    # should be higher than either of the adjacent points by harmThres
-    left_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > harmThres
-    right_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > harmThres
+    # left
+    if (bin_peak == 1) {
+      left_over_zero = left_over_thres = TRUE
+    } else {
+      # should be higher than both adjacent points
+      left_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > 0
+      # should be higher than either of the adjacent points by harmThres
+      left_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > harmThres
+    }
+    # right
+    if (bin_peak == length(frame_dB)) {
+      right_over_zero = right_over_thres = TRUE
+    } else {
+      right_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > 0
+      right_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > harmThres
+    }
     peakFound[h] = left_over_zero & right_over_zero &
       (left_over_thres | right_over_thres)
+
     if (plot) {  # plot for debugging
       if (peakFound[h]) {
         text(freqs[bin_peak], frame_dB[bin_peak],

@@ -105,12 +105,15 @@ server = function(input, output, session) {
       updateSelectInput(session, 'vtl_method', selected = 'regression')
       updateSliderInput(session, 'speedSound', value = '35400')
       updateTextInput(session, 'coeffs', value = '')
+      updateCheckboxInput(session, 'interceptZero', value = TRUE)
     }
   }
   observeEvent(input$reset_to_def, resetSliders())
 
   rbind_fill = function(df1, df2) {
     # fill missing columns with NAs, then rbind - handy in case nFormants changes
+    if (nrow(df1) == 0) return(df2)
+    if (nrow(df2) == 0) return(df1)
     df1[setdiff(names(df2), names(df1))] = NA
     df2[setdiff(names(df1), names(df2))] = NA
     return(rbind(df1, df2))
@@ -251,8 +254,8 @@ server = function(input, output, session) {
   }
 
   extractSpectrogram = observe({
-    # Instead of re-loading the file every time, save the spectrogram matrix
-    # and re-draw manually with soundgen:::filled.contour.mod
+    # Instead of re-loading the file every time, could save the spectrogram
+    # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {  # & is.null(myPars$spec)
       if (myPars$print) print('Extracting spectrogram...')
       myPars$spec = spectrogram(
@@ -466,7 +469,7 @@ server = function(input, output, session) {
 
   downsample_spec = function(x, maxPoints) {
     lxy = nrow(x) * ncol(x)
-    if (lxy > maxPoints) {
+    if (length(lxy) > 0 && lxy > maxPoints) {
       if (myPars$print) print('Downsampling spectrogram...')
       lx = ncol(x)  # time
       ly = nrow(x)  # freq
@@ -1244,6 +1247,7 @@ server = function(input, output, session) {
         formants = fmts_ann,
         method = input$vtl_method,
         speedSound = input$speedSound,
+        interceptZero = input$interceptZero,
         output = 'detailed'
       )
       # method = c('regression', 'meanDispersion', 'meanFormant')[1],
@@ -1260,6 +1264,7 @@ server = function(input, output, session) {
       # hr()
     }
   }
+  observeEvent(c(input$vtl_method, input$speedSound, input$interceptZero), updateVTL())
 
   observeEvent(input$tableRow, {
     if (!is.null(myPars$ann) && input$tableRow > 0) {
@@ -1594,6 +1599,7 @@ server = function(input, output, session) {
   # Vocal tract
   shinyBS::addTooltip(session, id='vtl_method', title = 'Method of calculating vocal tract length (VTL). See ?estimateVTL', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='speedSound', title = 'VTL estimate depends on the assumed speed of sound inside the vocal tract', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='interceptZero', title = 'Set the regression intercept to zero (i.e., assume a closed-open vocal tube model)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 
   ## Plotting
   # spectrogram
