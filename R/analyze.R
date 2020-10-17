@@ -60,10 +60,9 @@
 #' @inheritParams getLoudness
 #' @param from,to if NULL (default), analyzes the whole sound, otherwise
 #'   from...to (s)
-#' @param silence (0 to 1) frames with RMS amplitude below silence threshold are
-#'   not analyzed at all. NB: this number is dynamically updated: the actual
-#'   silence threshold may be higher depending on the quietest frame, but it
-#'   will never be lower than this specified number.
+#' @param silence (0 to 1 as proportion of max amplitude) frames with RMS
+#'   amplitude below \code{silence * max_ampl adjusted by scale} are not
+#'   analyzed at all.
 #' @param SPL_measured sound pressure level at which the sound is presented, dB
 #'   (set to 0 to skip analyzing subjective loudness)
 #' @param cutFreq if specified, spectral descriptives (peakFreq, specCentroid,
@@ -126,7 +125,6 @@
 #' @param shortestPause the smallest gap between voiced syllables (ms): large
 #'   value = interpolate and merge, small value = treat as separate syllables
 #'   separated by an unvoiced gap
-#'   means they shouldn't be merged into one voiced syllable
 #' @param interpolWin,interpolTol,interpolCert control the behavior of
 #'   interpolation algorithm when postprocessing pitch candidates. To turn off
 #'   interpolation, set \code{interpolWin = 0}. See \code{soundgen:::pathfinder}
@@ -411,6 +409,8 @@ analyze = function(
     } else {
       stop('Input not recognized: must be a numeric vector or wav/mp3 file')
     }
+    if (sound_wav@stereo)
+      message('Input is a stereo file; only the left channel is analyzed')
     samplingRate = sound_wav@samp.rate
     sound = sound_wav@left
     scale = 2 ^ (sound_wav@bit - 1)
@@ -458,6 +458,13 @@ analyze = function(
                                        SPL_measured = SPL_measured,
                                        Pref = Pref)))
   }
+
+  # Adjust silence threshold as proportion of the observed max ampl
+  # (has the effect of looking for voiced segments even in very quiet files)
+  m_to_scale = m / scale
+  silence = silence * m_to_scale
+  if (m_to_scale < silence)
+    message('The audio is too quiet: max ampl is lower than silence = ', silence)
 
   # Check simple numeric default pars
   simplePars = c('silence', 'entropyThres', 'domThres',
@@ -777,8 +784,6 @@ analyze = function(
     # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
     sqrt(mean((sound[myseq[x]:(myseq[x] + windowLength_points - 1)] * m / scale) ^ 2))
   })
-  # dynamically adjust silence threshold
-  silence = max(silence, min(ampl, na.rm = TRUE))
 
   # calculate entropy of each frame within the most relevant
   # vocal range only (up to to cutFreq Hz)
@@ -810,8 +815,9 @@ analyze = function(
     duration_noSilence = (time_end - time_start) / 1000
   } else {
     duration_noSilence = 0
-    message(paste('The audio is too quiet!',
-                  'No frames above silence =', silence))
+    message(paste0(
+      'The audio is too quiet! No frames above silence = ', silence
+    ))
   }
 
   # autocorrelation for each frame

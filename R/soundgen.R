@@ -143,12 +143,12 @@ NULL
 #'   10000 means that all g0 harmonics are equally strong (anchor format)
 #' @param shortestEpoch minimum duration of each epoch with unchanging
 #'   subharmonics regime or formant locking, in ms
-#' @param amDep amplitude modulation depth, \%. 0: no change; 100: amplitude
-#'   modulation with amplitude range equal to the dynamic range of the sound
-#'   (anchor format)
-#' @param amFreq amplitude modulation frequency, Hz (anchor format)
-#' @param amShape amplitude modulation shape (-1 to +1, defaults to 0) (anchor
-#'   format)
+#' @param amDep amplitude modulation (AM) depth, \%. 0: no change; 100: AM with
+#'   amplitude range equal to the dynamic range of the sound (anchor format)
+#' @param amFreq AM frequency, Hz (anchor format)
+#' @param amType "sine" = sinusoidal, "logistic" = logistic (default)
+#' @param amShape ignore if amType = "sine", otherwise determines the shape of
+#'   non-sinusoidal AM: 0 = ~sine, -1 = notches, +1 = clicks (anchor format)
 #' @param noise loudness of turbulent noise (0 dB = as loud as
 #'   voiced component, negative values = quieter) such as aspiration, hissing,
 #'   etc (anchor format)
@@ -183,7 +183,8 @@ NULL
 #' @param windowLength length of FFT window, ms
 #' @param overlap FFT window overlap, \%. For allowed values, see
 #'   \code{\link[seewave]{istft}}
-#' @param addSilence silence before and after the bout, ms
+#' @param addSilence silence before and after the bout, ms: a vector of length 1
+#'   (symmetric) or 2 (different duration of silence before/after the sound)
 #' @param pitchFloor,pitchCeiling lower & upper bounds of f0
 #' @param pitchSamplingRate sampling frequency of the pitch contour only, Hz.
 #'   Low values reduce processing time. Set to \code{pitchCeiling} for optimal
@@ -311,6 +312,7 @@ soundgen = function(
   vocalTract = NA,
   amDep = 0,
   amFreq = 30,
+  amType = c('logistic', 'sine')[1],
   amShape = 0,
   noise = NULL,
   formantsNoise = NA,
@@ -1175,47 +1177,21 @@ soundgen = function(
     }
     # plot(soundFiltered, type = 'l')
 
-    # trill - rapid regular amplitude modulation
-    # (affects both voiced and unvoiced)
+    # Add amplitude modulation (affects both voiced and unvoiced)
     if (is.list(amDep)) {
       if (any(amDep$value > 0)) {
-        # vectorize
-        amPar_vect = c('amDep', 'amFreq', 'amShape')
-        # just to get rid of of NOTE on CRAN:
-        amDep_vector = amFreq_vector = amShape_vector = vector()
-        for (p in amPar_vect) {
-          p_unique_value = unique(get(p)$value)
-          if (length(p_unique_value) > 1) {
-            if (invalidArgAction == 'ignore') {
-              valueFloor_p = valueCeiling_p = NULL
-            } else {
-              valueFloor_p = permittedValues[p, 'low']
-              valueCeiling_p = permittedValues[p, 'high']
-            }
-            p_vectorized = getSmoothContour(
-              anchors = get(p),
-              len = length(soundFiltered),
-              interpol = 'approx',
-              valueFloor = valueFloor_p,
-              valueCeiling = valueCeiling_p
-            )
-            # plot(p_vectorized, type = 'l')
-            assign(paste0(p, '_vector'), p_vectorized)
-          } else {
-            assign(paste0(p, '_vector'), p_unique_value)
-          }
-        }
-
-        # prepare am
-        sig = getSigmoid(len = length(soundFiltered),
-                         samplingRate = samplingRate,
-                         freq = amFreq_vector,
-                         shape = amShape_vector)
-        trill = 1 - sig * amDep_vector / 100
-        # plot(trill, type='l')
-
-        # apply am
-        soundFiltered = soundFiltered * trill
+        soundFiltered = addAM(
+          x = soundFiltered,
+          samplingRate = samplingRate,
+          amDep = amDep,
+          amFreq = amFreq,
+          amType = amType,
+          amShape = amShape,
+          invalidArgAction = invalidArgAction,
+          plot = FALSE,
+          play = FALSE,
+          checkFormat = FALSE
+        )
         # plot(soundFiltered, type = 'l')
       }
     }
@@ -1240,7 +1216,8 @@ soundgen = function(
   # add some silence before and after the entire bout
   if (is.numeric(addSilence)) {
     n = round(samplingRate / 1000 * addSilence)
-    bout = c(rep(0, n), bout, rep(0, n))
+    if (length(n) == 1) n = rep(n, 2)
+    bout = c(rep(0, n[1]), bout, rep(0, n[2]))
   }
 
   if (play == TRUE) {
