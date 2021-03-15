@@ -3,14 +3,13 @@
 
 #' Generate noise
 #'
-#' Generates noise of length \code{len} and with spectrum defined by linear
-#' decay of \code{rolloffNoise} dB/kHz above \code{noiseFlatSpec} Hz OR by a
-#' specified filter \code{spectralEnvelope}. This function is called internally
-#' by \code{\link{soundgen}}, but it may be more convenient to call it directly
-#' when synthesizing non-biological noises defined by specific spectral and
-#' amplitude envelopes rather than formants: the wind, whistles, impact noises,
-#' etc. See \code{\link{fart}} and \code{\link{beat}} for similarly simplified
-#' functions for tonal non-biological sounds.
+#' Generates noise of length \code{len} and with spectrum defined by rolloff
+#' parameters OR by a specified filter \code{spectralEnvelope}. This function is
+#' called internally by \code{\link{soundgen}}, but it may be more convenient to
+#' call it directly when synthesizing non-biological noises defined by specific
+#' spectral and amplitude envelopes rather than formants: the wind, whistles,
+#' impact noises, etc. See \code{\link{fart}} and \code{\link{beat}} for
+#' similarly simplified functions for tonal non-biological sounds.
 #'
 #' Algorithm: paints a spectrogram with desired characteristics, sets phase to
 #' zero, and generates a time sequence via inverse FFT.
@@ -20,11 +19,12 @@
 #' @param len length of output
 #' @param spectralEnvelope (optional): as an alternative to using rolloffNoise,
 #'   we can provide the exact filter - a vector of non-negative numbers
-#'   specifying the power in each frequency bin on a linear scale (interpolated
-#'   to length equal to windowLength_points/2). A matrix specifying the filter
-#'   for each STFT step is also accepted. The easiest way to create this matrix
-#'   is to call soundgen:::getSpectralEnvelope or to use the spectrum of a
-#'   recorded sound
+#'   specifying the desired spectrum on a linear scale up to Nyquist frequency
+#'   (samplingRate / 2). The length doesn't matter as it can be interpolated
+#'   internally to windowLength_points/2. A matrix specifying the filter for
+#'   each STFT step is also accepted. The easiest way to obtain spectralEnvelope
+#'   is to call soundgen:::getSpectralEnvelope or to use the spectrum /
+#'   spectrogram of a recorded sound
 #' @inheritParams soundgen
 #' @param windowLength_points the length of fft window, points
 #' @export
@@ -44,7 +44,7 @@
 #' # playme(c(noise2, noise3), samplingRate)
 #'
 #' \dontrun{
-#' playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
+#' playback = list(TRUE, FALSE, 'aplay', 'vlc')[[1]]
 #' # 1.2 s of noise with rolloff changing from 0 to -12 dB above 2 kHz
 #' noise = generateNoise(len = samplingRate * 1.2,
 #'   rolloffNoise = c(0, -12), noiseFlatSpec = 2000,
@@ -118,29 +118,30 @@
 #' # (which sounds like noise if windowLength is ~5-10 ms,
 #' # but becomes more and more like the original at longer window lengths)
 #' }
-generateNoise = function(len,
-                         rolloffNoise = 0,
-                         noiseFlatSpec = 1200,
-                         rolloffNoiseExp = 0,
-                         spectralEnvelope = NULL,
-                         noise = NULL,
-                         temperature = .1,
-                         attackLen = 10,
-                         windowLength_points = 1024,
-                         samplingRate = 16000,
-                         overlap = 75,
-                         dynamicRange = 80,
-                         interpol = c('approx', 'spline', 'loess')[3],
-                         invalidArgAction = c('adjust', 'abort', 'ignore')[1],
-                         play = FALSE) {
+generateNoise = function(
+  len,
+  rolloffNoise = 0,
+  noiseFlatSpec = 1200,
+  rolloffNoiseExp = 0,
+  spectralEnvelope = NULL,
+  noise = NULL,
+  temperature = .1,
+  attackLen = 10,
+  windowLength_points = 1024,
+  samplingRate = 16000,
+  overlap = 75,
+  dynamicRange = 80,
+  interpol = c('approx', 'spline', 'loess')[3],
+  invalidArgAction = c('adjust', 'abort', 'ignore')[1],
+  play = FALSE) {
   # wiggle pars
   if (temperature > 0) {  # set to 0 when called internally by soundgen()
-    len = rnorm_truncated(n = 1,
-                          mean = len,
-                          sd = len * temperature * .5,
-                          low = 0, high = samplingRate * 10,  # max 10 s
-                          roundToInteger = TRUE,
-                          invalidArgAction = 'adjust')
+    # len = rnorm_truncated(n = 1,
+    #                       mean = len,
+    #                       sd = len * temperature * .5,
+    #                       low = 0, high = len * 2,  # max 2 * original length
+    #                       roundToInteger = TRUE,
+    #                       invalidArgAction = 'adjust')
     if (is.list(rolloffNoise)) {
       rolloffNoise = wiggleAnchors(
         rolloffNoise,
@@ -332,7 +333,7 @@ generateNoise = function(len,
   } else {
     ## instead of synthesizing the time series and then doing fft-ifft,
     # we can simply synthesize spectral noise, convert to complex
-    # (setting imaginary=0), and then do inverse FFT just once
+    # (setting imaginary=0 or random), and then do inverse FFT just once
     # set up spectrum with white noise (works b/c phase doesn't matter for noise)
     z1 = matrix(as.complex(runif(nr * nc)), nrow = nr, ncol = nc)
     # multiply by filter
@@ -839,13 +840,12 @@ generateHarmonics = function(pitch,
 
 #' Generate glottal cycles
 #'
-#' Internal soundgen function.
-#' Takes descriptives of a number of glottal cycles (f0, closed phase, rolloff -
-#' note that all three should be vectors of the same length, namely nGC) and
-#' creates a waveform consisting of a string of these glottal cycles separated
-#' by pauses (if there is a closed phase). The principle is to work with one
-#' glottal cycle at a time and create a sine wave for each harmonic, with
-#' amplitudes adjusted by rolloff.
+#' Internal soundgen function. Takes descriptives of a number of glottal cycles
+#' (f0, closed phase, rolloff - note that all three should be vectors of the
+#' same length, namely nGC) and creates a waveform consisting of a string of
+#' these glottal cycles separated by pauses (if there is a closed phase). The
+#' principle is to work with one glottal cycle at a time and create a sine wave
+#' for each harmonic, with amplitudes adjusted by rolloff.
 #' @param pitch_per_gc pitch per glottal cycle, Hz
 #' @param glottisClosed_per_gc proportion of closed phase per glottal cycle, \%
 #' @param rolloff_per_gc a list of one-column matrices, one for each glottal
@@ -854,9 +854,11 @@ generateHarmonics = function(pitch,
 #'   the ratio to F0 (eg 1.5 means it's a subharmonic added between f0 and its
 #'   first harmonic)
 #' @param samplingRate the sampling rate of generated sound, Hz
-#' @param wn windowing function applied to each glottal cycle (see ftwindow_modif)
+#' @param wn windowing function applied to each glottal cycle (see
+#'   \code{\link[seewave]{ftwindow}})
 #' @param interpol method used to adjust the number of gc to target duration
-#' @return Returns a waveform as a non-normalized numeric vector centered at zero.
+#' @return Returns a waveform as a non-normalized numeric vector centered at
+#'   zero.
 #' @keywords internal
 #' @examples
 #' pitch_per_gc = seq(100, 150, length.out = 25)
@@ -925,7 +927,7 @@ generateGC = function(pitch_per_gc,
       # waveform = crossFade(waveform, new, crossLenPoints = fadeTime_points, shape = 'lin')
     } else {
       # window before glueing gc with pauses
-      win = ftwindow_modif(wl = gc_len_adj[i], wn = wn)
+      win = seewave::ftwindow(wl = gc_len_adj[i], wn = wn)
       # plot(win, type = 'b')
       cycle_win = cycle * win
       # plot(cycle_win, type = 'l')

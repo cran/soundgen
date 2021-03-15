@@ -6,40 +6,37 @@
 \usage{
 transplantEnv(
   donor,
-  samplingRateD,
+  samplingRateD = NULL,
   recipient,
-  samplingRateR = samplingRateD,
+  samplingRateR = NULL,
   windowLength = 50,
-  method = c("hil", "rms", "peak")[1],
+  method = c("hil", "rms", "peak")[3],
   killDC = FALSE,
   dynamicRange = 80,
   plot = FALSE
 )
 }
 \arguments{
-\item{donor}{the sound that "donates" the amplitude envelope (numeric vector
-- NOT an audio file)}
+\item{donor}{the sound that "donates" the amplitude envelope}
 
 \item{samplingRateD, samplingRateR}{sampling rate of the donor and recipient,
-respectively (if only samplingRateD is provided, samplingRateR is assumed
-to be the same)}
+respectively (only needed for vectors, not files)}
 
-\item{recipient}{the sound that needs to have its amplitude envelope adjusted
-(numeric vector - NOT an audio file)}
+\item{recipient}{the sound that needs to have its amplitude envelope adjusted}
 
 \item{windowLength}{the length of smoothing window, ms}
 
-\item{method}{'hil' for Hilbert envelope, 'rms' for root mean square
-amplitude, 'peak' for peak amplitude per window}
+\item{method}{hil = Hilbert envelope, rms = root mean square amplitude, peak
+= peak amplitude per window}
 
 \item{killDC}{if TRUE, dynamically removes DC offset or similar deviations of
-average waveform from zero}
+average waveform from zero (see examples)}
 
 \item{dynamicRange}{parts of sound quieter than \code{-dynamicRange} dB will
 not be amplified}
 
-\item{plot}{if TRUE, plots the original sound, smoothed envelope, and
-flattened sound}
+\item{plot}{if TRUE, plots the original sound, the smoothed envelope, and
+the compressed sound}
 }
 \value{
 Returns the recipient sound with the donor's amplitude envelope - a
@@ -65,5 +62,5 @@ transplantEnv(donor, samplingRateD = 200,
                windowLength = 10, method = 'peak', plot = TRUE)
 }
 \seealso{
-\code{\link{flatEnv}}, \code{\link[seewave]{setenv}}
+\code{\link{flatEnv}} \code{\link[seewave]{setenv}}
 }

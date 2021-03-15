@@ -9,13 +9,12 @@ scaleSPL(x, scale = NULL, SPL_measured = 70, Pref = 2e-05)
 \arguments{
 \item{x}{numeric vector ranging from -1 to +1}
 
-\item{scale}{the maximum possible value of \code{x} (only needed if \code{x}
-is a numeric vector, rather than an audio file); defaults to observed
-\code{max(abs(x))} if it is greater than 1 and to 1 otherwise}
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
 
 \item{SPL_measured}{sound pressure level at which the sound is presented, dB}
 
-\item{Pref}{reference pressure, Pa}
+\item{Pref}{reference pressure, Pa (currently has no effect on the estimate)}
 }
 \description{
 Internal soundgen function
@@ -28,8 +27,8 @@ See Timoney et al. (2004) "Implementing loudness models in MATLAB"
 sound = rnorm(100) * getSmoothContour(c(0, 1, 0), len = 100)
 sound = sound / max(abs(sound))
 # plot(sound, type = 'l')
-sound_scaled = soundgen:::scaleSPL(sound)
-# plot(sound_scaled, type = 'l')
+sound_scaled = soundgen:::scaleSPL(sound, Pref = 2e-1)
+plot(sound_scaled, type = 'l')
 
 sound2 = sound / 3
 range(soundgen:::scaleSPL(sound2, scale = NULL))

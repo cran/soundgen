@@ -23,7 +23,7 @@ getSmoothSpectrum(
 \item{sound}{the audio (numeric, any scale)}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than an audio file)}
+numeric vector)}
 
 \item{len}{the desired resolution of the output}
 
@@ -36,9 +36,9 @@ minimal smoothing, 1 = strong smoothing)}
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{xlab}{graphical parameters}
+\item{xlab}{graphical parameters for plotting}
 
-\item{ylab}{graphical parameters}
+\item{ylab}{graphical parameters for plotting}
 
 \item{...}{other graphical parameters}
 

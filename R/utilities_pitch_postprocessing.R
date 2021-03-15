@@ -77,7 +77,7 @@ pathfinder = function(pitchCands,
   # if a frame has no pitch candidate at all (NA) or no candidate
   # between the most likely candidates for the adjacent frames, add such a
   # candidate with ~low certainty
-  if (interpolWin_bin > 0) {
+  if (length(interpolWin_bin) > 0 && interpolWin_bin > 0) {
     # order pitch candidates and certainties in each frame pushing NAs down so
     # as to simplify the matrix (the position of manual candidates is not
     # important since they are saved in 'manual')
@@ -168,8 +168,11 @@ pathfinder = function(pitchCands,
       snakePlot = snakePlot
     )
   }
-  if (!is.numeric(bestPath) |
-      length(bestPath) != nc) browser()
+  if (!is.numeric(bestPath) | length(bestPath) != nc) {
+    # browser()
+    bestPath = pitchCenterGravity
+  }
+
   return(2 ^ bestPath)
 }
 
@@ -379,14 +382,16 @@ pathfinding_fast = function(pitchCands,
   #
   #   er = try(costPathForward < costPathBackward, silent = TRUE)
   #   if (class(er)[1] == 'try-error' | is.na(er)) browser()
-  if (length(costPathForward) != 1 | length(costPathBackward) != 1) browser()
+  if (length(costPathForward) != 1 | length(costPathBackward) != 1) {
+    # browser()
+    return(NA)
+  }
   if (costPathForward < costPathBackward) {
     bestPath = path
   } else {
     bestPath = rev(path_rev)
   }
-  if (length(bestPath) != nc) browser()
-
+  # if (length(bestPath) != nc) browser()
   return(bestPath)
 }
 
@@ -1013,15 +1018,15 @@ addPitchCands = function(pitchCands,
     ), pars_pitchContour))
   }
 
-  # Add another contour such as harmHeight
+  # Add an extra contour such as harmHeight
   if (!is.null(extraContour)) {
     if (any(!is.na(extraContour)) & length(timestamps) > 0) {
       if (is.null(extraContour_pars$type)) extraContour_pars$type = 'l'
       if (extraContour_pars$type != 'n') {
         if (is.null(extraContour_pars$lty)) extraContour_pars$lty = 2
         if (is.null(extraContour_pars$lwd)) extraContour_pars$lwd = 2
-        if (is.null(extraContour_pars$col)) extraContour_pars$col = 'pink'
-        do.call(lines, c(list(x = timestamps, y = extraContour * yScaleCoef),
+        if (is.null(extraContour_pars$col)) extraContour_pars$col = 'red'
+        do.call(points, c(list(x = timestamps, y = extraContour * yScaleCoef),
                          extraContour_pars))
       }
     }

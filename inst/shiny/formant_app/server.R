@@ -1,6 +1,6 @@
 # formant_app()
 #
-# To do: check & debug with real tasks; LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
+# To do: maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); VTL smts not updated when adjusting formant values; highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
 
 # Start with a fresh R session and run the command options(shiny.reactlog=TRUE)
 # Then run your app in a show case mode: runApp('inst/shiny/formant_app', display.mode = "showcase")
@@ -22,23 +22,23 @@ server = function(input, output, session) {
   options(shiny.maxRequestSize = 30 * 1024 ^ 2)
 
   myPars = reactiveValues(
-    zoomFactor = 2,     # zoom buttons change time zoom by this factor
+    zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
-    print = FALSE,       # if TRUE, some functions print a meassage to the console when called
+    print = FALSE,          # if TRUE, some functions print a meassage to the console when called
     drawSpec = TRUE,
     shinyTip_show = 1000,      # delay until showing a tip (ms)
     shinyTip_hide = 0,         # delay until hiding a tip (ms)
     initDur = 2000,            # initial duration to analyze (ms)
     out_fTracks = list(),      # a list for storing formant tracks per file
     out_spects = list(),       # a list for storing spectrograms
-    selectedF = 'f1',          # preselect F1 for correction
+    selectedF = 'F1',          # preselect F1 for correction
     slider_ms = 50,            # how often to update play slider
     scrollFactor = .75,        # how far to scroll on arrow press/click
     wheelScrollFactor = .1,    # how far to scroll on mouse wheel (prop of xlim)
     cursor = 0,
     listenToFbtn = FALSE,      # buggy
     play = list(on = FALSE),
-    debugQn = FALSE             # for debugging - click "?" to step into the code
+    debugQn = TRUE             # for debugging - click "?" to step into the code
   )
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
@@ -137,6 +137,8 @@ server = function(input, output, session) {
         myPars$out = user_ann
       } else {
         myPars$out = rbind_fill(myPars$out, user_ann)
+        # remove duplicate rows
+        myPars$out = unique(myPars$out)
       }
     }
 
@@ -218,13 +220,13 @@ server = function(input, output, session) {
       myPars$myAudio = myPars$myAudio / max(abs(myPars$myAudio)) * myPars$maxAmpl
     }
     myPars$nyquist = myPars$samplingRate / 2 / 1000
-    updateSliderInput(session, 'spec_ylim',
-                      value = c(0, min(def_form['spec_ylim', 'default'], myPars$nyquist)),
-                      max = myPars$nyquist)
-    updateSliderInput(session, 'spectrum_xlim',
-                      value = c(0, min(def_form['spectrum_xlim', 'default'], myPars$nyquist)),
-                      max = myPars$nyquist)
-    myPars$dur = round(length(myPars$temp_audio@left) / myPars$temp_audio@samp.rate * 1000)
+    # updateSliderInput(session, 'spec_ylim',
+    #                   value = c(0, min(def_form['spec_ylim', 'default'], myPars$nyquist)),
+    #                   max = myPars$nyquist)
+    # updateSliderInput(session, 'spectrum_xlim',
+    #                   value = c(0, min(def_form['spectrum_xlim', 'default'], myPars$nyquist)),
+    #                   max = myPars$nyquist)
+    myPars$dur = length(myPars$temp_audio@left) * 1000 / myPars$temp_audio@samp.rate
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
     myPars$regionToAnalyze = myPars$spec_xlim
@@ -312,7 +314,7 @@ server = function(input, output, session) {
           id = paste0('fDiv_', f),
           class = ifelse(f == 1, 'fBox selected', 'fBox'),
           textInput(
-            inputId = paste0('f', f, '_text'),
+            inputId = paste0('F', f, '_text'),
             label = paste0('F', f),
             value = '')
         )
@@ -343,7 +345,7 @@ server = function(input, output, session) {
   # edit myPars$ann when formant freq is modified manually as text
   observeEvent(input$nFormants, {
     lapply(1:input$nFormants, function(f) {
-      fn = paste0('f', f, '_text')
+      fn = paste0('F', f, '_text')
       observeEvent(input[[fn]], {
         hr()  # otherwise row highlight disappears, no idea why!
         if (isolate(myPars$listenToFbtn)) {
@@ -351,16 +353,16 @@ server = function(input, output, session) {
           vn = suppressWarnings(as.numeric(v))
           if (v == '') {
             # empty string - reset to default
-            myPars$ann[myPars$currentAnn, paste0('f', f)] = myPars$formants[f]
+            myPars$ann[myPars$currentAnn, paste0('F', f)] = myPars$formants[f]
             updateTextInput(
               session, fn,
               value = as.character(myPars$formants[f]))
           } else if (!is.na(vn)) {
             # number - treat as manual correction
-            myPars$ann[myPars$currentAnn, paste0('f', f)] = vn
+            myPars$ann[myPars$currentAnn, paste0('F', f)] = vn
           } else {
             # any other (invalid) input - treat as a missing formant (NA)
-            myPars$ann[myPars$currentAnn, paste0('f', f)] = NA
+            myPars$ann[myPars$currentAnn, paste0('F', f)] = NA
           }
           updateVTL()
           hr()
@@ -370,7 +372,7 @@ server = function(input, output, session) {
       # add onclick event with shinyjs to select the formant to edit
       this_div = paste0('fDiv_', f)
       shinyjs::onclick(id = this_div, {
-        myPars$selectedF = paste0('f', f)
+        myPars$selectedF = paste0('F', f)
         shinyjs::addCssClass(id = this_div, class = 'selected')
         other_divs = paste0('fDiv_', (1:input$nFormants)[-f])
         for (d in other_divs) {
@@ -483,7 +485,7 @@ server = function(input, output, session) {
     return(out)
   }
 
-  observe({
+  observeEvent(c(myPars$spec, myPars$spec_xlim, myPars$analyzedUpTo), {
     if (!is.null(myPars$spec)) {
       if (is.null(myPars$analyzedUpTo)) {
         myPars$regionToAnalyze = myPars$spec_xlim
@@ -491,6 +493,17 @@ server = function(input, output, session) {
       } else {
         if (myPars$analyzedUpTo < myPars$spec_xlim[2]) {
           myPars$regionToAnalyze = c(myPars$analyzedUpTo, myPars$spec_xlim[2])
+          if (diff(myPars$regionToAnalyze) < 500) {
+            # too little new audio to analyze - extend
+            myPars$regionToAnalyze[2] = min(
+              myPars$regionToAnalyze[2] + 500, myPars$dur
+            )
+            if (diff(myPars$regionToAnalyze) < 500) {
+              myPars$regionToAnalyze[1] = max(
+                myPars$regionToAnalyze[2] - 500, 0
+              )
+            }
+          }
           call = TRUE
         } else {
           call = FALSE
@@ -509,10 +522,9 @@ server = function(input, output, session) {
   })
 
   observeEvent(input$nFormants, {
-    myPars$ff = paste0('f', 1:input$nFormants)
-    myPars$f_col_names = paste0(myPars$ff, '_freq')
+    myPars$ff = paste0('F', 1:input$nFormants)
     if (!is.null(myPars$formantTracks)) {
-      missingCols = myPars$f_col_names[which(!myPars$f_col_names %in% colnames(myPars$formantTracks))]
+      missingCols = myPars$ff[which(!myPars$ff %in% colnames(myPars$formantTracks))]
       if (length(missingCols > 0)) myPars$formantTracks[, missingCols] = NA
     }
     if (!is.null(myPars$ann)) {
@@ -580,7 +592,7 @@ server = function(input, output, session) {
 
   output$specOver = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = NA)
+      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
       # bg=NA makes the image transparent
 
       # empty plot to enable hover/click events for the spectrogram underneath
@@ -589,32 +601,6 @@ server = function(input, output, session) {
         y = input$spec_ylim,
         type = 'n'),
         myPars$specOver_opts))
-
-      if (!is.null(myPars$spectrogram_hover)) {
-        # horizontal line
-        do.call(points, c(list(
-          x = myPars$spec_xlim,
-          y = rep(myPars$spectrogram_hover$y, 2),
-          type = 'l', lty = 3),
-          myPars$specOver_opts))
-        # frequency label
-        do.call(text, list(
-          x = myPars$spec_xlim[1],
-          y = myPars$spectrogram_hover$y,
-          labels = myPars$spectrogram_hover$freq,
-          adj = c(0, 0)))
-        # vertical line
-        do.call(points, list(
-          x = rep(myPars$spectrogram_hover$x, 2),
-          y = input$spec_ylim,
-          type = 'l', lty = 3))
-        # time label
-        do.call(text, list(
-          x = myPars$spectrogram_hover$x,
-          y = input$spec_ylim[1] + .025 * diff(input$spec_ylim),
-          labels = soundgen:::convert_sec_to_hms(myPars$spectrogram_hover$x / 1000, 3),
-          adj = .5))
-      }
 
       # Add a rectangle showing the current annotation
       if (!is.null(myPars$currentAnn)) {
@@ -652,12 +638,49 @@ server = function(input, output, session) {
                  cex = input$spec_cex)
         }
       }
+
+      # Add formant frequencies from current ann
+      if (!is.null(myPars$currentAnn)) {
+        ff = myPars$ann[myPars$currentAnn, myPars$ff]
+        text(x = rep(myPars$ann$from[myPars$currentAnn], length(ff)),
+             y = ff / 1000,
+             labels = names(ff),
+             adj = c(0, .5), col = 'green', cex = 1.5)
+      }
+
+      # grid and x/y labels on hover
+      if (!is.null(myPars$spectrogram_hover)) {
+        # horizontal line
+        do.call(points, c(list(
+          x = myPars$spec_xlim,
+          y = rep(myPars$spectrogram_hover$y, 2),
+          type = 'l', lty = 3),
+          myPars$specOver_opts))
+        # frequency label
+        do.call(text, list(
+          x = myPars$spec_xlim[1],
+          y = myPars$spectrogram_hover$y,
+          labels = myPars$spectrogram_hover$freq,
+          adj = c(0, 0)))
+        # vertical line
+        do.call(points, list(
+          x = rep(myPars$spectrogram_hover$x, 2),
+          y = input$spec_ylim,
+          type = 'l', lty = 3))
+        # time label
+        do.call(text, list(
+          x = myPars$spectrogram_hover$x,
+          y = input$spec_ylim[1] + .025 * diff(input$spec_ylim),
+          labels = soundgen:::convert_sec_to_hms(myPars$spectrogram_hover$x / 1000, 3),
+          adj = .5))
+      }
+
     }
   })
 
   output$specSlider = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = NA)
+      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
       # bg=NA makes the image transparent
 
       if (myPars$cursor == 0) {
@@ -865,8 +888,8 @@ server = function(input, output, session) {
       }
 
       isolate({
-        myPars$spectrum_freq_range = range(myPars$spectrum$freq)
-        myPars$spectrum_ampl_range = range(myPars$spectrum$ampl)
+        myPars$spectrum_freq_range = try(range(myPars$spectrum$freq))
+        myPars$spectrum_ampl_range = try(range(myPars$spectrum$ampl))
       })
     }
   })
@@ -928,6 +951,26 @@ server = function(input, output, session) {
   })
   observeEvent(input$spectrum_smooth, {
     myPars$spectrum_hover = NULL
+  })
+
+
+  ## FORMANT SPACE
+  output$fmtSpace = renderPlot({
+    if (!is.null(myPars$currentAnn) &&
+        !is.null(myPars$ann[myPars$currentAnn]) &&
+        (is.finite(myPars$ann[myPars$currentAnn, ]$F1) &
+         is.finite(myPars$ann[myPars$currentAnn, ]$F2))) {
+      if (myPars$print) print('Drawing formant space')
+      caf = myPars$ann[myPars$currentAnn, myPars$ff]
+      cafr = schwa(formants = as.numeric(caf))$ff_relative_semitones
+      xlim = range(c(ipa$F1Rel, cafr[1]))
+      ylim = range(c(ipa$F2Rel, cafr[2]))
+      par(mar = c(0, 0, 0, 0))
+      plot(ipa$F1Rel, ipa$F2Rel, type = 'n', xlab = '', ylab = '',
+           xlim = xlim, ylim = ylim, bty = 'n', xaxt = 'n', yaxt = 'n')
+      text(ipa$F1Rel, ipa$F2Rel, labels = ipa$ipa, cex = 1.5, col = 'blue')
+      points(cafr[1], cafr[2], pch = 4, cex = 2.5, col = 'red')
+    }
   })
 
 
@@ -1074,8 +1117,8 @@ server = function(input, output, session) {
 
     # paste in formant frequencies
     avFmPerSel()
-    myPars$ann[myPars$currentAnn, myPars$ff] = myPars$formants[myPars$f_col_names]
-    updateFBtn(myPars$formants[myPars$f_col_names])
+    myPars$ann[myPars$currentAnn, myPars$ff] = myPars$formants[myPars$ff]
+    updateFBtn(myPars$formants[myPars$ff])
     updateVTL()
 
     # clear the selection, close the modal
@@ -1091,7 +1134,7 @@ server = function(input, output, session) {
   updateFBtn = function(ff) {
     if (myPars$print) print('Updating formant buttons...')
     for (f in 1:input$nFormants) {
-      updateTextInput(session, inputId = paste0('f', f, '_text'),
+      updateTextInput(session, inputId = paste0('F', f, '_text'),
                       value = ff[f])
     }
   }
@@ -1127,12 +1170,15 @@ server = function(input, output, session) {
       } else {
         coeffs = NULL
       }
-      myPars$temp_anal = analyze(
-        myPars$myAudio,
-        samplingRate = myPars$samplingRate,
-        from = myPars$regionToAnalyze[1] / 1000,
-        to = myPars$regionToAnalyze[2] / 1000,
-        scale = myPars$maxAmpl,
+      sel_anal = max(1, round(myPars$regionToAnalyze[1] / 1000 * myPars$samplingRate)) :
+        min(myPars$ls, round(myPars$regionToAnalyze[2] / 1000 * myPars$samplingRate))
+      myPars$temp_anal = soundgen:::.analyze(
+        list(sound = myPars$myAudio[sel_anal],
+             samplingRate = myPars$samplingRate,
+             scale = myPars$maxAmpl,
+             timeShift = myPars$regionToAnalyze[1] / 1000,
+             ls = length(sel_anal),
+             duration = length(sel_anal) / myPars$samplingRate),
         windowLength = input$windowLength_lpc,
         step = input$step_lpc,
         wn = input$wn_lpc,
@@ -1142,19 +1188,20 @@ server = function(input, output, session) {
         formants = list(
           coeffs = coeffs,
           minformant = input$minformant,
-          maxbw = input$maxbw,
-          verify = FALSE
+          maxbw = input$maxbw
         ),
         pitchMethods = NULL,  # disable pitch tracking
         SPL_measured = 0,  # disable loudness analysis
         nFormants = NULL,  # save all available formants
         roughness = list(amRes = 0),  # no roughness analysis
         summaryFun = NULL,
-        plot = FALSE
+        plot = FALSE,
+        returnPitchCands = FALSE
       )
       myPars$nMeasuredFmts = length(grep('_freq', colnames(myPars$temp_anal)))
       myPars$allF_colnames = paste0('f', 1:myPars$nMeasuredFmts, '_freq')
       myPars$temp_anal = myPars$temp_anal[, c('time', myPars$allF_colnames)]
+      colnames(myPars$temp_anal) = c('time', paste0('F', 1:myPars$nMeasuredFmts))
       for (c in colnames(myPars$temp_anal)) {
         if (any(!is.na(myPars$temp_anal[, c]))) {
           # in case of all NAs
@@ -1279,7 +1326,9 @@ server = function(input, output, session) {
   ## Buttons for operations with selection
   startPlay = function() {
     if (!is.null(myPars$myAudio)) {
-      if (!is.null(myPars$spectrogram_brush)) {
+      if (!is.null(myPars$spectrogram_brush) &&
+          (myPars$spectrogram_brush$xmax - myPars$spectrogram_brush$xmin > 100)) {
+        # at least 100 ms selected
         myPars$play$from = myPars$spectrogram_brush$xmin / 1000
         myPars$play$to = myPars$spectrogram_brush$xmax / 1000
       } else {
@@ -1392,7 +1441,7 @@ server = function(input, output, session) {
   })
 
   changeZoom = function(coef, toCursor = FALSE) {
-    # intelligent zoom-in a la Audacity: midpoint moves closer to seletion/cursor
+    # intelligent zoom-in a la Audacity: midpoint moves closer to selection/cursor
     if (!is.null(myPars$cursor) & toCursor) {
       if (!is.null(myPars$spectrogram_brush)) {
         midpoint = 3/4 * mean(c(myPars$spectrogram_brush$xmin,
@@ -1413,6 +1462,8 @@ server = function(input, output, session) {
     newLeft = max(0, midpoint - halfRan)
     newRight = min(myPars$dur, midpoint + halfRan)
     myPars$spec_xlim = c(newLeft, newRight)
+    # use user-set time zoom in the next audio
+    if (!is.null(myPars$spec_xlim)) myPars$initDur = diff(myPars$spec_xlim)
   }
   observeEvent(input$zoomIn, changeZoom(myPars$zoomFactor, toCursor = TRUE))
   observeEvent(input$zoomOut, changeZoom(1 / myPars$zoomFactor))
@@ -1522,6 +1573,8 @@ server = function(input, output, session) {
   # SAVE OUTPUT
   done = function() {
     # meaning we are done with a sound - prepares the output
+    updateVTL()  # in case of glitches (smts VTL is not updated
+    # as it should be when ff are changed manually)
     if (myPars$print) print('Running done()...')
     if (!is.null(myPars$ann)) {
       if (is.null(myPars$out)) {
@@ -1609,6 +1662,17 @@ server = function(input, output, session) {
     }
   })
 
+  observeEvent(input$synthBtn, {
+    if (!is.null(myPars$ann[myPars$currentAnn, ]) &&
+        any(!is.na(myPars$ann[myPars$currentAnn, myPars$ff]))) {
+      if (myPars$print) print('Calling soundgen()...')
+      temp_s = soundgen(
+        formants = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff]),
+        temperature = .001, tempEffects = list(formDisp = 0, formDrift = 0))
+      playme(temp_s)
+    }
+  })
+
   ### TOOLTIPS - have to be here instead of UI b/c otherwise problems with regulating delay
   # (see https://stackoverflow.com/questions/47477237/delaying-and-expiring-a-shinybsbstooltip)
   ## Analysis
@@ -1664,6 +1728,7 @@ server = function(input, output, session) {
   shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='synthBtn', title = 'Synthesize and play a vowel with formants as measured in the current annotation. Check ?playme() if no sound', placement="bottom", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 
   # navigation / zoom
   shinyBS::addTooltip(session, id='zoomIn_freq', title = 'Zoom in frequency (+)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))

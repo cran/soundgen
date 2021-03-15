@@ -1,6 +1,10 @@
-# TODO: morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; some smart rbind_fill in all ...Folder functions() in case of missing columns; soundgen- use psola when synthesizing 1 gc at a time; gaussian wn implemented in seewave (check updates!); soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); soundgen() should accept smth like pitch = c(300, NA, 150, 250) and interpret this as two syllables with a pause - use eg as preview in manual pitch correction; morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO: check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound')
+
+# TODO maybe: compareSounds - input folder creates a distance matrix based on features and/or melSpec; add mel/bark to spectrogram(yScale); inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness(see Fastl p. 242); Viterbi algorithm for pathfinding; check loudness estimation (try to find standard values to compare); adaptive priors for pitch tracking - use first pass to update the prior per sound, then redo pathfinding; pitch tracker based on coincidence of subharmonics of strong spectral peaks (see Fastl & Zwicker p. 124), maybe also refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; some smart rbind_fill in all ...Folder functions() in case of missing columns; soundgen- use psola when synthesizing 1 gc at a time; soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
+
+# grep -rnw /home/allgoodguys/Documents/Research/methods/sound-synthesis/soundgen -e "getRMSSound"
 
 #' @import stats graphics utils grDevices shinyBS
 #' @encoding UTF-8
@@ -200,8 +204,8 @@ NULL
 #'   your system. If character, passed to \code{\link[tuneR]{play}} as the name
 #'   of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
 #'   setting another default player for \code{\link[tuneR]{play}}
-#' @param savePath full path for saving the output, e.g. '~/Downloads/temp.wav'.
-#'   If NA (default), doesn't save anything
+#' @param saveAudio path + filename for saving the output, e.g.
+#'   '~/Downloads/temp.wav'. If NULL = doesn't save
 #' @param ... other plotting parameters passed to \code{\link{spectrogram}}
 #' @export
 #' @return Returns the synthesized waveform as a numeric vector.
@@ -243,13 +247,15 @@ NULL
 #'
 #' # Intonation contours per syllable and globally:
 #' sound = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140,
-#'   play = playback, pitch = data.frame(
-#'     time = c(0, 0.65, 1), value = c(977, 1540, 826)),
-#'   pitchGlobal = data.frame(time = c(0, .5, 1), value = c(-6, 7, 0)))
+#'   pitch = list(
+#'     time = c(0, 0.65, 1),
+#'     value = c(977, 1540, 826)),
+#'   pitchGlobal = list(time = c(0, .5, 1), value = c(-6, 7, 0)),
+#'   play = playback, plot = TRUE)
 #'
-#' # Subharmonics in sidebands (noisy scream)
-#' sound = soundgen (subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
-#'   pitch = data.frame(
+#' # Subharmonics / sidebands (noisy scream)
+#' sound = soundgen(subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
+#'   pitch = list(
 #'     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
 #'   sylLen = 800,
 #'   play = playback, plot = TRUE)
@@ -342,7 +348,7 @@ soundgen = function(
   invalidArgAction = c('adjust', 'abort', 'ignore')[1],
   plot = FALSE,
   play = FALSE,
-  savePath = NA,
+  saveAudio = NA,
   ...
 ) {
   # deprecated pars
@@ -402,6 +408,22 @@ soundgen = function(
   if (!is.integer(repeatBout)) {
     repeatBout = floor(repeatBout) +
       rbinom(1, 1, repeatBout - floor(repeatBout))
+  }
+
+  # deal with NAs in pitch contour: save NA location, then interpolate
+  if (nSyl == 1 && is.numeric(pitch) && any(is.na(pitch))) {
+    lp = length(pitch)
+    change_idx = which(diff(is.na(pitch)) != 0)  # last idx before change
+    na_seg = data.frame(
+      start = c(1, change_idx + 1),
+      end = c(change_idx, lp)
+    )
+    na_seg = na_seg[is.na(pitch[na_seg$start]), ]
+    na_seg$prop_start = (na_seg$start - 1) / lp
+    na_seg$prop_end = na_seg$end / lp
+    pitch = intplPitch(pitch)  # fill in NA by interpolation
+  } else {
+    na_seg = NULL
   }
 
   # check and, if necessary, reformat anchors to dataframes
@@ -819,7 +841,7 @@ soundgen = function(
     noise_syl = list()
 
     for (s in 1:nrow(syllables)) {
-      # scale noise anchors for polysyllabic sounds with lengh(sylLen) > 1
+      # scale noise anchors for polysyllabic sounds with length(sylLen) > 1
       noise_syl[[s]] = noise
       noise_syl[[s]]$time = scaleNoiseAnchors(
         noiseTime = noise_syl[[s]]$time,
@@ -971,6 +993,17 @@ soundgen = function(
       #   stop('The new syllable contains NA values!')
       # }
 
+      # silence the syllable at the former location of NAs in pitch contour, if any
+      if (!is.null(na_seg)) {
+        syllable = silenceSegments(
+          x = syllable,
+          samplingRate = samplingRate,
+          na_seg = na_seg,
+          attackLen = attackLen
+        )
+        # spectrogram(syllable, samplingRate)
+      }
+
       # generate a pause for all but the last syllable
       if (s < nrow(syllables)) {
         pause = rep(0, floor((syllables[s + 1, 'start'] - syllables[s, 'end']) *
@@ -1113,12 +1146,15 @@ soundgen = function(
         )
 
         if (length(sound) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-          soundFiltered = do.call(addFormants, c(
+          soundFiltered = do.call(.addFormants, c(
             formantPars,
-            list(sound = sound,
-                 formants = formants,
-                 formantDepStoch = formantDepStoch,
-                 normalize = FALSE)
+            list(audio = list(
+              sound = sound,
+              samplingRate = samplingRate
+            ),
+            formants = formants,
+            formantDepStoch = formantDepStoch,
+            normalize = FALSE)
           ))
         } else {
           soundFiltered = sound
@@ -1127,24 +1163,30 @@ soundgen = function(
         # OPTION 2: apply different formant filters to voiced and unvoiced, then mix
         # add formants to voiced
         if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-          voicedFiltered = do.call(addFormants, c(
+          voicedFiltered = do.call(.addFormants, c(
             formantPars,
-            list(sound = voiced,
-                 formants = formants,
-                 formantDepStoch = formantDepStoch,
-                 normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
+            list(audio = list(
+              sound = voiced,
+              samplingRate = samplingRate
+            ),
+            formants = formants,
+            formantDepStoch = formantDepStoch,
+            normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
           ))
         } else {
           voicedFiltered = voiced
         }
         # add formants to unvoiced
         if (length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-          unvoicedFiltered = do.call(addFormants, c(
+          unvoicedFiltered = do.call(.addFormants, c(
             formantPars,
-            list(sound = sound_unvoiced,
-                 formants = formantsNoise,
-                 formantDepStoch = formantDepStoch_noise,
-                 normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
+            list(audio = list(
+              sound = sound_unvoiced,
+              samplingRate = samplingRate
+            ),
+            formants = formantsNoise,
+            formantDepStoch = formantDepStoch_noise,
+            normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
           ))
         } else {
           unvoicedFiltered = sound_unvoiced
@@ -1164,12 +1206,15 @@ soundgen = function(
       # no unvoiced component - just add formants to voiced
       # plot(voiced, type = 'l')
       if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-        soundFiltered = do.call(addFormants, c(
+        soundFiltered = do.call(.addFormants, c(
           formantPars,
-          list(sound = voiced,
-               formants = formants,
-               formantDepStoch = formantDepStoch,
-               normalize = FALSE)
+          list(audio = list(
+            sound = voiced,
+            samplingRate = samplingRate
+          ),
+          formants = formants,
+          formantDepStoch = formantDepStoch,
+          normalize = FALSE)
         ))
       } else {
         soundFiltered = voiced
@@ -1180,17 +1225,19 @@ soundgen = function(
     # Add amplitude modulation (affects both voiced and unvoiced)
     if (is.list(amDep)) {
       if (any(amDep$value > 0)) {
-        soundFiltered = addAM(
-          x = soundFiltered,
-          samplingRate = samplingRate,
+        soundFiltered = .addAM(
+          audio = list(
+            sound = soundFiltered,
+            samplingRate = samplingRate,
+            ls = length(soundFiltered)
+          ),
           amDep = amDep,
           amFreq = amFreq,
           amType = amType,
           amShape = amShape,
           invalidArgAction = invalidArgAction,
           plot = FALSE,
-          play = FALSE,
-          checkFormat = FALSE
+          play = FALSE
         )
         # plot(soundFiltered, type = 'l')
       }
@@ -1226,8 +1273,8 @@ soundgen = function(
   if (is.character(play)) {
     playme(bout, samplingRate = samplingRate, player = play)
   }
-  if (!is.na(savePath)) {
-    seewave::savewav(bout, filename = savePath, f = samplingRate)
+  if (!is.na(saveAudio)) {
+    seewave::savewav(bout, filename = saveAudio, f = samplingRate)
   }
   if (plot) {
     spectrogram(bout, samplingRate = samplingRate,

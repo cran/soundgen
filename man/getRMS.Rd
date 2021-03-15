@@ -2,64 +2,110 @@
 % Please edit documentation in R/amplitude.R
 \name{getRMS}
 \alias{getRMS}
-\title{RMS amplitude per frame}
+\title{RMS amplitude}
 \usage{
 getRMS(
   x,
   samplingRate = NULL,
+  scale = NULL,
+  from = NULL,
+  to = NULL,
   windowLength = 50,
   step = NULL,
-  overlap = 75,
+  overlap = 70,
   killDC = FALSE,
-  scale = NULL,
   normalize = TRUE,
   windowDC = 200,
-  plot = TRUE,
+  summaryFun = "mean",
+  reportEvery = NULL,
+  plot = FALSE,
+  savePlots = NULL,
+  main = NULL,
   xlab = "",
   ylab = "",
   type = "b",
   col = "green",
   lwd = 2,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
   ...
 )
 }
 \arguments{
-\item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
-samplingRate}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than an audio file)}
+numeric vector)}
+
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
+
+\item{from}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
+
+\item{to}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
 
 \item{windowLength}{length of FFT window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
 \item{killDC}{if TRUE, removed DC offset (see also \code{\link{flatEnv}})}
 
-\item{scale}{maximum possible amplitude of input used for normalization (not
-needed for audio files)}
-
-\item{normalize}{if TRUE, RMS amplitude is normalized to [0, 1]}
+\item{normalize}{if TRUE, the RMS amplitude is returned as proportion of
+the maximum possible amplitude as given by \code{scale}}
 
 \item{windowDC}{the window for calculating DC offset, ms}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{summaryFun}{functions used to summarize each acoustic characteristic;
+see \code{\link{analyze}}}
+
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
+\item{plot}{if TRUE, plot a contour of RMS amplitude}
+
+\item{savePlots}{full path to the folder in which to save the plots (NULL =
+don't save, '' = same folder as audio)}
+
+\item{main}{graphical parameters for plotting}
 
 \item{xlab, ylab}{general graphical parameters}
 
 \item{type, col, lwd}{graphical parameters pertaining to the RMS envelope}
 
+\item{width}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{height}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{units}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{res}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
 \item{...}{other graphical parameters}
 }
 \value{
-Returns a numeric vector of RMS amplitudes per frame on the scale of
-  input. Names give time stamps for the center of each frame, in ms.
+Returns a list containing: \itemize{\item{$detailed: }{a list of RMS
+  amplitudes per frame for each sound, on the scale of input; names give time
+  stamps for the center of each frame, in ms.} \item{$summary: }{a dataframe
+  with summary measures, one row per sound}}
 }
 \description{
-Calculates root mean square (RMS) amplitude in overlapping frames, providing
-an envelope of RMS amplitude as a measure of sound intensity. Longer windows
+Calculates root mean square (RMS) amplitude in overlapping windows, providing
+an envelope of RMS amplitude - a measure of sound intensity. Longer windows
 provide smoother, more robust estimates; shorter windows and more overlap
 improve temporal resolution, but they also increase processing time and make
 the contour less smooth.
@@ -74,20 +120,32 @@ Having RMS estimates per frame gives more flexibility: RMS per sound can be
 calculated as the mean / median / max of RMS values per frame.
 }
 \examples{
-s = soundgen() + .1  # with added DC offset
-plot(s, type = 'l')
+s = soundgen() + .25  # with added DC offset
+osc(s)
 r = getRMS(s, samplingRate = 16000,
   windowLength = 40, overlap = 50, killDC = TRUE,
-  type = 'l', lty = 2, main = 'RMS envelope')
+  plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
 # short window = jagged envelope
 r = getRMS(s, samplingRate = 16000,
   windowLength = 5, overlap = 0, killDC = TRUE,
-  col = 'blue', pch = 13, main = 'RMS envelope')
+  plot = TRUE, col = 'blue', pch = 13, main = 'RMS envelope')
 \dontrun{
-r = getRMS('~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav')
+r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
+r$summary
+
+# Compare:
+analyze('~/Downloads/temp', pitchMethods = NULL,
+        plot = FALSE)$ampl_mean
+# (per STFT frame, but should be very similar)
+
+User-defined summary functions:
+ran = function(x) diff(range(x))
+meanSD = function(x) {
+  paste0('mean = ', round(mean(x), 2), '; sd = ', round(sd(x), 2))
+}
+getRMS('~/Downloads/temp', summaryFun = c('mean', 'ran', 'meanSD'))$summary
 }
 }
 \seealso{
-\code{\link{getRMSFolder}}
-  \code{\link{analyze}}\code{\link{getLoudness}}
+\code{\link{analyze}} \code{\link{getLoudness}}
 }

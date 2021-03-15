@@ -7,6 +7,9 @@
 spectrogram(
   x,
   samplingRate = NULL,
+  scale = NULL,
+  from = NULL,
+  to = NULL,
   dynamicRange = 80,
   windowLength = 50,
   step = NULL,
@@ -14,7 +17,6 @@ spectrogram(
   wn = "gaussian",
   zp = 0,
   normalize = TRUE,
-  scale = NULL,
   smoothFreq = 0,
   smoothTime = 0,
   qTime = 0,
@@ -22,9 +24,10 @@ spectrogram(
   noiseReduction = 0,
   method = c("spectrum", "spectralDerivative")[1],
   output = c("original", "processed", "complex")[1],
+  reportEvery = NULL,
   plot = TRUE,
+  savePlots = NULL,
   osc = c("none", "linear", "dB")[2],
-  osc_dB = NULL,
   heights = c(3, 1),
   ylim = NULL,
   yScale = c("linear", "log")[1],
@@ -33,46 +36,55 @@ spectrogram(
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
-  units = "deprecated",
+  extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
   xaxp = NULL,
   mar = c(5.1, 4.1, 4.1, 2),
-  main = "",
+  main = NULL,
   grid = NULL,
-  internal = NULL,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
   ...
 )
 }
 \arguments{
-\item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
-samplingRate}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than an audio file)}
+numeric vector)}
+
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
+
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
 \item{windowLength}{length of FFT window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{wn}{window type: gaussian, hanning, hamming, bartlett, rectangular,
-blackman, flattop}
+\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
+gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
 
 \item{normalize}{if TRUE, scales input prior to FFT}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (not needed if input is an audio file)}
-
-\item{smoothFreq, smoothTime}{length of the window, in data points (0 to
-+inf), for calculating a rolling median. Applies median smoothing to
-spectrogram in frequency and time domains, respectively}
+\item{smoothFreq, smoothTime}{length of the window for median smoothing in
+frequency and time domains, respectively, points}
 
 \item{qTime}{the quantile to be subtracted for each frequency bin. For ex.,
 if qTime = 0.5, the median of each frequency bin (over the entire sound
@@ -81,10 +93,10 @@ duration) will be calculated and subtracted from each frame (see examples)}
 \item{percentNoise}{percentage of frames (0 to 100\%) used for calculating
 noise spectrum}
 
-\item{noiseReduction}{how much noise to remove (0 to +inf, recommended 0 to
-2). 0 = no noise reduction, 2 = strong noise reduction: \eqn{spectrum -
-(noiseReduction * noiseSpectrum)}, where noiseSpectrum is the average
-spectrum of frames with entropy exceeding the quantile set by
+\item{noiseReduction}{how much noise to remove (non-negative number,
+recommended 0 to 2). 0 = no noise reduction, 2 = strong noise reduction:
+\eqn{spectrum - (noiseReduction * noiseSpectrum)}, where noiseSpectrum is
+the average spectrum of frames with entropy exceeding the quantile set by
 \code{percentNoise}}
 
 \item{method}{plot spectrum ('spectrum') or spectral derivative
@@ -95,12 +107,16 @@ spectrogram ('original'), denoised and/or smoothed spectrogram
 ('processed'), or unmodified spectrogram with the imaginary part giving
 phase ('complex')}
 
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{osc}{should an oscillogram be shown under the spectrogram? none = no
-osc; linear = on the original scale; dB = in decibels}
+\item{savePlots}{full path to the folder in which to save the plots (NULL =
+don't save, '' = same folder as audio)}
 
-\item{osc_dB}{deprecated}
+\item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
+in decibels}
 
 \item{heights}{a vector of length two specifying the relative height of the
 spectrogram and the oscillogram (including time axes labels)}
@@ -110,31 +126,34 @@ spectrogram and the oscillogram (including time axes labels)}
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic}
 
-\item{contrast}{spectrum is exponentiated by contrast (-inf to +inf,
+\item{contrast}{spectrum is exponentiated by contrast (any real number,
 recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
 sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
-and spectrogram; good for plotting long audio files; defaults to c(1e5,
-5e5)}
+and spectrogram; good for quickly plotting long audio files; defaults to
+c(1e5, 5e5)}
 
 \item{padWithSilence}{if TRUE, pads the sound with just enough silence to
-resolve the edges properly (only the original region is plotted, so
+resolve the edges properly (only the original region is plotted, so the
 apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
-\item{units}{deprecated}
+\item{extraContour}{a vector of arbitrary length scaled in Hz that will be
+plotted over the spectrogram (eg pitch contour); can also be a list with
+extra graphical parameters such as lwd, col, etc. (see examples)}
 
-\item{xlab, ylab, main, mar, xaxp}{graphical parameters}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{internal}{ignore (only used internally)}
+\item{width, height, units, res}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
 }
@@ -159,14 +178,14 @@ of its graphical parameters from functions like \code{\link{soundgen}},
 parameters.
 }
 \examples{
-# synthesize a sound 1 s long, with gradually increasing hissing noise
+# synthesize a sound 500 ms long, with gradually increasing hissing noise
 sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
   time = c(0, 650), value = c(-40, 0)), formantsNoise = list(
   f1 = list(freq = 5000, width = 10000)))
 # playme(sound, samplingRate = 16000)
 
 # basic spectrogram
-spectrogram(sound, samplingRate = 16000)
+spectrogram(sound, samplingRate = 16000, yScale = 'log')
 
 \dontrun{
 # add bells and whistles
@@ -217,15 +236,24 @@ spectrogram(sound, samplingRate = 16000,
             ylim = c(0, 3), yaxp = c(0, 3, 5), xaxp = c(0, .8, 10))
 
 # Plot long audio files with reduced resolution
-# (# ~4 s to process + 10 s to plot a 3-min song)
-sp = spectrogram('~/Downloads/temp.wav', overlap = 0,
-  maxPoints = c(1e5, 5e5),  # limit the number of pixels in osc/spec
-  output = 'original', ylim = c(0, 6))
-nrow(sp) * ncol(sp) / 5e5  # spec downsampled by a factor of ~9
+data(sheep, package = 'seewave')
+sp = spectrogram(sheep, overlap = 0,
+  maxPoints = c(1e4, 5e3),  # limit the number of pixels in osc/spec
+  output = 'original')
+nrow(sp) * ncol(sp) / 5e3  # spec downsampled by a factor of ~2
+
+# Plot some arbitrary contour over the spectrogram (simply calling lines()
+# will not work if osc = TRUE b/c the plot layout is modified)
+s = soundgen()
+an = analyze(s, 16000, plot = FALSE)
+spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2))
+# For values that are not in Hz, normalize any way you like
+spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
+  x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
+  # ylim[2] = 2000 Hz
+  type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue'))
 }
 }
 \seealso{
 \code{\link{osc}} \code{\link{modulationSpectrum}} \code{\link{ssm}}
-
-\code{\link{modulationSpectrum}} \code{\link{ssm}}
 }

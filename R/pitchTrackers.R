@@ -53,7 +53,7 @@ getDom = function(frame,
     parabCor = parabPeakInterpol(threePoints)
     dom = freqs[idx_peak] + bin * parabCor$p
     dom_ampl = 10 ^ parabCor$ampl_p
-    if (dom_ampl > 2) browser()
+    if (dom_ampl > 1) dom_ampl = 1  # cap at 1
   } else {
     dom = freqs[idx_peak]
     dom_ampl = frame[idx_peak]
@@ -127,7 +127,8 @@ getPitchAutocor = function(autoCorrelation,
     upsample_to_bin = which(diff(a$freq) > -autocorUpsample)[1]
     upsample_len = round((a$freq[upsample_from_bin] - a$freq[upsample_to_bin]) /
                            autocorUpsample)
-    if (pitchCeiling > a$freq[upsample_to_bin] & upsample_len > 1) {
+    if (!is.na(upsample_len) &&
+        pitchCeiling > a$freq[upsample_to_bin] & upsample_len > 1) {
       temp = spline(a$amp[upsample_from_bin:upsample_to_bin],
                     n = upsample_len,
                     x = a$freq[upsample_from_bin:upsample_to_bin])
@@ -210,12 +211,15 @@ getPitchAutocor = function(autoCorrelation,
 #' @keywords internal
 getPitchCep = function(frame,
                        samplingRate,
+                       bin,
                        nCands,
                        cepThres,
                        cepSmooth,
                        cepZp,
                        pitchFloor,
-                       pitchCeiling) {
+                       pitchCeiling,
+                       cepPenalty = 1,
+                       logSpec = FALSE) {
   pitchCep_array = NULL
 
   if (cepZp < length(frame)) {
@@ -225,59 +229,79 @@ getPitchCep = function(frame,
     frameZP = c(zp, frame, zp)
     cepSmooth = cepSmooth * round(cepZp / length(frame))
   }
+  # plot(frameZP, type = 'l')
+  if (!is.null(logSpec) && !is.na(logSpec) && logSpec)
+    frameZP = log(frameZP + 1e-6) # 1e-6 is -120 dB
 
   # fft of fft, whatever you call it - cepstrum or smth else
-  cepstrum = abs(fft(frameZP)) # plot(frameZP, type = 'l')
-  cepstrum = cepstrum / max(cepstrum) # plot (cepstrum, type = 'l')
+  cepstrum = abs(fft(as.numeric(frameZP)))
+  # normalize to make cert more comparable to other methods
+  cepstrum = cepstrum / max(cepstrum)
+  # plot(cepstrum, type = 'l')
   l = length(cepstrum) %/% 2
+  zp_corr = (length(frameZP) / length(frame))
+  cep_freqs = samplingRate / (1:l) / 2 * zp_corr
   b = data.frame(
     # NB: divide by 2 because it's another fft, not inverse fft (cf. pitchAutocor)
-    freq = samplingRate / (1:l) / 2 * (length(frameZP) / length(frame)),
+    idx = 1:l,
+    freq = cep_freqs,
     cep = cepstrum[1:l]
   )
   bin_width_Hz = samplingRate / 2 / l
   cepSmooth_bins = max(1, 2 * ceiling(cepSmooth / bin_width_Hz / 2) - 1)
   b = b[b$freq > pitchFloor & b$freq < pitchCeiling, ]
-  # plot(b, type = 'l')
+  # plot(b$freq, b$cep, type = 'l', log = 'x')
 
   # find peaks
   a_zoo = zoo::as.zoo(b$cep)
   temp = zoo::rollapply(a_zoo,
-                        width = cepSmooth_bins,
+                        width = 3, # cepSmooth_bins,
                         align = 'center',
                         function(x)
                           isCentral.localMax(x, threshold = cepThres))
   idx = zoo::index(temp)[zoo::coredata(temp)]
 
   if (length(idx) > 0) {
-    absCepPeak = idx[which.max(b$cep[idx])]
+    # if some peaks are found...
+    cepPeaks = b[idx, ]
+
+    # parabolic interpolation to improve resolution
+    for (i in 1:nrow(cepPeaks)) {
+      idx_peak = which(b$idx == cepPeaks$idx[i])
+      applyCorrecton = idx_peak > 1 & idx_peak < l
+      if (applyCorrecton) {
+        threePoints = b$cep[(idx_peak - 1) : (idx_peak + 1)]
+        parabCor = parabPeakInterpol(threePoints)
+        # actually on inverted scale (1/x), but just a liner correction for now
+        cepPeaks$freq[i] = samplingRate / 2 / (cepPeaks$idx[i] + parabCor$p) * zp_corr
+        cepPeaks$cep[i] = parabCor$ampl_p
+      }
+    }
+    pitchCep_array = data.frame(
+      'pitchCand' = cepPeaks$freq,
+      'pitchCert' = cepPeaks$cep,
+      'pitchSource' = 'cep',
+      stringsAsFactors = FALSE,
+      row.names = NULL
+    )
+    # because cepstrum really stinks for frequencies above ~1 kHz, mostly
+    # picking up formants or just plain noise, we discount confidence in
+    # high-pitch cepstral estimates
+    corFactor = 1 + cepPenalty / (1 + exp(-.005 * (pitchCep_array$pitchCand - 100 * bin)))
+    pitchCep_array$pitchCert = pitchCep_array$pitchCert / corFactor
+    # visualization: a = seq(pitchFloor, pitchCeiling, length.out = 100)
+    # b = 1 + cepPenalty / (1 + exp(-.005 * (a - 100 * bin)))
+    # plot(a, b, type = 'l')
+    ord = order(pitchCep_array$pitchCert, decreasing = TRUE)
+    pitchCep_array = pitchCep_array[ord, ]
+    pitchCep_array = pitchCep_array[1:nCands, ]
+
     # to avoid false subharmonics:
+    # absCepPeak = idx[which.max(b$cep[idx])]
     # idx = idx[b$freq[idx] > b$freq[absCepPeak] / 1.8]
     # plot(b$freq, b$cep, type = 'l', log = 'x')
     # points(b$freq[idx], b$cep[idx], log = 'x')
-    idx = idx[order(b$cep[idx], decreasing = TRUE)]
-    acceptedCepPeaks = idx[1:min(length(idx), nCands)]
-
-    if (length(acceptedCepPeaks) > 0) {
-      # if some peaks are found...
-      pitchCep_array = data.frame(
-        'pitchCand' = b$freq[acceptedCepPeaks],
-        'pitchCert' = b$cep[acceptedCepPeaks],
-        'pitchSource' = 'cep',
-        stringsAsFactors = FALSE,
-        row.names = NULL
-      )
-      # because cepstrum really stinks for frequencies above ~1 kHz, mostly
-      # picking up formants or just plain noise, we discount confidence in
-      # high-pitch cepstral estimates
-      pitchCep_array$pitchCert = pitchCep_array$pitchCert /
-        (1 + log2(pitchCep_array$pitchCand / pitchFloor))
-      # visualization: a = seq(pitchFloor, pitchCeiling, length.out = 100)
-      # b = 1 + log2(a / pitchFloor)
-      # plot(a, b, type = 'l')
-    }
   }
-
   return(pitchCep_array)
 }
 
@@ -448,7 +472,7 @@ getPitchSpec = function(frame,
       pitchSpec_array = pitchSpec_array[
         order(pitchSpec_array$pitchCert, decreasing = TRUE),
         c('pitchCand', 'pitchCert', 'pitchSource')
-        ]
+      ]
     }
   }
   if (!is.null(pitchSpec_array)) {
@@ -553,7 +577,7 @@ getPitchHps = function(frame,
     }
 
     # Penalize low-frequency candidates b/c hps is more accurate for f0 values
-    # that are high relaive to spectral resolution. Illustration:
+    # that are high relative to spectral resolution. Illustration:
     # fr = seq(pitchFloor, pitchCeiling, length.out = n)
     # b = 1:n
     # coef = 1 - 1/exp((b - 1) / hpsPenalty)

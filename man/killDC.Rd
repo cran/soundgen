@@ -13,15 +13,13 @@ killDC(
 )
 }
 \arguments{
-\item{sound}{input vector oscillating about zero}
-
 \item{windowLength}{the length of smoothing window, ms}
 
-\item{samplingRate}{the sampling rate, Hz. Only needed if the length of
-smoothing window is specified in ms rather than points}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
 
 \item{windowLength_points}{the length of smoothing window, points. If
-specified, overrides both \code{windowLength} and \code{samplingRate}}
+specified, overrides \code{windowLength}}
 
 \item{plot}{if TRUE, plots the original sound, smoothed moving average, and
 modified sound}

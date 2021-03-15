@@ -21,9 +21,13 @@ mean(pitch, na.rm = TRUE); sd(pitch, na.rm = TRUE)
 
 \bold{Suggested workflow}
 
-Start by clicking "Load audio" to upload one or several audio files
-(wav/mp3). Long files will be very slow, so please cut your audio into
-manageable chunks (ideally <10 s). Adjust the settings as needed, edit the
+Start by setting the basic analysis settings such as pitchFloor,
+pitchCeiling, silence, etc. Then click "Load audio" to upload one or several
+audio files (wav/mp3). Long files will be very slow, so please cut your audio
+into manageable chunks (ideally <10 s). If Shiny complains that maximum
+upload size is exceeded, you can increase it, say to 30 MB, with
+`options(shiny.maxRequestSize = 30 * 1024^2)`. Once the audio has been
+uploaded to the browser, fine-tune the analysis settings as needed, edit the
 pitch contour in the first file to your satisfaction, then click "Next" to
 proceed to the next file, etc. Remember that setting a reasonable prior is
 often faster than adjusting the contour one anchor at a time. When done,
@@ -56,11 +60,12 @@ wank to append the old data to the new one. Path to backup file:
 }
 \description{
 Starts a shiny app for manually editing pitch contours. IMPORTANT: please use
-Firefox! A bug in Chrome interferes with correct audio playback; Safari may
-or may not work. The settings in the panels on the left correspond to
-arguments to \code{\link{analyze}} - see `?analyze` and the vignette on
-acoustic analysis for help and examples. You can verify the pitch contours
-first, and then feed them back into \code{analyze} (see examples).
+Firefox on a Linux or Windows PC. A bug in Chrome interferes with correct
+audio playback; Mac OS is not supported due to an unresolved issue with png
+transparency. The settings in the panels on the left correspond to arguments
+to \code{\link{analyze}} - see `?analyze` and the vignette on acoustic
+analysis for help and examples. You can verify the pitch contours first, and
+then feed them back into \code{analyze} (see examples).
 }
 \examples{
 \dontrun{

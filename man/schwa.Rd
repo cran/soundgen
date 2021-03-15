@@ -31,7 +31,7 @@ origin, which corresponds to a closed-open tube (method = "regression" only)}
 phonetics", p. 138}
 }
 \value{
-Returns a list with the following components: \describe{
+Returns a list with the following components: \itemize{
   \item{vtl_measured}{VTL as provided by the user, cm}
   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
   provided by the user, cm}
@@ -73,7 +73,7 @@ for this vocal tract. For this to work, we have to know either the
 frequencies of enough formants (not just the first two) or the true length of
 the vocal tract. See also \code{\link{estimateVTL}} on the algorithm for
 estimating formant dispersion if VTL is not known (note that \code{schwa}
-calls \code{\link{estimateVTL}} with the option \code{method = 'regression'}.
+calls \code{\link{estimateVTL}} with the option \code{method = 'regression'}).
 }
 \examples{
 ## CASE 1: known VTL

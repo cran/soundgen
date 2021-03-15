@@ -7,6 +7,8 @@
 filterSoundByMS(
   x,
   samplingRate = NULL,
+  from = NULL,
+  to = NULL,
   logSpec = FALSE,
   windowLength = 25,
   step = NULL,
@@ -19,30 +21,45 @@ filterSoundByMS(
   action = c("remove", "preserve")[1],
   initialPhase = c("zero", "random", "spsi")[3],
   nIter = 50,
+  reportEvery = NULL,
   play = FALSE,
+  saveAudio = NULL,
   plot = TRUE,
-  savePath = NA
+  savePlots = NULL,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA
 )
 }
 \arguments{
-\item{x}{folder, path to a wav/mp3 file, a numeric vector representing a
-waveform, or a list of numeric vectors}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
-\item{samplingRate}{sampling rate of x (only needed if x is a numeric vector,
-rather than an audio file). For a list of sounds, give either one
-samplingRate (the same for all) or as many values as there are input files}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
+
+\item{from}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
+
+\item{to}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
 
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
 
 \item{windowLength}{length of FFT window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{wn}{window type: gaussian, hanning, hamming, bartlett, rectangular,
-blackman, flattop}
+\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
+gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
 
@@ -65,13 +82,31 @@ inversion (Beauregard et al., 2015)}
 \item{nIter}{the number of iterations of the GL algorithm (Griffin & Lim,
 1984), 0 = don't run}
 
-\item{play}{if TRUE, plays back the output}
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
+\item{play}{if TRUE, plays back the reconstructed audio}
+
+\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
+= don't save, '' = same as input folder (NB: overwrites the originals!)}
 
 \item{plot}{if TRUE, produces a triple plot: original MS, filtered MS, and
 the MS of the output sound}
 
-\item{savePath}{if a valid path is specified, a plot is saved in this folder
+\item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
+
+\item{width}{parameters passed to
+\code{\link[grDevices]{png}} if the plot is saved}
+
+\item{height}{parameters passed to
+\code{\link[grDevices]{png}} if the plot is saved}
+
+\item{units}{parameters passed to
+\code{\link[grDevices]{png}} if the plot is saved}
+
+\item{res}{parameters passed to
+\code{\link[grDevices]{png}} if the plot is saved}
 }
 \value{
 Returns the filtered audio as a numeric vector normalized to [-1, 1]
@@ -92,56 +127,65 @@ present in the filtered-out frequency range (see examples).
 }
 \examples{
 # Create a sound to be filtered
-samplingRate = 16000
 s = soundgen(pitch = rnorm(n = 20, mean = 200, sd = 25),
-  amFreq = 25, amDep = 50, samplingRate = samplingRate,
+  amFreq = 25, amDep = 50, samplingRate = 16000,
   addSilence = 50, plot = TRUE, osc = TRUE)
-# playme(s, samplingRate)
+# playme(s, 16000)
 
 # Filter
-s_filt = filterSoundByMS(s, samplingRate = samplingRate,
+s_filt = filterSoundByMS(s, samplingRate = 16000,
+  amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
+  action = 'remove', nIter = 10, plot = TRUE)
+# playme(s_filt, samplingRate = 16000)
+
+\dontrun{
+# Process all files in a folder, save filtered audio and plots
+s_filt = filterSoundByMS('~/Downloads/temp2',
+  saveAudio = '~/Downloads/temp2/ms', savePlots = '',
   amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
   action = 'remove', nIter = 10)
-# playme(s_filt, samplingRate)
-\dontrun{
+
 # Download an example - a bit of speech (sampled at 16000 Hz)
 download.file('http://cogsci.se/soundgen/audio/speechEx.wav',
               destfile = '~/Downloads/speechEx.wav')  # modify as needed
 target = '~/Downloads/speechEx.wav'
 samplingRate = tuneR::readWave(target)@samp.rate
-playme(target, samplingRate)
-spectrogram(target, samplingRate = samplingRate, osc = TRUE)
+playme(target)
+spectrogram(target, osc = TRUE)
 
 # Remove AM above 3 Hz from a bit of speech (remove most temporal details)
-s_filt1 = filterSoundByMS(target, samplingRate = samplingRate,
-  amCond = 'abs(am) > 3', action = 'remove', nIter = 15)
+s_filt1 = filterSoundByMS(target, amCond = 'abs(am) > 3',
+                          action = 'remove', nIter = 15)
 playme(s_filt1, samplingRate)
 spectrogram(s_filt1, samplingRate = samplingRate, osc = TRUE)
 
-# Barely any change when AM in 5-25 Hz is preserved:
-s_filt2 = filterSoundByMS(target, samplingRate = samplingRate,
-  amCond = 'abs(am) > 5 & abs(am) < 25', action = 'preserve', nIter = 15)
+# Intelligigble when AM in 5-25 Hz is preserved:
+s_filt2 = filterSoundByMS(target, amCond = 'abs(am) > 5 & abs(am) < 25',
+                          action = 'preserve', nIter = 15)
 playme(s_filt2, samplingRate)
+spectrogram(s_filt2, samplingRate = samplingRate, osc = TRUE)
 
 # Remove slow AM/FM (prosody) to achieve a "robotic" voice
-s_filt3 = filterSoundByMS(target, samplingRate = samplingRate,
-  jointCond = 'am^2 + (fm*3)^2 < 300', nIter = 15)
+s_filt3 = filterSoundByMS(target, jointCond = 'am^2 + (fm*3)^2 < 300',
+                          nIter = 15)
 playme(s_filt3, samplingRate)
+spectrogram(s_filt3, samplingRate = samplingRate, osc = TRUE)
+
 
 ## An alternative manual workflow w/o calling filterSoundByMS()
 # This way you can modify the MS directly and more flexibly
 # than with the filterMS() function called by filterSoundByMS()
 
 # (optional) Check that the target spectrogram can be successfully inverted
-spec = spectrogram(s, samplingRate, windowLength = 25, overlap = 80,
+spec = spectrogram(s, 16000, windowLength = 25, overlap = 80,
   wn = 'hanning', osc = TRUE, padWithSilence = FALSE)
-s_rev = invertSpectrogram(spec, samplingRate = samplingRate,
+s_rev = invertSpectrogram(spec, samplingRate = 16000,
   windowLength = 25, overlap = 80, wn = 'hamming', play = FALSE)
-# playme(s_rev, samplingRate)  # should be close to the original
-spectrogram(s_rev, samplingRate, osc = TRUE)
+# playme(s_rev, 16000)  # should be close to the original
+spectrogram(s_rev, 16000, osc = TRUE)
 
 # Get modulation spectrum starting from the sound...
-ms = modulationSpectrum(s, samplingRate = samplingRate, windowLength = 25,
+ms = modulationSpectrum(s, samplingRate = 16000, windowLength = 25,
   overlap = 80, wn = 'hanning', amRes = NULL, maxDur = Inf, logSpec = FALSE,
   power = NA, returnComplex = TRUE, plot = FALSE)$complex
 # ... or starting from the spectrogram:
@@ -166,19 +210,19 @@ spec_filt = msToSpec(ms_filt)
 image(t(log(abs(spec_filt))))
 
 # Invert the spectrogram
-s_filt = invertSpectrogram(abs(spec_filt), samplingRate = samplingRate,
+s_filt = invertSpectrogram(abs(spec_filt), samplingRate = 16000,
   windowLength = 25, overlap = 80, wn = 'hanning')
 # NB: use the same settings as in "spec = spectrogram(s, ...)" above
 
 # Compare with the original
-playme(s, samplingRate)
-spectrogram(s, samplingRate, osc = TRUE)
-playme(s_filt, samplingRate)
-spectrogram(s_filt, samplingRate, osc = TRUE)
+playme(s, 16000)
+spectrogram(s, 16000, osc = TRUE)
+playme(s_filt, 16000)
+spectrogram(s_filt, 16000, osc = TRUE)
 
-ms_new = modulationSpectrum(s_filt, samplingRate = samplingRate,
+ms_new = modulationSpectrum(s_filt, samplingRate = 16000,
   windowLength = 25, overlap = 80, wn = 'hanning', maxDur = Inf,
-  plot = FALSE, returnComplex = TRUE)$complex
+  plot = TRUE, returnComplex = TRUE)$complex
 image(x = as.numeric(colnames(ms_new)), y = as.numeric(rownames(ms_new)),
   z = t(log(abs(ms_new))))
 plot(as.numeric(colnames(ms)), log(abs(ms[nrow(ms) / 2, ])), type = 'l')

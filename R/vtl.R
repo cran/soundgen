@@ -1,9 +1,7 @@
 #' Estimate vocal tract length
 #'
-#' Estimates the length of vocal tract based on formant frequencies, assuming
-#' that the vocal tract can be modeled as a tube open at one end.
-#'
-#' If \code{method = 'meanFormant'}, vocal tract length (VTL) is calculated
+#' Estimates the length of vocal tract based on formant frequencies. If
+#' \code{method = 'meanFormant'}, vocal tract length (VTL) is calculated
 #' separately for each formant as \eqn{(2 * formant_number - 1) * speedSound /
 #' (4 * formant_frequency)}, and then the resulting VTLs are averaged. If
 #' \code{method = 'meanDispersion'}, formant dispersion is calculated as the
@@ -166,11 +164,11 @@ estimateVTL = function(
 #' frequencies of enough formants (not just the first two) or the true length of
 #' the vocal tract. See also \code{\link{estimateVTL}} on the algorithm for
 #' estimating formant dispersion if VTL is not known (note that \code{schwa}
-#' calls \code{\link{estimateVTL}} with the option \code{method = 'regression'}.
+#' calls \code{\link{estimateVTL}} with the option \code{method = 'regression'}).
 #'
 #' @seealso \code{\link{estimateVTL}}
 #'
-#' @return Returns a list with the following components: \describe{
+#' @return Returns a list with the following components: \itemize{
 #'   \item{vtl_measured}{VTL as provided by the user, cm}
 #'   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
 #'   provided by the user, cm}

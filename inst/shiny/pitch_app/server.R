@@ -28,7 +28,7 @@ server = function(input, output, session) {
     pitchCert_mult = NULL,     # old pitch prior
     initDur = 1500,            # initial duration to plot (ms)
     play = list(on = FALSE),
-    debugQn = FALSE            # for debugging - click "?" to step into the code
+    debugQn = TRUE            # for debugging - click "?" to step into the code
   )
 
 
@@ -161,6 +161,14 @@ server = function(input, output, session) {
     }
     updateSliderInput(session, 'spec_ylim', max = myPars$samplingRate / 2 / 1000)  # check!!!
     myPars$dur = round(length(myPars$temp_audio@left) / myPars$temp_audio@samp.rate * 1000)
+    myPars$myAudio_list = list(
+      sound = myPars$myAudio,
+      samplingRate = myPars$samplingRate,
+      scale = myPars$maxAmpl,
+      timeShift = 0,
+      ls = length(myPars$myAudio),
+      duration = myPars$dur / 1000
+    )
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
 
@@ -183,9 +191,8 @@ server = function(input, output, session) {
     # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {
       if (myPars$print) print('Extracting spectrogram...')
-      myPars$spec = spectrogram(
-        myPars$myAudio,
-        samplingRate = myPars$samplingRate,
+      myPars$spec = soundgen:::.spectrogram(
+        myPars$myAudio_list,
         dynamicRange = input$dynamicRange,
         windowLength = input$windowLength,
         step = input$step,
@@ -366,7 +373,7 @@ server = function(input, output, session) {
 
   output$specOver = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = NA)
+      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
       # bg=NA makes the image transparent
 
       # empty plot to enable hover/click events for the spectrogram underneath
@@ -458,8 +465,8 @@ server = function(input, output, session) {
 
   output$specSlider = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = NA)
-      # bg=NA makes the image transparent
+      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
+      # bg=NA or "transparent" makes the image transparent
 
       if (myPars$cursor == 0) {
         # just a transparent plot
@@ -518,10 +525,8 @@ server = function(input, output, session) {
     if (!is.null(myPars$myAudio)) {
       if (myPars$print) print('Calling analyze()...')
       withProgress(message = 'Analyzing the sound...', value = 0.5, {
-        temp_anal = analyze(
-          myPars$myAudio,
-          samplingRate = myPars$samplingRate,
-          scale = myPars$maxAmpl,
+        temp_anal = soundgen:::.analyze(
+          myPars$myAudio_list,
           windowLength = input$windowLength,
           step = input$step,
           wn = input$wn,
@@ -575,11 +580,15 @@ server = function(input, output, session) {
           snakeStep = 0,
           snakePlot = FALSE,
           smooth = 0,
-          summaryFun = 'extended',
-          plot = FALSE
+          plot = FALSE,
+          returnPitchCands = TRUE
         )
-        myPars$summary = temp_anal$summary
         myPars$result = temp_anal$result
+        myPars$summary = soundgen:::summarizeAnalyze(
+          temp_anal$result,
+          summaryFun = input$summaryFun,
+          var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time')
+        )
         myPars$pitchCands = temp_anal$pitchCands
         myPars$spec_from_anal = temp_anal$spectrogram
         myPars$X = as.numeric(colnames(myPars$spec_from_anal))
@@ -646,10 +655,10 @@ server = function(input, output, session) {
         } else {
           # some changes in terms of syllable structure - update the syllables
           # that changed
-          a1 = myPars$voicedSegments_old
-          a2 = myPars$voicedSegments
-          a1$included_a1 = TRUE
-          a2$included_a2 = TRUE
+          a1 = myPars$voicedSegments_old  # may be empty
+          a2 = myPars$voicedSegments  # may be empty
+          if (nrow(a1) > 0) a1$included_a1 = TRUE
+          if (nrow(a2) > 0) a2$included_a2 = TRUE
           res = merge(a1, a2, all = TRUE)
           sylToUpdate = na.omit(res[is.na(res$included_a1) & res$included_a2, 1:2])
         }
@@ -665,7 +674,7 @@ server = function(input, output, session) {
         unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-voiced_frames]
         # make sure myPars$pitch is the same length as ncol(pitchCands$freq)
         if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) {
-          myPars$pitch = upsamplePitchContour(
+          myPars$pitch = soundgen:::upsamplePitchContour(
             pitch = myPars$pitch,
             len = ncol(myPars$pitchCands$freq),
             plot = FALSE)
@@ -805,12 +814,11 @@ server = function(input, output, session) {
   ## Buttons for operations with selection
   startPlay = function() {
     if (!is.null(myPars$myAudio)) {
-      if (!is.null(myPars$spectrogram_brush)) {
+      if (!is.null(myPars$spectrogram_brush) &&
+          (myPars$spectrogram_brush$xmax - myPars$spectrogram_brush$xmin > 100)) {
+        # at least 100 ms selected
         myPars$play$from = myPars$spectrogram_brush$xmin / 1000
         myPars$play$to = myPars$spectrogram_brush$xmax / 1000
-      } else if (!is.null(myPars$currentAnn)) {
-        myPars$play$from = myPars$ann$from[myPars$currentAnn] / 1000
-        myPars$play$to = myPars$ann$to[myPars$currentAnn] / 1000
       } else {
         myPars$play$from = myPars$cursor / 1000 # myPars$spec_xlim[1] / 1000
         myPars$play$to = myPars$spec_xlim[2] / 1000
@@ -1099,6 +1107,8 @@ server = function(input, output, session) {
     newLeft = max(0, midpoint - halfRan)
     newRight = min(myPars$dur, midpoint + halfRan)
     myPars$spec_xlim = c(newLeft, newRight)
+    # use user-set time zoom in the next audio
+    if (!is.null(myPars$spec_xlim)) myPars$initDur = diff(myPars$spec_xlim)
   }
   observeEvent(input$zoomIn, changeZoom(myPars$zoomFactor, toCursor = TRUE))
   observeEvent(input$zoomOut, changeZoom(1 / myPars$zoomFactor))

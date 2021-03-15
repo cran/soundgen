@@ -9,6 +9,8 @@
 #' analyzes it.
 #' @param frame the abs spectrum of a frame, as returned by
 #'   \code{\link[stats]{fft}}
+#' @param bin spectrogram bin width, Hz
+#' @param freqs frequency per bin of spectrogram
 #' @param autoCorrelation pre-calculated autocorrelation of the input frame
 #'   (computationally more efficient than to do it here)
 #' @param samplingRate sampling rate (Hz)
@@ -23,6 +25,7 @@ analyzeFrame = function(frame, bin, freqs,
                         autoCorrelation = NULL,
                         samplingRate,
                         scaleCorrection,
+                        loudness,
                         cutFreq,
                         trackPitch = TRUE,
                         pitchMethods = c('dom', 'autocor'),
@@ -64,12 +67,18 @@ analyzeFrame = function(frame, bin, freqs,
   # cutFreq kHz lies between quartile25 and quartile75
   quartile75 = absSpec_cut$freq[min(which(cums >= 0.75 * amplitude))]
 
+  # get spectral slope in dB/kHz
+  absSpec_cut$amp_dB = 20 * log10(absSpec_cut$amp)
+  absSpec_cut$amp_dB = absSpec_cut$amp_dB - max(absSpec_cut$amp_dB)
+  # plot(absSpec_cut$freq, absSpec_cut$amp_dB, type = 'l')
+  specSlope = summary(lm(amp_dB ~ freq, data = absSpec_cut))$coef[2, 1] * 1000
+
   # scale correction for loudness estimation
-  specSlope = summary(lm(amp ~ freq, data = absSpec_cut))$coef[2, 1]
   if (is.numeric(scaleCorrection)) {
     loudness = getLoudnessPerFrame(
       spec = frame * scaleCorrection,
-      samplingRate = samplingRate
+      samplingRate = samplingRate,
+      spreadSpectrum = loudness$spreadSpectrum
     )  # in sone, assuming scaling by SPL_measured in analyze()
   } else {
     loudness = NA
@@ -123,6 +132,7 @@ analyzeFrame = function(frame, bin, freqs,
                              c(pitchCep,
                                list(frame = frame,
                                     samplingRate = samplingRate,
+                                    bin = bin,
                                     nCands = nCands,
                                     pitchFloor = pitchFloor,
                                     pitchCeiling = pitchCeiling)))
@@ -197,12 +207,13 @@ analyzeFrame = function(frame, bin, freqs,
 #'
 #' Prior for adjusting the estimated pitch certainties in \code{\link{analyze}}.
 #' For ex., if primarily working with speech, we could prioritize pitch
-#' candidates in the expected pitch range (100-1000 Hz) and dampen candidates
-#' with very high or very low frequency as unlikely but still remotely possible
-#' in everyday vocalizing contexts (think a soft pitch ceiling). Algorithm: the
-#' multiplier for each pitch candidate is the density of gamma distribution with
-#' mean = priorMean (Hz) and sd = priorSD (semitones) normalized so max = 1 over
-#' [pitchFloor, pitchCeiling]. Useful for previewing the prior given to
+#' candidates in the expected pitch range (100-1000 Hz) and decrease our
+#' confidence in candidates with very high or very low frequency as unlikely but
+#' still remotely possible. You can think of this as a "soft" alternative to
+#' setting absolute pitch floor and ceiling. Algorithm: the multiplier for each
+#' pitch candidate is the density of gamma distribution with mean = priorMean
+#' (Hz) and sd = priorSD (semitones) normalized so max = 1 over [pitchFloor,
+#' pitchCeiling]. Useful for previewing the prior given to
 #' \code{\link{analyze}}.
 #'
 #' @seealso \code{\link{analyze}} \code{\link{pitch_app}}
@@ -231,19 +242,25 @@ getPrior = function(priorMean,
                     plot = TRUE,
                     pitchCands = NULL,
                     ...) {
-  priorMean_semitones = HzToSemitones(priorMean)
-  shape = priorMean_semitones ^ 2 / priorSD ^ 2
-  rate = priorMean_semitones / priorSD ^ 2
   freqs = seq(HzToSemitones(pitchFloor),
               HzToSemitones(pitchCeiling),
               length.out = len)
-  prior_normalizer = dgamma(
-    freqs,
-    shape = shape,
-    rate = rate
-  )
-  prior_norm_max = max(prior_normalizer)
-  prior = prior_normalizer / prior_norm_max
+  if (is.numeric(priorMean) & is.numeric(priorSD)) {
+    priorMean_semitones = HzToSemitones(priorMean)
+    shape = priorMean_semitones ^ 2 / priorSD ^ 2
+    rate = priorMean_semitones / priorSD ^ 2
+    prior_normalizer = dgamma(
+      freqs,
+      shape = shape,
+      rate = rate
+    )
+    prior_norm_max = max(prior_normalizer)
+    prior = prior_normalizer / prior_norm_max
+  } else {
+    # flat prior
+    prior = rep(1, len)
+  }
+
   out = data.frame(freq = semitonesToHz(freqs),
                    prob = prior)
   if (plot) {
@@ -255,11 +272,16 @@ getPrior = function(priorMean,
     )
   }
   if (!is.null(pitchCands)) {
-    pitchCert_multiplier = dgamma(
-      HzToSemitones(pitchCands),
-      shape = shape,
-      rate = rate
-    ) / prior_norm_max
+    if (is.numeric(priorMean) & is.numeric(priorSD)) {
+      pitchCert_multiplier = dgamma(
+        HzToSemitones(pitchCands),
+        shape = shape,
+        rate = rate
+      ) / prior_norm_max
+    } else {
+      pitchCert_multiplier = matrix(1, nrow = nrow(pitchCands),
+                                    ncol = ncol(pitchCands))
+    }
     invisible(pitchCert_multiplier)
   } else {
     invisible(out)
@@ -346,10 +368,13 @@ summarizeAnalyze = function(
 updateAnalyze = function(
   result,
   pitch_true,
+  pitchCands_list = NULL,
   spectrogram,
   freqs = NULL,
   bin = NULL,
-  harmHeight_pars,
+  samplingRate = NULL,
+  harmHeight_pars = list(),
+  subh_pars = list(),
   smooth,
   smoothing_ww,
   smoothingThres,
@@ -366,27 +391,46 @@ updateAnalyze = function(
 
   # Calculate how far harmonics reach in the spectrum and how strong they are
   # relative to f0
-  result$harmEnergy = NA
-  result$harmHeight = NA
+  result[, c('harmEnergy', 'harmHeight', 'subRatio', 'subDep')] = NA
   if (any(result$voiced)) {
     if (is.null(freqs)) freqs = as.numeric(rownames(spectrogram)) * 1000
     if (is.null(bin)) bin = freqs[2] - freqs[1]
 
-    # Re-calculate the % of energy in harmonics based on the manual pitch estimates
+    # Calculate the % of energy in harmonics based on the final pitch estimates
     result$harmEnergy = to_dB(harmEnergy(
       pitch = result$pitch,
       s = spectrogram,
       freqs = freqs))
-    # Re-calculate how high harmonics reach in the spectrum
+    # Calculate how high harmonics reach in the spectrum
     for (f in which(result$voiced)) {
-      result$harmHeight[f] = do.call('harmHeight', c(
+      temp = try(do.call('harmHeight', c(
         harmHeight_pars,
         list(frame = spectrogram[, f],
              bin = bin,
              freqs = freqs,
              pitch = result$pitch[f]
-        )))$harmHeight
+        )))$harmHeight, silent = TRUE)
+      if (class(temp) != 'try-error') {
+        result$harmHeight[f] = temp
+      }
     }
+    # Calculate subharmonics-to-harmonics ratio
+    for (f in which(result$voiced)) {
+      temp = try(do.call('subhToHarm', c(
+        subh_pars,
+        list(frame = spectrogram[, f],
+             bin = bin,
+             freqs = freqs,
+             samplingRate = samplingRate,
+             pitch = result$pitch[f],
+             pitchCands = data.frame(freq = pitchCands_list$freq[, f],
+                                     cert = pitchCands_list$cert[, f])
+        ))), silent = TRUE)
+      if (class(temp) != 'class-error') {
+        result[f, c('subRatio', 'subDep')] = temp[c('subRatio', 'subDep')]
+      }
+    }
+    # # result[, c('subRatio', 'subDep')]
     if (smooth > 0) {
       result$harmHeight = medianSmoother(
         result[, 'harmHeight', drop = FALSE],
@@ -468,234 +512,379 @@ upsamplePitchContour = function(pitch, len, plot = FALSE) {
   return(pitch1)
 }
 
-#' Height of harmonics
+
+#' Format pitchManual
 #'
 #' Internal soundgen function
 #'
-#' Attempts to estimate how high harmonics reach in the spectrum - that is, at
-#' what frequency we can still discern peaks at multiples of f0 or, for
-#' low-pitched sounds, regularly spaced peaks separated by ~f0.
-#' @inheritParams analyzeFrame
-#' @param pitch the final pitch estimate for the current frame
-#' @param harmThres minimum height of spectral peak, dB
-#' @param harmPerSel the number of harmonics per sliding selection
-#' @param harmTol maximum tolerated deviation of peak frequency from multiples
-#'   of f0, proportion of f0
-#' @return Returns the frequency (Hz) up to which we find harmonics
+#' @param pitchManual dataframe produced by analyze() or pitch_app(), path to a
+#'   .csv file in which this dataframe is stored, a named list with a numeric
+#'   vector of pitch values per sound, or a numeric vector
+#' @return A named list of pitch contours.
 #' @keywords internal
 #' @examples
-#' s = soundgen(sylLen = 400, addSilence = 0, pitch = 400, noise = -10,
-#'   rolloff = -15, jitterDep = .1, shimmerDep = 5, temperature = .001)
-#' sp = spectrogram(s, samplingRate = 16000)
-#' hh = soundgen:::harmHeight(sp[, 5], pitch = 400,
-#'   freqs = as.numeric(rownames(sp)) * 1000, bin = 16000 / 2 / nrow(sp))
-harmHeight = function(frame,
-                      pitch,
-                      bin,
-                      freqs,
-                      harmThres = 3,
-                      harmTol = 0.25,
-                      harmPerSel = 5) {
-  frame_dB = 20 * log10(frame)
+#' soundgen:::formatPitchManual(c(NA, 120, 180, NA))
+#' soundgen:::formatPitchManual('NA, 120, 180, NA')
+#' soundgen:::formatPitchManual(list('myfile.wav' = c(NA, 120, 180, NA)))
+#' soundgen:::formatPitchManual(data.frame(file = c('file1.wav', 'file2.wav'),
+#'                                         pitch = c('NA, 120', '180, NA')))
+#' soundgen:::formatPitchManual('adja')
+formatPitchManual = function(pitchManual) {
+  pitchManual_list = NULL
+  failed = FALSE
+  if (is.character(pitchManual)) {
+    if (file.exists(pitchManual)) {
+      # path to csv
+      pitchManual_df = try(read.csv(pitchManual)[, c('file', 'pitch')])
+      if (class(pitchManual_df) == 'type-error') {
+        # problem opening file
+        failed = TRUE
+      } else {
+        # file OK
+        pitchManual_list = vector('list', nrow(pitchManual_df))
+        names(pitchManual_list) = pitchManual_df$file
+        for (i in 1:nrow(pitchManual_df)) {
+          pitchManual_list[[i]] = suppressWarnings(as.numeric(unlist(strsplit(
+            as.character(pitchManual_df$pitch[[i]]), ','))))
+        }
+      }
+    } else {
+      # just a string - try to convert to numeric
+      temp = try(suppressWarnings(as.numeric(unlist(strsplit(
+        as.character(pitchManual), ',')))))
+      if (class(temp) == 'try-error' || !any(!is.na(temp))) {
+        failed = TRUE
+        pitchManual_list = NULL
+      } else {
+        pitchManual_list = list(sound = temp)
+      }
+    }
+  } else if (is.list(pitchManual)) {
+    # list or dataframe
+    if (!is.null(pitchManual$file) && !is.null(pitchManual$pitch) &&
+        is.character(pitchManual$pitch[1])) {
+      # output of analyze() imported as dataframe
+      pitchManual_df = as.data.frame(pitchManual)
+      pitchManual_list = vector('list', nrow(pitchManual_df))
+      names(pitchManual_list) = pitchManual_df$file
+      for (i in 1:nrow(pitchManual_df)) {
+        pitchManual_list[[i]] = suppressWarnings(as.numeric(unlist(strsplit(
+          as.character(pitchManual_df$pitch[[i]]), ','))))
+      }
+    } else {
+      # preformatted list - return as is
+      pitchManual_list = pitchManual
+    }
+  } else if (is.numeric(pitchManual)) {
+    # numeric vector (pitch contour of a single sound)
+    pitchManual_list = list(sound = pitchManual)
+  } else {
+    failed = TRUE
+  }
 
-  # METHOD 1: look for peaks at multiples of f0
-  lh_peaks = harmHeight_peaks(frame_dB, pitch, bin, freqs,
-                                  harmThres = harmThres,
-                                  harmTol = harmTol,
-                                  plot = FALSE)
+  if (failed) {
+    warning(paste(
+      "pitchManual not recognized; should be a numeric vector, named list,",
+      "csv file or dataframe containing the output of analyze() with columns",
+      "'file' and 'pitch', or a named list with pitch contours per file"))
+  }
 
-  # METHODS 2 & 3: look for peaks separated by f0
-  lh2 = harmHeight_dif(frame_dB, pitch, bin, freqs,
-                       harmThres = harmThres,
-                       harmTol = harmTol,
-                       harmPerSel = harmPerSel,
-                       plot = FALSE)
-  lh = median(c(lh_peaks, lh2$lastHarm_dif, lh2$lastHarm_cep), na.rm = TRUE)
-  return(list(harmHeight = lh,
-              harmHeight_peaks = lh_peaks,
-              harmHeight_dif = lh2$lastHarm_dif,
-              harmHeight_cep = lh2$lastHarm_cep))
+  return(pitchManual_list)
 }
 
-#' Height of harmonics: peaks method
-#'
-#' Internal soundgen function
-#'
-#' Estimates how far harmonics reach in the spectrum by checking how many
-#' spectral peaks we can find close to multiples of f0.
-#' @inheritParams harmHeight
-#' @param plot if TRUE, produces a plot of spectral peaks
-#' @keywords internal
-harmHeight_peaks = function(frame_dB,
-                            pitch,
-                            bin,
-                            freqs,
-                            harmThres = 3,
-                            harmTol = 0.25,
-                            plot = FALSE) {
-  harmSmooth = round(harmTol * pitch / bin)  # from prop of f0 to bins
-  nHarm = floor((max(freqs) - harmSmooth * bin) / pitch)
-  peakFound = rep(FALSE, nHarm)
-  if (plot) plot(freqs, frame_dB, type = 'l')
-  for (h in 1:nHarm) {
-    # check f0 as well, otherwise may get 2 * f0 although f0 is also below thres
-    bin_h = round(pitch * h / bin)
-    # b/c of rounding error, and b/c pitch estimates are often slightly off, the
-    # true harmonic may lie a bit above or below this bin, so we search for a
-    # peak within harmSmooth of where we expect to find it
-    idx_peak = which.max(frame_dB[(bin_h - harmSmooth) : (bin_h + harmSmooth)])
-    bin_peak = bin_h + idx_peak - harmSmooth - 1
-    # left
-    if (bin_peak == 1) {
-      left_over_zero = left_over_thres = TRUE
-    } else {
-      # should be higher than both adjacent points
-      left_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > 0
-      # should be higher than either of the adjacent points by harmThres
-      left_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > harmThres
-    }
-    # right
-    if (bin_peak == length(frame_dB)) {
-      right_over_zero = right_over_thres = TRUE
-    } else {
-      right_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > 0
-      right_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > harmThres
-    }
-    peakFound[h] = left_over_zero & right_over_zero &
-      (left_over_thres | right_over_thres)
 
-    if (plot) {  # plot for debugging
-      if (peakFound[h]) {
-        text(freqs[bin_peak], frame_dB[bin_peak],
-             labels = h, pch = 5, col = 'blue')
+
+#' Check audio input type
+#'
+#' Internal soundgen function.
+#'
+#' Checks the types of audio input to another function, which could be a folder
+#' with audio files, a single file, a Wave object, or a numeric vector. The
+#' purposes of this helper function are to ascertain that there are some valid
+#' inputs and to make a list of valid audio files, if any.
+#' @param x path to a .wav or .mp3 file, Wave object, or a numeric vector
+#'   representing the waveform with specified samplingRate
+#' @keywords internal
+checkInputType = function(x) {
+  if (is.character(x)) {
+    # character means file or folder
+    if (length(x) == 1 && dir.exists(x)) {
+      # input is a folder
+      x = dirname(paste0(x, '/arbitrary'))  # strips terminal '/', if any
+      filenames = list.files(x, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
+      if (length(filenames) < 1)
+        stop(paste('No wav/mp3 files found in', x))
+    } else {
+      # input is one or more audio files
+      for (f in 1:length(x)) {
+        if (!file.exists(x) ||
+            !substr(x, nchar(x) - 3, nchar(x)) %in% c('.wav', '.mp3', '.WAV', '.MP3')) {
+          stop('Input not recognized - must be a folder, wav/mp3 file(s), or numeric vector(s)')
+        }
+      }
+      filenames = x
+    }
+    n = length(filenames)
+    type = rep('file', n)
+    filenames_base = filenames_noExt = basename(filenames)
+
+    for (f in 1:n) {
+      # strip extension
+      filenames_noExt[f] = substr(filenames_base[f], 1, nchar(filenames_base[f]) - 4)
+      filesizes = file.info(filenames)$size
+      # expand from relative to full path (useful for functions that save audio
+      # separately from plots)
+      filenames[f] = normalizePath(filenames[f])
+    }
+  } else {
+    # not file(s), but one or more objects (Wave / numeric)
+    if (!is.list(x)) x = list(x)
+    n = length(x)
+    if (n == 1) {
+      filenames_base = filenames_noExt = 'sound'
+    } else {
+      filenames_base = filenames_noExt = paste0('sound', 1:n)
+    }
+    filenames = NULL
+    filesizes = NULL
+    type = rep(NA, n)
+    for (i in 1:n) {
+      if (is.numeric(x[[i]])) {
+        type[i] = 'vector'
+      } else if (class(x[[i]]) == 'Wave') {
+        # input is a Wave object
+        type[i] = 'Wave'
       } else {
-        text(freqs[bin_peak], frame_dB[bin_peak],
-             labels = h, pch = 5, col = 'red')
+        stop(paste('Input not recognized - must be a folder, wav/mp3 file,',
+                   'Wave object, or numeric vector'))
       }
     }
   }
-  first_absent_harm = which(!peakFound)[1]
-  if (length(first_absent_harm) > 0) {
-    lastHarm = pitch * (first_absent_harm - 1)
-  } else {
-    lastHarm = NA
-  }
-  return(lastHarm)
+  return(list(
+    type = type,
+    n = n,
+    filenames = filenames,
+    filenames_base = filenames_base,
+    filenames_noExt = filenames_noExt,
+    filesizes = filesizes
+  ))
 }
 
-#' Height of harmonics: difference method
-#'
-#' Internal soundgen function
-#'
-#' Estimates how far harmonics reach in the spectrum by analyzing the typical
-#' distances between spectral peaks in different frequency regions.
-#' @inheritParams harmHeight
-#' @param plot if TRUE, produces a plot of spectral peaks
-#' @keywords internal
-harmHeight_dif = function(frame_dB,
-                          pitch,
-                          bin,
-                          freqs,
-                          harmThres = 3,
-                          harmTol = 0.25,
-                          harmPerSel = 5,
-                          plot = FALSE) {
-  # width of smoothing interval (in bins), forced to be an odd number
-  harmSmooth_bins = 2 * ceiling(pitch / bin / 2) - 1
 
-  # find peaks in the smoothed spectrum (much faster than seewave::fpeaks)
-  temp = zoo::rollapply(
-    zoo::as.zoo(frame_dB),
-    width = harmSmooth_bins,
-    align = 'center',
-    function(x) {
-      middle = ceiling(length(x) / 2)
-      which.max(x) == middle &   # peak in the middle
-        any(x[middle] - x[1:(middle - 1)] > harmThres) &  # a deep drop on the left
-        any(x[middle] - x[(middle + 1):length(x)] > harmThres)  # ...or on the right
+#' Read audio
+#'
+#' Internal soundgen function.
+#'
+#' @param x audio input (only used for Wave objects or numeric vectors)
+#' @param input a list returned by \code{\link{checkInputType}}
+#' @param i iteration
+#' @param samplingRate sampling rate of \code{x} (only needed if \code{x} is a
+#'   numeric vector, rather than an audio file or Wave object)
+#' @param scale maximum possible amplitude of input used for normalization of
+#'   input vector (only needed if \code{x} is a numeric vector, rather than an
+#'   audio file or Wave object)
+#' @param from,to if NULL (default), analyzes the whole sound, otherwise
+#'   from...to (s)
+#' @keywords internal
+readAudio = function(x,
+                     input,
+                     i,
+                     samplingRate = NULL,
+                     scale = NULL,
+                     from = NULL,
+                     to = NULL) {
+  failed = FALSE
+  if (input$type[i] == 'file') {
+    fi = input$filenames[i]
+    ext_i = substr(fi, nchar(fi) - 3, nchar(fi))
+    if (ext_i %in% c('.wav', '.WAV')) {
+      sound_wave = try(tuneR::readWave(fi))
+    } else if (ext_i %in% c('.mp3', '.MP3')) {
+      sound_wave = try(tuneR::readMP3(fi))
+    } else {
+      warning(paste('Input', fi, 'not recognized: expected a wav/mp3 file'))
     }
-  )
-  idx = zoo::index(temp)[zoo::coredata(temp)]
-
-  if (plot) {
-    plot(freqs, frame_dB, type = 'l')
-    points(freqs[idx], frame_dB[idx], pch = 5, col = 'blue')
+    if (class(sound_wave) == 'try-error') {
+      failed = TRUE
+      sound = samplingRate = scale = NULL
+    } else {
+      sound = as.numeric(sound_wave@left)
+      samplingRate = sound_wave@samp.rate
+      scale = 2 ^ (sound_wave@bit - 1)
+    }
+  } else if (input$type[i] == 'vector') {
+    if (is.null(samplingRate)) {
+      samplingRate = 16000
+      message('samplingRate not specified; defaulting to 16000')
+    }
+    sound = x
+    m = max(abs(sound))
+    if (is.null(scale)) {
+      scale = max(m, 1)
+      # message(paste('Scale not specified. Assuming that max amplitude is', scale))
+    } else if (is.numeric(scale)) {
+      if (scale < m) {
+        scale = m
+        warning(paste('Scale cannot be smaller than observed max;',
+                      'resetting to', m))
+      }
+    }
+  } else if (input$type[i] == 'Wave') {
+    sound = x@left
+    samplingRate = x@samp.rate
+    scale = 2 ^ (x@bit - 1)
   }
 
-  # slide a selection along the spectrum starting from f0
-  pitch_bins = pitch / bin  # f0 location in bins
-  # width of selection in bins (no more than half the frame len)
-  sel_bins = min(round(pitch_bins * harmPerSel), length(frame_dB) / 2)
-  harmTol_bins = round(pitch_bins * harmTol)  # tolerated deviance in bins
-  i = pitch_bins  # start at f0
-  pitch_bin_cep = pitch_bin_peaks = c()
-  while (i + sel_bins < length(frame_dB)) {
-    end = i + sel_bins - 1
-
-    # count intervals b/w spectral peaks
-    d = diff(idx[idx >= i & idx <= end])  # distances b/w peaks
-    # median deviation of these distances from expected (f0)
-    dp = abs(median(d, na.rm = TRUE) - pitch_bins)
-    dp_within_tol = (dp < harmTol_bins)
-    pitch_bin_peaks = c(pitch_bin_peaks, dp_within_tol)
-
-    # cepstrum
-    sel = as.numeric(frame_dB[i:(i + sel_bins - 1)])
-    cep = abs(fft(sel))
-    # plot(sel, type = 'l')
-    l = length(cep) %/% 2
-    cep = cep[1:l]
-    # plot(cep, type = 'l')
-    bin_at_pitch = harmPerSel + 1
-    # Is there a local max at bin_at_pitch? Any height will do
-    peak_at_pitch = (cep[bin_at_pitch] > cep[bin_at_pitch - 1]) &
-      (cep[bin_at_pitch] > cep[bin_at_pitch + 1])
-    pitch_bin_cep = c(pitch_bin_cep, peak_at_pitch)
-
-    i = round(i + pitch_bins)  # move the sel by one harmonic (f0)
-  }
-
-  # Find the central frequency of the first bin w/o harmonics
-  fbwh_peaks = which(!pitch_bin_peaks)[1]
-  if (is.na(fbwh_peaks)) {
-    lastHarm_dif = tail(freqs, 1)
+  # from...to
+  # from...to selection
+  ls = length(sound)
+  if (any(is.numeric(c(from, to)))) {
+    if (!is.numeric(from)) {
+      from_points = 1
+    } else {
+      from_points = max(1, round(from * samplingRate))
+    }
+    if (!is.numeric(to)) {
+      to_points = ls
+    }  else {
+      to_points = min(ls, round(to * samplingRate))
+    }
+    sound = sound[from_points:to_points]
+    timeShift = from_points / samplingRate
+    ls = length(sound)
   } else {
-    lastHarm_dif = (pitch_bins * (fbwh_peaks - 1) - sel_bins / 2) * bin
-    if (!is.na(lastHarm_dif) && lastHarm_dif < pitch) lastHarm_dif = NA
+    timeShift = 0
   }
+  duration = ls / samplingRate
 
-
-  fbwh_cep = which(!pitch_bin_cep)[1]
-  if (is.na(fbwh_cep)) {
-    lastHarm_cep = tail(freqs, 1)
-  } else {
-    lastHarm_cep = (pitch_bins * (fbwh_cep - 1) - sel_bins / 2) * bin
-    if (!is.na(lastHarm_cep) && lastHarm_cep < pitch) lastHarm_cep = NA
-  }
-  lastHarm_cep = (pitch_bins * (fbwh_cep - 1) - sel_bins / 2) * bin
-  if (!is.na(lastHarm_cep) && lastHarm_cep < pitch) lastHarm_cep = NA
-
-  return(list(lastHarm_cep = lastHarm_cep,
-              lastHarm_dif = lastHarm_dif))
+  return(list(
+    sound = sound,
+    samplingRate = samplingRate,
+    scale = scale,
+    failed = failed,
+    ls = ls,
+    duration = duration,
+    timeShift = timeShift,
+    filename = input$filenames[i],
+    filename_base = input$filenames_base[i],
+    filename_noExt = input$filenames_noExt[i]
+  ))
 }
 
-#' Energy in harmonics
+
+#' Process audio
 #'
-#' Internal soundgun function
+#' Internal soundgen function.
 #'
-#' Calculates the % of energy in harmonics based on the provided pitch estimate
-#' @param pitch pitch estimates, Hz (vector)
-#' @param s spectrogram (ncol = length(pitch))
-#' @param coef calculate above pitch * coef
-#' @param freqs as.numeric(rownames(s)) * 1000
+#' @inheritParams spectrogram
+#' @param funToCall function to call (specify what to do with each audio input)
+#' @param myPars a list of parameters to pass on to `funToCall`
+#' @param summaryFun function(s) used to summarize the output per input
+#' @param var_noSummary names of output variables that should not be summarized
+#' @param reportEvery report estimated time left every ... iterations (NA = no
+#'   reporting, NULL = default frequency)
 #' @keywords internal
-harmEnergy = function(pitch, s, freqs = NULL, coef = 1.25) {
-  if (is.null(freqs)) freqs = as.numeric(rownames(s)) * 1000
-  threshold = coef * pitch
-  he = apply(matrix(1:ncol(s)), 1, function(x) {
-    ifelse(is.na(threshold[x]),
-           NA,
-           sum(s[freqs > threshold[x], x]) / sum(s[, x]))
-  })
-  return(he)
+processAudio = function(x,
+                        samplingRate = NULL,
+                        scale = NULL,
+                        from = NULL,
+                        to = NULL,
+                        funToCall,
+                        myPars = list(),
+                        var_noSummary = NULL,
+                        reportEvery = NULL,
+                        savePlots = NULL,
+                        saveAudio = NULL) {
+  input = checkInputType(x)
+  input$failed = rep(FALSE, input$n)
+
+  # savePlots
+  if (is.character(savePlots)) {
+    if (savePlots == '') {
+      # same as the folder where the audio input lives
+      if (input$type[1] == 'file') {
+        savePlots = paste0(dirname(input$filenames[1]), '/')
+      } else {
+        savePlots = paste0(getwd(), '/')
+      }
+    } else {
+      # make sure the last character of savePath is "/" and expand ~
+      savePlots = paste0(
+        dirname(paste0(savePlots, '/arbitrary')),
+        '/'
+      )
+    }
+    if (!dir.exists(savePlots)) dir.create(savePlots)
+  } else {
+    savePlots = NULL
+  }
+  input$savePlots = savePlots  # to pass on to top function like analyze()
+
+  # saveAudio
+  if (is.character(saveAudio)) {
+    if (saveAudio == '') {
+      # same as the folder where the audio input lives
+      keypr = readline(prompt = paste(
+        "NB: saveAudio='' will overwrite the originals. Proceed? (yes/no) "))
+      if (substr(keypr, 1, 1) != 'y') stop('Aborting...')
+      if (input$type[1] == 'file') {
+        saveAudio = paste0(dirname(input$filenames[1]), '/')
+      } else {
+        saveAudio = paste0(getwd(), '/')
+      }
+    } else {
+      # make sure the last character of savePath is "/" and expand ~
+      saveAudio = paste0(
+        dirname(paste0(saveAudio, '/arbitrary')),
+        '/'
+      )
+    }
+    if (!dir.exists(saveAudio)) dir.create(saveAudio)
+  } else {
+    saveAudio = NULL
+  }
+  input$saveAudio = saveAudio  # to pass on to top function like analyze()
+
+  result = vector('list', input$n)
+  names(result) = input$filenames_base
+  if (input$type[1] == 'file') x = rep(list(NULL), input$n)
+  if (!is.list(x)) x = list(x)
+  time_start = proc.time()  # timing
+  for (i in 1:input$n) {
+    audio = readAudio(x[[i]], input, i,
+                      samplingRate = samplingRate,
+                      scale = scale,
+                      from = from, to = to)
+    # to pass savePlots and saveAudio on to funToCall without adding extra
+    # args, put them in "audio"
+    audio$savePlots = savePlots
+    audio$saveAudio = saveAudio
+
+    # analyze file
+    if (!audio$failed) {
+      an_i = try(do.call(funToCall, c(list(audio = audio), myPars)))
+      if (class(an_i)[1] == 'try-error') audio$failed = TRUE
+    }
+    if (audio$failed) {
+      if (input$n > 1) {
+        warning(paste('Failed to process file', input$filenames[i]))
+      } else {
+        warning('Failed to process the input')
+      }
+      an_i = numeric(0)
+      input$failed[i] = TRUE
+    }
+    result[[i]] = an_i
+
+    # report time
+    if ((is.null(reportEvery) || is.finite(reportEvery)) & input$n > 1) {
+      reportTime(i = i, nIter = input$n, reportEvery = reportEvery,
+                 time_start = time_start, jobs = input$filesizes)
+    }
+  }
+
+  return(list(
+    input = input,
+    result = result
+  ))
 }

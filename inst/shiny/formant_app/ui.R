@@ -454,7 +454,18 @@ ui = fluidPage(
     tags$div(
       id = 'right',
       fluidRow(
-        uiOutput('fButtons', style = "height: 60px;")
+        column(
+          width = 10,
+          uiOutput('fButtons', style = "height: 60px;")
+        ),
+        column(
+          width = 2,
+          actionButton(
+            inputId = 'synthBtn',
+            label = HTML("<img src='icons/synth.png' width = '30px'>"),
+            class = "buttonInline"
+          )
+        )
       ),
 
       fluidRow(
@@ -462,6 +473,7 @@ ui = fluidPage(
           id = 'spectrumDiv',
           plotOutput(
             'spectrum',
+            height = "300px",
             click = "spectrum_click",
             dblclick = dblclickOpts(id = "spectrum_dblclick"),
             hover = hoverOpts(id = "spectrum_hover")),
@@ -476,6 +488,14 @@ ui = fluidPage(
               step = def_form['spectrum_smooth', 'step'],
               width = '200px')
           )
+        )
+      ),
+
+      fluidRow(
+        tags$div(
+          id = 'fmtSpaceDiv',
+          plotOutput(
+            'fmtSpace', height = "175px")
         )
       ),
 

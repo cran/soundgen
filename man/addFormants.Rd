@@ -5,13 +5,15 @@
 \title{Add formants}
 \usage{
 addFormants(
-  sound,
+  x,
+  samplingRate = NULL,
   formants,
   spectralEnvelope = NULL,
+  zFun = NULL,
   action = c("add", "remove")[1],
   vocalTract = NA,
   formantDep = 1,
-  formantDepStoch = 20,
+  formantDepStoch = 1,
   formantWidth = 1,
   formantCeiling = 2,
   lipRad = 6,
@@ -22,14 +24,21 @@ addFormants(
   temperature = 0.025,
   formDrift = 0.3,
   formDisp = 0.2,
-  samplingRate = 16000,
   windowLength_points = 800,
   overlap = 75,
-  normalize = TRUE
+  normalize = TRUE,
+  play = FALSE,
+  saveAudio = NULL,
+  reportEvery = NULL,
+  ...
 )
 }
 \arguments{
-\item{sound}{numeric vector with \code{samplingRate}}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
+
+\item{samplingRate}{sampling frequency, Hz}
 
 \item{formants}{either a character string like "aaui" referring to default
 presets for speaker "M1" or a list of formant times, frequencies,
@@ -45,6 +54,10 @@ numbers specifying the power in each frequency bin on a linear scale
 specifying the filter for each STFT step is also accepted. The easiest way
 to create this matrix is to call soundgen:::getSpectralEnvelope or to use
 the spectrum of a recorded sound}
+
+\item{zFun}{(optional) an arbitrary function to apply to the spectrogram
+prior to iSTFT, where "z" is the spectrogram - a matrix of complex values
+(see examples)}
 
 \item{action}{'add' = add formants to the sound, 'remove' = remove formants
 (inverse filtering)}
@@ -90,14 +103,25 @@ in sound generation}
 \item{formDrift, formDisp}{scaling factors for the effect of temperature on
 formant drift and dispersal, respectively}
 
-\item{samplingRate}{sampling frequency, Hz}
-
 \item{windowLength_points}{length of FFT window, points}
 
 \item{overlap}{FFT window overlap, \%. For allowed values, see
 \code{\link[seewave]{istft}}}
 
 \item{normalize}{if TRUE, normalizes the output to range from -1 to +1}
+
+\item{play}{if TRUE, plays the synthesized sound using the default player on
+your system. If character, passed to \code{\link[tuneR]{play}} as the name
+of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
+setting another default player for \code{\link[tuneR]{play}}}
+
+\item{saveAudio}{path + filename for saving the output, e.g.
+'~/Downloads/temp.wav'. If NULL = doesn't save}
+
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
+\item{...}{other plotting parameters passed to \code{\link{spectrogram}}}
 }
 \description{
 A spectral filter that either adds or removes formants from a sound - that
@@ -105,36 +129,59 @@ is, amplifies or dampens certain frequency bands, as in human vowels. See
 \code{\link{soundgen}} and \code{\link{getSpectralEnvelope}} for more
 information. With \code{action = 'remove'} this function can perform inverse
 filtering to remove formants and obtain raw glottal output, provided that you
-can specify the correct formant structure.
+can specify the correct formant structure. Instead of formants, any arbitrary
+spectral filtering function can be applied using the \code{spectralEnvelope}
+argument (eg for a low/high/bandpass filter).
 }
 \details{
 Algorithm: converts input from a time series (time domain) to a spectrogram
 (frequency domain) through short-term Fourier transform (STFT), multiples by
 the spectral filter containing the specified formants, and transforms back to
-a time series via inverse STFT. This is a subroutine in
-\code{\link{soundgen}}, but it can also be used on any existing sound.
+a time series via inverse STFT. This is a subroutine for voice synthesis in
+\code{\link{soundgen}}, but it can also be applied to a recording.
 }
 \examples{
-sound = c(rep(0, 1000), runif(16000), rep(0, 1000))  # white noise
+sound = c(rep(0, 1000), runif(8000) * 2 - 1, rep(0, 1000))  # white noise
 # NB: pad with silence to avoid artefacts if removing formants
 # playme(sound)
 # spectrogram(sound, samplingRate = 16000)
 
 # add F1 = 900, F2 = 1300 Hz
-sound_filtered = addFormants(sound, formants = c(900, 1300))
+sound_filtered = addFormants(sound, samplingRate = 16000,
+                             formants = c(900, 1300))
 # playme(sound_filtered)
 # spectrogram(sound_filtered, samplingRate = 16000)
 
 # ...and remove them again (assuming we know what the formants are)
 sound_inverse_filt = addFormants(sound_filtered,
+                                 samplingRate = 16000,
                                  formants = c(900, 1300),
                                  action = 'remove')
 # playme(sound_inverse_filt)
 # spectrogram(sound_inverse_filt, samplingRate = 16000)
 
 \dontrun{
-# Use the spectral envelope of an existing recording (bleating of a sheep)
+## Perform some user-defined manipulation of the spectrogram with zFun
+# Ex.: noise removal - silence all bins under threshold,
+# say -0 dB below the max value
+s_noisy = soundgen(sylLen = 200, addSilence = 0,
+                   noise = list(time = c(-100, 300), value = -20))
+spectrogram(s_noisy, 16000)
+# playme(s_noisy)
+zFun = function(z, cutoff = -50) {
+  az = abs(z)
+  thres = max(az) * 10 ^ (cutoff / 20)
+  z[which(az < thres)] = 0
+  return(z)
+}
+s_denoised = addFormants(s_noisy, samplingRate = 16000,
+                         formants = NA, zFun = zFun, cutoff = -40)
+spectrogram(s_denoised, 16000)
+# playme(s_denoised)
+
+## Use the spectral envelope of an existing recording (bleating of a sheep)
 # (see also the same example with noise as source in ?generateNoise)
+# (NB: this can also be achieved with a single call to transplantFormants)
 data(sheep, package = 'seewave')  # import a recording from seewave
 sound_orig = as.numeric(scale(sheep@left))
 samplingRate = sheep@samp.rate
@@ -143,9 +190,8 @@ sound_orig = sound_orig / max(abs(sound_orig))  # range -1 to +1
 
 # get a few pitch anchors to reproduce the original intonation
 pitch = analyze(sound_orig, samplingRate = samplingRate,
-  pitchMethod = c('autocor', 'dom'))$pitch
+  pitchMethod = c('autocor', 'dom'))$detailed$pitch
 pitch = pitch[!is.na(pitch)]
-pitch = pitch[seq(1, length(pitch), length.out = 10)]
 
 # extract a frequency-smoothed version of the original spectrogram
 # to use as filter

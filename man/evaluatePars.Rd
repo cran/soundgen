@@ -13,7 +13,7 @@ evaluatePars(
   fitnessFun = function(x) 1 - cor(x, key, use = "pairwise.complete.obs"),
   myfolder,
   key,
-  otherPars = list(plot = FALSE, verbose = FALSE),
+  otherPars = list(plot = FALSE),
   verbose = TRUE
 )
 }
@@ -23,8 +23,8 @@ evaluatePars(
 \item{pars}{names of arguments to \code{myfun} that should be
 optimized}
 
-\item{myfun}{the function being optimized: either 'segmentFolder' or
-'analyzeFolder' (in quotes)}
+\item{myfun}{the function being optimized: either 'segment' or
+'analyze' (in quotes)}
 
 \item{bounds}{a list setting the lower and upper boundaries for possible
 values of optimized parameters. For ex., if we optimize \code{smooth}

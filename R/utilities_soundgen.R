@@ -2,22 +2,22 @@
 
 #' Report time
 #'
-#' Provides a nicely formatted "estimated time left" in loops plus a summary upon completion.
+#' Provides a nicely formatted "estimated time left" in loops plus a summary
+#' upon completion.
 #' @param i current iteration
-#' @param nIter total number of iterations
 #' @param time_start time when the loop started running
+#' @param nIter total number of iterations
+#' @param reportEvery report progress every n iterations
 #' @param jobs vector of length \code{nIter} specifying the relative difficulty
 #'   of each iteration. If not NULL, estimated time left takes into account
 #'   whether the jobs ahead will take more or less time than the jobs already
 #'   completed
-#' @param reportEvery report progress every n iterations
 #' @export
 #' @examples
 #' time_start = proc.time()
-#' for (i in 1:20) {
-#'   Sys.sleep(i ^ 2 / 10000)
-#'   reportTime(i = i, nIter = 20, time_start = time_start,
-#'   jobs = (1:20) ^ 2, reportEvery = 5)
+#' for (i in 1:100) {
+#'   Sys.sleep(i ^ 1.02 / 10000)
+#'   reportTime(i = i, time_start = time_start, nIter = 100, jobs = (1:100) ^ 1.02)
 #' }
 #' \dontrun{
 #' # Unknown number of iterations:
@@ -40,12 +40,18 @@
 #'              time_start = time_start, jobs = filesizes)
 #' }
 #' }
-reportTime = function(i,
-                      time_start,
-                      nIter = NULL,
-                      jobs = NULL,
-                      reportEvery = 1) {
+reportTime = function(
+  i,
+  time_start,
+  nIter = NULL,
+  reportEvery = NULL,
+  jobs = NULL
+) {
   time_diff = as.numeric((proc.time() - time_start)[3])
+  if (is.null(reportEvery))
+    reportEvery = ifelse(is.null(nIter),
+                         1,
+                         max(1, 10 ^ (floor(log10(nIter)) - 1)))
   if (is.null(nIter)) {
     # number of iter unknown, so we just report time elapsed
     if (i %% reportEvery == 0) {
@@ -58,7 +64,7 @@ reportTime = function(i,
       time_total = convert_sec_to_hms(time_diff)
       print(paste0('Completed ', i, ' iterations in ', time_total, '.'))
     } else {
-      if (i %% reportEvery == 0) {
+      if (i %% reportEvery == 0 || i == 1) {
         if (is.null(jobs)) {
           # simply count iterations
           time_left = time_diff / i * (nIter - i)
@@ -141,17 +147,16 @@ convert_sec_to_hms = function(time_s, digits = 0) {
 #'           myfiles = c('~/Downloads/temp/myfile1.wav',
 #'                       '~/Downloads/temp/myfile2.wav'))
 #' }
-htmlPlots = function(myfolder, myfiles, width = "900px") {
-  # a list of basenames without extension
-  basenames = basename(myfiles)
-  basenames_stripped = as.character(sapply(
-    basenames,
-    function(x) substr(x, 1, nchar(x) - 4)
-  ))
-  basenames_concat = paste0(basenames, collapse = "', '")
+htmlPlots = function(htmlFile,
+                     plotFiles,
+                     audioFiles = '',
+                     width = "900px") {
+  if (length(plotFiles) < 2) return(NA)
+  plotFiles_concat = paste0(plotFiles, collapse = "', '")
+  audioFiles_concat = paste0(audioFiles, collapse = "', '")
 
   # create an html file to display nice, clickable spectrograms
-  out_html = file(paste0(myfolder,'/00_clickable_plots.html'))
+  out_html = file(htmlFile)
   writeLines(
     c("<!DOCTYPE html>",
       "<html>",
@@ -183,15 +188,14 @@ htmlPlots = function(myfolder, myfiles, width = "900px") {
       "<body>",
       "<div id='flexbox'> </div>",
       "<script>",
-      paste0("var mylist = ['", basenames_concat, "'];"),
-      "var sounds = [];",
+      paste0("var plotList = ['", plotFiles_concat, "'];"),
+      paste0("var audioList = ['", audioFiles_concat, "'];"),
       "var flex = document.getElementById('flexbox');",
-      "for (var i = 0; i < mylist.length; i++) {",
-      "  sounds[i] = mylist[i].slice(0, -4);  // remove '.wav' / '.mp3'",
+      "for (var i = 0; i < plotList.length; i++) {",
       "  let newDiv = document.createElement('div');",
-      "  newDiv.innerHTML = '<img src=\"' + sounds[i] + '.png\">';",
+      "  newDiv.innerHTML = '<img src=\"' + plotList[i] + '\">';",
       "  flex.appendChild(newDiv);",
-      "  var mysound = mylist[i];",
+      "  var mysound = audioList[i];",
       "  newDiv.onclick = (function(mysound) {",
       "    return function() {",
       "      var audioElement = document.createElement('audio');",
@@ -202,8 +206,7 @@ htmlPlots = function(myfolder, myfiles, width = "900px") {
       "}",
       "</script>",
       "</body>",
-      "</html>",
-      "),"),
+      "</html>"),
     out_html)
   close(out_html)
 }
@@ -790,4 +793,59 @@ objectToString = function(x) {
     # deparse1 comes close, but it require R 4.0 and mishandles strings
   }
   return(cp)
+}
+
+
+#' Silence sound segments
+#'
+#' Internal soundgen function
+#'
+#' Fills specified segments with silence (0) and fades in-out the ends of the
+#' silenced segment.
+#' @param x sound as a numeric vector
+#' @param samplingRate sampling rate, Hz
+#' @param na_seg dataframe containing columns "start_prop" and "end_prop"
+#' @param attackLen attack length, ms
+#' @keywords internal
+#' @examples
+#' s = runif(4000) * 2 - 1
+#' s1 = soundgen:::silenceSegments(s, 16000,
+#'        na_seg = data.frame(prop_start = c(.1, .5), prop_end = c(.2, .85)),
+#'        attackLen = c(5, 15))
+#' osc(s1)
+silenceSegments = function(
+  x,
+  samplingRate,
+  na_seg,
+  attackLen = 50
+) {
+  ls = length(x)
+  l = floor(attackLen * samplingRate / 1000)
+  if (length(l) == 1) l = c(l, l)
+  for (r in 1:nrow(na_seg)) {
+    idx_start = round(na_seg$prop_start[r] * ls)
+    idx_end = round(na_seg$prop_end[r] * ls)
+    idx_zero = idx_start:idx_end
+    x[idx_zero] = 0
+    if (any(attackLen > 0)) {
+      if (na_seg$prop_start[r] > 0) {
+        # fade out at idx_start
+        fade_from = max(1, idx_start - l[2])
+        fade_idx = fade_from:idx_start
+        x[fade_idx] = fade(x[fade_idx],
+                           fadeIn = 0,
+                           fadeOut = l[2])
+      }
+      if (na_seg$prop_end[r] < 1) {
+        # fade out the start of the next syl
+        fade_to = min(ls, idx_end + l[1])
+        fade_idx = idx_end:fade_to
+        x[fade_idx] = fade(x[fade_idx],
+                           fadeIn = l[1],
+                           fadeOut = 0)
+      }
+    }
+    # spectrogram(x, samplingRate)
+  }
+  return(x)
 }

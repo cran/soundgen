@@ -1,6 +1,6 @@
 ## ----fig.width = 5, fig.height = 5--------------------------------------------
 library(soundgen)
-s1 = soundgen(sylLen = 900, temperature = 0,
+s1 = soundgen(sylLen = 900, temperature = 0.001,
               pitch = list(time = c(0, .3, .8, 1), 
                            value = c(300, 900, 400, 1300)),
               noise = c(-40, -20), 
@@ -16,9 +16,9 @@ median(true_pitch)  # 633 Hz
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4))
-# summary(a1)  # many acoustic predictors measured for each STFT frame
+# a1$detailed  # many acoustic predictors measured for each STFT frame
 median(true_pitch)  # true value, as synthesized above
-median(a1$pitch, na.rm = TRUE)  # our estimate
+median(a1$detailed$pitch, na.rm = TRUE)  # our estimate
 # Pitch postprocessing is stochastic (see below), so the contour may vary.
 # Many candidates are off target, mainly b/c of misleading subharmonics.
 
@@ -75,17 +75,20 @@ seewave::env(sweep, f = samplingRate, envt = 'abs', msmooth=c(50, 0))
 
 ## ----fig.height = 4, fig.width = 7--------------------------------------------
 a = analyze(sweep, samplingRate = samplingRate, pitchMethods = NULL, plot = FALSE)
-plot(seq(0, dur, length.out = length(a$ampl)), a$ampl, type = 'b', xlab = 'Time, s')
+plot(seq(0, dur, length.out = length(a$detailed$ampl)), 
+     a$detailed$ampl, type = 'b', xlab = 'Time, s')
 
 ## ----fig.height = 4, fig.width = 7--------------------------------------------
-plot(seq(0, dur, length.out = length(a$loudness)), a$loudness, type = 'b', xlab= 'Time, s')
+plot(seq(0, dur, length.out = length(a$detailed$loudness)), a$detailed$loudness, 
+     type = 'b', xlab= 'Time, s')
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 l = getLoudness(sweep, samplingRate = samplingRate)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
-a = analyze(s1, samplingRate = 16000, priorSD = 24, ylim = c(0, 4),
-            pitchMethods = c('autocor', 'cep', 'dom', 'spec', 'hps'))
+a = analyze(s1, samplingRate = 16000, priorSD = 24, 
+            pitchMethods = c('autocor', 'cep', 'dom', 'spec', 'hps'),
+            plot = TRUE, ylim = c(0, 4))
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
 par(mfrow = c(1, 2))
@@ -105,28 +108,28 @@ a = analyze(s1, samplingRate = 16000,
             nCands = 3)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
-a = analyze(s1, 
-            samplingRate = 16000, ylim = c(0, 4), priorMean = NA,
+a = analyze(s1,  samplingRate = 16000, 
+            plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'dom',
             pitchDom = list(domThres = .1, domSmooth = 500, cex = 1.5))
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
-a = analyze(s1, 
-            samplingRate = 16000, ylim = c(0, 4), priorMean = NA,
+a = analyze(s1, samplingRate = 16000, 
+            plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'cep',
             pitchCep = list(cepThres = .3),
             nCands = 2)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
-a = analyze(s1, 
-            samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
+a = analyze(s1, samplingRate = 16000, 
+            plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'spec',
             pitchSpec = list(specThres = .2, specPeak = .1, cex = 2),
             nCands = 2)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 7-------------------------
-a = analyze(s1, 
-            samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
+a = analyze(s1, samplingRate = 16000, 
+            plot = TRUE, ylim = c(0, 4), priorMean = NA,
             pitchMethods = 'hps',
             pitchHps = list(hpsNum = 2, # try 8 or so to measure subharmonics
                             hpsThres = .2))
@@ -144,51 +147,50 @@ s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
 seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 6-------------------------
-a_withoutf0 = analyze(s_withoutf0, 16000, 
+a_withoutf0 = analyze(s_withoutf0, 16000, , priorMean = NA,
              pitchMethods = c('autocor', 'dom', 'cep', 'spec', 'hps'),
-             ylim = c(0, 2), dynamicRange = 60, osc = FALSE, priorMean = NA)
+             plot = TRUE, ylim = c(0, 2), dynamicRange = 60, osc = FALSE)
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(
   s1, 
   samplingRate = 16000, plot = TRUE, ylim = c(0, 4), priorMean = NA,
   shortestSyl = 0,        # any length of voiced fragments
-  interpolWin = 0,        # don't interpolate missing f0 values
+  interpol = NULL,        # don't interpolate missing f0 values
   pathfinding = 'none',   # don't look for optimal path through candidates
   snakeStep = 0,          # don't run the snake
   smooth = 0              # don't run median smoothing
 )       
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
-a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .4), step = 25,
-             snakeStep = 0, smooth = 0,
-             interpolWin = 0,   # disable interpolation
+a1 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .45),
+             interpol = NULL,   # disable interpolation
              pathfinding = 'none',  
-             summaryFun = NULL,
-             plot = FALSE)
-a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .4), step = 25,
-             pathfinding = 'none',
-             snakeStep = 0, smooth = 0, 
-             summaryFun = NULL,
-             plot = FALSE)  
-plot(a1$time, a1$pitch, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
-points(a2$time, a2$pitch, type = 'l', col = 'red', lty = 3)
+             snakeStep = 0, smooth = 0, plot = FALSE)
+a2 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .45),
+             # interpol = list(win = 100, tol = .1),
+             pathfinding = 'none', 
+             snakeStep = 0, smooth = 0, plot = FALSE)  
+plot(a1$detailed$time, a1$detailed$pitch, type = 'l', 
+     xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(a2$detailed$time, a2$detailed$pitch, type = 'l', 
+       col = 'red', lty = 3)
 
 
 ## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 3,
-             snakeStep = 0, smooth = 0, interpolTol = Inf,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 2,
+             snakeStep = 0, smooth = 0, interpol = list(tol = Inf),
              certWeight = 0,  # minimize pitch jumps
-             main = 'Minimize jumps', 
+             plot = TRUE, main = 'Minimize jumps', 
              showLegend = FALSE, osc = FALSE, ylim = c(0, 3))  
 a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 3,
-             snakeStep = 0, smooth = 0, interpolTol = Inf,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 2,
+             snakeStep = 0, smooth = 0, interpol = list(tol = Inf),
              certWeight = 1,  # minimize deviation from high-certainty candidates
-             main = 'Pass through top cand-s', 
+             plot = TRUE, main = 'Pass through top cand-s', 
              showLegend = FALSE, osc = FALSE, ylim = c(0, 3))
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
@@ -200,16 +202,25 @@ a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .2), nCands = 2,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .1), nCands = 3,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
              smooth = 0,  # no smoothing
              summaryFun = NULL, plot = FALSE)
-a1$pitch_smooth = soundgen:::medianSmoother(
-  data.frame(pitch = a1$pitch), smoothing_ww = 3, smoothingThres = 1
+a1$detailed$medianSmooth = soundgen:::medianSmoother(
+  data.frame(pitch = a1$detailed$pitch), smoothing_ww = 3, smoothingThres = 1
 )$pitch
-plot(pitch ~ time, data = a1, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
-points(pitch_smooth ~ time, data = a1, type = 'l', col = 'red', lty = 3, lwd = 2)
+plot(pitch ~ time, data = a1$detailed, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(medianSmooth ~ time, data = a1$detailed, type = 'l', col = 'red', lty = 3, lwd = 2)
 # dotted line = with median smoothing
+
+## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
+a1$detailed$ps = pitchSmoothPraat(
+  a1$detailed$pitch, 
+  bandwidth = 5, # cutoff above 5 Hz (5 pitch values per s)
+  samplingRate = 1000/25)  # 1/step = number of pitch values per s
+plot(pitch ~ time, data = a1$detailed, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(ps ~ time, data = a1$detailed, type = 'l', col = 'red', lty = 3, lwd = 2)
+# dotted line = after low-pass smoothing
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 a = analyze(
@@ -242,24 +253,23 @@ a = analyze(
 )
 
 ## ----eval = FALSE-------------------------------------------------------------
-#  a = analyze(s1, samplingRate = 16000, plot = TRUE, savePath = '~/Downloads',
+#  a = analyze('~/Downloads/temp2', savePlots = '',
 #              width = 900, height = 500, units = 'px')
-
-## ----eval = FALSE-------------------------------------------------------------
-#  timePeak = function(x) which.max(x) / length(x)
-#  # NB: don't omit NAs, otherwise the time is shifted
-#  analyze(mySound, summaryFun = c('mean', 'timePeak'))
 
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 # for info on using soundgen() function, see the vignette on sound synthesis 
 s2 = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70, temperature = 0,
-              pitch = c(368, 284),
-              noise = list(time = c(0, 67, 86, 186), 
-                           value = c(-45, -47, -89, -120)),
-              rolloffNoise = -8, amplGlobal = c(0, -20))
-# spectrogram(s2, samplingRate = 16000, osc = TRUE)
+              pitch = c(368, 284), amplGlobal = c(0, -20))
+# add noise so SNR decreases from 20 to 0 dB from syl1 to syl8
+s2 = s2 + runif(length(s2), -10 ^ (-20 / 20), 10 ^ (-20 / 20))
 # playme(s2, samplingRate = 16000)
 a = segment(s2, samplingRate = 16000, plot = TRUE)
+
+## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
+a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
+             SNR = 0.1, main = 'SNR very low')
+a2 = suppressWarnings(segment(s2, samplingRate = 16000, plot = TRUE, 
+            SNR = 14, main = 'SNR very high'))
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
 a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
@@ -277,15 +287,6 @@ a1 = segment(s2, samplingRate = 16000, plot = TRUE,
 a2 = segment(s2, samplingRate = 16000, plot = TRUE, 
              shortestPause = 80, main = 'shortestPause too long')  
 
-## ----fig.show = "hold", fig.height = 4, fig.width = 5-------------------------
-# absolute threshold burstThres set too high
-a1 = segment(s2, samplingRate = 16000, plot = TRUE, 
-             burstThres = 0.5, main = 'burstThres too high')
-# improper syllable merging due to shortestPause, but overriden by manually 
-# specified interburst
-a2 = segment(s2, samplingRate = 16000, plot = TRUE, 
-             shortestPause = 80, interburst = 100) 
-
 ## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 s3 = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70, 
        formants = NA, pitch = c(500, 330)))
@@ -295,7 +296,7 @@ m = ssm(s3, samplingRate = 16000)
 ## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 par(mfrow = c(2, 1))
 m1 = ssm(s3, samplingRate = 16000,
-         input = 'audiogram', simil = 'cor', norm = FALSE, 
+         input = 'melspec', simil = 'cor', norm = FALSE, 
          ssmWin = 10, kernelLen = 150)  # detailed, local features
 m2 = ssm(s3, samplingRate = 16000,
          input = 'mfcc', simil = 'cosine', norm = TRUE, 
@@ -305,18 +306,18 @@ par(mfrow = c(1, 1))
 ## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 s = soundgen(pitch = 70, amFreq = 25, amDep = 80, rolloff = -15)
 ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
-                        windowLength = 25, step = 25)
+                        windowLength = 25, step = 25, amRes = NULL)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
-                        windowLength = 40, step = 10)
+                        windowLength = 40, step = 10, amRes = NULL)
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 ms = modulationSpectrum(
-  s, samplingRate = 16000, windowLength = 40, step = 10,
+  s, samplingRate = 16000, windowLength = 40, step = 10, amRes = NULL,
   logSpec = FALSE,  # log-transform the spectrogram before 2D FFT?
   power = 2,  # square amplitudes in modulation spectrum ("power" spectrum)
-  roughRange = c(15, 35),  # temporal modulations in the "roughness" range
+  roughRange = c(30, 150),  # temporal modulations in the "roughness" range
   logWarp = 2,  # log-transform axes for plotting
   kernelSize = 7,  # apply Gaussian blur for smoothing
   quantiles = c(.5, .8, .95, .99),  # customize contour lines

@@ -16,7 +16,7 @@ optimizePars(
   init = NULL,
   initSD = 0.2,
   control = list(maxit = 50, reltol = 0.01, trace = 0),
-  otherPars = list(plot = FALSE, verbose = FALSE),
+  otherPars = list(plot = FALSE),
   mygrid = NULL,
   verbose = TRUE
 )
@@ -27,8 +27,8 @@ optimizePars(
 \item{key}{a vector containing the "correct" measurement that we are aiming
 to reproduce}
 
-\item{myfun}{the function being optimized: either 'segmentFolder' or
-'analyzeFolder' (in quotes)}
+\item{myfun}{the function being optimized: either 'segment' or
+'analyze' (in quotes)}
 
 \item{pars}{names of arguments to \code{myfun} that should be
 optimized}
@@ -74,18 +74,17 @@ Returns a matrix with one row per iteration with fitness in the first
   remaining columns.
 }
 \description{
-This customized wrapper for \code{\link[stats]{optim}} attempts to optimize the
-parameters of \code{\link{segmentFolder}} or \code{\link{analyzeFolder}} by
-comparing the results with a manually annotated "key". This optimization
-function uses a single measurement per audio file (e.g., median pitch or the
-number of syllables). For other purposes, you may want to adapt the
-optimization function so that the key specifies the exact timing of
-syllables, their median length, frame-by-frame pitch values, or any other
-characteristic that you want to optimize for. The general idea remains the
-same, however: we want to tune function parameters to fit our type of audio
-and research priorities. The default settings of \code{\link{segmentFolder}}
-and \code{\link{analyzeFolder}} have been optimized for human non-linguistic
-vocalizations.
+This customized wrapper for \code{\link[stats]{optim}} attempts to optimize
+the parameters of \code{\link{segment}} or \code{\link{analyze}} by comparing
+the results with a manually annotated "key". This optimization function uses
+a single measurement per audio file (e.g., median pitch or the number of
+syllables). For other purposes, you may want to adapt the optimization
+function so that the key specifies the exact timing of syllables, their
+median length, frame-by-frame pitch values, or any other characteristic that
+you want to optimize for. The general idea remains the same, however: we want
+to tune function parameters to fit our type of audio and research priorities.
+The default settings of \code{\link{segment}} and \code{\link{analyze}} have
+been optimized for human non-linguistic vocalizations.
 }
 \details{
 If your sounds are very different from human non-linguistic vocalizations,
@@ -98,7 +97,7 @@ on your data.
 # Download 260 sounds from the supplements in Anikin & Persson (2017)
 # - see http://cogsci.se/publications.html
 # Unzip them into a folder, say '~/Downloads/temp'
-myfolder = '~/Downloads/temp'  # 260 .wav files live here
+myfolder = '~/Downloads/temp260'  # 260 .wav files live here
 
 # Optimization of SEGMENTATION
 # Import manual counts of syllables in 260 sounds from
@@ -108,9 +107,9 @@ key = segmentManual  # a vector of 260 integers
 # Run optimization loop several times with random initial values
 # to check convergence
 # NB: with 260 sounds and default settings, this might take ~20 min per iteration!
-res = optimizePars(myfolder = myfolder, myfun = 'segmentFolder', key = key,
-  pars = c('shortestSyl', 'shortestPause', 'sylThres'),
-  fitnessPar = 'nBursts',
+res = optimizePars(myfolder = myfolder, myfun = 'segment', key = key,
+  pars = c('shortestSyl', 'shortestPause'),
+  fitnessPar = 'nBursts', otherPars = list(method = 'env'),
   nIter = 3, control = list(maxit = 50, reltol = .01, trace = 0))
 
 # Examine the results
@@ -119,32 +118,34 @@ for (c in 2:ncol(res)) {
   plot(res[, c], res[, 1], main = colnames(res)[c])
 }
 pars = as.list(res[1, 2:ncol(res)])  # top candidate (best pars)
-s = do.call(segmentFolder, c(myfolder, pars))  # segment with best pars
+s = do.call(segment, c(myfolder, pars))  # segment with best pars
 cor(key, as.numeric(s[, fitnessPar]))
 boxplot(as.numeric(s[, fitnessPar]) ~ as.integer(key), xlab='key')
 abline(a=0, b=1, col='red')
 
 # Try a grid with particular parameter values instead of formal optimization
-res = optimizePars(myfolder = myfolder, myfun = 'segmentFolder', key = segment_manual,
+res = optimizePars(myfolder = myfolder, myfun = 'segment', key = segmentManual,
   pars = c('shortestSyl', 'shortestPause'),
-  fitnessPar = 'nBursts',
+  fitnessPar = 'nBursts', otherPars = list(method = 'env'),
   mygrid = expand.grid(shortestSyl = c(30, 40),
                        shortestPause = c(30, 40, 50)))
 1 - res$fit  # correlations with key
 
 # Optimization of PITCH TRACKING (takes several hours!)
+key = as.numeric(log(pitchManual))
 res = optimizePars(
   myfolder = myfolder,
-    myfun = 'analyzeFolder',
-    key = log(pitchManual),  # log-scale better for pitch
+    myfun = 'analyze',
+    key = key,  # log-scale better for pitch
     pars = c('windowLength', 'silence'),
-    bounds = list(low = c(5, 0), high = c(500, 1)),
+    bounds = list(low = c(5, 0), high = c(200, .2)),
     fitnessPar = 'pitch_median',
     nIter = 2,
-    otherPars = list(plot = FALSE, verbose = FALSE, step = 50),
+    otherPars = list(plot = FALSE, loudness = NULL, novelty = NULL,
+                     roughness = NULL, nFormants = 0),
     fitnessFun = function(x) {
       1 - cor(log(x), key, use = 'pairwise.complete.obs') *
-      (1 - mean(is.na(x) & !is.na(key))) # penalize failing to detect f0
+      (1 - mean(is.na(x) & is.finite(key))) # penalize failing to detect f0
 })
 }
 }

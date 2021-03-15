@@ -2,10 +2,11 @@
 
 #' Convert Hz to semitones
 #'
-#' Converts from Hz to semitones above C-5 (~0.5109875 Hz). This may not seem
-#' very useful, but note that this gives us a nice logarithmic scale for
-#' generating natural pitch transitions with the added benefit of getting
-#' musical notation for free from \code{notesDict} (see examples).
+#' Converts from Hz to semitones above C-5 (~0.5109875 Hz) or another reference
+#' frequency. This may not seem very useful, but note that this gives us a nice
+#' logarithmic scale for generating natural pitch transitions with the added
+#' benefit of getting musical notation for free from \code{notesDict} (see
+#' examples).
 #'
 #' @seealso \code{\link{semitonesToHz}}
 #'
@@ -17,14 +18,18 @@
 #' # to convert to musical notation
 #' notesDict$note[1 + round(s)]
 #' # note the "1 +": semitones ABOVE C-5, i.e. notesDict[1, ] is C-5
+#'
+#' # Any reference tone can be specified. For ex., for semitones above C0, use:
+#' HzToSemitones(440, ref = 16.35)
+#' # TIP: see notesDict for a table of Hz frequencies to musical notation
 HzToSemitones = function(h, ref = 0.5109875) {
   return(log2(h / ref) * 12)
 }
 
 #' Convert semitones to Hz
 #'
-#' Converts from semitones above C-5 (~0.5109875 Hz) to Hz. See
-#' \code{\link{HzToSemitones}}
+#' Converts from semitones above C-5 (~0.5109875 Hz) or another reference
+#' frequency to Hz. See \code{\link{HzToSemitones}}
 #'
 #' @seealso \code{\link{HzToSemitones}}
 #'
@@ -98,25 +103,32 @@ log01 = function(v) {
 #' Internal soundgen function
 #'
 #' Takes a numeric vector and downsamples it to the required sampling rate by
-#' simply throwing away some of the original points. If the new sampling rate is
-#' higher than the original, does nothing.
+#' applying a low-pass filter and then decimating. If the new sampling rate is
+#' higher than the original, it does nothing.
 #' @param s a numeric vector
 #' @param srNew the new, required sampling rate
 #' @param srOld the original sampling rate
 #' @param minLen the minimum length of returned vector
 #' @keywords internal
 #' @examples
-#' s = sort(rnorm(20))
-#' soundgen:::downsample(s, srNew = 5, srOld = 18)
-#' soundgen:::downsample(s, srNew = 5, srOld = 40)
+#' s = rnorm(100); plot(s, type = 'l')
+#' s1 = soundgen:::downsample(s, srNew = 5, srOld = 18)
+#' plot(s1, type = 'l', col = 'red')
+#' plot(soundgen:::downsample(s, srNew = 5, srOld = 40), type = 'b')
 downsample = function(s, srNew = 10, srOld = 120, minLen = 3){
-  if (!srNew < srOld){
-    return (s)
+  if (!srNew < srOld) {
+    return(s)
   }
-  l = length(s)
-  dur = l / srOld
-  idx = seq(1, l, length.out = min(l, max(minLen, round(dur * srNew))))
-  return (s[idx])
+  # low-pass filter
+  min_s = min(s)
+  s_pos = s - min(s)
+  s_lowPass = pitchSmoothPraat(s_pos, bandwidth = srNew / 2,
+                               samplingRate = srOld) + min_s
+  # downsample
+  len = length(s_lowPass)
+  len_new = round(len * srNew / srOld)
+  idx = seq(1, len, length.out = len_new)
+  return(s_lowPass[idx])
 }
 
 
@@ -500,31 +512,45 @@ matchLengths = function(myseq,
 #'
 #' Internal soundgen function
 #'
-#' Adds columns of zeros or NA to a matrix (attaching them both left and
-#' right), so that the new number of columns = \code{len}
+#' Adds columns of new values (eg zeros or NAs) to a matrix, so that the new
+#' number of columns = \code{len}
+#' @inheritParams matchLengths
 #' @param matrix_short input matrix
 #' @param nCol the required number of columns
 #' @param padWith the value to pad with, normally \code{0} or \code{NA}
 #' @keywords internal
 #' @examples
 #' a = matrix(1:9, nrow = 3)
-#' soundgen:::matchColumns(a, nCol = 6, padWith = NA)
-matchColumns = function (matrix_short, nCol, padWith = 0) {
-  col_short = 1:ncol(matrix_short)
-  # pads with zeros/NA etc right and left
-  col_long = matchLengths(col_short, nCol,
-                          padDir = 'central', padWith = padWith)
-  new = matrix(padWith,
-               nrow = nrow(matrix_short),
-               ncol = length(col_long))
-  colnames(new) = col_long
-  if (is.na(padWith)) {
-    new[, !is.na(colnames(new))] = matrix_short
+#' soundgen:::matchColumns(a, nCol = 6, padWith = NA, padDir = 'central')
+#' soundgen:::matchColumns(a, nCol = 6, padWith = 0, padDir = 'central')
+#' soundgen:::matchColumns(a, nCol = 6, padWith = NA, padDir = 'left')
+#' soundgen:::matchColumns(a, nCol = 6, padWith = 'a', padDir = 'right')
+#' soundgen:::matchColumns(a, nCol = 2)
+matchColumns = function (matrix_short,
+                         nCol,
+                         padWith = 0,
+                         padDir = 'central',
+                         interpol = c("approx", "spline")[1]) {
+  if (ncol(matrix_short) > nCol) {
+    # downsample
+    new = interpolMatrix(matrix_short, nc = nCol, interpol = interpol)
   } else {
-    new[, colnames(new) != padWith] = matrix_short
-    # paste the old matrix where it belongs, fill the rest with zeros, NA's etc
+    # pad with 0 / NA / etc
+    if (is.null(colnames(matrix_short))) {
+      col_short = 1:ncol(matrix_short)
+    } else {
+      col_short = colnames(matrix_short)
+    }
+    col_long = matchLengths(col_short, nCol,
+                            padDir = padDir, padWith = NA)
+    new = matrix(padWith,
+                 nrow = nrow(matrix_short),
+                 ncol = length(col_long))
+    colnames(new) = col_long
+    # paste the old matrix where it belongs
+    new[, !is.na(colnames(new))] = matrix_short
   }
-  return (new)
+  return(new)
 }
 
 
@@ -835,12 +861,12 @@ interpolMatrix = function(m,
 
   # Downsample rows if necessary
   if (nrow(m) > nr) {
-    m = m[seq(1, nrow(m), length.out = nr), ]
+    m = m[seq(1, nrow(m), length.out = nr),, drop = FALSE]
   }
 
   # Downsample columns if necessary
   if (ncol(m) > nc) {
-    m = m[, seq(1, ncol(m), length.out = nc)]
+    m = m[, seq(1, ncol(m), length.out = nc), drop = FALSE]
   }
 
   # Interpolate rows if necessary
@@ -873,7 +899,7 @@ interpolMatrix = function(m,
   # Interpolate columns if necessary
   if (ncol(m) < nc) {
     if (ncol(m) == 1) {
-      out = matrix(rep(m, nc), ncol = nc, byrow = FALSE)
+      out = matrix(rep(temp[, 1], nc), ncol = nc, byrow = FALSE)
     } else {
       out = matrix(1, nrow = nr, ncol = nc)
       for (r in 1:nr) {

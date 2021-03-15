@@ -14,14 +14,17 @@ addAM(
   invalidArgAction = c("adjust", "abort", "ignore")[1],
   plot = FALSE,
   play = FALSE,
-  checkFormat = TRUE
+  saveAudio = NULL,
+  reportEvery = NULL
 )
 }
 \arguments{
-\item{x}{path to a .wav file or a vector of amplitudes with specified
-samplingRate}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
-\item{samplingRate}{sampling frequency, Hz}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
 
 \item{amDep}{amplitude modulation (AM) depth, \%. 0: no change; 100: AM with
 amplitude range equal to the dynamic range of the sound (anchor format)}
@@ -39,15 +42,16 @@ range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
 
 \item{plot}{if TRUE, plots the amplitude modulation}
 
-\item{play}{if TRUE, plays the synthesized sound using the default player on
-your system. If character, passed to \code{\link[tuneR]{play}} as the name
-of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
-setting another default player for \code{\link[tuneR]{play}}}
+\item{play}{if TRUE, plays the processed audio}
 
-\item{checkFormat}{only FALSE when called internally by soundgen()}
+\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
+= don't save, '' = same as input folder (NB: overwrites the originals!)}
+
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
 }
 \description{
-Adds sinusidal or logistic amplitude modulation to a sound. This produces
+Adds sinusoidal or logistic amplitude modulation to a sound. This produces
 additional harmonics in the spectrum at ±am_freq around each original
 harmonic and makes the sound rough. The optimal frequency for creating a
 perception of roughness is ~70 Hz (Fastl & Zwicker "Psychoacoustics").
@@ -65,15 +69,15 @@ s2 = addAM(sound1, 16000,
                       value = c(0, 0, 35, 25, 0, 0)),
          plot = TRUE, play = TRUE)
 
-# Sinusoidal AM produces exactly 2 extra harmonics at ±am_freq around each f0
-harmonic:
-s3 = addAM(sound2, 16000, amDep = 30, amFreq = c(50, 80), amType = 'sine',
-           plot = TRUE, play = TRUE)
+# Sinusoidal AM produces exactly 2 extra harmonics at ±am_freq
+# around each f0 harmonic:
+s3 = addAM(sound1, 16000, amDep = 30, amFreq = c(50, 80),
+           amType = 'sine', plot = TRUE, play = TRUE)
 spectrogram(s3, 16000, windowLength = 150, ylim = c(0, 2))
 
-# Non-sinusoidal AM produces multiple new harmonics, which can resemble
-subharmonics...
-s4 = addAM(sound2, 16000, amDep = 70, amFreq = 50, amShape = -1,
+# Non-sinusoidal AM produces multiple new harmonics,
+# which can resemble subharmonics...
+s4 = addAM(sound1, 16000, amDep = 70, amFreq = 50, amShape = -1,
            plot = TRUE, play = TRUE)
 spectrogram(s4, 16000, windowLength = 150, ylim = c(0, 2))
 
@@ -85,7 +89,7 @@ s5 = addAM(sound3, 16000, amDep = c(0, 30, 100, 40, 0),
 spectrogram(s5, 16000, ylim = c(0, 5))
 
 # Feel free to add AM stochastically:
-s6 = addAM(sound2, 16000,
+s6 = addAM(sound1, 16000,
            amDep = rnorm(10, 40, 20), amFreq = rnorm(20, 70, 20),
            plot = TRUE, play = TRUE)
 spectrogram(s6, 16000, windowLength = 150, ylim = c(0, 2))
@@ -98,5 +102,9 @@ con = getSmoothContour(anchors = c(400, 600, 400),
                        len = 20, thisIsPitch = TRUE)
 s = soundgen(sylLen = 1500, pitch = con, amFreq = con/3, amDep = 30,
              plot = TRUE, play = TRUE, ylim = c(0, 3))
+
+# Process all files in a folder and save the modified audio
+addAM('~/Downloads/temp', saveAudio = '~/Downloads/temp/AM',
+      amFreq = 70, amDep = c(0, 50))
 }
 }

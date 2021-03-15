@@ -11,7 +11,6 @@ guessPhase_GL(
   samplingRate,
   overlap,
   wn,
-  windowLength_points,
   step_points,
   verbose = TRUE,
   plotError = TRUE
@@ -27,14 +26,12 @@ matrix with frequency bins in rows and time frames in columns}
 1984), 0 = don't run}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than an audio file)}
+numeric vector)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{wn}{window type: gaussian, hanning, hamming, bartlett, rectangular,
-blackman, flattop}
-
-\item{windowLength_points}{STFT window length in points}
+\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
+gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{step_points}{STFT step in points}
 

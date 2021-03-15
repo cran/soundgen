@@ -4,30 +4,33 @@
 \alias{getEnv}
 \title{Get amplitude envelope}
 \usage{
-getEnv(sound, windowLength_points, method = c("rms", "peak", "mean", "hil")[1])
+getEnv(
+  sound,
+  windowLength_points,
+  method = c("rms", "hil", "peak", "raw", "mean")[1]
+)
 }
 \arguments{
-\item{sound}{input vector oscillating about zero}
+\item{sound}{numeric vector}
 
-\item{windowLength_points}{the length of smoothing window, points. If
-specified, overrides both \code{windowLength} and \code{samplingRate}}
+\item{windowLength_points}{the length of smoothing window, in points}
 
 \item{method}{'peak' for peak amplitude per window, 'rms' for root mean
 square amplitude, 'mean' for mean (for DC offset removal), 'hil' for
-Hilbert}
+Hilbert, 'raw' for low-pass filtering the actual sound}
 }
 \description{
-Internal soundgen function
-}
-\details{
 Returns the smoothed amplitude envelope of a waveform on the original scale.
-NB: unlike seewave::env, this function returns an envelope of the same length
-as the original sound, regardless of the amount of smoothing.
+Unlike seewave::env, this function always returns an envelope of the same
+length as the original sound, regardless of the amount of smoothing.
 }
 \examples{
 a = rnorm(500) * seq(1, 0, length.out = 500)
 windowLength_points = 50
-plot(a, type = 'l')
+scale = max(abs(a))
+plot(a, type = 'l', ylim = c(-scale, scale))
+points(soundgen:::getEnv(a, windowLength_points, 'raw'),
+       type = 'l', col = 'brown')
 points(soundgen:::getEnv(a, windowLength_points, 'rms'),
        type = 'l', col = 'red')
 points(soundgen:::getEnv(a, windowLength_points, 'peak'),
@@ -37,4 +40,3 @@ points(soundgen:::getEnv(a, windowLength_points, 'hil'),
 points(soundgen:::getEnv(a, windowLength_points, 'mean'),
        type = 'l', lty = 3, lwd = 3)
 }
-\keyword{internal}

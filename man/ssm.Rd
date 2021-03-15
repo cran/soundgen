@@ -7,43 +7,67 @@
 ssm(
   x,
   samplingRate = NULL,
-  windowLength = 40,
-  overlap = 75,
-  step = NULL,
-  ssmWin = 40,
+  from = NULL,
+  to = NULL,
+  windowLength = 25,
+  step = 5,
+  overlap = NULL,
+  ssmWin = NULL,
+  sparse = FALSE,
   maxFreq = NULL,
   nBands = NULL,
   MFCC = 2:13,
-  input = c("mfcc", "audiogram", "spectrum")[1],
+  input = c("mfcc", "melspec", "spectrum")[2],
   norm = FALSE,
   simil = c("cosine", "cor")[1],
-  kernelLen = 200,
-  kernelSD = 0.2,
+  kernelLen = 100,
+  kernelSD = 0.5,
   padWith = 0,
+  summaryFun = c("mean", "sd"),
+  reportEvery = NULL,
   plot = TRUE,
+  savePlots = NULL,
+  main = NULL,
   heights = c(2, 1),
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
   specPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "kHz", ylim = c(0, maxFreq/1000)),
+    "heat.colors", "...")[2], xlab = "Time, s", ylab = "kHz"),
   ssmPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "Time, s", main =
-    "Self-similarity matrix"),
+    "heat.colors", "...")[2], xlab = "Time, s", ylab = "Time, s"),
   noveltyPars = list(type = "b", pch = 16, col = "black", lwd = 3)
 )
 }
 \arguments{
-\item{x}{path to a .wav file or a vector of amplitudes with specified
-samplingRate}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than a .wav file)}
+numeric vector)}
+
+\item{from}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
+
+\item{to}{if NULL (default), analyzes the whole sound, otherwise
+from...to (s)}
 
 \item{windowLength}{length of FFT window, ms}
 
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
+
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms}
+\item{ssmWin}{window for averaging SSM, ms (has a smoothing effect and speeds
+up the processing)}
 
-\item{ssmWin}{window for averaging SSM, ms}
+\item{sparse}{if TRUE, the entire SSM is not calculated, but only the central
+region needed to extract the novelty contour (speeds up the processing)}
 
 \item{maxFreq}{highest band edge of mel filters, Hz. Defaults to
 \code{samplingRate / 2}. See \code{\link[tuneR]{melfcc}}}
@@ -54,7 +78,7 @@ windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
 \item{MFCC}{which mel-frequency cepstral coefficients to use; defaults to
 \code{2:13}}
 
-\item{input}{either MFCCs ("cepstrum") or mel-filtered spectrum ("audiogram")}
+\item{input}{the spectral representation used to calculate the SSM}
 
 \item{norm}{if TRUE, the spectrum of each STFT frame is normalized}
 
@@ -62,16 +86,41 @@ windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
 = Pearson's correlation}
 
 \item{kernelLen}{length of checkerboard kernel for calculating novelty, ms
-(larger values favor global vs. local novelty)}
+(larger values favor global, slow vs. local, fast novelty)}
 
 \item{kernelSD}{SD of checkerboard kernel for calculating novelty}
 
 \item{padWith}{how to treat edges when calculating novelty: NA = treat sound
 before and after the recording as unknown, 0 = treat it as silence}
 
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
+are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
+take care of NAs yourself}
+
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
 \item{plot}{if TRUE, plots the SSM}
 
+\item{savePlots}{full path to the folder in which to save the plots (NULL =
+don't save, '' = same folder as audio)}
+
+\item{main}{graphical parameters for plotting}
+
 \item{heights}{relative sizes of the SSM and spectrogram/novelty plot}
+
+\item{width}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{height}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{units}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{res}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
 
 \item{specPars}{graphical parameters passed to \code{filled.contour.mod} and
 affecting the \code{\link{spectrogram}}}
@@ -94,17 +143,22 @@ sound = c(soundgen(),
           soundgen(nSyl = 4, sylLen = 50, pauseLen = 70,
           formants = NA, pitch = c(500, 330)))
 # playme(sound)
-ssm(sound, samplingRate = 16000, overlap = 50,
-         input = 'audiogram', simil = 'cor', norm = FALSE,
-         ssmWin = 10, kernelLen = 150)  # detailed, local features
+# detailed, local features (captures each syllable)
+s1 = ssm(sound, samplingRate = 16000, kernelLen = 100,
+         sparse = TRUE)  # much faster with 'sparse'
+# more global features (captures the transition b/w the two sounds)
+s2 = ssm(sound, samplingRate = 16000, kernelLen = 400, sparse = TRUE)
+
+s2$summary
+s2$novelty  # novelty contour
 \dontrun{
-m = ssm(sound, samplingRate = 16000,
-         input = 'mfcc', simil = 'cosine', norm = TRUE,
-         ssmWin = 50, kernelLen = 600,  # global features
-         specPars = list(colorTheme = 'heat.colors'),
-         ssmPars = list(colorTheme = 'bw'),
-         noveltyPars = list(type = 'l', lty = 3, lwd = 2))
-# plot(m$novelty, type='b')  # use for peak detection, etc
+ssm(sound, samplingRate = 16000,
+    input = 'mfcc', simil = 'cor', norm = TRUE,
+    ssmWin = 25,  # speed up the processing
+    kernelLen = 300,  # global features
+    specPars = list(colorTheme = 'heat.colors'),
+    ssmPars = list(colorTheme = 'bw'),
+    noveltyPars = list(type = 'l', lty = 3, lwd = 2))
 }
 }
 \references{
@@ -124,6 +178,4 @@ m = ssm(sound, samplingRate = 16000,
 \seealso{
 \code{\link{spectrogram}} \code{\link{modulationSpectrum}}
   \code{\link{segment}}
-
-\code{\link{spectrogram}} \code{\link{modulationSpectrum}}
 }

@@ -2,26 +2,25 @@
 
 #' Optimize parameters for acoustic analysis
 #'
-#' This customized wrapper for \code{\link[stats]{optim}} attempts to optimize the
-#' parameters of \code{\link{segmentFolder}} or \code{\link{analyzeFolder}} by
-#' comparing the results with a manually annotated "key". This optimization
-#' function uses a single measurement per audio file (e.g., median pitch or the
-#' number of syllables). For other purposes, you may want to adapt the
-#' optimization function so that the key specifies the exact timing of
-#' syllables, their median length, frame-by-frame pitch values, or any other
-#' characteristic that you want to optimize for. The general idea remains the
-#' same, however: we want to tune function parameters to fit our type of audio
-#' and research priorities. The default settings of \code{\link{segmentFolder}}
-#' and \code{\link{analyzeFolder}} have been optimized for human non-linguistic
-#' vocalizations.
+#' This customized wrapper for \code{\link[stats]{optim}} attempts to optimize
+#' the parameters of \code{\link{segment}} or \code{\link{analyze}} by comparing
+#' the results with a manually annotated "key". This optimization function uses
+#' a single measurement per audio file (e.g., median pitch or the number of
+#' syllables). For other purposes, you may want to adapt the optimization
+#' function so that the key specifies the exact timing of syllables, their
+#' median length, frame-by-frame pitch values, or any other characteristic that
+#' you want to optimize for. The general idea remains the same, however: we want
+#' to tune function parameters to fit our type of audio and research priorities.
+#' The default settings of \code{\link{segment}} and \code{\link{analyze}} have
+#' been optimized for human non-linguistic vocalizations.
 #'
 #' If your sounds are very different from human non-linguistic vocalizations,
 #' you may want to change the default values of other arguments to speed up
 #' convergence. Adapt the code to enforce suitable constraints, depending
 #' on your data.
 #' @param myfolder path to where the .wav files live
-#' @param myfun the function being optimized: either 'segmentFolder' or
-#'   'analyzeFolder' (in quotes)
+#' @param myfun the function being optimized: either 'segment' or
+#'   'analyze' (in quotes)
 #' @param key a vector containing the "correct" measurement that we are aiming
 #'   to reproduce
 #' @param pars names of arguments to \code{myfun} that should be
@@ -60,7 +59,7 @@
 #' # Download 260 sounds from the supplements in Anikin & Persson (2017)
 #' # - see http://cogsci.se/publications.html
 #' # Unzip them into a folder, say '~/Downloads/temp'
-#' myfolder = '~/Downloads/temp'  # 260 .wav files live here
+#' myfolder = '~/Downloads/temp260'  # 260 .wav files live here
 #'
 #' # Optimization of SEGMENTATION
 #' # Import manual counts of syllables in 260 sounds from
@@ -70,9 +69,9 @@
 #' # Run optimization loop several times with random initial values
 #' # to check convergence
 #' # NB: with 260 sounds and default settings, this might take ~20 min per iteration!
-#' res = optimizePars(myfolder = myfolder, myfun = 'segmentFolder', key = key,
-#'   pars = c('shortestSyl', 'shortestPause', 'sylThres'),
-#'   fitnessPar = 'nBursts',
+#' res = optimizePars(myfolder = myfolder, myfun = 'segment', key = key,
+#'   pars = c('shortestSyl', 'shortestPause'),
+#'   fitnessPar = 'nBursts', otherPars = list(method = 'env'),
 #'   nIter = 3, control = list(maxit = 50, reltol = .01, trace = 0))
 #'
 #' # Examine the results
@@ -81,48 +80,51 @@
 #'   plot(res[, c], res[, 1], main = colnames(res)[c])
 #' }
 #' pars = as.list(res[1, 2:ncol(res)])  # top candidate (best pars)
-#' s = do.call(segmentFolder, c(myfolder, pars))  # segment with best pars
+#' s = do.call(segment, c(myfolder, pars))  # segment with best pars
 #' cor(key, as.numeric(s[, fitnessPar]))
 #' boxplot(as.numeric(s[, fitnessPar]) ~ as.integer(key), xlab='key')
 #' abline(a=0, b=1, col='red')
 #'
 #' # Try a grid with particular parameter values instead of formal optimization
-#' res = optimizePars(myfolder = myfolder, myfun = 'segmentFolder', key = segment_manual,
+#' res = optimizePars(myfolder = myfolder, myfun = 'segment', key = segmentManual,
 #'   pars = c('shortestSyl', 'shortestPause'),
-#'   fitnessPar = 'nBursts',
+#'   fitnessPar = 'nBursts', otherPars = list(method = 'env'),
 #'   mygrid = expand.grid(shortestSyl = c(30, 40),
 #'                        shortestPause = c(30, 40, 50)))
 #' 1 - res$fit  # correlations with key
 #'
 #' # Optimization of PITCH TRACKING (takes several hours!)
+#' key = as.numeric(log(pitchManual))
 #' res = optimizePars(
 #'   myfolder = myfolder,
-#'     myfun = 'analyzeFolder',
-#'     key = log(pitchManual),  # log-scale better for pitch
+#'     myfun = 'analyze',
+#'     key = key,  # log-scale better for pitch
 #'     pars = c('windowLength', 'silence'),
-#'     bounds = list(low = c(5, 0), high = c(500, 1)),
+#'     bounds = list(low = c(5, 0), high = c(200, .2)),
 #'     fitnessPar = 'pitch_median',
 #'     nIter = 2,
-#'     otherPars = list(plot = FALSE, verbose = FALSE, step = 50),
+#'     otherPars = list(plot = FALSE, loudness = NULL, novelty = NULL,
+#'                      roughness = NULL, nFormants = 0),
 #'     fitnessFun = function(x) {
 #'       1 - cor(log(x), key, use = 'pairwise.complete.obs') *
-#'       (1 - mean(is.na(x) & !is.na(key))) # penalize failing to detect f0
+#'       (1 - mean(is.na(x) & is.finite(key))) # penalize failing to detect f0
 #' })
 #' }
-optimizePars = function(myfolder,
-                        key,
-                        myfun,
-                        pars,
-                        bounds = NULL,
-                        fitnessPar,
-                        fitnessFun = function(x) 1 - cor(x, key, use = 'pairwise.complete.obs'),
-                        nIter = 10,
-                        init = NULL,
-                        initSD = .2,
-                        control = list(maxit = 50, reltol = .01, trace = 0),
-                        otherPars = list(plot = FALSE, verbose = FALSE),
-                        mygrid = NULL,
-                        verbose = TRUE) {
+optimizePars = function(
+  myfolder,
+  key,
+  myfun,
+  pars,
+  bounds = NULL,
+  fitnessPar,
+  fitnessFun = function(x) 1 - cor(x, key, use = 'pairwise.complete.obs'),
+  nIter = 10,
+  init = NULL,
+  initSD = .2,
+  control = list(maxit = 50, reltol = .01, trace = 0),
+  otherPars = list(plot = FALSE),
+  mygrid = NULL,
+  verbose = TRUE) {
   if (is.null(bounds)) {
     bounds = list(low = rep(-Inf, length(pars)),
                   high = rep(Inf, length(pars)))
@@ -157,7 +159,6 @@ optimizePars = function(myfolder,
   }
   optimal_pars = list()
   time_start = proc.time()
-
   for (i in 1:nIter) {
     # start with randomly wiggled default pars
     p_init = rnorm_truncated(
@@ -205,16 +206,17 @@ optimizePars = function(myfolder,
 #' @return Returns 1 - Pearson's correlation between fitness measure and the key
 #'   (i.e. 0 is perfect fit, 1 is awful fit).
 #' @keywords internal
-evaluatePars = function(p,
-                        pars,
-                        myfun,
-                        bounds = NULL,
-                        fitnessPar,
-                        fitnessFun = function(x) 1 - cor(x, key, use = 'pairwise.complete.obs'),
-                        myfolder,
-                        key,
-                        otherPars = list(plot = FALSE, verbose = FALSE),
-                        verbose = TRUE) {
+evaluatePars = function(
+  p,
+  pars,
+  myfun,
+  bounds = NULL,
+  fitnessPar,
+  fitnessFun = function(x) 1 - cor(x, key, use = 'pairwise.complete.obs'),
+  myfolder,
+  key,
+  otherPars = list(plot = FALSE),
+  verbose = TRUE) {
   # if the pars go beyond the bounds, don't even evaluate
   if (sum(p < bounds$low) > 0 |
       sum(p > bounds$high) > 0) {
@@ -222,15 +224,17 @@ evaluatePars = function(p,
   }
   params = as.list(p)
   names(params) = pars
-  s = try(do.call(myfun, c(params, myfolder = myfolder, otherPars)))
+  s = suppressMessages(try(do.call(myfun, c(
+    list(x = myfolder, reportEvery = NA), params, otherPars))))
   if (class(s)[1] == 'try-error') {
     stop('Error in myfun')
   } else {
-    trial = as.numeric(s[, fitnessPar])
+    trial = as.numeric(s$summary[, fitnessPar])
     out = fitnessFun(trial)
     if (verbose) {
-      print(paste0('Tried pars ', paste(round(p, 3), collapse = ', '), '; fit = ', round(out, 4)))
+      print(paste0('Tried pars ', paste(round(p, 3), collapse = ', '),
+                   '; fit = ', round(out, 4)))
     }
-    return (out)
+    return(out)
   }
 }

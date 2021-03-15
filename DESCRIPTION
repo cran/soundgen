@@ -1,29 +1,29 @@
 Package: soundgen
 Type: Package
 Title: Sound Synthesis and Acoustic Analysis
-Version: 1.8.2
-Date: 2020-10-17
+Version: 2.0.0
+Date: 2021-03-15
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
 BugReports: https://github.com/tatters/soundgen/issues
 Description: Performs parametric synthesis of sounds with harmonic and noise 
     components such as animal vocalizations or human voice. Also offers tools 
-    for spectral analysis, audio segmentation, self-similarity matrices, 
-    modulation spectra, morphing, etc., as well as interactive web apps for 
-    manually corrected pitch tracking and formant measurement. Reference: 
-    Anikin (2019) <doi:10.3758/s13428-018-1095-7>.
+    for pitch tracking, spectral analysis, audio segmentation, self-similarity 
+    matrices, modulation spectra, morphing, etc., as well as interactive web 
+    apps for manually corrected pitch tracking and formant measurement. 
+    Reference: Anikin (2019) <doi:10.3758/s13428-018-1095-7>.
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
-Imports: stats, graphics, utils, tuneR, seewave (>= 2.1.0), zoo,
-        reshape2, mvtnorm, dtw, phonTools, shiny, shinyjs
+Imports: stats, graphics, utils, tuneR, seewave (>= 2.1.6), zoo,
+        reshape2, mvtnorm, dtw, phonTools, signal, shiny, shinyjs
 Depends: R (>= 3.4), shinyBS
 RoxygenNote: 7.1.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2020-10-17 15:02:33 UTC; allgoodguys
+Packaged: 2021-03-15 07:28:35 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2020-10-17 15:30:02 UTC
+Date/Publication: 2021-03-15 07:50:02 UTC

@@ -7,12 +7,15 @@
 getPitchCep(
   frame,
   samplingRate,
+  bin,
   nCands,
   cepThres,
   cepSmooth,
   cepZp,
   pitchFloor,
-  pitchCeiling
+  pitchCeiling,
+  cepPenalty = 1,
+  logSpec = FALSE
 )
 }
 \arguments{
@@ -21,8 +24,10 @@ getPitchCep(
 
 \item{samplingRate}{sampling rate (Hz)}
 
-\item{nCands}{maximum number of pitch candidates per method (except for
-\code{dom}, which returns at most one candidate per frame), normally 1...4}
+\item{bin}{spectrogram bin width, Hz}
+
+\item{nCands}{maximum number of pitch candidates per method, normally 1...4
+(except for \code{dom}, which returns at most one candidate per frame)}
 
 \item{cepThres}{voicing threshold (unitless, ~0 to 1)}
 

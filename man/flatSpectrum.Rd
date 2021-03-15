@@ -6,39 +6,54 @@
 \usage{
 flatSpectrum(
   x,
-  freqWindow = NULL,
   samplingRate = NULL,
+  freqWindow = NULL,
   dynamicRange = 80,
   windowLength = 50,
   step = NULL,
   overlap = 90,
   wn = "gaussian",
-  zp = 0
+  zp = 0,
+  play = FALSE,
+  saveAudio = NULL,
+  reportEvery = NULL
 )
 }
 \arguments{
-\item{x}{path to a .wav or .mp3 file or a vector of amplitudes with specified
-samplingRate}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
+
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
 
 \item{freqWindow}{the width of smoothing window, Hz. Defaults to median
 pitch estimated by \code{\link{analyze}}}
-
-\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector, rather than an audio file)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
 \item{windowLength}{length of FFT window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{wn}{window type: gaussian, hanning, hamming, bartlett, rectangular,
-blackman, flattop}
+\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
+gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
+
+\item{play}{if TRUE, plays the processed audio}
+
+\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
+= don't save, '' = same as input folder (NB: overwrites the originals!)}
+
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
 }
 \value{
 Returns a numeric vector with the same sampling rate as the input.
@@ -65,27 +80,20 @@ seewave::meanspec(sound_flat, f = 16000, dB = 'max0')
 \dontrun{
 # Now let's make a sheep say "aii"
 data(sheep, package = 'seewave')  # import a recording from seewave
-sheep_orig = as.numeric(scale(sheep@left))
-samplingRate = sheep@samp.rate
-playme(sheep_orig, samplingRate)
-# spectrogram(sheep_orig, samplingRate)
-# seewave::spec(sheep_orig, f = samplingRate, dB = 'max0')
-
-sheep_flat = flatSpectrum(sheep_orig, freqWindow = 150,  # freqWindow ~f0
-  samplingRate = samplingRate)
-# playme(sheep_flat, samplingRate)
-# spectrogram(sheep_flat, samplingRate)
-# seewave::spec(sheep_flat, f = samplingRate, dB = 'max0')
+# playme(sheep)
+sheep_flat = flatSpectrum(sheep)
+# playme(sheep_flat, sheep@samp.rate)
+# seewave::spec(sheep_flat, f = sheep@samp.rate, dB = 'max0')
 
 # So far we have a sheep bleating with a flat spectrum;
 # now let's add new formants
 sheep_aii = addFormants(sheep_flat,
-  samplingRate = samplingRate,
+  samplingRate = sheep@samp.rate,
   formants = 'aii',
   lipRad = -3)  # negative lipRad to counter unnatural flat source
-playme(sheep_aii, samplingRate)
-# spectrogram(sheep_aii, samplingRate)
-# seewave::spec(sheep_aii, f = samplingRate, dB = 'max0')
+# playme(sheep_aii, sheep@samp.rate)
+# spectrogram(sheep_aii, sheep@samp.rate)
+# seewave::spec(sheep_aii, f = sheep@samp.rate, dB = 'max0')
 }
 }
 \seealso{

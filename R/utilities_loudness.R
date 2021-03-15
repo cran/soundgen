@@ -56,8 +56,8 @@ getLoudnessPerFrame = function(spec,
 #' sound = rnorm(100) * getSmoothContour(c(0, 1, 0), len = 100)
 #' sound = sound / max(abs(sound))
 #' # plot(sound, type = 'l')
-#' sound_scaled = soundgen:::scaleSPL(sound)
-#' # plot(sound_scaled, type = 'l')
+#' sound_scaled = soundgen:::scaleSPL(sound, Pref = 2e-1)
+#' plot(sound_scaled, type = 'l')
 #'
 #' sound2 = sound / 3
 #' range(soundgen:::scaleSPL(sound2, scale = NULL))
@@ -67,16 +67,17 @@ scaleSPL = function(x, scale = NULL, SPL_measured = 70, Pref = 2e-5) {
   RMS = sqrt(mean(x_refScaled ^ 2))
   SPL_internal = 20 * log10(RMS)  # dB-SPL
   c = 10 ^ ((SPL_measured - SPL_internal) / 20)
+
+  # correct according to scale (eg if the original sound is quieter than the max
+  # possible amplitude, adjust loudness for that)
+  if (is.numeric(scale)) {
+    c = c * max(abs(x)) / scale
+  }
   x_scaled = c * x_refScaled  # range(x_scaled)
   # plot(x_scaled[5000:6000], type = 'l')
   # check that the new RMS is SPL_measured:
   # 20 * log10(sqrt(mean(x_scaled^2))) should be ~SPL_measured
 
-  # correct according to scale (eg if the original sound is quieter than the max
-  # possible amplitude, adjust loudness for that)
-  if (is.numeric(scale)) {
-    x_scaled = x_scaled / (scale / max(abs(x)))
-  }
   return(x_scaled)
 }
 
@@ -160,7 +161,7 @@ iso226 = function(phon, nBarks = 22) {
 #' @param phon loudness level, phon (vectorized)
 #' @keywords internal
 #' @examples
-#' phon = 0:120
+#' phon = seq(0, 120, 2)
 #' sone = soundgen:::phon2sone(phon)
 #' plot(phon, sone, type = 'b')
 #' plot(phon, log2(sone), type = 'b')
@@ -169,12 +170,11 @@ phon2sone = function(phon) {
   idx1 = which(phon < 40)
   idx2 = which(phon >= 40)
   sone[idx1] = (phon[idx1] / 40) ^ 2.642
+  # alternative formula http://www.sengpielaudio.com/calculatorSonephon.htm
+  # sone[idx1] = (phon[idx1] / 40) ^ 2.86 - .005
   sone[idx2] = 2 ^ ((phon[idx2] - 40) / 10)
   return(sone)
 }
-# idx_phon = seq(0, 140, 10)
-# idx_sone = phon2sone(idx_phon)
-# plot(idx_phon, idx_sone, type = 'b')
 
 
 #' Spread spectrum
