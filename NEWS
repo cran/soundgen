@@ -1,3 +1,28 @@
+          CHANGES IN SOUNDGEN VERSION 2.1.0 [19-June-2021]
+NEW FUNCTIONS:
+  * shiftFormants(): raises or lowers formants in a sound without changing its pitch
+  * pitchDescriptives(): extracts common descriptives of time series such as pitch contours: measures of average / range / variability / slope / inflections etc
+  * findInflections(): finds inflections in time series such as pitch contours
+
+MINOR
+  * analyze(), modulationSpectrum(): new outputs "amFreq" and "amDep" give the frequency and depth of amplitude modulation
+  * analyze(), pitch_app(): adaptive second-pass priors (new argument "priorAdapt")
+  * analyze(), pitch_app(): prior distribution for pitch candidates is lognormal instead of gamma
+  * switch from Seeing Speech to Hillenbrand 1995 for vowel centroids in formant_app()
+  * getSmoothContour(): downsampling is preceeded by low-pass filtering to avoid aliasing
+  * formant_app(): adjustable playback speed
+  * pitch_app(): support for opening previously saved pitch contours (added as manual anchors)
+  * reportTime() and all loops that use it: max two time levels shown (eg days + hours)
+
+BUGS FIXED:
+  * analyze(), pitch_app(): pitch contour plotted as both lines and points to ensure that isolated voiced frames surrounded by NAs are shown
+  * formant_app(): vowel plot, VTL updated in output table, synthetic audio playback with browser, NAs not filled in user annotations
+  * formant_app(), pitch_app(): bug-prone "overlap" setting removed, use "step" instead
+  * pitch_app(): brush is cleared on double click instead of "mouseout" (otherwise it's hard to operate buttons like voice/unvoice)
+  * ssm(): silence has novelty = 0
+  * analyze(): correctly plots extraContour with negative values (eg HNR, amDep)
+
+
           CHANGES IN SOUNDGEN VERSION 2.0.0 [15-March-2021]
 This version represents an attempt to standardize and better integrate all functions for acoustic analysis in the package. Functions for sound synthesis, notably soundgen(), are not affected by these structural changes and remain fully back-compatible.
 

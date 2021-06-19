@@ -114,10 +114,8 @@ s013 = soundgen(pitch = c(150, 200, NA, 110),
 
 ## ----fig.show = "hold", fig.width = 5, fig.height = 3-------------------------
 anchors = (sin(1:70 / 3) * .25 + 1) * 350
-par(mfrow = c(1, 2))
 plot(anchors, type = 'l', xlab = 'Time (points)', ylab = 'Pitch (Hz)')
 s014 = soundgen(pitch = anchors, sylLen = 1000, play = playback)
-par(mfrow = c(1, 1))
 
 ## -----------------------------------------------------------------------------
 s015 = soundgen(
@@ -133,21 +131,21 @@ anchors = data.frame(time = c(0, .1, 1),
                        value = c(350, 700, 350))
 
 par(mfrow = c(1, 3))
-getSmoothContour(
+smc1 = getSmoothContour(
   anchors = anchors,
   len = sylLen_points,
   interpol = 'approx',
   thisIsPitch = TRUE, plot = TRUE, 
   main = 'No smoothing', samplingRate = samplingRate
 )
-getSmoothContour(
+sm2 = getSmoothContour(
   anchors = anchors,
   len = sylLen_points,
   loessSpan = 0.75,
   thisIsPitch = TRUE, plot = TRUE, 
   main = 'loessSpan = .75', samplingRate = samplingRate
 )
-getSmoothContour(
+smc3 = getSmoothContour(
   anchors = anchors,
   len = sylLen_points,
   loessSpan = 1,
@@ -252,7 +250,8 @@ s027 = soundgen(
   amShape = 0,  
   # asymmetrical attack: 20 ms at the beginning and 140 ms at the end
   attackLen = c(20, 140),
-  plot = TRUE, heights = c(1, 1), play = playback)
+  plot = TRUE, heights = c(1, 1), ylim = c(0, 1), windowLength = 100, 
+  play = playback)
 
 ## ----fig.width = 7, fig.height = 3--------------------------------------------
 s = rnorm(500) * seq(1, 0, length.out = 500)

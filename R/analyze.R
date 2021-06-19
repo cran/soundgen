@@ -112,6 +112,9 @@ analyzeFolder = function(...) {
 #'   most likely pitch values for this file. For ex., \code{priorMean = 300,
 #'   priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
 #'   an octave)
+#' @param priorAdapt adaptive second-pass prior: if TRUE, optimal pitch contours
+#'   are estimated first with a prior determined by \code{priorMean,priorSD}, and
+#'   then with a new prior adjusted according to this first-pass pitch contour
 #' @param nCands maximum number of pitch candidates per method, normally 1...4
 #'   (except for \code{dom}, which returns at most one candidate per frame)
 #' @param minVoicedCands minimum number of pitch candidates that have to be
@@ -184,36 +187,38 @@ analyzeFolder = function(...) {
 #'   \code{\link[grDevices]{png}} if the plot is saved
 #' @param ... other graphical parameters passed to \code{\link{spectrogram}}
 #' @return Returns a list with \code{$detailed} frame-by-frame descriptives and
-#'   a \code{$summary} with one row per file, as determined by
-#'   \code{summaryFun} (e.g., mean / median / SD of each acoustic variable
-#'   across all STFT frames). Output measures include:
-#'   \describe{\item{duration}{total duration, s}
-#'   \item{duration_noSilence}{duration from the beginning of the first
+#'   a \code{$summary} with one row per file, as determined by \code{summaryFun}
+#'   (e.g., mean / median / SD of each acoustic variable across all STFT
+#'   frames). Output measures include: \describe{\item{duration}{total duration,
+#'   s} \item{duration_noSilence}{duration from the beginning of the first
 #'   non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
 #'   depends strongly on \code{windowLength} and \code{silence} settings)}
-#'   \item{time}{time of the middle of each frame (ms)} \item{ampl}{root mean
-#'   square of amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
-#'   \item{dom}{lowest dominant frequency band (Hz) (see "Pitch tracking methods
-#'   / Dominant frequency" in the vignette)} \item{entropy}{Weiner entropy of
-#'   the spectrum of the current frame. Close to 0: pure tone or tonal sound
-#'   with nearly all energy in harmonics; close to 1: white noise}
-#'   \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the first
-#'   nFormants formants per STFT frame, as calculated by
-#'   phonTools::findformants} \item{harmEnergy}{the amount of energy in upper
-#'   harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
-#'   total spectral mass below 1.25 x F0 (dB)} \item{harmHeight}{how high
-#'   harmonics reach in the spectrum, based on the best guess at pitch (or the
-#'   manually provided pitch values)} \item{HNR}{harmonics-to-noise ratio (dB),
-#'   a measure of harmonicity returned by soundgen:::getPitchAutocor (see "Pitch
-#'   tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much
-#'   energy in harmonics as in noise} \item{loudness}{subjective loudness, in
-#'   sone, corresponding to the chosen SPL_measured - see
-#'   \code{\link{getLoudness}}} \item{novelty}{spectral novelty - a measure of
-#'   how variable the spectrum is on a particular time scale, as estimated by
-#'   \code{\link{ssm}}} \item{peakFreq}{the frequency with maximum spectral
-#'   power (Hz)} \item{pitch}{post-processed pitch contour based on all F0
-#'   estimates} \item{quartile25, quartile50, quartile75}{the 25th, 50th, and
-#'   75th quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
+#'   \item{time}{time of the middle of each frame (ms)} \item{amDep}{depth of
+#'   amplitude modulation, dB (see \code{\link{modulationSpectrum}})}
+#'   \item{amFreq}{frequency of amplitude modulation, Hz (see
+#'   \code{\link{modulationSpectrum}})} \item{ampl}{root mean square of
+#'   amplitude per frame, calculated as sqrt(mean(frame ^ 2))} \item{dom}{lowest
+#'   dominant frequency band (Hz) (see "Pitch tracking methods / Dominant
+#'   frequency" in the vignette)} \item{entropy}{Weiner entropy of the spectrum
+#'   of the current frame. Close to 0: pure tone or tonal sound with nearly all
+#'   energy in harmonics; close to 1: white noise} \item{f1_freq, f1_width,
+#'   ...}{the frequency and bandwidth of the first nFormants formants per STFT
+#'   frame, as calculated by phonTools::findformants} \item{harmEnergy}{the
+#'   amount of energy in upper harmonics, namely the ratio of total spectral
+#'   mass above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
+#'   \item{harmHeight}{how high harmonics reach in the spectrum, based on the
+#'   best guess at pitch (or the manually provided pitch values)}
+#'   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
+#'   by soundgen:::getPitchAutocor (see "Pitch tracking methods /
+#'   Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as
+#'   in noise} \item{loudness}{subjective loudness, in sone, corresponding to
+#'   the chosen SPL_measured - see \code{\link{getLoudness}}}
+#'   \item{novelty}{spectral novelty - a measure of how variable the spectrum is
+#'   on a particular time scale, as estimated by \code{\link{ssm}}}
+#'   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
+#'   \item{pitch}{post-processed pitch contour based on all F0 estimates}
+#'   \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
+#'   quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
 #'   amount of amplitude modulation, see modulationSpectrum}
 #'   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
 #'   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
@@ -276,8 +281,8 @@ analyzeFolder = function(...) {
 #'   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
 #'   priorMean = NA,  # no prior info at all
 #'   pitchDom = list(col = 'red', domThres = .25),
-#'   pitchPlot = list(col = 'black', lty = 3, lwd = 3),
-#'   extraContour = list(x = 'peakFreq', type = 'b', col = 'brown'),
+#'   pitchPlot = list(col = 'black', pch = 9, lty = 3, lwd = 3),
+#'   extraContour = list(x = 'peakFreq', type = 'b', pch = 4, col = 'brown'),
 #'   osc = 'dB', heights = c(2, 1))
 #'
 #' # Different options for summarizing the output
@@ -395,6 +400,7 @@ analyze = function(
   pitchCeiling = 3500,
   priorMean = 300,
   priorSD = 6,
+  priorAdapt = TRUE,
   nCands = 1,
   minVoicedCands = NULL,
   pitchDom = list(),
@@ -671,6 +677,7 @@ analyze = function(
   pitchCeiling = 3500,
   priorMean = 300,
   priorSD = 6,
+  priorAdapt = TRUE,
   nCands = 1,
   minVoicedCands = NULL,
   pitchDom = list(),
@@ -714,10 +721,13 @@ analyze = function(
   ## Validate the parameter values that do not depend on sound-specific
   ## characteristics like samplingRate and duration
   if (!is.numeric(windowLength) | windowLength <= 0 |
-      windowLength > (audio$duration * 1000)) {
-    windowLength = min(50, audio$duration / 2 * 1000)
-    warning(paste0('"windowLength" must be between 0 and sound_duration ms;
-            defaulting to ', windowLength, ' ms'))
+      windowLength > (audio$duration / 2 * 1000)) {
+    windowLength = min(50, round(audio$duration / 2 * 1000))
+    step = windowLength / 2
+    warning(paste0(
+      '"windowLength" must be between 0 and half the sound duration (in ms);
+            resetting to ', windowLength, ' ms')
+    )
   }
   windowLength_points = floor(windowLength / 1000 * audio$samplingRate / 2) * 2
   # to ensure that the window length in points is a power of 2, say 2048 or 1024:
@@ -897,7 +907,7 @@ analyze = function(
 
   extraSpecPars = list(...)
   extraSpecPars$osc = NULL
-  s = do.call(.spectrogram, c(list(
+  s = try(do.call(.spectrogram, c(list(
     audio = audio[names(audio) != 'savePlots'], # otherwise spectrogram() plots
     internal = list(frameBank = frameBank),
     dynamicRange = dynamicRange,
@@ -908,12 +918,9 @@ analyze = function(
     normalize = FALSE,
     output = 'original',
     plot = FALSE
-  ), extraSpecPars))
+  ), extraSpecPars)))
+  if (class(s)[1] == 'try-error') return(NA)
   # image(t(s))
-  if (is.na(s)[1]) {
-    stop(paste('The sound is too short to analyze',
-               'with windowLength =', windowLength))
-  }
   bin = audio$samplingRate / 2 / nrow(s)  # width of spectral bin, Hz
   freqs = as.numeric(rownames(s)) * 1000  # central bin freqs, Hz
 
@@ -1135,17 +1142,6 @@ analyze = function(
       }
     }
 
-    # add prior
-    if (is.numeric(priorMean) & is.numeric(priorSD)) {
-      pitchCert_multiplier = getPrior(priorMean = priorMean,
-                                      priorSD = priorSD,
-                                      pitchFloor = pitchFloor,
-                                      pitchCeiling = pitchCeiling,
-                                      pitchCands = pitchCands_list$freq,
-                                      plot = FALSE)
-      pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier
-    }
-
     # divide the file into continuous voiced syllables
     voicedSegments = findVoicedSegments(
       pitchCands_list$freq,
@@ -1156,6 +1152,17 @@ analyze = function(
       step = step,
       samplingRate = audio$samplingRate
     )
+
+    # add prior
+    if (is.numeric(priorMean) & is.numeric(priorSD)) {
+      pitchCert_multiplier = getPrior(priorMean = priorMean,
+                                      priorSD = priorSD,
+                                      pitchFloor = pitchFloor,
+                                      pitchCeiling = pitchCeiling,
+                                      pitchCands = pitchCands_list$freq,
+                                      plot = FALSE)
+      pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier
+    }
 
     # for each syllable, impute NA's and find a nice path through pitch candidates
     pitchFinal = rep(NA, ncol(pitchCands_list$freq))
@@ -1177,6 +1184,47 @@ analyze = function(
           snakeStep = snakeStep,
           snakePlot = snakePlot
         )
+      }
+    }
+
+    # second pass with adaptive prior
+    if (priorAdapt) {
+      # revert to original pitchCert
+      if (exists('pitchCert_multiplier'))
+        pitchCands_list$cert = pitchCands_list$cert / pitchCert_multiplier
+      if (any(!is.na(pitchFinal))) {
+        pitch_sem = HzToSemitones(pitchFinal[!is.na(pitchFinal)])
+        priorMean = semitonesToHz(mean(pitch_sem))
+        priorSD = semitonesToHz(sd(pitch_sem)) * 4
+        pitchCert_multiplier2 = getPrior(priorMean = priorMean,
+                                        priorSD = priorSD,
+                                        pitchFloor = pitchFloor,
+                                        pitchCeiling = pitchCeiling,
+                                        pitchCands = pitchCands_list$freq,
+                                        plot = FALSE)
+        pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier2
+      }
+
+      pitchFinal = rep(NA, ncol(pitchCands_list$freq))
+      if (nrow(voicedSegments) > 0) {
+        # if we have found at least one putatively voiced syllable
+        for (syl in 1:nrow(voicedSegments)) {
+          myseq = voicedSegments$segmentStart[syl]:voicedSegments$segmentEnd[syl]
+          # compute the optimal path through pitch candidates
+          pitchFinal[myseq] = pathfinder(
+            pitchCands = pitchCands_list$freq[, myseq, drop = FALSE],
+            pitchCert = pitchCands_list$cert[, myseq, drop = FALSE],
+            pitchSource = pitchCands_list$source[, myseq, drop = FALSE],
+            certWeight = certWeight,
+            pathfinding = pathfinding,
+            annealPars = annealPars,
+            interpolWin_bin = ceiling(interpol$win / step),
+            interpolTol = interpol$tol,
+            interpolCert = interpol$cert,
+            snakeStep = snakeStep,
+            snakePlot = snakePlot
+          )
+        }
       }
     }
 
@@ -1239,19 +1287,23 @@ analyze = function(
     }
   }
 
-  ## Roughness calculation
+  ## Roughness and AM calculation via a modulation spectrum
   if (is.null(roughness) ||
       (!is.null(roughness$amRes) && roughness$amRes == 0)) {
     # don't analyze the modulation spectrum
-    result$roughness = NA
+    result[, c('roughness', 'amFreq', 'amDep')] = NA
   } else {
-    rough = do.call(.modulationSpectrum, c(
+    ms = do.call(.modulationSpectrum, c(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            returnMS = FALSE, plot = FALSE),
-      roughness))$roughness
-    result$roughness = upsamplePitchContour(rough, len = nrow(result),
+      roughness))
+    result$roughness = upsamplePitchContour(ms$roughness, len = nrow(result),
                                             plot = FALSE)
-    result$roughness[!cond_silence] = NA
+    result$amFreq = upsamplePitchContour(ms$amFreq, len = nrow(result),
+                                         plot = FALSE)
+    result$amDep = upsamplePitchContour(ms$amDep, len = nrow(result),
+                                        plot = FALSE)
+    result[!cond_silence, c('roughness', 'amFreq', 'amDep')] = NA
   }
 
   ## Novelty calculation
@@ -1267,10 +1319,10 @@ analyze = function(
     result$novelty[!cond_silence] = NA
   }
 
-  varsToUnv = c('ampl', 'roughness', 'novelty', 'entropy', 'dom', 'HNR',
-                'loudness', 'peakFreq', 'quartile25', 'quartile50',
-                'quartile75', 'specCentroid', 'specSlope')
   # save spectral descriptives separately for voiced and unvoiced frames
+  varsToUnv = c('ampl', 'roughness', 'amFreq', 'amDep', 'novelty', 'entropy',
+                'dom', 'HNR', 'loudness', 'peakFreq', 'quartile25',
+                'quartile50', 'quartile75', 'specCentroid', 'specSlope')
   for (v in varsToUnv) {
     result[, paste0(v, 'Voiced')] = result[, v]
   }
@@ -1309,17 +1361,19 @@ analyze = function(
       valid_cols = valid_cols[valid_cols != 'voiced']
       if (cnt_name %in% valid_cols) {
         cnt = result[, cnt_name]
-        col_non_Hz = c('ampl, amplVoiced', 'entropy', 'entropyVoiced',
-                       paste0('f', 1:10, '_width'), 'harmEnergy', 'HNR',
-                       'HNR_voiced', 'loudness', 'loudnessVoiced',
-                       'roughness', 'roughnessVoiced',
-                       'novelty', 'noveltyVoiced',
-                       'specSlope', 'specSlopeVoiced',
-                       'subDep', 'subRatio')
+        col_non_Hz = c(
+          'amDep', 'ampl, amplVoiced', 'entropy', 'entropyVoiced',
+          paste0('f', 1:10, '_width'), 'harmEnergy', 'HNR',
+          'HNR_voiced', 'loudness', 'loudnessVoiced',
+          'roughness', 'roughnessVoiced',
+          'novelty', 'noveltyVoiced',
+          'specSlope', 'specSlopeVoiced',
+          'subDep', 'subRatio'
+        )
         if (cnt_name %in% col_non_Hz) {
           # normalize
           if (is.null(ylim)) ylim = c(0, audio$samplingRate / 2 / 1000)
-          cnt = cnt / max(cnt, na.rm = TRUE) * ylim[2] * 1000
+          cnt = zeroOne(cnt, na.rm = TRUE) * ylim[2] * 1000
         }
       } else {
         message(paste0('Valid extraContour names are: ',

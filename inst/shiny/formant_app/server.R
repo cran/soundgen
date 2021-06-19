@@ -1,6 +1,6 @@
 # formant_app()
 #
-# To do: maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); VTL smts not updated when adjusting formant values; highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
+# To do: maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
 
 # Start with a fresh R session and run the command options(shiny.reactlog=TRUE)
 # Then run your app in a show case mode: runApp('inst/shiny/formant_app', display.mode = "showcase")
@@ -29,16 +29,18 @@ server = function(input, output, session) {
     shinyTip_show = 1000,      # delay until showing a tip (ms)
     shinyTip_hide = 0,         # delay until hiding a tip (ms)
     initDur = 2000,            # initial duration to analyze (ms)
+    spec_xlim = c(0, initDur),
     out_fTracks = list(),      # a list for storing formant tracks per file
     out_spects = list(),       # a list for storing spectrograms
     selectedF = 'F1',          # preselect F1 for correction
     slider_ms = 50,            # how often to update play slider
     scrollFactor = .75,        # how far to scroll on arrow press/click
     wheelScrollFactor = .1,    # how far to scroll on mouse wheel (prop of xlim)
+    samplingRate_idx = 1,      # sampling rate scaling index for playback
     cursor = 0,
     listenToFbtn = FALSE,      # buggy
     play = list(on = FALSE),
-    debugQn = TRUE             # for debugging - click "?" to step into the code
+    debugQn = FALSE             # for debugging - click "?" to step into the code
   )
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
@@ -62,12 +64,11 @@ server = function(input, output, session) {
     removeModal()
   })
   observeEvent(input$append, {
-    myPars$out = read.csv('www/temp.csv', stringsAsFactors = FALSE)
+    myPars$out = try(read.csv('www/temp.csv', stringsAsFactors = FALSE))
     removeModal()
   })
 
   files = list.files('www/', pattern = '.wav')
-  files = files[files != 'temp.wav']
   for (f in files){
     file.remove(paste0('www/', f))
   }
@@ -110,15 +111,6 @@ server = function(input, output, session) {
   }
   observeEvent(input$reset_to_def, resetSliders())
 
-  rbind_fill = function(df1, df2) {
-    # fill missing columns with NAs, then rbind - handy in case nFormants changes
-    if (!is.list(df1) || nrow(df1) == 0) return(df2)
-    if (!is.list(df2) || nrow(df2) == 0) return(df1)
-    df1[setdiff(names(df2), names(df1))] = NA
-    df2[setdiff(names(df1), names(df2))] = NA
-    return(rbind(df1, df2))
-  }
-
   loadAudio = function() {
     # shinyjs::js$inheritSize(parentDiv = 'specDiv')
     if (myPars$print) print('Loading audio...')
@@ -126,19 +118,27 @@ server = function(input, output, session) {
     reset()  # also triggers done(), but done() needs to run first in case loadAudio
     # is re-executed (need to save myPars$ann --> myPars$out)
 
-    # if output.csv is among the uploaded files, use the annotations in it
+    # if there is a csv among the uploaded files, use the annotations in it
     ext = substr(input$loadAudio$name,
                  (nchar(input$loadAudio$name) - 2),
                  nchar(input$loadAudio$name))
     old_out_idx = which(ext == 'csv')[1]  # grab the first csv, if any
     if (!is.na(old_out_idx)) {
       user_ann = read.csv(input$loadAudio$datapath[old_out_idx], stringsAsFactors = FALSE)
-      if (is.null(myPars$out)) {
-        myPars$out = user_ann
-      } else {
-        myPars$out = rbind_fill(myPars$out, user_ann)
-        # remove duplicate rows
-        myPars$out = unique(myPars$out)
+      oblig_cols = c('file', 'from', 'to')
+      if (nrow(user_ann) > 0 &
+          !any(!oblig_cols %in% colnames(user_ann))) {
+        idx_missing = which(apply(user_ann[, oblig_cols], 1, function(x) any(is.na(x))))
+        if (length(idx_missing) > 0) user_ann = user_ann[-idx_missing, ]
+        if (nrow(user_ann) > 0) {
+          if (is.null(myPars$out)) {
+            myPars$out = user_ann
+          } else {
+            myPars$out = soundgen:::rbind_fill(myPars$out, user_ann)
+            # remove duplicate rows
+            myPars$out = unique(myPars$out)
+          }
+        }
       }
     }
 
@@ -229,7 +229,19 @@ server = function(input, output, session) {
     myPars$dur = length(myPars$temp_audio@left) * 1000 / myPars$temp_audio@samp.rate
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
+    if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
     myPars$regionToAnalyze = myPars$spec_xlim
+
+    # shorten window and step if the input is very short
+    max_win = round(myPars$dur / 2)
+    if (input$windowLength > myPars$dur) {
+      updateNumericInput(session, 'windowLength', value = max_win)
+      updateNumericInput(session, 'step', value = max_win / 2)
+    }
+    if (input$windowLength_lpc > myPars$dur) {
+      updateNumericInput(session, 'windowLength_lpc', value = max_win)
+      updateNumericInput(session, 'step_lpc', value = max_win / 2)
+    }
 
     # update info - file number ... out of ...
     updateSelectInput(session, 'fileList',
@@ -243,6 +255,7 @@ server = function(input, output, session) {
     idx = which(myPars$out$file == myPars$myAudio_filename)
     if (length(idx) > 0) {
       myPars$ann = myPars$out[idx, ]
+      myPars$currentAnn = 1
     } else {
       myPars$ann = NULL
     }
@@ -276,7 +289,7 @@ server = function(input, output, session) {
     }
   })
 
-  writeAudioFile = observeEvent(myPars$temp_audio, {
+  writeAudioFile = observeEvent(c(myPars$temp_audio, myPars$samplingRate_idx), {
     if (myPars$print) print('Writing audio file...')
     # Method: saves a temporary audio file in 'www/'. This is a workaround since
     # html tag for some reason cannot play myPars$myAudio_path (although feeding
@@ -291,13 +304,16 @@ server = function(input, output, session) {
     myPars$myfile = paste0(randomID, '.wav')
     # this is the new sound file. NB: has to be saved in www/ !!!
     seewave::savewav(myPars$temp_audio,
-                     f = myPars$samplingRate,
+                     f = myPars$samplingRate * myPars$samplingRate_idx,
                      filename = paste0('www/', myPars$myfile))
     output$htmlAudio = renderUI(
       tags$audio(src = myPars$myfile, type = myPars$myAudio_type,
                  id = 'myAudio',
-                 style = "display: none; transform: scale(0.75); transform-origin: 0 0;")
+                 style = "display: none;")
     )
+  }, ignoreInit = TRUE)
+  observeEvent(input$samplingRate_mult, {
+    myPars$samplingRate_idx = 2 ^ input$samplingRate_mult
   })
 
 
@@ -785,13 +801,14 @@ server = function(input, output, session) {
       xlim = input$spectrum_xlim # xlim = c(0, myPars$spectrum_freq_range[2])
       ylim = c(
         myPars$spectrum_ampl_range[1],
-        # leave extra room for "smoothing" slider
-        myPars$spectrum_ampl_range[2] + 1/4 * diff(myPars$spectrum_ampl_range)
+        # leave extra room for formant labels
+        myPars$spectrum_ampl_range[2] + 5
       )
       plot(myPars$spectrum$freq,
            myPars$spectrum$ampl,
            xlab = '', ylab = '',
-           xlim = xlim, ylim = ylim,
+           xlim = xlim,
+           ylim = ylim,
            xaxs = "i",
            type = 'l')
       # # fill in the AUC if needed
@@ -858,9 +875,11 @@ server = function(input, output, session) {
         myPars$spectrum = try(as.list(soundgen:::getSmoothSpectrum(
           sound = myPars$selection,
           samplingRate = myPars$samplingRate,
-          len = input$spectrum_len,
+          len = input$spectrum_len * (myPars$samplingRate / 1000 / 2) / diff(input$spec_ylim),
           loessSpan = 10 ^ input$spectrum_smooth
         )))
+        # note: len is corrected to ensure constant resolution no matter how
+        # much we zoom in on a particular frequency region
         # if (class(myPars$spectrum) == 'try-error') browser()
         # myPars$spectrum = list(
         #     freq = as.numeric(rownames(myPars$spec)),
@@ -881,15 +900,17 @@ server = function(input, output, session) {
           )
           myPars$spectrum = as.list(soundgen:::getSmoothSpectrum(
             spectrum = spec_temp,
-            len = input$spectrum_len,
+            len = input$spectrum_len * (myPars$samplingRate / 1000 / 2) / diff(input$spec_ylim),
             loessSpan = 10 ^ input$spectrum_smooth
           ))
         }
       }
-
       isolate({
-        myPars$spectrum_freq_range = try(range(myPars$spectrum$freq))
-        myPars$spectrum_ampl_range = try(range(myPars$spectrum$ampl))
+        # myPars$spectrum_freq_range = try(range(myPars$spectrum$freq))
+        idx = try(which(myPars$spectrum$freq < input$spec_ylim[2]))
+        if (class(idx) != 'try-error') {
+          myPars$spectrum_ampl_range = range(myPars$spectrum$ampl[idx])
+        }
       })
     }
   })
@@ -928,6 +949,7 @@ server = function(input, output, session) {
       updateTextInput(
         session, paste0(myPars$selectedF, '_text'),
         value = as.character(myPars$ann[myPars$currentAnn, myPars$selectedF]))
+      updateVTL()
     }
   })
 
@@ -957,19 +979,26 @@ server = function(input, output, session) {
   ## FORMANT SPACE
   output$fmtSpace = renderPlot({
     if (!is.null(myPars$currentAnn) &&
-        !is.null(myPars$ann[myPars$currentAnn]) &&
+        !is.null(myPars$ann[myPars$currentAnn, ]) &&
         (is.finite(myPars$ann[myPars$currentAnn, ]$F1) &
          is.finite(myPars$ann[myPars$currentAnn, ]$F2))) {
       if (myPars$print) print('Drawing formant space')
       caf = myPars$ann[myPars$currentAnn, myPars$ff]
       cafr = schwa(formants = as.numeric(caf))$ff_relative_semitones
-      xlim = range(c(ipa$F1Rel, cafr[1]))
-      ylim = range(c(ipa$F2Rel, cafr[2]))
+      xlim = range(c(hillenbrand$F1Rel, cafr[1]))
+      ylim = range(c(hillenbrand$F2Rel, cafr[2]))
       par(mar = c(0, 0, 0, 0))
-      plot(ipa$F1Rel, ipa$F2Rel, type = 'n', xlab = '', ylab = '',
+      plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n', xlab = '', ylab = '',
            xlim = xlim, ylim = ylim, bty = 'n', xaxt = 'n', yaxt = 'n')
-      text(ipa$F1Rel, ipa$F2Rel, labels = ipa$ipa, cex = 1.5, col = 'blue')
+      text(hillenbrand$F1Rel, hillenbrand$F2Rel,
+           labels = hillenbrand$vowel, cex = 1.5, col = 'blue')
       points(cafr[1], cafr[2], pch = 4, cex = 2.5, col = 'red')
+    } else {
+      par(mar = c(0, 0, 0, 0))
+      plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n', xlab = '', ylab = '',
+           bty = 'n', xaxt = 'n', yaxt = 'n')
+      text(hillenbrand$F1Rel, hillenbrand$F2Rel,
+           labels = hillenbrand$vowel, cex = 1.5, col = 'blue')
     }
   })
 
@@ -1029,7 +1058,6 @@ server = function(input, output, session) {
   observeEvent(myPars$currentAnn, {
     if (!is.null(myPars$currentAnn)) {
       if (myPars$print) print('Updating selection...')
-      hr()
       sel_points = as.numeric(round(myPars$ann[myPars$currentAnn, c('from', 'to')] /
                                       1000 * myPars$samplingRate))
       idx_points = sel_points[1]:sel_points[2]
@@ -1053,6 +1081,7 @@ server = function(input, output, session) {
           myPars$spec_xlim[2] = min(myPars$dur, mid_ann + half_span)
         }
       }
+      hr()
     }
   })
 
@@ -1107,7 +1136,7 @@ server = function(input, output, session) {
     if (is.null(myPars$ann)) {
       myPars$ann = new
     } else {
-      myPars$ann = rbind_fill(myPars$ann, new)
+      myPars$ann = soundgen:::rbind_fill(myPars$ann, new)
     }
 
     # reorder and select the newly added annotation
@@ -1128,7 +1157,8 @@ server = function(input, output, session) {
     # hr()
 
     # save a backup in case the app crashes before done() fires
-    write.csv(rbind_fill(myPars$out, myPars$ann), 'www/temp.csv', row.names = FALSE)
+    write.csv(soundgen:::rbind_fill(myPars$out, myPars$ann),
+              'www/temp.csv', row.names = FALSE)
   })
 
   updateFBtn = function(ff) {
@@ -1219,7 +1249,8 @@ server = function(input, output, session) {
           if (length(idx) > 0) {
             myPars$formantTracks = myPars$formantTracks[-idx, ]
           }
-          myPars$formantTracks = rbind_fill(myPars$formantTracks, myPars$temp_anal)
+          myPars$formantTracks = soundgen:::rbind_fill(
+            myPars$formantTracks, myPars$temp_anal)
           # myPars$formantTracks = myPars$formantTracks[order(myPars$formantTracks$time), ]
         }
       })
@@ -1252,9 +1283,12 @@ server = function(input, output, session) {
         round(do.call(input$summaryFun, list(x, na.rm = TRUE))))
       # myPars$bandwidth ?
 
-      idx_f_na = which(is.na(myPars$ann[myPars$currentAnn, myPars$ff]))
-      if (length(idx_f_na) > 0)
-        myPars$ann[myPars$currentAnn, myPars$ff[idx_f_na]] = myPars$formants[idx_f_na]
+      if (FALSE) {
+        # fill in NAs
+        idx_f_na = which(is.na(myPars$ann[myPars$currentAnn, myPars$ff]))
+        if (length(idx_f_na) > 0)
+          myPars$ann[myPars$currentAnn, myPars$ff[idx_f_na]] = myPars$formants[idx_f_na]
+      }
 
       # fill in the formant boxes - note that we use the (possibly
       # user-modified) myPars$ann instead of myPars$formants
@@ -1266,7 +1300,9 @@ server = function(input, output, session) {
   observeEvent(myPars$ann, {
     if (myPars$print) print('Drawing ann_table...')
     if (!is.null(myPars$ann)) {
-      ann_for_print = myPars$ann[, which(!colnames(myPars$ann) %in% c('X', 'file'))]
+      # ann_for_print = myPars$ann[, which(!colnames(myPars$ann) %in% c('X', 'file'))]
+      show_cols = c('from', 'to', 'label', 'dF', 'vtl', paste0('F', 1:ncol(myPars$ann)))
+      ann_for_print = myPars$ann[, show_cols[which(show_cols %in% colnames(myPars$ann))]]
     } else {
       ann_for_print = '...waiting for some annotations...'
     }
@@ -1285,33 +1321,37 @@ server = function(input, output, session) {
     }
   }
 
-  updateVTL = function() {
-    if (!is.null(myPars$ann[myPars$currentAnn, ]) &&
-        any(!is.na(myPars$ann[myPars$currentAnn, myPars$ff]))) {
+  updateVTL = function(rows = myPars$currentAnn) {
+    if (!is.null(rows) && length(rows) > 0 && !is.null(myPars$ann[rows, ])) {
       if (myPars$print) print('Updating VTL...')
-      fmts_ann = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff])
-      vtl_ann = estimateVTL(
-        formants = fmts_ann,
-        method = input$vtl_method,
-        speedSound = input$speedSound,
-        interceptZero = input$interceptZero,
-        output = 'detailed'
-      )
-      # method = c('regression', 'meanDispersion', 'meanFormant')[1],
-      # speedSound = 35400,
-      try({
-        vtl_ann$formantDispersion = round(vtl_ann$formantDispersion)
-      }, silent = TRUE)
-      try({
-        vtl_ann$vocalTract = round(vtl_ann$vocalTract, 2)
-      }, silent = TRUE)
-      myPars$ann$dF[myPars$currentAnn] = vtl_ann$formantDispersion
-      myPars$ann$vtl[myPars$currentAnn] = vtl_ann$vocalTract
-      # drawAnnTbl()
-      # hr()
+      for (i in rows) {
+        if (!is.null(myPars$ann[i, ]) &&
+            any(!is.na(myPars$ann[i, myPars$ff]))) {
+          fmts_ann = as.numeric(myPars$ann[i, myPars$ff])
+          vtl_ann = estimateVTL(
+            formants = fmts_ann,
+            method = input$vtl_method,
+            speedSound = input$speedSound,
+            interceptZero = input$interceptZero,
+            output = 'detailed'
+          )
+          try({
+            vtl_ann$formantDispersion = round(vtl_ann$formantDispersion)
+          }, silent = TRUE)
+          try({
+            vtl_ann$vocalTract = round(vtl_ann$vocalTract, 2)
+          }, silent = TRUE)
+          myPars$ann$dF[i] = vtl_ann$formantDispersion
+          myPars$ann$vtl[i] = vtl_ann$vocalTract
+        }
+      }
     }
   }
-  observeEvent(c(input$vtl_method, input$speedSound, input$interceptZero), updateVTL())
+  observeEvent(c(input$vtl_method, input$speedSound, input$interceptZero), {
+    if (!is.null(myPars$ann) && nrow(myPars$ann) > 0) {
+      updateVTL(rows = 1:nrow(myPars$ann))
+    }
+  })
 
   observeEvent(input$tableRow, {
     if (!is.null(myPars$ann) && input$tableRow > 0) {
@@ -1337,7 +1377,7 @@ server = function(input, output, session) {
       }
       myPars$play$dur = myPars$play$to - myPars$play$from
       myPars$play$timeOn = proc.time()
-      myPars$play$timeOff = myPars$play$timeOn + myPars$play$dur
+      myPars$play$timeOff = myPars$play$timeOn + myPars$play$dur / myPars$samplingRate_idx
       myPars$cursor_temp = myPars$cursor
       myPars$play$on = TRUE
       if (myPars$print) print('Playing selection...')
@@ -1346,12 +1386,15 @@ server = function(input, output, session) {
       if (input$audioMethod == 'Browser') {
         # play with javascript
         shinyjs::js$playme_js(  # need an external js script for this
-          audio_id = 'myAudio',  # defined in UI
-          from = myPars$play$from,
-          to = myPars$play$to)
+          audio_id = 'myAudio',  # defined in tags$audio
+          from = myPars$play$from / myPars$samplingRate_idx,
+          to = myPars$play$to / myPars$samplingRate_idx)
       } else {
         # or play with R:
-        playme(myPars$myAudio_path, from = myPars$play$from, to = myPars$play$to)
+        playme(myPars$myAudio,
+               samplingRate = myPars$samplingRate * myPars$samplingRate_idx,
+               from = myPars$play$from / myPars$samplingRate_idx,
+               to = myPars$play$to / myPars$samplingRate_idx)
       }
     }
   }
@@ -1372,9 +1415,8 @@ server = function(input, output, session) {
         myPars$play$on = FALSE
         myPars$cursor = myPars$cursor_temp  # reset to original cursor
       } else {
-        myPars$cursor = as.numeric(
-          myPars$play$from + time - myPars$play$timeOn
-        )[3] * 1000  # [3] for "elapsed", ie "real" time
+        myPars$cursor = myPars$play$from * 1000 + as.numeric(time - myPars$play$timeOn)[3] * 1000 * myPars$samplingRate_idx
+        # [3] for "elapsed", ie "real" time
       }
     }
   })
@@ -1432,7 +1474,8 @@ server = function(input, output, session) {
     # halfRan = diff(input$spec_ylim) / 2 / coef
     # newLow = max(0, midpoint - halfRan)
     # newHigh = min(myPars$samplingRate / 2, midpoint + halfRan)
-    updateSliderInput(session, 'spec_ylim', value = c(0, input$spec_ylim[2] * coef))
+    newHigh = min(input$spec_ylim[2] * coef, myPars$samplingRate / 2 / 1000)
+    updateSliderInput(session, 'spec_ylim', value = c(0, newHigh))
   }
   observeEvent(input$zoomIn_freq, changeZoom_freq(1 / myPars$zoomFactor_freq))
   observeEvent(input$zoomOut_freq, changeZoom_freq(myPars$zoomFactor_freq))
@@ -1463,7 +1506,9 @@ server = function(input, output, session) {
     newRight = min(myPars$dur, midpoint + halfRan)
     myPars$spec_xlim = c(newLeft, newRight)
     # use user-set time zoom in the next audio
-    if (!is.null(myPars$spec_xlim)) myPars$initDur = diff(myPars$spec_xlim)
+    if (!is.null(myPars$spec_xlim) &&
+        !any(!is.finite(myPars$spec_xlim)))
+      myPars$initDur = diff(myPars$spec_xlim)
   }
   observeEvent(input$zoomIn, changeZoom(myPars$zoomFactor, toCursor = TRUE))
   observeEvent(input$zoomOut, changeZoom(1 / myPars$zoomFactor))
@@ -1542,32 +1587,32 @@ server = function(input, output, session) {
     }
   }, ignoreNULL = TRUE)
 
-  # step-overlap
-  observeEvent(input$overlap, {
-    # change step if overlap changes, but don't change step if windowLength changes
-    step = round(input$windowLength * (1 - input$overlap / 100))
-    if (input$step != step)
-      updateNumericInput(session, 'step', value = step)
-  }, ignoreInit = TRUE)
-  observeEvent(c(input$step, input$windowLength), {
-    # change overlap if step or windowLength change
-    overlap = (1 - input$step / input$windowLength) * 100
-    if (input$overlap != overlap)
-      updateSliderInput(session, 'overlap', value = overlap)
-  })
-
-  observeEvent(input$overlap_lpc, {
-    # change step if overlap changes, but don't change step if windowLength changes
-    step_lpc = round(input$windowLength_lpc * (1 - input$overlap_lpc / 100))
-    if (input$step_lpc != step_lpc)
-      updateNumericInput(session, 'step_lpc', value = step_lpc)
-  }, ignoreInit = TRUE)
-  observeEvent(c(input$step_lpc, input$windowLength_lpc), {
-    # change overlap if step or windowLength change
-    overlap_lpc = (1 - input$step_lpc / input$windowLength_lpc) * 100
-    if (input$overlap_lpc != overlap_lpc)
-      updateSliderInput(session, 'overlap_lpc', value = overlap_lpc)
-  })
+  # # step-overlap
+  # observeEvent(input$overlap, {
+  #   # change step if overlap changes, but don't change step if windowLength changes
+  #   step = round(input$windowLength * (1 - input$overlap / 100))
+  #   if (input$step != step)
+  #     updateNumericInput(session, 'step', value = step)
+  # }, ignoreInit = TRUE)
+  # observeEvent(c(input$step, input$windowLength), {
+  #   # change overlap if step or windowLength change
+  #   overlap = (1 - input$step / input$windowLength) * 100
+  #   if (input$overlap != overlap)
+  #     updateSliderInput(session, 'overlap', value = overlap)
+  # })
+  #
+  #   observeEvent(input$overlap_lpc, {
+  #     # change step if overlap changes, but don't change step if windowLength changes
+  #     step_lpc = round(input$windowLength_lpc * (1 - input$overlap_lpc / 100))
+  #     if (input$step_lpc != step_lpc)
+  #       updateNumericInput(session, 'step_lpc', value = step_lpc)
+  #   }, ignoreInit = TRUE)
+  #   observeEvent(c(input$step_lpc, input$windowLength_lpc), {
+  #     # change overlap if step or windowLength change
+  #     overlap_lpc = (1 - input$step_lpc / input$windowLength_lpc) * 100
+  #     if (input$overlap_lpc != overlap_lpc)
+  #       updateSliderInput(session, 'overlap_lpc', value = overlap_lpc)
+  #   })
 
 
   # SAVE OUTPUT
@@ -1586,7 +1631,7 @@ server = function(input, output, session) {
           myPars$out = myPars$out[-idx, ]
 
         # append annotations from the current audio
-        myPars$out = rbind_fill(myPars$out, myPars$ann)
+        myPars$out = soundgen:::rbind_fill(myPars$out, myPars$ann)
       }
       # keep track of formant tracks and spectrograms
       # to avoid analyzing them again if the user goes
@@ -1667,9 +1712,19 @@ server = function(input, output, session) {
         any(!is.na(myPars$ann[myPars$currentAnn, myPars$ff]))) {
       if (myPars$print) print('Calling soundgen()...')
       temp_s = soundgen(
+        sylLen = 300 * myPars$samplingRate_idx,
         formants = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff]),
         temperature = .001, tempEffects = list(formDisp = 0, formDrift = 0))
-      playme(temp_s)
+      if (input$audioMethod == 'Browser') {
+        # save a temporary file and play with the browser
+        seewave::savewav(temp_s,
+                         f = 16000 * myPars$samplingRate_idx,
+                         filename = 'www/temp.wav')
+        shinyjs::js$play_file(filename = 'temp.wav')
+      } else {
+        # play directly in R without saving to disk
+        playme(temp_s, samplingRate = 16000 * myPars$samplingRate_idx)
+      }
     }
   })
 
@@ -1679,6 +1734,9 @@ server = function(input, output, session) {
   # LPC
   shinyBS::addTooltip(session, id='reset_to_def', title = 'Reset all settings to default values', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='samplingRate_mult', title = 'Speed up or slow down the original and synthesized audio for playback purposes only, without affecting the measurements (eg to make it sound more human-like)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+
+  # LPC
   shinyBS::addTooltip(session, id='nFormants', title = 'Number of formants to analyze', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='silence', title = 'Frames below this threshold are not analyzed', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='coeffs', title = 'The number of LPC coefficients (see ?phonTools::findformants)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
@@ -1688,7 +1746,7 @@ server = function(input, output, session) {
   # Windowing
   shinyBS::addTooltip(session, id='windowLength_lpc', title = 'Length of STFT window for LPC analysis, ms. Independent of the window used for plotting the spectrogram', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='step_lpc', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='overlap_lpc', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  # shinyBS::addTooltip(session, id='overlap_lpc', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='dynamicRange_lpc', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='zp_lpc', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='wn_lpc', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
@@ -1703,7 +1761,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window for LPC analysis, ms. Independent of the window used for plotting the spectrogram', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))

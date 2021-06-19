@@ -256,6 +256,16 @@ a = analyze(
 #  a = analyze('~/Downloads/temp2', savePlots = '',
 #              width = 900, height = 500, units = 'px')
 
+## ----fig.height = 6, fig.width = 5--------------------------------------------
+pd = pitchDescriptives(
+  a1$detailed$pitch, step = a1$detailed$time[2] - a1$detailed$time[1],
+  timeUnit = 'ms',
+  smoothBW = c(10, 1),   # original + smoothed at 10 Hz and 1 Hz
+  inflThres = .2,        # min amplitude that counts as inflections
+  plot = TRUE
+)
+colnames(pd)
+
 ## ----fig.height = 5, fig.width = 7--------------------------------------------
 # for info on using soundgen() function, see the vignette on sound synthesis 
 s2 = soundgen(nSyl = 8, sylLen = 50, pauseLen = 70, temperature = 0,
@@ -314,16 +324,18 @@ ms = modulationSpectrum(s, samplingRate = 16000, logWarp = NULL,
 
 ## ----fig.show = "hold", fig.height = 5, fig.width = 5-------------------------
 ms = modulationSpectrum(
-  s, samplingRate = 16000, windowLength = 40, step = 10, amRes = NULL,
+  s, samplingRate = 16000, windowLength = 15, step = 5, 
+  amRes = NULL,  # analyze the entire sound at once (see TIP below)
   logSpec = FALSE,  # log-transform the spectrogram before 2D FFT?
   power = 2,  # square amplitudes in modulation spectrum ("power" spectrum)
   roughRange = c(30, 150),  # temporal modulations in the "roughness" range
+  amRange = c(10, 70),    # AM frequencies of interest
   logWarp = 2,  # log-transform axes for plotting
   kernelSize = 7,  # apply Gaussian blur for smoothing
   quantiles = c(.5, .8, .95, .99),  # customize contour lines
   colorTheme = 'terrain.colors'  # alternative palette
 )
-ms$roughness  # percent of energy in the roughness range
+ms[c('roughness', 'amFreq', 'amDep')]
 
 ## ----eval = FALSE-------------------------------------------------------------
 #  # checking combinations of pitch tracking methods
@@ -340,8 +352,8 @@ ms$roughness  # percent of energy in the roughness range
 #                   cor2 = rep(NA, length(pp)))
 #  # repeating the analysis for each combination of methods in pp
 #  for (i in 1:length(pp)) {
-#    out[[i]] = analyzeFolder(myfolder, plot = FALSE, verbose = FALSE, step = 50,
-#                             pitchMethods = pp[[i]])$pitch_median
+#    out[[i]] = analyze(myfolder, plot = FALSE, step = 50,
+#                             pitchMethods = pp[[i]])$summary$pitch_median
 #    res$cor1[i] = cor(log(out[[i]]), log(pitchManual), use = 'pairwise.complete.obs')
 #    res$cor2[i] = cor(log(out[[i]]), log(pitchManual), use = 'pairwise.complete.obs') *
 #      (1 - mean(is.na(out[[i]]) & !is.na(key)))
@@ -357,10 +369,11 @@ ms$roughness  # percent of energy in the roughness range
 #  pars = expand.grid(windowLength = c(17, 35, 50),
 #                     smooth = c(0, 1, 2))
 #  for (i in 1:nrow(pars)) {
-#    out[[i]] = suppressWarnings(analyzeFolder(myfolder, plot = FALSE, verbose = FALSE, step = 25,
-#                 pitchMethods = c('autocor','dom','spec'),
+#    out[[i]] = suppressWarnings(analyze(myfolder, plot = FALSE,
+#                 step = 25,
+#                 pitchMethods = c('autocor','dom'),
 #                 windowLength = pars$windowLength[i],
-#                 smooth = pars$smooth[i]))$pitch_median
+#                 smooth = pars$smooth[i]))$summary$pitch_median
 #    print(cor(log(out[[i]]), key, use = 'pairwise.complete.obs'))
 #    print(cor(log(out[[i]]), key, use = 'pairwise.complete.obs') *
 #            (1 - mean(is.na(out[[i]]) & !is.na(key))))
@@ -376,8 +389,9 @@ ms$roughness  # percent of energy in the roughness range
 #  
 #  v = 6  # pick some combination of par values to explore
 #  trial = log(out[[v]])
-#  cor (key, trial, use = 'pairwise.complete.obs')
-#  cor (key, trial, use = 'pairwise.complete.obs') * (1 - mean(is.na(trial) & !is.na(key)))
+#  cor(key, trial, use = 'pairwise.complete.obs')
+#  cor(key, trial, use = 'pairwise.complete.obs') *
+#    (1 - mean(is.na(trial) & !is.na(key)))
 #  plot (key, trial)
 #  abline(a=0, b=1, col='red')
 

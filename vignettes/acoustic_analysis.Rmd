@@ -100,6 +100,8 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `time`: time of the middle of each frame (ms)
 * `duration`: total duration (s)
 * `duration_noSilence`: duration from the beginning of the first non-silent STFT frame to the end of the last non-silent STFT frame, s (NB: depends strongly on `windowLength` and `silence` settings)
+* `amDep`: depth of amplitude modulation, dB (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
+* `amFreq`: frequency of amplitude modulation, Hz (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
 * `ampl`: root mean square of amplitude per frame, calculated as `sqrt(mean(frame ^ 2))`
 * `dom`: lowest dominant frequency band (Hz) (see "Pitch tracking methods / Dominant frequency")
 * `entropy`: Weiner entropy of the spectrum of the current frame. Close to 0: pure tone or tonal sound with nearly all energy in harmonics; close to 1: white noise
@@ -107,7 +109,7 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `harmEnergy`: the amount of energy in upper harmonics, namely the ratio of total spectral energy above 1.25 x f0 to the total spectral energy below 1.25 x f0 (dB)
 * `harmHeight`: how high harmonics reach in the spectrum, based on the best guess at pitch (or the manually provided pitch values): see `soundgen:::harmHeight` for details
 * `HNR`: harmonics-to-noise ratio (dB), a measure of harmonicity returned by `soundgen:::getPitchAutocor()` (see "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as in noise
-* `loudness`: subjective loudness in sone, assuming a certain sound pressure level (takes into account the energy in different frequency bands as well as the sensitivity of human ears to different frequencies); see `getLoudness()` and section on Loudness below for details
+* `loudness`: subjective loudness in sone, assuming a certain sound pressure level (takes into account the energy in different frequency bands as well as the sensitivity of human ears to different frequencies); see `getLoudness()` and the section on Loudness below for details
 * `novelty`: spectral novelty - a measure of how variable the spectrum is on a particular time scale, as estimated by `ssm()`
 * `peakFreq`: the frequency with maximum spectral energy below `cutFreq` (Hz)
 * `roughness`: the amount of spectrotemporal modulation in the "roughness" zone of frequencies (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
@@ -224,7 +226,7 @@ Different pitch tracking methods have their own pros and cons. Cepstrum is helpf
 
 * `entropyThres`: all non-silent frames are analyzed to produce basic spectral descriptives. However, pitch tracking is both computationally costly and can be misleading if applied to obviously voiceless frames. To define what an "obviously voiceless" frame is, we set some cutoff value of Weiner entropy, above which we don't want to even try pitch tracking. To disable this feature and track pitch in all non-silent frames, set `entropyThres = NULL`.
 * `pitchFloor`, `pitchCeiling`: absolute thresholds for pitch candidates. No values outside these bounds will be considered.
-* `priorMean` and `priorSD` specify the mean and sd of gamma distribution describing our prior knowledge about the most likely pitch values. The prior works by scaling the certainties associated with particular pitch candidates. If you are working with a single type of sound, such as speech by a male speaker or cricket sounds, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds with `analyzeFolder()`, the recommended approach is to set a vague, but still mildly informative prior. `priorMean` is specified in Hz, but the expected deviation from this typical value is calculated on a musical scale, so `priorSD` is in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted with `getPrior`:
+* `priorMean` and `priorSD` specify the mean and sd of prior distribution describing our prior knowledge about the most likely pitch values. If `priorAdapt = TRUE`, this user-defined prior is only applies to the first pass of optimizing pitch contours, after which the first-pass contour becomes the new prior for the second pass. Both of these priors work by scaling the certainties associated with particular pitch candidates. If you are working with a single type of sound, such as speech by a male speaker or cricket sounds, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds with `analyzeFolder()`, the recommended approach is to set a vague, but still mildly informative prior. `priorMean` is specified in Hz, but the expected deviation from this typical value is calculated on a musical scale, so `priorSD` is in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted with `getPrior`:
 
 ```{r fig.show = "hold", fig.height = 5, fig.width = 7}
 par(mfrow = c(1, 2))
@@ -539,6 +541,21 @@ Just like `soundgen_app()` is an interactive shiny app for sound synthesis, `pit
 *TIP `pitch_app()` is meant for extracting pitch contours. Although its output is similar to that of `analyze()`, it doesn't offer options for measuring formants, loudness, etc. Suggested workflow: extract manually corrected pitch contours first, and then run `analyzeFolder(..., pitchManual = output.csv)`, where output.csv is the dataset produced by `pitch_app`*
 
 
+## Summarizing pitch contours
+By default, `analyze()` and `pitch_app()` summarize contours of estimated pitch and other variables using simple summary functions such as mean, median, SD, etc. These summaries can be extended with user-defined `summaryFun`, but then the same descriptives are applied to every single output of `analyze()`, potentially resulting in very large output matrices with a lot of descriptives no-one is ever going to need. To avoid this clutter, it can be convenient to summarize one variable at a time - normally pitch - and extract a much larger number of summary measures of the average value, its variability, slope, inflections, etc. This task can be accomplished with `pitchDescriptives()`. For example:
+
+```{r fig.height = 6, fig.width = 5} 
+pd = pitchDescriptives(
+  a1$detailed$pitch, step = a1$detailed$time[2] - a1$detailed$time[1],
+  timeUnit = 'ms',
+  smoothBW = c(10, 1),   # original + smoothed at 10 Hz and 1 Hz
+  inflThres = .2,        # min amplitude that counts as inflections
+  plot = TRUE
+)
+colnames(pd)
+```
+
+
 # Formant analysis with formant_app()
 Formants are the natural resonances of the vocal tract - that is, frequency bands that are amplified as the sound passes through the vocal tract. In speech, formants are responsible for differences between vowel sounds such as /a/, /i/, /u/, etc., but formants are also present in many animal calls. The most common way to estimate formant frequencies and bandwidth is by using Linear Predictive Coding (LPC), which is implemented in `phonTools::findformants()`. Because formant measurement is quite error-prone, however, any serious analysis should include manual verification of LPC measurements. Soundgen offers a web app for this task: `formant_app()`. Just like `pitch_app()`, it runs in the system-default web browser; you can add annotations to audio files and manually verify and, if needed, correct the formant measurements for each annotated segment.
 
@@ -546,8 +563,7 @@ Formants are the natural resonances of the vocal tract - that is, frequency band
 
 
 # Audio segmentation 
-## Bursts and syllables 
-### Segmenting a single sound: `segment`
+## Finding syllables with segment()
 In addition to measuring spectral characteristics and fundamental frequency, it is often important to analyze the temporal structure of a sound. In particular, it is often helpful to divide a sound into separate "syllables" - continuous acoustic fragments separated by what we consider to be "silence". If this "silence" was not full of background noise and breathing, the task would be trivial: we could simply define syllables as continuous segments with ampiltude above some threshold. As it is, with non-studio material it is problematic to find a single threshold that would accurately coincide with the beginning and end of syllables in different sounds (presuming that we are interested in batch processing multiple sounds without manually adjusting the settings for each sound). Soundgen attempts to solve this problem by using an adaptive algorithm sensitive to the nature of background noise, signal-to-noise ratio, and acoustic novelty to achieve flexible and fast syllable segmentation.
 
 Sometimes we are more interested in the rate of syllables per second and in their regularity, rather than the absolute duration of each syllable. In this case it makes more sense to look for bursts of acoustic energy or sudden changes relative to background noise. The spacing between bursts - the interburst interval - is a perceptually salient characteristic of a bout of vocalizing.
@@ -637,7 +653,7 @@ m2 = ssm(s3, samplingRate = 16000,
 par(mfrow = c(1, 1))
 ```
 
-*TIP The output of `segment` can potentially be combined with novelty from `ssm` and perhaps also with pitch tracking to improve audio segmentation using all these sources of information. At present this integration has not been implemented*
+*TIP analyze() internally calls ssm() to calculate novelty*
 
 
 # Modulation spectrum
@@ -665,19 +681,22 @@ Now we can see both spectral modulations at 14 Hz (f0) and temporal modulations 
 Beyond these basic settings, there are several other options:
 ```{r fig.show = "hold", fig.height = 5, fig.width = 5}
 ms = modulationSpectrum(
-  s, samplingRate = 16000, windowLength = 40, step = 10, amRes = NULL,
+  s, samplingRate = 16000, windowLength = 15, step = 5, 
+  amRes = NULL,  # analyze the entire sound at once (see TIP below)
   logSpec = FALSE,  # log-transform the spectrogram before 2D FFT?
   power = 2,  # square amplitudes in modulation spectrum ("power" spectrum)
   roughRange = c(30, 150),  # temporal modulations in the "roughness" range
+  amRange = c(10, 70),    # AM frequencies of interest
   logWarp = 2,  # log-transform axes for plotting
   kernelSize = 7,  # apply Gaussian blur for smoothing
   quantiles = c(.5, .8, .95, .99),  # customize contour lines
   colorTheme = 'terrain.colors'  # alternative palette
 )
-ms$roughness  # percent of energy in the roughness range
+ms[c('roughness', 'amFreq', 'amDep')]
 ```
 
-*TIP Roughness can be calculated for the entire sound (set `amRes = NULL`) or for as many frames as possible given the duration of audio and the desired resolution for the analysis of temporal modulation (one frame for the analysis of roughness comprises several STFT frames, so the higher `amRes`, the fewer roughness values per second)*
+*TIP Roughness and amplitude modulation can be calculated for the entire sound (set `amRes = NULL`) or for as many frames as possible given the duration of audio and the desired resolution for the analysis of temporal modulation (one frame for the analysis of roughness comprises several STFT frames, so we measure about `amRes` values per second)*
+
 
 # Optimization
 The results of acoustic analysis are sensitive to the chosen settings: the size and overlap of Fourier windows, the method(s) of pitch tracking and their parameters, etc. The default settings of the two main functions presented in this vignette, `analyze` and `segment`, have been optimized for human non-linguistic vocalizations. If you analyze other types of sounds, such as human speech or whale songs, you can probably improve the accuracy by changing some settings. In many cases the required changes are obvious: for example, to analyze f0 in ultrasonic whistles of dolphins or rodents you will obviously want to record at a much higher sampling rate, use shorter FFT windows, raise `pitch_ceiling` and / or `prior_mean`, etc. Other settings are not so obvious or even downright opaque, inviting some form of automatic optimization. 
@@ -690,7 +709,7 @@ Soundgen package contains two vectors containing "keys" for the optimization of 
 
 The easiest, "out-of-the-box" solution is to use the soundgen function `optimizePars`, which is essentially a wrapper around `stats::optim` tailored to this particular task. There are extensive examples in the documentation for this function: see `?optimizePars`. 
 
-*TIP The parameters of `segment` can be optimized within an hour or two with 260 sounds (total audio duration ~9 min), but pitch tracking is really too slow to be optimized head-on. Try a few parameters at a time and use grid optimization instead of `optim` whenever possible. Even so, this might take a few nights* 
+*TIP The parameters of `segment` can be optimized within an hour or two with 260 sounds (total audio duration ~9 min), but pitch tracking is really too slow to be optimized head-on, except maybe for one or two parameters at a time using grid optimization instead of `optim`* 
 
 If you prefer to optimize manually, without calling `opitmizePars`, here are a couple of examples. 
 
@@ -709,8 +728,8 @@ res = data.frame('pars' = sapply(pp, function(x) paste(x, collapse = ',')),
                  cor2 = rep(NA, length(pp)))
 # repeating the analysis for each combination of methods in pp
 for (i in 1:length(pp)) {
-  out[[i]] = analyzeFolder(myfolder, plot = FALSE, verbose = FALSE, step = 50,
-                           pitchMethods = pp[[i]])$pitch_median
+  out[[i]] = analyze(myfolder, plot = FALSE, step = 50,
+                           pitchMethods = pp[[i]])$summary$pitch_median
   res$cor1[i] = cor(log(out[[i]]), log(pitchManual), use = 'pairwise.complete.obs')
   res$cor2[i] = cor(log(out[[i]]), log(pitchManual), use = 'pairwise.complete.obs') *
     (1 - mean(is.na(out[[i]]) & !is.na(key)))
@@ -728,10 +747,11 @@ out = list()
 pars = expand.grid(windowLength = c(17, 35, 50),
                    smooth = c(0, 1, 2))
 for (i in 1:nrow(pars)) {
-  out[[i]] = suppressWarnings(analyzeFolder(myfolder, plot = FALSE, verbose = FALSE, step = 25,
-               pitchMethods = c('autocor','dom','spec'),
+  out[[i]] = suppressWarnings(analyze(myfolder, plot = FALSE,
+               step = 25,
+               pitchMethods = c('autocor','dom'),
                windowLength = pars$windowLength[i],
-               smooth = pars$smooth[i]))$pitch_median
+               smooth = pars$smooth[i]))$summary$pitch_median
   print(cor(log(out[[i]]), key, use = 'pairwise.complete.obs'))
   print(cor(log(out[[i]]), key, use = 'pairwise.complete.obs') *
           (1 - mean(is.na(out[[i]]) & !is.na(key))))
@@ -747,8 +767,9 @@ pars
 
 v = 6  # pick some combination of par values to explore
 trial = log(out[[v]])  
-cor (key, trial, use = 'pairwise.complete.obs')
-cor (key, trial, use = 'pairwise.complete.obs') * (1 - mean(is.na(trial) & !is.na(key)))
+cor(key, trial, use = 'pairwise.complete.obs')
+cor(key, trial, use = 'pairwise.complete.obs') *
+  (1 - mean(is.na(trial) & !is.na(key)))
 plot (key, trial)
 abline(a=0, b=1, col='red')
 ```

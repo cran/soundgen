@@ -1,6 +1,6 @@
 # pitch_app()
 #
-# To do: maybe analyze one bit at a time like in formant_app; load audio + results to double-check old work
+# To do: maybe analyze one bit at a time like in formant_app
 #
 # # tip: to read the output, do smth like:
 # a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
@@ -27,10 +27,10 @@ server = function(input, output, session) {
     cursor = 0,
     pitchCert_mult = NULL,     # old pitch prior
     initDur = 1500,            # initial duration to plot (ms)
+    spec_xlim = c(0, 1500),
     play = list(on = FALSE),
-    debugQn = TRUE            # for debugging - click "?" to step into the code
+    debugQn = FALSE            # for debugging - click "?" to step into the code
   )
-
 
   # clean-up of www/ folder: remove all files except temp.wav
   # if (!dir.exists("www")) dir.create("www")  # otherwise trouble with shinyapps.io
@@ -111,6 +111,42 @@ server = function(input, output, session) {
     names(myPars$history) = myPars$fileList$name
     for (i in 1:length(myPars$history)) {
       myPars$history[[i]] = list(manual = NULL, manualUnv = NULL)
+    }
+
+    # if there is a csv among the uploaded files, use the annotations in it
+    ext = substr(input$loadAudio$name,
+                 (nchar(input$loadAudio$name) - 2),
+                 nchar(input$loadAudio$name))
+    old_out_idx = which(ext == 'csv')[1]  # grab the first csv, if any
+    if (!is.na(old_out_idx)) {
+      user_ann = read.csv(input$loadAudio$datapath[old_out_idx], stringsAsFactors = FALSE)
+      oblig_cols = c('file', 'time', 'pitch')
+      if (nrow(user_ann) > 0 &
+          !any(!oblig_cols %in% colnames(user_ann))) {
+        if (is.null(myPars$out)) {
+          myPars$out = user_ann[, oblig_cols]
+        } else {
+          myPars$out = soundgen:::rbind_fill(myPars$out, user_ann[, oblig_cols])
+          # remove duplicate rows
+          myPars$out = unique(myPars$out)
+        }
+        # save f0 contours from the csv as manual anchors
+        for (i in 1:nrow(user_ann)) {
+          time_i = suppressWarnings(as.numeric(unlist(strsplit(user_ann$time[i], ','))))
+          pitch_i = suppressWarnings(as.numeric(unlist(strsplit(user_ann$pitch[i], ','))))
+
+          frame_i = round(time_i / input$step)
+          step_i = time_i[2] - time_i[1]
+          if (step_i != input$step) pitch_i = pitch_i[!duplicated(frame_i)]
+          manual_i = data.frame(
+            frame = frame_i, freq = pitch_i
+          )
+          myPars$history[[user_ann$file[i]]] = list(
+            manual = manual_i[!is.na(manual_i$freq), ],
+            manualUnv = manual_i$frame[is.na(manual_i$freq)]
+          )
+        }
+      }
     }
 
     choices = as.list(myPars$fileList$name)
@@ -422,18 +458,22 @@ server = function(input, output, session) {
       }
 
       # show prior
-      ran_x_5 = diff(range(myPars$spec_xlim)) * .05   # 5% of plot width
-      points(myPars$spec_xlim[1] + myPars$prior$prob * ran_x_5,
-             myPars$prior$freq / 1000, type = 'l', lty = 2)
-      text(x = myPars$spec_xlim[1] + ran_x_5,
-           y = input$priorMean / 1000,
-           pos = 2, labels = 'Prior', offset = 0.25)
-      text(x = myPars$spec_xlim[1],
-           y = input$pitchFloor / 1000,
-           pos = 4, labels = 'floor', offset = 0)
-      text(x = myPars$spec_xlim[1],
-           y = input$pitchCeiling / 1000,
-           pos = 4, labels = 'ceiling', offset = 0)
+      if (is.list(myPars$prior)) {
+        ran_x_5 = diff(range(myPars$spec_xlim)) * .05   # 5% of plot width
+        points(myPars$spec_xlim[1] + myPars$prior$prob * ran_x_5,
+               myPars$prior$freq / 1000, type = 'l', lty = 2)
+        text(x = myPars$spec_xlim[1] + ran_x_5,
+             y = ifelse(input$priorAdapt,
+                        myPars$priorMean / 1000,
+                        input$priorMean / 1000),
+             pos = 2, labels = 'Prior', offset = 0.25)
+        text(x = myPars$spec_xlim[1],
+             y = input$pitchFloor / 1000,
+             pos = 4, labels = 'floor', offset = 0)
+        text(x = myPars$spec_xlim[1],
+             y = input$pitchCeiling / 1000,
+             pos = 4, labels = 'ceiling', offset = 0)
+      }
 
       # add manual values to the list of pitch candidates for seamless plotting
       n = ncol(myPars$pitchCands$freq)
@@ -542,6 +582,7 @@ server = function(input, output, session) {
           pitchCeiling = input$pitchCeiling,
           priorMean = isolate(input$priorMean),
           priorSD = isolate(input$priorSD),
+          priorAdapt = input$priorAdapt,  # rerun analyze() if priorAdapt changes
           nCands = input$nCands,
           minVoicedCands = input$minVoicedCands,
           pitchDom = list(
@@ -608,16 +649,34 @@ server = function(input, output, session) {
             myPars$manual = myPars$manual[!duplicated(myPars$manual$frame), ]
           }
           obs_pitch()  # run pathfinder
-          if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) browser()
+          # if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) browser()
           # save the prior
-          myPars$pitchCert_mult = getPrior(
-            priorMean = input$priorMean,
-            priorSD = input$priorSD,
-            pitchFloor = input$pitchFloor,
-            pitchCeiling = input$pitchCeiling,
-            pitchCands = myPars$pitchCands$freq,
-            plot = FALSE
-          )
+          if (input$priorAdapt) {
+            pitch_sem = HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
+            if (length(pitch_sem) > 0) {
+              myPars$priorMean = semitonesToHz(mean(pitch_sem))
+              myPars$priorSD = semitonesToHz(sd(pitch_sem)) * 4
+              myPars$pitchCert_mult = getPrior(
+                priorMean = myPars$priorMean,
+                priorSD = myPars$priorSD,
+                pitchFloor = input$pitchFloor,
+                pitchCeiling = input$pitchCeiling,
+                pitchCands = myPars$pitchCands$freq,
+                plot = FALSE
+              )
+            } else {
+              myPars$priorMean = NA
+            }
+          } else {
+            myPars$pitchCert_mult = getPrior(
+              priorMean = input$priorMean,
+              priorSD = input$priorSD,
+              pitchFloor = input$pitchFloor,
+              pitchCeiling = input$pitchCeiling,
+              pitchCands = myPars$pitchCands$freq,
+              plot = FALSE
+            )
+          }
         })
       })
     }
@@ -667,7 +726,7 @@ server = function(input, output, session) {
       # print(sylToUpdate)
 
       # for each syllable, impute NA's and find a nice path through pitch candidates
-      if (is.null(myPars$pitch)) {
+      if (is.null(myPars$pitch) || nrow(myPars$voicedSegments) == 0) {
         myPars$pitch = rep(NA, ncol(myPars$pitchCands$freq))
       } else if (nrow(myPars$voicedSegments) > 0) {
         voiced_frames = unlist(apply(myPars$voicedSegments, 1, function(x) x[1]:x[2]))
@@ -731,31 +790,32 @@ server = function(input, output, session) {
     c(input$shortestSyl, input$shortestPause,
       input$interpolWin, input$interpolTol, input$interpolCert,
       input$pathfinding, input$certWeight, input$smooth,
-      input$priorMean, input$priorSD),
+      input$priorMean, input$priorSD, input$priorAdapt),
     obs_pitch()
   )
   observeEvent(
     priority = 1, ignoreInit = TRUE,
-    c(input$priorMean, input$priorSD, input$pitchFloor, input$pitchCeiling), {
-      if (!is.null(myPars$pitchCands$cert)) {
-        if (myPars$print) print('Updating pitchCert with new prior')
-        if (!is.null(myPars$pitchCert_mult)) {
-          # undo the old prior, if any
-          myPars$pitchCands$cert = myPars$pitchCands$cert / myPars$pitchCert_mult
+    c(input$priorMean, input$priorSD, input$priorAdapt,
+      input$pitchFloor, input$pitchCeiling), {
+        if (!is.null(myPars$pitchCands$cert) & !input$priorAdapt) {
+          if (myPars$print) print('Updating pitchCert with new prior')
+          if (!is.null(myPars$pitchCert_mult)) {
+            # undo the old prior, if any
+            myPars$pitchCands$cert = myPars$pitchCands$cert / myPars$pitchCert_mult
+          }
+          # get a new prior
+          myPars$pitchCert_mult = getPrior(
+            priorMean = input$priorMean,
+            priorSD = input$priorSD,
+            pitchFloor = input$pitchFloor,
+            pitchCeiling = input$pitchCeiling,
+            pitchCands = myPars$pitchCands$freq,
+            plot = FALSE
+          )
+          # update pitchCert
+          myPars$pitchCands$cert = myPars$pitchCands$cert * myPars$pitchCert_mult
         }
-        # get a new prior
-        myPars$pitchCert_mult = getPrior(
-          priorMean = input$priorMean,
-          priorSD = input$priorSD,
-          pitchFloor = input$pitchFloor,
-          pitchCeiling = input$pitchCeiling,
-          pitchCands = myPars$pitchCands$freq,
-          plot = FALSE
-        )
-        # update pitchCert
-        myPars$pitchCands$cert = myPars$pitchCands$cert * myPars$pitchCert_mult
       }
-    }
   )
 
   ## Clicking events
@@ -913,10 +973,12 @@ server = function(input, output, session) {
   })
   unvoiceSel = function() {
     if (myPars$print) print('Unvoicing selection...')
-    if (!is.null(myPars$bp) & length(myPars$brush_sel_xy) > 0) {
+    if (!is.null(myPars$bp) & length(myPars$brush_sel_x) > 0) {
       # NB: play forgets the previous selection, but other buttons do not,
       # hence myPars$bp instead of input$spectrogram_brush
-      myPars$manualUnv = c(myPars$manualUnv, myPars$brush_sel_xy)
+      myPars$manualUnv = sort(unique(c(myPars$manualUnv, myPars$brush_sel_x)))
+      # (ie all points within selected time range, regardless of frequency - or
+      # could use myPars$brush_sel_xy)
       # remove manual anchors within selection, if any
       idx_rem = which(myPars$manual$frame %in% myPars$manualUnv)
       if (length(idx_rem) > 0) myPars$manual = myPars$manual[-idx_rem, ]
@@ -998,14 +1060,33 @@ server = function(input, output, session) {
 
   # PRIOR
   observe({
-    myPars$prior = getPrior(
-      priorMean = input$priorMean,
-      priorSD = input$priorSD,
-      pitchFloor = input$pitchFloor,
-      pitchCeiling = input$pitchCeiling,
-      len = 100,
-      plot = FALSE
-    )
+    if (input$priorAdapt) {
+      pitch_sem = HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
+      if (length(pitch_sem) > 0) {
+        myPars$priorMean = semitonesToHz(mean(pitch_sem))
+        myPars$priorSD = semitonesToHz(sd(pitch_sem)) * 4
+        myPars$prior = getPrior(
+          priorMean = myPars$priorMean,
+          priorSD = myPars$priorSD,
+          pitchFloor = input$pitchFloor,
+          pitchCeiling = input$pitchCeiling,
+          len = 100,
+          plot = FALSE
+        )
+      } else {
+        myPars$priorMean = NA
+        myPars$prior = NA
+      }
+    } else {
+      myPars$prior = getPrior(
+        priorMean = input$priorMean,
+        priorSD = input$priorSD,
+        pitchFloor = input$pitchFloor,
+        pitchCeiling = input$pitchCeiling,
+        len = 100,
+        plot = FALSE
+      )
+    }
   })
   setPrior = function() {
     if (myPars$print) print('Setting prior...')
@@ -1045,7 +1126,7 @@ server = function(input, output, session) {
       )
     }
   })
-  shinyjs::onevent('mouseout', id = 'specOver', {
+  shinyjs::onevent('dblclick', id = 'specOver', {
     # NB: more flexible and less mafan than juggling with the observer of
     # input$spectrogram_hover
     myPars$spectrogram_hover = NULL
@@ -1187,32 +1268,19 @@ server = function(input, output, session) {
     }
   }, ignoreNULL = TRUE)
 
-  # step-overlap
-  # observeEvent(input$overlap, {myPars$updateStepOv = 'step'})
-  # observeEvent(input$step, {myPars$updateStepOv = 'overlap'})
-  # observeEvent(myPars$updateStepOv, {
-  #   if (myPars$updateStepOv == 'step') {
-  #     step = input$windowLength * (1 - input$overlap / 100)
+  # # step-overlap
+  # observeEvent(input$overlap, {
+  #   # change step if overlap changes, but don't change step if windowLength changes
+  #   step = round(input$windowLength * (1 - input$overlap / 100))
+  #   if (input$step != step)
   #     updateNumericInput(session, 'step', value = step)
-  #   } else if (myPars$updateStepOv == 'overlap') {
-  #     overlap = (1 - input$step / input$windowLength) * 100
+  # }, ignoreInit = TRUE)
+  # observeEvent(c(input$step, input$windowLength), {
+  #   # change overlap if step or windowLength change
+  #   overlap = (1 - input$step / input$windowLength) * 100
+  #   if (input$overlap != overlap)
   #     updateSliderInput(session, 'overlap', value = overlap)
-  #   }
   # })
-
-  # step-overlap
-  observeEvent(input$overlap, {
-    # change step if overlap changes, but don't change step if windowLength changes
-    step = round(input$windowLength * (1 - input$overlap / 100))
-    if (input$step != step)
-      updateNumericInput(session, 'step', value = step)
-  }, ignoreInit = TRUE)
-  observeEvent(c(input$step, input$windowLength), {
-    # change overlap if step or windowLength change
-    overlap = (1 - input$step / input$windowLength) * 100
-    if (input$overlap != overlap)
-      updateSliderInput(session, 'overlap', value = overlap)
-  })
 
 
   # SAVE OUTPUT
@@ -1253,13 +1321,14 @@ server = function(input, output, session) {
         myPars$out = new
       } else {
         idx = which(myPars$out$file == new$file)
-        if (length(idx) == 1) {
-          myPars$out[idx, ] = new
-        } else {
-          myPars$out = rbind(myPars$out, new)
-        }
+        myPars$out = soundgen:::rbind_fill(myPars$out, new)
+        if (length(idx) == 1) myPars$out = myPars$out[-idx, ]
+        myPars$out = myPars$out[order(myPars$out$file), ]
       }
     }
+    cols_order = c(colnames(myPars$out)[!colnames(myPars$out) %in% c('time', 'pitch')],
+                   'time', 'pitch')
+    myPars$out = myPars$out[, cols_order]
     if (!is.null(myPars$out))
       write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
 
@@ -1332,7 +1401,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms. Larger values improve frequency resolution at the expense of time resolution', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms (alternative to "overlap")', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
-  shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, % (alternative to "step")', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
+  # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, % (alternative to "step")', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range of spectrogram, dB', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='zp', title = 'Zero padding of STFT window (improves frequency resolution): 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
@@ -1347,6 +1416,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='pitchFloor', title = 'No candidates below this absolute threshold', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='pitchCeiling', title = 'No candidates above this absolute threshold', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='priorMean', title = 'Candidates close to this value are prioritized (how close is determined by priorSD)', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
+  shinyBS::addTooltip(session, id='priorAdapt', title = 'Adds a second pass for finding the optimal pitch contour, with prior determined by the initial pitch estimates', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
   shinyBS::addTooltip(session, id='priorSD', title = 'Determines the width of expected pitch range (standard deviation of gamma distribution around priorMean)', placement="right", trigger="hover", options = list(delay = list(show=1000, hide=0)))
 
   # trackers

@@ -247,6 +247,14 @@ ssm = function(
     lwd = 3
   )) {
   ## set pars
+  if (!is.numeric(windowLength) | windowLength <= 0 |
+      windowLength > (audio$duration / 2 * 1000)) {
+    windowLength = min(50, round(audio$duration / 2 * 1000))
+    warning(paste0(
+      '"windowLength" must be between 0 and half the sound duration (in ms);
+            resetting to ', windowLength, ' ms')
+    )
+  }
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
   if (is.null(nBands)) {
     nBands = round(100 * windowLength / 20)
@@ -581,15 +589,19 @@ getNovelty = function(ssm,
   ssm_padded[idx[1]:idx[2], idx[1]:idx[2]] = ssm
 
   ## get novelty
-  novelty = rep(NA, nrow(ssm))
-  # for each point on the main diagonal, novelty = correlation between the checkerboard kernel and the ssm. See Badawy, "Audio novelty-based segmentation of music concerts"
+  novelty = rep(0, nrow(ssm))
+  # for each point on the main diagonal, novelty = correlation between the
+  # checkerboard kernel and the ssm. See Badawy, "Audio novelty-based
+  # segmentation of music concerts"
   for (i in idx[1]:idx[2]) {
     n = (i - halfK):(i + halfK - 1)
     # suppress warnings, b/c otherwise cor complains of sd = 0 for silent segments
+    mat_i = ssm_padded[n, n]
+    diag(mat_i) = NA
     novelty[i - halfK] =  suppressWarnings(
-      cor(as.vector(ssm_padded[n, n]),
-          as.vector(kernel))) #'pairwise.complete.obs'))
+      cor(as.vector(mat_i), as.vector(kernel), use = 'pairwise.complete.obs')
+    )
   }
-  # novelty[is.na(novelty)] = 0
+  novelty[is.na(novelty)] = 0
   return(novelty)
 }

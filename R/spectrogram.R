@@ -11,7 +11,7 @@ spectrogramFolder = function(...) {
 
 #' Spectrogram
 #'
-#' Produces the spectrogram of a sound using short-term Fourier transform.
+#' Produces the spectrogram of a sound using short-time Fourier transform.
 #' Inspired by \code{\link[seewave]{spectro}}, this function offers added
 #' routines for noise reduction, smoothing in time and frequency domains, manual
 #' control of contrast and brightness, plotting the oscillogram on a dB scale,
@@ -803,10 +803,10 @@ plotSpec = function(
   if (y_Hz) {
     Y = Y * 1000
     ylim = ylim * 1000
-    min_log_freq = 10
+    min_log_freq = Y[2] * 1000  # 10
     if (is.null(ylab)) ylab = 'Frequency, Hz'
   }  else {
-    min_log_freq = .01
+    min_log_freq = Y[2]  # .01
     if (is.null(ylab)) ylab = 'Frequency, kHz'
   }
   if (yScale == 'log' & ylim[1] < min_log_freq)  ylim[1] = min_log_freq

@@ -18,7 +18,8 @@ ui = fluidPage(
   # (eg for playing the audio)
   shinyjs::extendShinyjs(
     script = 'www/formant_app_shinyjs.js',
-    functions = c('playme_js', 'stopAudio_js', 'clearBrush', 'inheritSize', 'scrollBar')
+    functions = c('playme_js', 'stopAudio_js', 'play_file',
+                  'clearBrush', 'inheritSize', 'scrollBar')
   ),
 
   # html
@@ -43,9 +44,17 @@ ui = fluidPage(
                   label = 'Reset ALL to defaults'),
                 radioButtons(
                   'audioMethod',
-                  label = "Play audio with",
+                  label = "Play analyzed audio with",
                   choices = list('Browser' = 'Browser', 'R' = 'R'),
                   selected = 'Browser', inline = TRUE, width = NULL
+                ),
+                sliderInput(
+                  'samplingRate_mult',
+                  'Playback speed, 2 ^',
+                  value = def_form['samplingRate_mult', 'default'],
+                  min = def_form['samplingRate_mult', 'low'],
+                  max = def_form['samplingRate_mult', 'high'],
+                  step = def_form['samplingRate_mult', 'step']
                 ),
                 checkboxInput(
                   'normalizeInput',
@@ -112,13 +121,13 @@ ui = fluidPage(
                   min = def_form['step_lpc', 'low'],
                   max = def_form['step_lpc', 'high'],
                   step = def_form['step_lpc', 'step']),
-                sliderInput(
-                  'overlap_lpc',
-                  'Overlap, %',
-                  value = def_form['overlap_lpc', 'default'],
-                  min = def_form['overlap_lpc', 'low'],
-                  max = def_form['overlap_lpc', 'high'],
-                  step = def_form['overlap_lpc', 'step']),
+                # sliderInput(
+                #   'overlap_lpc',
+                #   'Overlap, %',
+                #   value = def_form['overlap_lpc', 'default'],
+                #   min = def_form['overlap_lpc', 'low'],
+                #   max = def_form['overlap_lpc', 'high'],
+                #   step = def_form['overlap_lpc', 'step']),
                 sliderInput(
                   'dynamicRange_lpc',
                   'Dynamic range, dB',
@@ -191,13 +200,13 @@ ui = fluidPage(
                   min = def_form['step', 'low'],
                   max = def_form['step', 'high'],
                   step = def_form['step', 'step']),
-                sliderInput(
-                  'overlap',
-                  'Overlap, %',
-                  value = def_form['overlap', 'default'],
-                  min = def_form['overlap', 'low'],
-                  max = def_form['overlap', 'high'],
-                  step = def_form['overlap', 'step']),
+                # sliderInput(
+                #   'overlap',
+                #   'Overlap, %',
+                #   value = def_form['overlap', 'default'],
+                #   min = def_form['overlap', 'low'],
+                #   max = def_form['overlap', 'high'],
+                #   step = def_form['overlap', 'step']),
                 sliderInput(
                   'dynamicRange',
                   'Dynamic range, dB',
@@ -296,9 +305,7 @@ ui = fluidPage(
                   min = def_form['spectrum_len', 'low'],
                   max = def_form['spectrum_len', 'high'],
                   step = def_form['spectrum_len', 'step'])
-              ),
-
-              tabPanel("Annotations")
+              )
             )
           )
         ),  # end of column "sidebar"
@@ -460,6 +467,7 @@ ui = fluidPage(
         ),
         column(
           width = 2,
+          uiOutput("synthAudio"),  # not actually shown
           actionButton(
             inputId = 'synthBtn',
             label = HTML("<img src='icons/synth.png' width = '30px'>"),
