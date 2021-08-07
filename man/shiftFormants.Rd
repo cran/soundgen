@@ -6,7 +6,7 @@
 \usage{
 shiftFormants(
   x,
-  scaleFactor,
+  multFormants,
   samplingRate = NULL,
   freqWindow = NULL,
   dynamicRange = 80,
@@ -27,8 +27,9 @@ shiftFormants(
 'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
 numeric vectors}
 
-\item{scaleFactor}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
-one octave up), <1 = lower formants}
+\item{multFormants}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
+one octave up), <1 = lower formants. Anchor format accepted (see
+\code{\link{soundgen}})}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
@@ -55,10 +56,13 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{normalize}{if TRUE, scales input prior to FFT}
 
-\item{play}{if TRUE, plays the processed audio}
+\item{play}{if TRUE, plays the synthesized sound using the default player on
+your system. If character, passed to \code{\link[tuneR]{play}} as the name
+of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
+setting another default player for \code{\link[tuneR]{play}}}
 
-\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
-= don't save, '' = same as input folder (NB: overwrites the originals!)}
+\item{saveAudio}{full path to the folder in which to save audio files (one
+per detected syllable)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
@@ -67,13 +71,13 @@ left every ... iterations (NULL = default, NA = don't report)}
 }
 \description{
 Raises or lowers formants (resonance frequencies), changing the voice quality
-or timbre of the sound without changing its pitch. Note that this is only
-possible when the fundamental frequency f0 is lower than the formant
-frequencies. For best results, \code{freqWindow} should be no lower than f0
-and no higher than formant bandwidths. Obviously, this is impossible for many
-signals, so just try a few reasonable values, like ~200 Hz for speech. If
-\code{freqWindow} is not specified, soundgen sets it to the average detected
-f0, which is slow.
+or timbre of the sound without changing its pitch, statically or dynamically.
+Note that this is only possible when the fundamental frequency f0 is lower
+than the formant frequencies. For best results, \code{freqWindow} should be
+no lower than f0 and no higher than formant bandwidths. Obviously, this is
+impossible for many signals, so just try a few reasonable values, like ~200
+Hz for speech. If \code{freqWindow} is not specified, soundgen sets it to the
+average detected f0, which is slow.
 }
 \details{
 Algorithm: phase vocoder. In the frequency domain, we separate the complex
@@ -94,7 +98,7 @@ s = soundgen(sylLen = 200, ampl = c(0,-10),
              noise = -40,
              formants = 'aii', addSilence = 50)
 # playme(s)
-s1 = shiftFormants(s, samplingRate = 16000, scaleFactor = 1.25,
+s1 = shiftFormants(s, samplingRate = 16000, multFormants = 1.25,
                    freqWindow = 200)
 # playme(s1)
 
@@ -104,7 +108,7 @@ playme(sheep)
 spectrogram(sheep)
 
 # Lower formants by 4 semitones or ~20\% = 2 ^ (-4 / 12)
-sheep1 = shiftFormants(sheep, scaleFactor = 2 ^ (-4 / 12), freqWindow = 150)
+sheep1 = shiftFormants(sheep, multFormants = 2 ^ (-4 / 12), freqWindow = 150)
 playme(sheep1, sheep@samp.rate)
 spectrogram(sheep1, sheep@samp.rate)
 
@@ -114,8 +118,11 @@ plot(orig[, 1], log(orig[, 2]), type = 'l')
 points(shifted[, 1], log(shifted[, 2]), type = 'l', col = 'blue')
 
 # dynamic change: raise formants at the beginning, lower at the end
-sheep2 = shiftFormants(sheep, scaleFactor = c(1.3, .7), freqWindow = 150)
+sheep2 = shiftFormants(sheep, multFormants = c(1.3, .7), freqWindow = 150)
 playme(sheep2, sheep@samp.rate)
 spectrogram(sheep2, sheep@samp.rate)
 }
+}
+\seealso{
+\code{\link{shiftPitch}} \code{\link{transplantFormants}}
 }

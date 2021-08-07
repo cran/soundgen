@@ -1,3 +1,20 @@
+          CHANGES IN SOUNDGEN VERSION 2.2.0 [07-August-2021]
+NEW FUNCTIONS:
+  * shiftPitch(): shifts pitch and/or formants + performs time stretch
+  * resample(): changes the sampling rate without introducing artefacts like aliasing
+  * bandpass(): low-pass, high-pass, bandpass, and bandstop filters with FFT
+
+MINOR:
+  * analyze(): new outputs "flux" (change in acoustic features) and "epoch" (stable regions based on flux), controlled by a new argument "flux = list(...)"
+  * shiftFormants(): arguments "scaleFactor" renamed to "multFormants" to be consistent with the new function shiftPitch()
+  * getSpectralEnvelope(), generateNoise() and other functions that call getSmoothContour() pass smoothing parameters as "smoothing = list()" instead of separate "interpol = ..., loessSpan = ..."
+  * schwa(): new argument "plot" for visualizing vowel quality in speaker-normalized F1-F2 space
+
+BUGS FIXED:
+  * formant_app(): small-scale debugging
+  * analyze(), pitch_app(): more consistent thresholds in medianSmoother (affects the smoothing of feature contours)
+
+
           CHANGES IN SOUNDGEN VERSION 2.1.0 [19-June-2021]
 NEW FUNCTIONS:
   * shiftFormants(): raises or lowers formants in a sound without changing its pitch

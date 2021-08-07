@@ -13,7 +13,6 @@ getSpectralEnvelope(
   lipRad = 6,
   noseRad = 4,
   mouth = NA,
-  interpol = c("approx", "spline", "loess")[3],
   mouthOpenThres = 0.2,
   openMouthBoost = 0,
   vocalTract = NULL,
@@ -25,6 +24,7 @@ getSpectralEnvelope(
   formantCeiling = 2,
   samplingRate = 16000,
   speedSound = 35400,
+  smoothing = list(),
   output = c("simple", "detailed")[1],
   plot = FALSE,
   duration = NULL,
@@ -62,11 +62,6 @@ dB/oct (the alternative to \code{lipRad} when the mouth is closed)}
 
 \item{mouth}{mouth opening (0 to 1, 0.5 = neutral, i.e. no
 modification) (anchor format)}
-
-\item{interpol}{the method of smoothing envelopes based on provided mouth
-anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
-(default) = polynomial local smoothing function. NB: this does NOT affect
-the smoothing of formant anchors}
 
 \item{mouthOpenThres}{open the lips (switch from nose radiation to lip
 radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1}
@@ -108,6 +103,11 @@ tracts to avoid losing energy in the upper part of the spectrum}
 
 \item{speedSound}{speed of sound in warm air, cm/s. Stevens (2000) "Acoustic
 phonetics", p. 138}
+
+\item{smoothing}{a list of parameters passed to
+\code{\link{getSmoothContour}} to control the interpolation and smoothing
+of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+jumpThres}
 
 \item{output}{"simple" returns just the spectral filter, while "detailed"
 also returns a data.frame of formant frequencies over time (needed for

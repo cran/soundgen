@@ -17,7 +17,7 @@ generateNoise(
   samplingRate = 16000,
   overlap = 75,
   dynamicRange = 80,
-  interpol = c("approx", "spline", "loess")[3],
+  smoothing = list(),
   invalidArgAction = c("adjust", "abort", "ignore")[1],
   play = FALSE
 )
@@ -67,7 +67,10 @@ and fade-out)}
 dynamicRange under maximum amplitude are discarded to save computational
 resources}
 
-\item{interpol}{deprecated}
+\item{smoothing}{a list of parameters passed to
+\code{\link{getSmoothContour}} to control the interpolation and smoothing
+of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+jumpThres}
 
 \item{invalidArgAction}{what to do if an argument is invalid or outside the
 range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'

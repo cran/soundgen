@@ -6,9 +6,9 @@
 \usage{
 .shiftFormants(
   audio,
-  scaleFactor,
-  samplingRate = NULL,
+  multFormants,
   freqWindow = NULL,
+  spec = NULL,
   dynamicRange = 80,
   windowLength = 50,
   step = NULL,
@@ -22,14 +22,14 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{scaleFactor}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
-one octave up), <1 = lower formants}
-
-\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector)}
+\item{multFormants}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
+one octave up), <1 = lower formants. Anchor format accepted (see
+\code{\link{soundgen}})}
 
 \item{freqWindow}{the width of spectral smoothing window, Hz. Defaults to
 detected f0}
+
+\item{spec}{precomputed spectrogram}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -50,7 +50,10 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{normalize}{if TRUE, scales input prior to FFT}
 
-\item{play}{if TRUE, plays the processed audio}
+\item{play}{if TRUE, plays the synthesized sound using the default player on
+your system. If character, passed to \code{\link[tuneR]{play}} as the name
+of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
+setting another default player for \code{\link[tuneR]{play}}}
 }
 \description{
 Internal soundgen function called by \code{\link{shiftFormants}}

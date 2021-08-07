@@ -305,6 +305,9 @@ formants = list(
 estimateVTL(formants = c(400, 1800, 2550, 4100), plot = TRUE)  
 # 17.5 cm
 
+## ----fig.width = 4, fig.height = 4--------------------------------------------
+schwa(formants = c(820, 1320, 2550, 4100), plot = TRUE) 
+
 ## ----fig.width = 7, fig.height = 5--------------------------------------------
 s032 = soundgen(formants = c(800, 1200), play = playback, plot = TRUE)
 
@@ -526,7 +529,7 @@ s056 = soundgen(
   jitterDep = c(0, 0, 0, 2),
   play = playback, plot = TRUE, ylim = c(0, 2))
 
-## ----fig.width = 7, fig.height = 7--------------------------------------------
+## ----fig.width = 7, fig.height = 5--------------------------------------------
 s057 = soundgen(
   sylLen = 1200, 
   pitch = list(
@@ -539,7 +542,7 @@ s057 = soundgen(
   attackLen = c(10, 200),
   samplingRate = 44100, play = playback, plot = TRUE, ylim = c(0, 5))
 
-## ----fig.width = 7, fig.height = 7--------------------------------------------
+## ----fig.width = 7, fig.height = 5--------------------------------------------
 s058 = soundgen(
   sylLen = 1200, 
   pitch = list(

@@ -26,7 +26,10 @@ by len, which must then be provided in ms). So anchors$time is assumed to
 be in ms if len=NULL and relative if len is specified. \code{anchors$value}
 can be on any scale.}
 
-\item{interpol}{deprecated}
+\item{interpol}{method of interpolation between anchors: "approx" = linear
+with \code{\link{approx}}, "spline" = cubic splines with
+\code{\link{spline}}, "loess" = local polynomial regression with
+\code{\link{loess}}}
 
 \item{valueFloor}{lowser/upper bounds for the contour}
 

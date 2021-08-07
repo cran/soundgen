@@ -100,7 +100,7 @@ colnames(a)
 To install the current release from CRAN: `install.packages("soundgen")`
 
 NB: Make sure all dependencies have been installed correctly\! For
-problems with seewave, see <http://rug.mnhn.fr/seewave/>
+problems with seewave, see <https://rug.mnhn.fr/seewave/>
 
 On Macs, you may need to do the following:
 

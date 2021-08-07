@@ -25,7 +25,10 @@ by len, which must then be provided in ms). So anchors$time is assumed to
 be in ms if len=NULL and relative if len is specified. \code{anchors$value}
 can be on any scale.}
 
-\item{interpol}{deprecated}
+\item{interpol}{method of interpolation between anchors: "approx" = linear
+with \code{\link{approx}}, "spline" = cubic splines with
+\code{\link{spline}}, "loess" = local polynomial regression with
+\code{\link{loess}}}
 
 \item{valueFloor}{lowser/upper bounds for the contour}
 
@@ -33,9 +36,9 @@ can be on any scale.}
 
 \item{duration_ms}{contour duration, ms}
 
-\item{loessSpan}{parameter that controlled the amount of smoothing when
-interpolating pitch etc between anchors; passed on to
-\code{\link[stats]{loess}}, so only has an effect if interpol = 'loess'}
+\item{loessSpan}{controls the amount of smoothing when interpolating between
+anchors with \code{\link[stats]{loess}}, so only has an effect if interpol
+= 'loess' (1 = strong, 0.5 = weak smoothing)}
 }
 \description{
 Internal soundgen function

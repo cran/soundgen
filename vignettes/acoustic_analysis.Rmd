@@ -16,7 +16,7 @@ vignette: >
   
 # Purpose
   
-There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages. For in-depth analysis of individual mammalian sounds it's hard to beat PRAAT (batch processing is possible, but a bit tricky, because PRAAT uses its own, rather unusual scripting language). For bird sounds, a sophisticated tool is Sound Analysis Pro. In R, the most general-purpose acoustic toolkit is the <a href="https://CRAN.R-project.org/package=seewave">seewave</a> package. Soundgen builds upon the functionality of seewave, adding high-level functions for sound synthesis (see the vignette on sound synthesis), manipulation, and analysis.
+There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages. For in-depth analysis of individual mammalian sounds it's hard to beat PRAAT (batch processing is possible, but a bit tricky because PRAAT uses its own, rather unusual scripting language). For bird sounds, a sophisticated tool is Sound Analysis Pro. In R, the most general-purpose acoustic toolkit is the <a href="https://CRAN.R-project.org/package=seewave">seewave</a> package. Soundgen builds upon the functionality of seewave, adding high-level functions for sound synthesis (see the vignette on sound synthesis), manipulation, and analysis.
   
 Reasons to use `soundgen` for acoustic analysis might be: 
   
@@ -106,6 +106,7 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `dom`: lowest dominant frequency band (Hz) (see "Pitch tracking methods / Dominant frequency")
 * `entropy`: Weiner entropy of the spectrum of the current frame. Close to 0: pure tone or tonal sound with nearly all energy in harmonics; close to 1: white noise
 * `f1_freq`, `f1_width`, ...: the frequency and bandwidth of the first `nFormants` formants per STFT frame, as calculated by `phonTools::findformants` with default settings
+* `flux`: feature-based flux, the rate of change in acoustic features such as pitch, HNR, etc.; unitless (0 = none)
 * `harmEnergy`: the amount of energy in upper harmonics, namely the ratio of total spectral energy above 1.25 x f0 to the total spectral energy below 1.25 x f0 (dB)
 * `harmHeight`: how high harmonics reach in the spectrum, based on the best guess at pitch (or the manually provided pitch values): see `soundgen:::harmHeight` for details
 * `HNR`: harmonics-to-noise ratio (dB), a measure of harmonicity returned by `soundgen:::getPitchAutocor()` (see "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as in noise

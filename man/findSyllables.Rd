@@ -7,6 +7,8 @@
 findSyllables(ampl, step, windowLength, threshold, shortestSyl, shortestPause)
 }
 \arguments{
+\item{ampl}{downsampled amplitude envelope}
+
 \item{step}{time difference between two points in the envelope (ms)}
 
 \item{windowLength}{length of FFT window, ms}
@@ -18,9 +20,6 @@ be syllables}
 
 \item{shortestPause}{minimum acceptable break between syllables, ms
 (syllables separated by shorter pauses are merged)}
-
-\item{envelope}{downsampled amplitude envelope: dataframe with columns "time"
-and "value"}
 }
 \value{
 Returns a dataframe with timing of syllables.

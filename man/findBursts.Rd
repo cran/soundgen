@@ -16,6 +16,8 @@ findBursts(
 )
 }
 \arguments{
+\item{ampl}{downsampled amplitude envelope}
+
 \item{step}{time difference between two points in the envelope (ms)}
 
 \item{windowLength}{length of FFT window, ms}

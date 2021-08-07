@@ -22,8 +22,7 @@ NULL
 #' \url{http://cogsci.se/soundgen.html} and vignette('sound_generation', package
 #' = 'soundgen').
 #'
-#' @seealso \code{\link{generateNoise}} \code{\link{generateNoise}}
-#'   \code{\link{fart}} \code{\link{beat}}
+#' @seealso \code{\link{generateNoise}} \code{\link{beat}} \code{\link{fart}}
 #'
 #' @param repeatBout number of times the whole bout should be repeated
 #' @param nSyl number of syllables in the bout. `pitchGlobal`, `amplGlobal`, and
@@ -175,14 +174,10 @@ NULL
 #'   format)
 #' @param amplGlobal global amplitude envelope spanning
 #'   multiple syllables (dB, 0 = no change) (anchor format)
-#' @param smoothing a list of parameters that control the smoothing of pitch and
-#'   amplitude contours: \code{interpol} (loess, spline, or approx), loessSpan
-#'   (1 = strong, .5 = weak smoothing), discontThres, and jumpThres (if two
-#'   anchors are closer in time than \code{discontThres}, the contour is broken
-#'   into segments with a linear transition between these anchors; if anchors
-#'   are closer than \code{jumpThres}, a new section starts with no transition
-#'   at all (e.g. for adding pitch jumps). See \code{\link{getSmoothContour}}
-#' @param interpol,discontThres,jumpThres deprecated
+#' @param smoothing a list of parameters passed to
+#'   \code{\link{getSmoothContour}} to control the interpolation and smoothing
+#'   of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+#'   jumpThres
 #' @param samplingRate sampling frequency, Hz
 #' @param windowLength length of FFT window, ms
 #' @param overlap FFT window overlap, \%. For allowed values, see
@@ -334,9 +329,6 @@ soundgen = function(
                    loessSpan = NULL,
                    discontThres = .05,
                    jumpThres = .01),
-  interpol = 'deprecated',
-  discontThres = 'deprecated',
-  jumpThres = 'deprecated',
   samplingRate = 16000,
   windowLength = 50,
   overlap = 75,
@@ -352,18 +344,10 @@ soundgen = function(
   ...
 ) {
   # deprecated pars
-  if (!missing('interpol')) {
-    smoothing$interpol = interpol
-    message('interpol is deprecated; use "smoothing" instead')
-  }
-  if (!missing('discontThres')) {
-    smoothing$discontThres = discontThres
-    message('discontThres is deprecated; use "smoothing" instead')
-  }
-  if (!missing('jumpThres')) {
-    smoothing$discontThres = discontThres
-    message('discontThres is deprecated; use "smoothing" instead')
-  }
+  # if (!missing('interpol')) {
+  #   smoothing$interpol = interpol
+  #   message('interpol is deprecated; use "smoothing" instead')
+  # }
   if (FALSE) shinyjs::info('adja')  # to avoid a NOTE on CRAN
 
   # check that values of numeric arguments are valid and within range
@@ -421,7 +405,7 @@ soundgen = function(
     na_seg = na_seg[is.na(pitch[na_seg$start]), ]
     na_seg$prop_start = (na_seg$start - 1) / lp
     na_seg$prop_end = na_seg$end / lp
-    pitch = intplPitch(pitch)  # fill in NA by interpolation
+    pitch = intplNA(pitch)  # fill in NA by interpolation
   } else {
     na_seg = NULL
   }
@@ -708,9 +692,9 @@ soundgen = function(
     'pitchCeiling' = pitchCeiling,
     'pitchSamplingRate' = pitchSamplingRate,
     'dynamicRange' = dynamicRange,
-    'interpol' = smoothing$interpol,
     'samplingRate' = samplingRate,
-    'overlap' = overlap
+    'overlap' = overlap,
+    'smoothing' = smoothing
   )
   pars_syllable = pars_list
   pitchDeltas = rep(1, nSyl)
@@ -766,14 +750,13 @@ soundgen = function(
   # per voiced syllable
   if (is.list(amplGlobal)) {
     if (any(amplGlobal$value != 0)) {
-      amplEnvelope = do.call(getSmoothContour, c(
-        smoothing, list(
-          anchors = amplGlobal,
-          len = nSyl,
-          valueFloor = -dynamicRange,
-          valueCeiling = dynamicRange,
-          samplingRate = samplingRate
-        )))
+      amplEnvelope = do.call(getSmoothContour, c(smoothing, list(
+        anchors = amplGlobal,
+        len = nSyl,
+        valueFloor = -dynamicRange,
+        valueCeiling = dynamicRange,
+        samplingRate = samplingRate
+      )))
       # convert from dB to linear multiplier
       amplEnvelope = 10 ^ (amplEnvelope / 20)
     }
@@ -791,13 +774,13 @@ soundgen = function(
     noseRad = noseRad,
     mouthOpenThres = mouthOpenThres,
     mouth = mouth,
-    interpol = smoothing$interpol,
     temperature = temperature,
     formDrift = tempEffects$formDrift,
     formDisp = tempEffects$formDisp,
     samplingRate = samplingRate,
     windowLength_points = windowLength_points,
-    overlap = overlap
+    overlap = overlap,
+    smoothing = smoothing
   )
 
   # START OF BOUT GENERATION
@@ -1092,6 +1075,7 @@ soundgen = function(
             overlap = overlap,
             dynamicRange = dynamicRange,
             invalidArgAction = invalidArgAction,
+            smoothing = smoothing,
             spectralEnvelope = NULL # spectralEnvelopeNoise
           ) * amplEnvelope[s]  # correction of amplitude per syllable
           # plot(unvoiced[[s]], type = 'l')

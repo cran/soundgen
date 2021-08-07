@@ -138,6 +138,8 @@ analyzeFolder = function(...) {
 #' @param subh a list of control parameters for estimating the strength of
 #'   subharmonics per frame - that is, spectral energy at integer ratios of f0:
 #'   see \code{?soundgen:::subhToHarm}
+#' @param flux a list of control parameters for calculating feature-based flux
+#'   (not spectral flux) passed to \code{\link{getFeatureFlux}}
 #' @param shortestSyl the smallest length of a voiced segment (ms) that
 #'   constitutes a voiced syllable (shorter segments will be replaced by NA, as
 #'   if unvoiced)
@@ -203,22 +205,25 @@ analyzeFolder = function(...) {
 #'   of the current frame. Close to 0: pure tone or tonal sound with nearly all
 #'   energy in harmonics; close to 1: white noise} \item{f1_freq, f1_width,
 #'   ...}{the frequency and bandwidth of the first nFormants formants per STFT
-#'   frame, as calculated by phonTools::findformants} \item{harmEnergy}{the
-#'   amount of energy in upper harmonics, namely the ratio of total spectral
-#'   mass above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
-#'   \item{harmHeight}{how high harmonics reach in the spectrum, based on the
-#'   best guess at pitch (or the manually provided pitch values)}
-#'   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
-#'   by soundgen:::getPitchAutocor (see "Pitch tracking methods /
-#'   Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as
-#'   in noise} \item{loudness}{subjective loudness, in sone, corresponding to
-#'   the chosen SPL_measured - see \code{\link{getLoudness}}}
-#'   \item{novelty}{spectral novelty - a measure of how variable the spectrum is
-#'   on a particular time scale, as estimated by \code{\link{ssm}}}
-#'   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
-#'   \item{pitch}{post-processed pitch contour based on all F0 estimates}
-#'   \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
-#'   quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
+#'   frame, as calculated by phonTools::findformants} \item{flux}{feature-based
+#'   flux, the rate of change in acoustic features such as pitch, HNR, etc. (0 =
+#'   none, 1 = max); "epoch" is an audio segment between two peaks of flux that
+#'   exceed a threshold of \code{flux = list(thres = ...)} (listed in
+#'   output$detailed only)} \item{harmEnergy}{the amount of energy in upper
+#'   harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
+#'   total spectral mass below 1.25 x F0 (dB)} \item{harmHeight}{how high
+#'   harmonics reach in the spectrum, based on the best guess at pitch (or the
+#'   manually provided pitch values)} \item{HNR}{harmonics-to-noise ratio (dB),
+#'   a measure of harmonicity returned by soundgen:::getPitchAutocor (see "Pitch
+#'   tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much
+#'   energy in harmonics as in noise} \item{loudness}{subjective loudness, in
+#'   sone, corresponding to the chosen SPL_measured - see
+#'   \code{\link{getLoudness}}} \item{novelty}{spectral novelty - a measure of
+#'   how variable the spectrum is on a particular time scale, as estimated by
+#'   \code{\link{ssm}}} \item{peakFreq}{the frequency with maximum spectral
+#'   power (Hz)} \item{pitch}{post-processed pitch contour based on all F0
+#'   estimates} \item{quartile25, quartile50, quartile75}{the 25th, 50th, and
+#'   75th quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
 #'   amount of amplitude modulation, see modulationSpectrum}
 #'   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
 #'   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
@@ -410,6 +415,7 @@ analyze = function(
   pitchHps = list(),
   harmHeight = list(),
   subh = list(method = 'cep', nSubh = 5),
+  flux = list(thres = 0.15, smoothWin = 100),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = list(win = 75, tol = 0.3, cert = 0.3),
@@ -572,6 +578,8 @@ analyze = function(
     if (is.null(interpol$tol)) interpol$tol = .3
     if (is.null(interpol$cert)) interpol$cert = .3
   }
+  if (is.null(flux$thres)) flux$thres = 0.15
+  if (is.null(flux$smoothWin)) flux$smoothWin = 100
 
   # match args
   myPars = c(as.list(environment()), list(...))
@@ -619,7 +627,7 @@ analyze = function(
         temp[[i]] = summarizeAnalyze(
           pa$result[[i]],
           summaryFun = summaryFun,
-          var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time'))
+          var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time', 'epoch'))
       }
     }
     idx_failed = which(pa$input$failed)
@@ -687,6 +695,7 @@ analyze = function(
   pitchHps = list(),
   harmHeight = list(),
   subh = list(),
+  flux = list(),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = NULL,
@@ -923,6 +932,7 @@ analyze = function(
   # image(t(s))
   bin = audio$samplingRate / 2 / nrow(s)  # width of spectral bin, Hz
   freqs = as.numeric(rownames(s)) * 1000  # central bin freqs, Hz
+  # specFlux = getSpectralFlux(s)  # spectral flux - not very useful, IMHO
 
   # calculate rms amplitude of each frame
   myseq = (timestamps - audio$timeShift * 1000 - windowLength / 2) *
@@ -1197,11 +1207,11 @@ analyze = function(
         priorMean = semitonesToHz(mean(pitch_sem))
         priorSD = semitonesToHz(sd(pitch_sem)) * 4
         pitchCert_multiplier2 = getPrior(priorMean = priorMean,
-                                        priorSD = priorSD,
-                                        pitchFloor = pitchFloor,
-                                        pitchCeiling = pitchCeiling,
-                                        pitchCands = pitchCands_list$freq,
-                                        plot = FALSE)
+                                         priorSD = priorSD,
+                                         pitchFloor = pitchFloor,
+                                         pitchCeiling = pitchCeiling,
+                                         pitchCands = pitchCands_list$freq,
+                                         plot = FALSE)
         pitchCands_list$cert = pitchCands_list$cert * pitchCert_multiplier2
       }
 
@@ -1276,9 +1286,10 @@ analyze = function(
     }
     if (!is.null(pitch_raw)) {
       # up/downsample pitchManual to the right length
-      pitch_true = upsamplePitchContour(
-        pitch = pitch_raw,
-        len = nrow(result),
+      pitch_true = resample(
+        x = pitch_raw,
+        mult = nrow(result) / length(pitch_raw),
+        lowPass = FALSE,
         plot = FALSE)
     } else {
       message(paste(
@@ -1297,12 +1308,13 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            returnMS = FALSE, plot = FALSE),
       roughness))
-    result$roughness = upsamplePitchContour(ms$roughness, len = nrow(result),
-                                            plot = FALSE)
-    result$amFreq = upsamplePitchContour(ms$amFreq, len = nrow(result),
-                                         plot = FALSE)
-    result$amDep = upsamplePitchContour(ms$amDep, len = nrow(result),
-                                        plot = FALSE)
+    mult = nrow(result) / length(ms$roughness)
+    result$roughness = resample(ms$roughness, mult = mult,
+                                lowPass = FALSE, plot = FALSE)
+    result$amFreq = resample(ms$amFreq, mult = mult,
+                             lowPass = FALSE, plot = FALSE)
+    result$amDep = resample(ms$amDep, mult = mult,
+                            lowPass = FALSE, plot = FALSE)
     result[!cond_silence, c('roughness', 'amFreq', 'amDep')] = NA
   }
 
@@ -1314,8 +1326,8 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            sparse = TRUE, plot = FALSE),
       novelty))$novelty
-    result$novelty = upsamplePitchContour(novel, len = nrow(result),
-                                          plot = FALSE)
+    result$novelty = resample(novel, mult = nrow(result) / length(novel),
+                              lowPass = FALSE, plot = FALSE)
     result$novelty[!cond_silence] = NA
   }
 
@@ -1336,15 +1348,16 @@ analyze = function(
     freqs = freqs,
     bin = bin,
     samplingRate = audio$samplingRate,
+    windowLength = windowLength,
     harmHeight_pars = harmHeight,
     subh_pars = subh,
+    flux_pars = flux,
     smooth = smooth,
     smoothing_ww = smoothing_ww,
-    smoothingThres = smoothing_ww,
+    smoothingThres = smoothingThres,
     # NB: peakFreq & specCentroid are defined for unvoiced frames, but not quartiles
     varsToUnv = paste0(varsToUnv, 'Voiced')
   )
-
 
   ## Add pitch contours to the spectrogram
   if (plot) {
@@ -1363,7 +1376,7 @@ analyze = function(
         cnt = result[, cnt_name]
         col_non_Hz = c(
           'amDep', 'ampl, amplVoiced', 'entropy', 'entropyVoiced',
-          paste0('f', 1:10, '_width'), 'harmEnergy', 'HNR',
+          paste0('f', 1:10, '_width'), 'flux', 'harmEnergy', 'HNR',
           'HNR_voiced', 'loudness', 'loudnessVoiced',
           'roughness', 'roughnessVoiced',
           'novelty', 'noveltyVoiced',

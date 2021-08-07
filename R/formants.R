@@ -9,16 +9,13 @@
 #'   windowLength_points is the size of window for Fourier transform
 #' @param nc the number of time steps for Fourier transform
 #' @inheritParams soundgen
+#' @inheritParams getSmoothContour
 #' @param formants a character string like "aaui" referring to default presets
 #'   for speaker "M1"; a vector of formant frequencies; or a list of formant
 #'   times, frequencies, amplitudes, and bandwidths, with a single value of each
 #'   for static or multiple values of each for moving formants. \code{formants =
 #'   NA} defaults to schwa. Time stamps for formants and mouthOpening can be
 #'   specified in ms or an any other arbitrary scale.
-#' @param interpol the method of smoothing envelopes based on provided mouth
-#'   anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
-#'   (default) = polynomial local smoothing function. NB: this does NOT affect
-#'   the smoothing of formant anchors
 #' @param formDrift scale factor regulating the effect of temperature on the
 #'   depth of random drift of all formants (user-defined and stochastic): the
 #'   higher, the more formants drift at a given temperature
@@ -124,7 +121,6 @@ getSpectralEnvelope = function(
   lipRad = 6,
   noseRad = 4,
   mouth = NA,
-  interpol = c('approx', 'spline', 'loess')[3],
   mouthOpenThres = 0.2,
   openMouthBoost = 0,
   vocalTract = NULL,
@@ -136,6 +132,7 @@ getSpectralEnvelope = function(
   formantCeiling = 2,
   samplingRate = 16000,
   speedSound = 35400,
+  smoothing = list(),
   output = c('simple', 'detailed')[1],
   plot = FALSE,
   duration = NULL,
@@ -159,14 +156,13 @@ getSpectralEnvelope = function(
     if (!any(is.na(vocalTract))) {
       if (is.list(vocalTract) |
           (is.numeric(vocalTract) & length(vocalTract) > 1)) {
-        vocalTract = getSmoothContour(
+        vocalTract = do.call(getSmoothContour, c(smoothing, list(
           vocalTract,
           len = nc,
-          interpol = interpol,
           valueFloor = permittedValues['vocalTract', 'low'],
           valueCeiling = permittedValues['vocalTract', 'high'],
           plot = FALSE
-        )  # vocalTract is now either NULL/NA or numeric of length nc
+        )))  # vocalTract is now either NULL/NA or numeric of length nc
       }
     }
   }
@@ -198,22 +194,31 @@ getSpectralEnvelope = function(
 
   ### START OF FORMANTS
   if (is.list(formants)) {
-    # upsample to the length of fft steps
-    nPoints = max(unlist(lapply(formants, nrow)))
+    ## Upsample to the length of fft steps
     formants_upsampled = vector('list', length = length(formants))
     for (f in 1:length(formants)) {
       formant_f = data.frame(time = seq(0, 1, length.out = nc))
       for (v in c('freq', 'amp', 'width')) {
         if (length(formants[[f]][, v]) > 1 & !any(is.na(formants[[f]][, v]))) {
           # just spline produces imprecise, overly smoothed curves. Loess is just
-          # too slow for this. So we apply linear extrapolation to formant values
+          # too slow for this. So we apply linear interpolation to formant values
           # first, to get a fairly straight line between anchors, and THEN smooth
           # it out with spline
-          formant_f[, v] = spline(approx(
-            formants[[f]][, v],
-            n = nPoints + 2 ^ smoothLinearFactor,
-            x = formants[[f]]$time)$y, n = nc
-          )$y
+          if (v == 'freq') {
+            formant_f[, v] =  do.call(getSmoothContour, c(smoothing, list(
+              formants[[f]][, v],
+              len = nc,
+              smoothing = smoothing,
+              valueFloor = 1,
+              plot = FALSE
+            )))
+          } else {
+            # just use approx for the rest to speed things up
+            formant_f[, v] = approx(
+              formants[[f]][, v],
+              n = nc,
+              x = formants[[f]]$time)$y
+          }
         } else {
           formant_f[, v] = rep(formants[[f]][1, v], nc)
         }
@@ -339,14 +344,13 @@ getSpectralEnvelope = function(
       # whole time - sort of hanging loosely agape ;))
       mouthOpen_binary = rep(1, nc)
     } else {
-      mouthOpening_upsampled = getSmoothContour(
+      mouthOpening_upsampled = do.call(getSmoothContour, c(smoothing, list(
         len = nc,
         anchors = mouth,
-        interpol = interpol,
         valueFloor = permittedValues['mouthOpening', 'low'],
         valueCeiling = permittedValues['mouthOpening', 'high'],
         plot = FALSE
-      )
+      )))
       # mouthOpening_upsampled[mouthOpening_upsampled < mouthOpenThres] = 0
       mouthOpen_binary = ifelse(mouthOpening_upsampled > mouthOpenThres, 1, 0)
     }
@@ -607,10 +611,6 @@ getSpectralEnvelope = function(
 #' @param formDrift,formDisp scaling factors for the effect of temperature on
 #'   formant drift and dispersal, respectively
 #' @param windowLength_points length of FFT window, points
-#' @param interpol the method of smoothing envelopes based on provided mouth
-#'   anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
-#'   (default) = polynomial local smoothing function. NB: this does NOT affect
-#'   the smoothing of formant anchors
 #' @param normalize if TRUE, normalizes the output to range from -1 to +1
 #' @export
 #' @examples
@@ -727,10 +727,10 @@ addFormants = function(
   noseRad = 4,
   mouthOpenThres = 0,
   mouth = NA,
-  interpol = c('approx', 'spline', 'loess')[3],
   temperature = 0.025,
   formDrift = 0.3,
   formDisp = 0.2,
+  smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
   normalize = TRUE,
@@ -789,10 +789,10 @@ addFormants = function(
   noseRad = 4,
   mouthOpenThres = 0,
   mouth = NA,
-  interpol = c('approx', 'spline', 'loess')[3],
   temperature = 0.025,
   formDrift = 0.3,
   formDisp = 0.2,
+  smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
   normalize = TRUE,
@@ -855,10 +855,10 @@ addFormants = function(
         noseRad = noseRad,
         mouthOpenThres = mouthOpenThres,
         mouth = mouth,
-        interpol = interpol,
         temperature = temperature,
         formDrift = formDrift,
         formDisp = formDisp,
+        smoothing = smoothing,
         samplingRate = audio$samplingRate,
         vocalTract = vocalTract
       )

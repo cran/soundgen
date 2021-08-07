@@ -16,6 +16,7 @@
 #'
 #' @seealso \code{\link{soundgen}} \code{\link{fart}} \code{\link{beat}}
 #'
+#' @inheritParams soundgen
 #' @param len length of output
 #' @param spectralEnvelope (optional): as an alternative to using rolloffNoise,
 #'   we can provide the exact filter - a vector of non-negative numbers
@@ -25,7 +26,6 @@
 #'   each STFT step is also accepted. The easiest way to obtain spectralEnvelope
 #'   is to call soundgen:::getSpectralEnvelope or to use the spectrum /
 #'   spectrogram of a recorded sound
-#' @inheritParams soundgen
 #' @param windowLength_points the length of fft window, points
 #' @export
 #' @examples
@@ -131,7 +131,7 @@ generateNoise = function(
   samplingRate = 16000,
   overlap = 75,
   dynamicRange = 80,
-  interpol = c('approx', 'spline', 'loess')[3],
+  smoothing = list(),
   invalidArgAction = c('adjust', 'abort', 'ignore')[1],
   play = FALSE) {
   # wiggle pars
@@ -222,16 +222,15 @@ generateNoise = function(
 
   # convert anchors to a smooth contour of breathing amplitudes
   if (is.list(noise)) {
-    breathingStrength = getSmoothContour(
-      len = len,
+    breathingStrength = do.call(getSmoothContour, c(smoothing, list(
       anchors = noise,
+      len = len,
       normalizeTime = FALSE,
-      interpol = interpol,
       valueFloor = permittedValues['noiseAmpl', 'low'],
       valueCeiling = permittedValues['noiseAmpl', 'high'],
       samplingRate = samplingRate,
       plot = FALSE
-    )
+    )))
     # convert anchor amplitudes from dB to linear multipliers
     breathingStrength = 10 ^ (breathingStrength / 20)
     if (sum(is.na(breathingStrength)) > 0) {
@@ -261,13 +260,12 @@ generateNoise = function(
         (is.numeric(rolloffNoise) & length(rolloffNoise) > 1)) {
       # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1:
       # spectrum of turbulent noise
-      rolloffNoise = getSmoothContour(
+      rolloffNoise = do.call(getSmoothContour, c(smoothing, list(
         anchors = rolloffNoise,
         len = nc,
-        interpol = interpol,
         valueFloor = permittedValues['rolloffNoise', 'low'],
         valueCeiling = permittedValues['rolloffNoise', 'high']
-      )
+      )))
       spectralEnvelope = matrix(1, nrow = nr, ncol = nc)
       for (c in 1:nc) {
         spectralEnvelope[idx, c] = 10 ^ (rolloffNoise[c] / 20 * (idx - flatBins) / binsPerKHz)
@@ -283,13 +281,12 @@ generateNoise = function(
         (is.numeric(rolloffNoiseExp) && any(rolloffNoiseExp != 0))) {
       if ((is.list(rolloffNoiseExp) && length(rolloffNoiseExp$value) > 1) |
           (is.numeric(rolloffNoiseExp) && length(rolloffNoiseExp) > 1)) {
-        rolloffNoiseExp = getSmoothContour(
+        rolloffNoiseExp = do.call(getSmoothContour, c(smoothing, list(
           anchors = rolloffNoiseExp,
           len = nc,
-          interpol = interpol,
           valueFloor = permittedValues['rolloffNoiseExp', 'low'],
           valueCeiling = permittedValues['rolloffNoiseExp', 'high']
-        )
+        )))
         for (c in 1:nc) {
           spectralEnvelope[, c] = spectralEnvelope[, c] *
             10 ^ (log2(1:nr) * rolloffNoiseExp[c] / 20)
@@ -308,7 +305,8 @@ generateNoise = function(
       spectralEnvelope = spectralEnvelope[!is.na(spectralEnvelope)]
       if (length(spectralEnvelope) != nr) {
         # interpolate to correct freq resolution
-        spectralEnvelope = getSmoothContour(spectralEnvelope, len = nr)
+        spectralEnvelope = do.call(getSmoothContour, c(smoothing, list(
+          anchors = spectralEnvelope, len = nr)))
         # spectralEnvelope = approx(spectralEnvelope, n = nr, method = 'linear')$y
       }
       spectralEnvelope = matrix(rep(spectralEnvelope, nc), ncol = nc)
@@ -458,7 +456,7 @@ generateHarmonics = function(pitch,
                              subWidth = 10000,
                              ampl = NA,
                              normalize = TRUE,
-                             interpol = c('approx', 'spline', 'loess')[3],
+                             smoothing = list(),
                              overlap = 75,
                              samplingRate = 16000,
                              pitchFloor = 75,
@@ -473,12 +471,12 @@ generateHarmonics = function(pitch,
       for (p in c('vibratoFreq', 'vibratoDep')) {
         old = get(p)
         if (length(old) > 1) {
-          new = getSmoothContour(
+          new = do.call(getSmoothContour, c(smoothing, list(
             anchors = old,
             len = lp,
             valueFloor = permittedValues[p, 'low'],
-            valueCeiling = Inf,  # permittedValues[p, 'high'],
-            interpol = interpol)
+            valueCeiling = Inf  # permittedValues[p, 'high'],
+          )))
           assign(p, new)
         }
       }
@@ -507,12 +505,11 @@ generateHarmonics = function(pitch,
   for (p in update_pars) {
     old = get(p)
     if (length(old) > 1) {
-      new = getSmoothContour(
+      new = do.call(getSmoothContour, c(smoothing, list(
         anchors = old,
         len = nGC,
         valueFloor = permittedValues[p, 'low'],
-        valueCeiling = permittedValues[p, 'high'],
-        interpol = interpol)[gc1]
+        valueCeiling = permittedValues[p, 'high'])))[gc1]
       assign(p, new)
     }
   }
@@ -521,14 +518,13 @@ generateHarmonics = function(pitch,
   rolloffAmpl = rep(0, nGC)
   if (is.numeric(ampl) | is.list(ampl)) {
     if (any(ampl$value != 0)) {
-      amplContour = getSmoothContour(
+      amplContour = do.call(getSmoothContour, c(smoothing, list(
         anchors = ampl,
         len = nGC,
         valueFloor = -dynamicRange,
         valueCeiling = 0,
-        interpol = interpol,
         samplingRate = samplingRate
-      )
+      )))
       # plot(amplContour, type='l')
       amplContour = (amplContour + dynamicRange) / dynamicRange - 1
       rolloffAmpl = amplContour * rolloff_perAmpl
@@ -738,12 +734,11 @@ generateHarmonics = function(pitch,
       }
     }
     rolSrc = unlist(rolSrc, recursive = FALSE)  # get rid of epochs
-    glottisClosed_per_gc = getSmoothContour(
+    glottisClosed_per_gc = do.call(getSmoothContour, c(smoothing, list(
       anchors = glottis,
-      interpol = interpol,
       len = nGC,
       valueFloor = 0
-    )
+    )))
     # warp glottis anchors to ensure that their timing is not affected by the delay
     # of adding extra silence between glottal cycles when glottis > 0
     warpRows = (1:nrow(glottis))[-c(1, nrow(glottis))]
@@ -761,12 +756,11 @@ generateHarmonics = function(pitch,
         glottis$time[r] = which(cs > target_dur)[1] / nGC
       }
     }
-    glottisClosed_per_gc = getSmoothContour(
+    glottisClosed_per_gc = do.call(getSmoothContour, c(smoothing, list(
       anchors = glottis,
-      interpol = interpol,
       len = nGC,
       valueFloor = 0
-    )
+    )))
     waveform = generateGC(pitch_per_gc = pitch_per_gc,
                           glottisClosed_per_gc = glottisClosed_per_gc,
                           rolloff_per_gc = rolSrc,
@@ -801,7 +795,7 @@ generateHarmonics = function(pitch,
   if (temperature > 0 & amplDriftDep > 0) {
     drift_ampl = zeroOne(drift) * temperature
     drift_ampl = drift_ampl - mean(drift_ampl) + 1  # hist(drift_ampl)
-    gc_upsampled = upsample(pitch_per_gc, samplingRate = samplingRate)$gc
+    gc_upsampled = upsampleGC(pitch_per_gc, samplingRate = samplingRate)$gc
     drift_upsampled = approx(drift_ampl,  # otherwise pitchDriftDep scales amplDriftDep
                              n = length(waveform),
                              x = gc_upsampled[-length(gc_upsampled)])$y
@@ -817,13 +811,12 @@ generateHarmonics = function(pitch,
   # apply amplitude envelope
   if (is.numeric(ampl) | is.list(ampl)) {
     if (any(ampl$value != 0)) {
-      amplEnvelope = getSmoothContour(
+      amplEnvelope = do.call(getSmoothContour, c(smoothing, list(
         anchors = ampl,
         len = length(waveform),
         valueFloor = -dynamicRange,
-        interpol = interpol,
         samplingRate = samplingRate
-      )
+      )))
       # plot(amplEnvelope, type = 'l')
       # convert from dB to linear multiplier
       amplEnvelope = 10 ^ (amplEnvelope / 20)
@@ -982,7 +975,7 @@ generateEpoch = function(pitch_per_gc,
   #   Uses a more sophisticated but still very fast version of linear
   #   interpolation, which takes into account the variable length
   #   of glottal cycles
-  up = upsample(pitch_per_gc, samplingRate = samplingRate)
+  up = upsampleGC(pitch_per_gc, samplingRate = samplingRate)
   pitch_upsampled = up$pitch
   gc_upsampled = up$gc
   integr = cumsum(pitch_upsampled) / samplingRate

@@ -627,8 +627,7 @@ server = function(input, output, session) {
         myPars$result = temp_anal$result
         myPars$summary = soundgen:::summarizeAnalyze(
           temp_anal$result,
-          summaryFun = input$summaryFun,
-          var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time')
+          summaryFun = input$summaryFun
         )
         myPars$pitchCands = temp_anal$pitchCands
         myPars$spec_from_anal = temp_anal$spectrogram
@@ -733,9 +732,10 @@ server = function(input, output, session) {
         unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-voiced_frames]
         # make sure myPars$pitch is the same length as ncol(pitchCands$freq)
         if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) {
-          myPars$pitch = soundgen:::upsamplePitchContour(
+          myPars$pitch = resample(
             pitch = myPars$pitch,
-            len = ncol(myPars$pitchCands$freq),
+            mult = ncol(myPars$pitchCands$freq) / length(myPars$pitch),
+            lowPass = FALSE,
             plot = FALSE)
         }
         myPars$pitch[unvoiced_frames] = NA
@@ -1301,13 +1301,15 @@ server = function(input, output, session) {
         result = myPars$result,
         pitch_true = myPars$pitch,
         spectrogram = myPars$spec_from_anal,
+        windowLength = input$windowLength,
         harmHeight_pars = list(
           harmThres = defaults_analyze['harmThres', 'default'],
           harmTol = defaults_analyze['harmTol', 'default'],
           harmPerSel = defaults_analyze['harmPerSel', 'default']),
+        flux_pars = list(thres = 0.15),
         smooth = input$smooth,
         smoothing_ww = myPars$smoothing_ww,
-        smoothingThres = myPars$smoothing_ww
+        smoothingThres = myPars$smoothingThres
       )
       summary_new = soundgen:::summarizeAnalyze(
         result_new,

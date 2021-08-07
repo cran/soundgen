@@ -309,7 +309,7 @@ getPrior = function(priorMean,
 summarizeAnalyze = function(
   result,
   summaryFun = c('mean', 'sd'),
-  var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time')
+  var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time', 'epoch')
 ) {
   if (is.character(var_noSummary)) {
     vars = colnames(result)[!colnames(result) %in% var_noSummary]
@@ -385,8 +385,10 @@ updateAnalyze = function(
   freqs = NULL,
   bin = NULL,
   samplingRate = NULL,
+  windowLength = NULL,
   harmHeight_pars = list(),
   subh_pars = list(),
+  flux_pars = list(),
   smooth,
   smoothing_ww,
   smoothingThres,
@@ -451,77 +453,19 @@ updateAnalyze = function(
     }
   }
 
+  # calculate flux from features
+  if (!is.null(flux_pars$smoothWin)) {
+    flux_pars$smoothing_ww = round(flux_pars$smoothWin / windowLength)
+  } else {
+    flux_pars$smoothing_ww = 1
+  }
+  flux_pars$smoothWin = NULL
+  flux = do.call(getFeatureFlux, c(flux_pars, list(an = result)))
+  result[, c('flux', 'epoch')] = flux[, c('flux', 'epoch')]
+
   # Arrange columns in alphabetical order (except the first three)
   result = result[, c(1:3, 3 + order(colnames(result)[4:ncol(result)]))]
   return(result)
-}
-
-
-#' Upsample pitch contour
-#'
-#' Internal soundgen function
-#'
-#' Intended to up- or downsample pitch contours containing NA values using
-#' linear interpolation ("approx"). The problem is that NA segments should also
-#' be expanded when upsampling, and approx() doesn't do that. Algorithm: when
-#' upsampling, first interpolates NAs (constant at beg/end, linear in the
-#' middle), then runs approx(), and finally puts NAs back in where they belong.
-#' @param pitch numeric vector of pitch values, including NAs (as returned by
-#'   pitch_app)
-#' @param len required length
-#' @param plot if TRUE, plots the old and new pitch contours
-#' @keywords internal
-#' @examples
-#' pitchManual = c(130, 150, 250, 290, 320, 300, 280, 270, 220)
-#' soundgen:::upsamplePitchContour(pitchManual, len = 5, plot = TRUE)
-#' soundgen:::upsamplePitchContour(pitchManual, len = 25, plot = TRUE)
-#'
-#' pitchManual = c(NA, 150, 250, NA, NA, 300, 280, 270, NA)
-#' soundgen:::upsamplePitchContour(pitchManual, len = 5, plot = TRUE)
-#' soundgen:::upsamplePitchContour(pitchManual, len = 25, plot = TRUE)
-#'
-#' soundgen:::upsamplePitchContour(c(NA, NA), len = 5)
-upsamplePitchContour = function(pitch, len, plot = FALSE) {
-  if (!any(!is.na(pitch))) return(rep(NA, len))
-  if (length(pitch) == 1) return(rep(pitch, len))
-  len_orig = length(pitch)
-  time_stamps1 = seq(0, 1, length.out = len_orig)
-
-  if (len_orig == len) {
-    return(pitch)
-  } else if (len_orig > len) {
-    # downsample
-    idx = round(seq(1, len_orig, length.out = len))
-    pitch1 = pitch[idx]
-  } else {
-    # upsample
-    # interpolate NAs, otherwise approx doesn't work correctly
-    # (esp. with NAs at beg/end)
-    idx_unv = which(is.na(pitch))  # remember where NAs were
-    pitch_int = intplPitch(pitch, idx_unv = idx_unv)
-    pitch1 = approx(x = pitch_int, n = len)$y
-
-    # find NA positions in the new sound
-    d = diff(is.na(pitch))  # 1 = beginning of NA episode, -1 = end of NA episode
-    beg = which(d == 1) + 1
-    end = which(d == -1) + 1
-    if (is.na(pitch[1])) beg = c(1, beg)
-    if (is.na(pitch[len_orig])) end = c(end, len_orig)
-    na_pos_01 = data.frame(beg = time_stamps1[beg], end = time_stamps1[end])
-    na_pos2 = round(na_pos_01 * len)  # from % to position indices
-    na_pos2_vector = unlist(apply(na_pos2, 1, function(x) x[1]:x[2]))
-
-    # put NAs back in
-    pitch1[na_pos2_vector] = NA
-  }
-
-  if (plot) {
-    plot(time_stamps1, pitch, type = 'p', log = 'y',
-         xlab = 'Relative position', ylab = 'Pitch')
-    points(x = seq(0, 1, length.out = len), y = pitch1,
-           type = 'b', col = 'red', pch = 3)
-  }
-  return(pitch1)
 }
 
 
@@ -605,298 +549,108 @@ formatPitchManual = function(pitchManual) {
 }
 
 
-
-#' Check audio input type
+#' Get flux from features
 #'
-#' Internal soundgen function.
+#' Internal soundgen function
 #'
-#' Checks the types of audio input to another function, which could be a folder
-#' with audio files, a single file, a Wave object, or a numeric vector. The
-#' purposes of this helper function are to ascertain that there are some valid
-#' inputs and to make a list of valid audio files, if any.
-#' @param x path to a .wav or .mp3 file, Wave object, or a numeric vector
-#'   representing the waveform with specified samplingRate
+#' Calculates the change in acoustic features returned by analyze() from one
+#' STFT frame to the next. Since the features are on different scales, they are
+#' normalized depending on their units (but not scaled). Flux is calculated as
+#' mean absolute change across all normalized features. Whenever flux exceeds
+#' \code{thres}, a new epoch begins.
+#' @param an dataframe of results from analyze()
+#' @param thres threshold used for epoch detection (0 - 1)
+#' @param smoothing_ww if > 1, \code{\link{medianSmoother}} is called on input dataframe
+#' @param plot if TRUE, plots the normalized feature matrix and epochs
+#' @return Returns a data frame with flux per frame and epoch numbers.
 #' @keywords internal
-checkInputType = function(x) {
-  if (is.character(x)) {
-    # character means file or folder
-    if (length(x) == 1 && dir.exists(x)) {
-      # input is a folder
-      x = dirname(paste0(x, '/arbitrary'))  # strips terminal '/', if any
-      filenames = list.files(x, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
-      if (length(filenames) < 1)
-        stop(paste('No wav/mp3 files found in', x))
-    } else {
-      # input is one or more audio files
-      for (f in 1:length(x)) {
-        if (!file.exists(x) ||
-            !substr(x, nchar(x) - 3, nchar(x)) %in% c('.wav', '.mp3', '.WAV', '.MP3')) {
-          stop('Input not recognized - must be a folder, wav/mp3 file(s), or numeric vector(s)')
-        }
-      }
-      filenames = x
-    }
-    n = length(filenames)
-    type = rep('file', n)
-    filenames_base = filenames_noExt = basename(filenames)
+#' @examples
+#' an = analyze(soundgen(), 16000)
+#' fl = soundgen:::getFeatureFlux(an$detailed, plot = TRUE)
+#' \dontrun{
+#' # or simply:
+#' an = analyze(soundgen(sylLen = 500), 16000, plot = TRUE, ylim = c(0, 8),
+#'              extraContour = 'flux', flux = list(smoothWin = 100, thres = .15))
+#' }
+getFeatureFlux = function(an,
+                          thres = 0.1,
+                          smoothing_ww = 1,
+                          plot = FALSE) {
+  if (nrow(an) == 1) return(data.frame(frame = 1, flux = 0, epoch = 1))
+  # just work with certain "trustworthy" variables listed in soundgen:::featureFlux_vars
+  m = an[, match(featureFlux_vars$feature, colnames(an))]
 
-    for (f in 1:n) {
-      # strip extension
-      filenames_noExt[f] = substr(filenames_base[f], 1, nchar(filenames_base[f]) - 4)
-      filesizes = file.info(filenames)$size
-      # expand from relative to full path (useful for functions that save audio
-      # separately from plots)
-      filenames[f] = normalizePath(filenames[f])
-    }
-  } else {
-    # not file(s), but one or more objects (Wave / numeric)
-    if (!is.list(x)) x = list(x)
-    n = length(x)
-    if (n == 1) {
-      filenames_base = filenames_noExt = 'sound'
-    } else {
-      filenames_base = filenames_noExt = paste0('sound', 1:n)
-    }
-    filenames = NULL
-    filesizes = NULL
-    type = rep(NA, n)
-    for (i in 1:n) {
-      if (is.numeric(x[[i]])) {
-        type[i] = 'vector'
-      } else if (class(x[[i]]) == 'Wave') {
-        # input is a Wave object
-        type[i] = 'Wave'
-      } else {
-        stop(paste('Input not recognized - must be a folder, wav/mp3 file,',
-                   'Wave object, or numeric vector'))
-      }
+  # remove columns with nothing but NAs
+  col_rm = which(apply(m, 2, function(x) !any(!is.na(x))))
+  if (length(col_rm) > 0) m = m[, -col_rm]
+
+  # log-transform features measured in Hz
+  for (i in 1:ncol(m)) {
+    if (featureFlux_vars$log_transform[i]) {
+      m[, i] = log2(m[, i] + 1)  # +1 b/c otherwise 0 produces NA
     }
   }
-  return(list(
-    type = type,
-    n = n,
-    filenames = filenames,
-    filenames_base = filenames_base,
-    filenames_noExt = filenames_noExt,
-    filesizes = filesizes
-  ))
+
+  # normalize according to unit of measurement (don't z-transform because then
+  # even uniform files will show spurious variation - the changes here should be
+  # absolute, not relative)
+  cm = colMeans(m, na.rm = TRUE)
+  cm[which(colnames(m) == 'voiced')] = 0  # voiced
+  for (i in 1:ncol(m)) {
+    # if (featureFlux_vars$feature[i] != 'voiced')
+    m[, i] = (m[, i] - cm[i]) / featureFlux_vars$norm_scale[i]
+  }
+  # m[is.na(m)] = 0   # NAs become 0 (mean)
+  m$voiced = as.numeric(m$voiced)
+  # summary(m)
+
+  # median smoothing
+  if (smoothing_ww > 1) {
+    m = medianSmoother(m, smoothing_ww = smoothing_ww, smoothingThres = 0)
+  }
+
+  # calculate the average change from one STFT frame to the next and segment into epochs
+  nFrames = nrow(m)
+  flux = rep(NA, nFrames)
+  epoch = rep(1, nFrames)
+  for (i in 2:nFrames) {
+    cor_i = cor(as.numeric(m[i, ]), as.numeric(m[i - 1, ]), use = 'complete.obs')
+    flux[i] = 1 - (cor_i + 1) / 2  # cor_i = -1 gives a flux of 1, 0 -> 0.5, 1 -> 1
+    if (is.finite(flux[i]) && flux[i] > thres) {
+      epoch[i] = epoch[i - 1] + 1
+    } else {
+      epoch[i] = epoch[i - 1]
+    }
+  }
+
+  # plotting
+  if (plot) {
+    transitions = which(diff(epoch) != 0) - 0.5
+    image(as.matrix(m))
+    points(seq(0, 1, length.out = length(flux)), flux, type = 'l')
+    if (length(transitions) > 0) {
+      for (t in transitions) abline(v = t / nFrames)
+    }
+  }
+  return(data.frame(frame = 1:nFrames, flux = flux, epoch = epoch))
 }
 
 
-#' Read audio
+#' Get spectral flux
 #'
-#' Internal soundgen function.
+#' Internal soundgen function
 #'
-#' @param x audio input (only used for Wave objects or numeric vectors)
-#' @param input a list returned by \code{\link{checkInputType}}
-#' @param i iteration
-#' @param samplingRate sampling rate of \code{x} (only needed if \code{x} is a
-#'   numeric vector, rather than an audio file or Wave object)
-#' @param scale maximum possible amplitude of input used for normalization of
-#'   input vector (only needed if \code{x} is a numeric vector, rather than an
-#'   audio file or Wave object)
-#' @param from,to if NULL (default), analyzes the whole sound, otherwise
-#'   from...to (s)
+#' Calculates spectral flux: the average change across all spectral bins from
+#' one STFT frame to the next. Spectra are normalized in each frame, so
+#' amplitude changes have no effect on flux.
+#' @return vector of length ncol(s)
+#' @param s raw spectrogram (not normalized): rows = frequency bins, columns = STFT frames
 #' @keywords internal
-readAudio = function(x,
-                     input = checkInputType(x),
-                     i,
-                     samplingRate = NULL,
-                     scale = NULL,
-                     from = NULL,
-                     to = NULL) {
-  failed = FALSE
-  if (input$type[i] == 'file') {
-    fi = input$filenames[i]
-    ext_i = substr(fi, nchar(fi) - 3, nchar(fi))
-    if (ext_i %in% c('.wav', '.WAV')) {
-      sound_wave = try(tuneR::readWave(fi))
-    } else if (ext_i %in% c('.mp3', '.MP3')) {
-      sound_wave = try(tuneR::readMP3(fi))
-    } else {
-      warning(paste('Input', fi, 'not recognized: expected a wav/mp3 file'))
-    }
-    if (class(sound_wave) == 'try-error') {
-      failed = TRUE
-      sound = samplingRate = scale = NULL
-    } else {
-      sound = as.numeric(sound_wave@left)
-      samplingRate = sound_wave@samp.rate
-      scale = 2 ^ (sound_wave@bit - 1)
-    }
-  } else if (input$type[i] == 'vector') {
-    if (is.null(samplingRate)) {
-      samplingRate = 16000
-      message('samplingRate not specified; defaulting to 16000')
-    }
-    sound = x
-    m = max(abs(sound))
-    if (is.null(scale)) {
-      scale = max(m, 1)
-      # message(paste('Scale not specified. Assuming that max amplitude is', scale))
-    } else if (is.numeric(scale)) {
-      if (scale < m) {
-        scale = m
-        warning(paste('Scale cannot be smaller than observed max;',
-                      'resetting to', m))
-      }
-    }
-  } else if (input$type[i] == 'Wave') {
-    sound = x@left
-    samplingRate = x@samp.rate
-    scale = 2 ^ (x@bit - 1)
-  }
-
-  # from...to
-  # from...to selection
-  ls = length(sound)
-  if (any(is.numeric(c(from, to)))) {
-    if (!is.numeric(from)) {
-      from_points = 1
-    } else {
-      from_points = max(1, round(from * samplingRate))
-    }
-    if (!is.numeric(to)) {
-      to_points = ls
-    }  else {
-      to_points = min(ls, round(to * samplingRate))
-    }
-    sound = sound[from_points:to_points]
-    timeShift = from_points / samplingRate
-    ls = length(sound)
-  } else {
-    timeShift = 0
-  }
-  duration = ls / samplingRate
-
-  return(list(
-    sound = sound,
-    samplingRate = samplingRate,
-    scale = scale,
-    failed = failed,
-    ls = ls,
-    duration = duration,
-    timeShift = timeShift,
-    filename = input$filenames[i],
-    filename_base = input$filenames_base[i],
-    filename_noExt = input$filenames_noExt[i]
-  ))
-}
-
-
-#' Process audio
-#'
-#' Internal soundgen function.
-#'
-#' @inheritParams spectrogram
-#' @param funToCall function to call (specify what to do with each audio input)
-#' @param myPars a list of parameters to pass on to `funToCall`
-#' @param summaryFun function(s) used to summarize the output per input
-#' @param var_noSummary names of output variables that should not be summarized
-#' @param reportEvery report estimated time left every ... iterations (NA = no
-#'   reporting, NULL = default frequency)
-#' @keywords internal
-processAudio = function(x,
-                        samplingRate = NULL,
-                        scale = NULL,
-                        from = NULL,
-                        to = NULL,
-                        funToCall,
-                        myPars = list(),
-                        var_noSummary = NULL,
-                        reportEvery = NULL,
-                        savePlots = NULL,
-                        saveAudio = NULL) {
-  input = checkInputType(x)
-  input$failed = rep(FALSE, input$n)
-
-  # savePlots
-  if (is.character(savePlots)) {
-    if (savePlots == '') {
-      # same as the folder where the audio input lives
-      if (input$type[1] == 'file') {
-        savePlots = paste0(dirname(input$filenames[1]), '/')
-      } else {
-        savePlots = paste0(getwd(), '/')
-      }
-    } else {
-      # make sure the last character of savePath is "/" and expand ~
-      savePlots = paste0(
-        dirname(paste0(savePlots, '/arbitrary')),
-        '/'
-      )
-    }
-    if (!dir.exists(savePlots)) dir.create(savePlots)
-  } else {
-    savePlots = NULL
-  }
-  input$savePlots = savePlots  # to pass on to top function like analyze()
-
-  # saveAudio
-  if (is.character(saveAudio)) {
-    if (saveAudio == '') {
-      # same as the folder where the audio input lives
-      keypr = readline(prompt = paste(
-        "NB: saveAudio='' will overwrite the originals. Proceed? (yes/no) "))
-      if (substr(keypr, 1, 1) != 'y') stop('Aborting...')
-      if (input$type[1] == 'file') {
-        saveAudio = paste0(dirname(input$filenames[1]), '/')
-      } else {
-        saveAudio = paste0(getwd(), '/')
-      }
-    } else {
-      # make sure the last character of savePath is "/" and expand ~
-      saveAudio = paste0(
-        dirname(paste0(saveAudio, '/arbitrary')),
-        '/'
-      )
-    }
-    if (!dir.exists(saveAudio)) dir.create(saveAudio)
-  } else {
-    saveAudio = NULL
-  }
-  input$saveAudio = saveAudio  # to pass on to top function like analyze()
-
-  result = vector('list', input$n)
-  names(result) = input$filenames_base
-  if (input$type[1] == 'file') x = rep(list(NULL), input$n)
-  if (!is.list(x)) x = list(x)
-  time_start = proc.time()  # timing
-  for (i in 1:input$n) {
-    audio = readAudio(x[[i]], input, i,
-                      samplingRate = samplingRate,
-                      scale = scale,
-                      from = from, to = to)
-    # to pass savePlots and saveAudio on to funToCall without adding extra
-    # args, put them in "audio"
-    audio$savePlots = savePlots
-    audio$saveAudio = saveAudio
-
-    # analyze file
-    if (!audio$failed) {
-      an_i = try(do.call(funToCall, c(list(audio = audio), myPars)))
-      if (class(an_i)[1] == 'try-error') audio$failed = TRUE
-    }
-    if (audio$failed) {
-      if (input$n > 1) {
-        warning(paste('Failed to process file', input$filenames[i]))
-      } else {
-        warning('Failed to process the input')
-      }
-      an_i = numeric(0)
-      input$failed[i] = TRUE
-    }
-    result[[i]] = an_i
-
-    # report time
-    if ((is.null(reportEvery) || is.finite(reportEvery)) & input$n > 1) {
-      reportTime(i = i, nIter = input$n, reportEvery = reportEvery,
-                 time_start = time_start, jobs = input$filesizes)
-    }
-  }
-
-  return(list(
-    input = input,
-    result = result
-  ))
+getSpectralFlux = function(s) {
+  nc = ncol(s)
+  for (c in 1:nc) s[, c] = s[, c] / max(s[, c])  # normalize
+  flux = rep(0, nc)
+  for (c in 2:nc) flux[c] = mean(abs(s[, c] - s[, c - 1]))
+  # or as.numeric(dist(rbind(s[, c], s[, c - 1])))
+  return(flux)
 }

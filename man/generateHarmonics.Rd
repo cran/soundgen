@@ -41,7 +41,7 @@ generateHarmonics(
   subWidth = 10000,
   ampl = NA,
   normalize = TRUE,
-  interpol = c("approx", "spline", "loess")[3],
+  smoothing = list(),
   overlap = 75,
   samplingRate = 16000,
   pitchFloor = 75,
@@ -176,7 +176,10 @@ format)}
 \item{normalize}{if TRUE, normalizes to -1...+1 prior to applying attack and
 amplitude envelope. W/o this, sounds with stronger harmonics are louder}
 
-\item{interpol}{deprecated}
+\item{smoothing}{a list of parameters passed to
+\code{\link{getSmoothContour}} to control the interpolation and smoothing
+of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+jumpThres}
 
 \item{overlap}{FFT window overlap, \%. For allowed values, see
 \code{\link[seewave]{istft}}}

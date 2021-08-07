@@ -4,14 +4,14 @@
 #'
 #' Returns a smooth contour based on an arbitrary number of anchors. Used by
 #' \code{\link{soundgen}} for generating intonation contour, mouth opening, etc.
-#' Although this function is mostly intended to be used internally by soundgen,
-#' and it's slower than directly calling something like approx(), it may be a
-#' convenient "lazy" option because it can both up- and downsample vectors to
-#' the required size without aliasing. Note that pitch contours are treated as a
-#' special case: values are log-transformed prior to smoothing, so that with 2
-#' anchors we get a linear transition on a log scale (as if we were operating
-#' with musical notes rather than frequencies in Hz). Pitch plots have two Y
-#' axes: one showing Hz and the other showing musical notation.
+#' This function is mostly intended to be used internally by soundgen, more
+#' precisely to construct (upsample) smooth curves from a number of anchors. For
+#' general upsampling or downsampling of audio, use \code{\link{resample}}. Note
+#' that pitch contours are treated as a special case: values are log-transformed
+#' prior to smoothing, so that with 2 anchors we get a linear transition on a
+#' log scale (as if we were operating with musical notes rather than frequencies
+#' in Hz). Pitch plots have two Y axes: one showing Hz and the other showing
+#' musical notation.
 #' @param anchors a numeric vector of values or a list/dataframe with one column
 #'   (value) or two columns (time and value). \code{achors$time} can be in ms
 #'   (with len=NULL) or in arbitrary units, eg 0 to 1 (with duration determined
@@ -23,10 +23,19 @@
 #' @param thisIsPitch (boolean) is this a pitch contour? If true, log-transforms
 #'   before smoothing and plots in both Hz and musical notation
 #' @param normalizeTime if TRUE, normalizes anchors$time values to range from 0 to 1
-#' @inheritParams soundgen
-#' @param loessSpan parameter that controlled the amount of smoothing when
-#'   interpolating pitch etc between anchors; passed on to
-#'   \code{\link[stats]{loess}}, so only has an effect if interpol = 'loess'
+#' @param interpol method of interpolation between anchors: "approx" = linear
+#'   with \code{\link{approx}}, "spline" = cubic splines with
+#'   \code{\link{spline}}, "loess" = local polynomial regression with
+#'   \code{\link{loess}}
+#' @param loessSpan controls the amount of smoothing when interpolating between
+#'   anchors with \code{\link[stats]{loess}}, so only has an effect if interpol
+#'   = 'loess' (1 = strong, 0.5 = weak smoothing)
+#' @param discontThres if two anchors are closer in time than
+#'   \code{discontThres} (on a 0-1 scale, ie specified as proportion of total
+#'   length), the contour is broken into segments with a linear transition
+#'   between these segments
+#' @param jumpThres if anchors are closer than \code{jumpThres}, a new section
+#'   starts with no transition at all (e.g. for adding pitch jumps)
 #' @param valueFloor,valueCeiling lowser/upper bounds for the contour
 #' @param plot (boolean) produce a plot?
 #' @param samplingRate sampling rate used to convert time values to points (Hz)
@@ -38,14 +47,6 @@
 #' @export
 #' @return Returns a numeric vector of length \code{len}.
 #' @examples
-#' # downsampling (low-pass filter + decimation, see ?soundgen:::downsample for
-#' # details)
-#' getSmoothContour(rnorm(100), len = 5)
-#'
-#' # upsampling
-#' getSmoothContour(c(1, 3, 2), len = 5, interpol = 'approx')
-#' getSmoothContour(c(1, 3, 2), len = 5, interpol = 'loess')
-#'
 #' # long format: anchors are a dataframe
 #' a = getSmoothContour(anchors = data.frame(
 #'   time = c(50, 137, 300), value = c(0.03, 0.78, 0.5)),
@@ -98,9 +99,9 @@ getSmoothContour = function(
   thisIsPitch = FALSE,
   normalizeTime = TRUE,
   interpol = c('approx', 'spline', 'loess')[3],
+  loessSpan = NULL,
   discontThres = .05,
   jumpThres = .01,
-  loessSpan = NULL,
   valueFloor = NULL,
   valueCeiling = NULL,
   plot = FALSE,
@@ -169,9 +170,10 @@ getSmoothContour = function(
     # nothing to do
     smoothContour = anchors$value
   } else if (nr > len) {
-    # if there are more anchors than len, downsample the anchors
-    smoothContour = downsample(anchors$value, f = nr / len)
+    # downsample
+    smoothContour = suppressWarnings(resample(anchors$value, mult = len / nr))
   } else if (discontThres <= 0 | nr < 3) {
+    # upsample in one go
     smoothContour = drawContour(len = len,
                                 anchors = anchors,
                                 interpol = interpol,
@@ -330,16 +332,17 @@ drawContour = function(len,
                        duration_ms = 500,
                        loessSpan = NULL) {
   time = 1:len
-  if (nrow(anchors) == 1) {
+  nr = nrow(anchors)
+  if (nr == 1) {
     # flat
     smoothContour = rep(anchors$value[1], len)
-  } else if (nrow(anchors) == 2) {
+  } else if (nr == 2) {
     # linear
     smoothContour = seq(anchors$value[1], anchors$value[2], length.out = len)
   } else {
     # smooth contour
     if (interpol == 'approx') {
-      if (len > nrow(anchors)) {
+      if (len > nr) {
         smoothContour = approx(anchors$value, n = len, x = anchors$time)$y
       } else {
         smoothContour = anchors$value
@@ -381,7 +384,7 @@ drawContour = function(len,
         }
         # plot(smoothContour, type = 'l')
 
-        while(sum(smoothContour < valueFloor - 1e-6, na.rm = TRUE) > 0) {
+        while(any(smoothContour < valueFloor - 1e-6, na.rm = TRUE)) {
           # in case we get values below valueFloor, less smoothing should be used
           # NB: -1e-6 avoids floating point problem, otherwise we get
           # weird cases of -120 (float) < -120 (integer)
@@ -391,11 +394,14 @@ drawContour = function(len,
         }
       }
     }
+
+    # floor / ceiling
     smoothContour[smoothContour < valueFloor] = valueFloor
     smoothContour[smoothContour > valueCeiling] = valueCeiling
     return(smoothContour)
   }
 }
+
 
 #' Split contour
 #'

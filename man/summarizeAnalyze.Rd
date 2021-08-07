@@ -7,7 +7,7 @@
 summarizeAnalyze(
   result,
   summaryFun = c("mean", "sd"),
-  var_noSummary = c("duration", "duration_noSilence", "voiced", "time")
+  var_noSummary = c("duration", "duration_noSilence", "voiced", "time", "epoch")
 )
 }
 \arguments{

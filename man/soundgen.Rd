@@ -61,9 +61,6 @@ soundgen(
   amplGlobal = NA,
   smoothing = list(interpol = c("approx", "spline", "loess")[3], loessSpan = NULL,
     discontThres = 0.05, jumpThres = 0.01),
-  interpol = "deprecated",
-  discontThres = "deprecated",
-  jumpThres = "deprecated",
   samplingRate = 16000,
   windowLength = 50,
   overlap = 75,
@@ -283,15 +280,10 @@ format)}
 \item{amplGlobal}{global amplitude envelope spanning
 multiple syllables (dB, 0 = no change) (anchor format)}
 
-\item{smoothing}{a list of parameters that control the smoothing of pitch and
-amplitude contours: \code{interpol} (loess, spline, or approx), loessSpan
-(1 = strong, .5 = weak smoothing), discontThres, and jumpThres (if two
-anchors are closer in time than \code{discontThres}, the contour is broken
-into segments with a linear transition between these anchors; if anchors
-are closer than \code{jumpThres}, a new section starts with no transition
-at all (e.g. for adding pitch jumps). See \code{\link{getSmoothContour}}}
-
-\item{interpol, discontThres, jumpThres}{deprecated}
+\item{smoothing}{a list of parameters passed to
+\code{\link{getSmoothContour}} to control the interpolation and smoothing
+of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+jumpThres}
 
 \item{samplingRate}{sampling frequency, Hz}
 
@@ -409,6 +401,5 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
 }
 }
 \seealso{
-\code{\link{generateNoise}} \code{\link{generateNoise}}
-  \code{\link{fart}} \code{\link{beat}}
+\code{\link{generateNoise}} \code{\link{beat}} \code{\link{fart}}
 }

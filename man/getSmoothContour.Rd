@@ -10,9 +10,9 @@ getSmoothContour(
   thisIsPitch = FALSE,
   normalizeTime = TRUE,
   interpol = c("approx", "spline", "loess")[3],
+  loessSpan = NULL,
   discontThres = 0.05,
   jumpThres = 0.01,
-  loessSpan = NULL,
   valueFloor = NULL,
   valueCeiling = NULL,
   plot = FALSE,
@@ -41,15 +41,22 @@ before smoothing and plots in both Hz and musical notation}
 
 \item{normalizeTime}{if TRUE, normalizes anchors$time values to range from 0 to 1}
 
-\item{interpol}{deprecated}
+\item{interpol}{method of interpolation between anchors: "approx" = linear
+with \code{\link{approx}}, "spline" = cubic splines with
+\code{\link{spline}}, "loess" = local polynomial regression with
+\code{\link{loess}}}
 
-\item{discontThres}{deprecated}
+\item{loessSpan}{controls the amount of smoothing when interpolating between
+anchors with \code{\link[stats]{loess}}, so only has an effect if interpol
+= 'loess' (1 = strong, 0.5 = weak smoothing)}
 
-\item{jumpThres}{deprecated}
+\item{discontThres}{if two anchors are closer in time than
+\code{discontThres} (on a 0-1 scale, ie specified as proportion of total
+length), the contour is broken into segments with a linear transition
+between these segments}
 
-\item{loessSpan}{parameter that controlled the amount of smoothing when
-interpolating pitch etc between anchors; passed on to
-\code{\link[stats]{loess}}, so only has an effect if interpol = 'loess'}
+\item{jumpThres}{if anchors are closer than \code{jumpThres}, a new section
+starts with no transition at all (e.g. for adding pitch jumps)}
 
 \item{valueFloor, valueCeiling}{lowser/upper bounds for the contour}
 
@@ -72,24 +79,16 @@ Returns a numeric vector of length \code{len}.
 \description{
 Returns a smooth contour based on an arbitrary number of anchors. Used by
 \code{\link{soundgen}} for generating intonation contour, mouth opening, etc.
-Although this function is mostly intended to be used internally by soundgen,
-and it's slower than directly calling something like approx(), it may be a
-convenient "lazy" option because it can both up- and downsample vectors to
-the required size without aliasing. Note that pitch contours are treated as a
-special case: values are log-transformed prior to smoothing, so that with 2
-anchors we get a linear transition on a log scale (as if we were operating
-with musical notes rather than frequencies in Hz). Pitch plots have two Y
-axes: one showing Hz and the other showing musical notation.
+This function is mostly intended to be used internally by soundgen, more
+precisely to construct (upsample) smooth curves from a number of anchors. For
+general upsampling or downsampling of audio, use \code{\link{resample}}. Note
+that pitch contours are treated as a special case: values are log-transformed
+prior to smoothing, so that with 2 anchors we get a linear transition on a
+log scale (as if we were operating with musical notes rather than frequencies
+in Hz). Pitch plots have two Y axes: one showing Hz and the other showing
+musical notation.
 }
 \examples{
-# downsampling (low-pass filter + decimation, see ?soundgen:::downsample for
-# details)
-getSmoothContour(rnorm(100), len = 5)
-
-# upsampling
-getSmoothContour(c(1, 3, 2), len = 5, interpol = 'approx')
-getSmoothContour(c(1, 3, 2), len = 5, interpol = 'loess')
-
 # long format: anchors are a dataframe
 a = getSmoothContour(anchors = data.frame(
   time = c(50, 137, 300), value = c(0.03, 0.78, 0.5)),

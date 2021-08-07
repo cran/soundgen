@@ -20,10 +20,10 @@ addFormants(
   noseRad = 4,
   mouthOpenThres = 0,
   mouth = NA,
-  interpol = c("approx", "spline", "loess")[3],
   temperature = 0.025,
   formDrift = 0.3,
   formDisp = 0.2,
+  smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
   normalize = TRUE,
@@ -92,16 +92,16 @@ radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1}
 \item{mouth}{mouth opening (0 to 1, 0.5 = neutral, i.e. no
 modification) (anchor format)}
 
-\item{interpol}{the method of smoothing envelopes based on provided mouth
-anchors: 'approx' = linear interpolation, 'spline' = cubic spline, 'loess'
-(default) = polynomial local smoothing function. NB: this does NOT affect
-the smoothing of formant anchors}
-
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
 
 \item{formDrift, formDisp}{scaling factors for the effect of temperature on
 formant drift and dispersal, respectively}
+
+\item{smoothing}{a list of parameters passed to
+\code{\link{getSmoothContour}} to control the interpolation and smoothing
+of contours: interpol (approx / spline / loess), loessSpan, discontThres,
+jumpThres}
 
 \item{windowLength_points}{length of FFT window, points}
 

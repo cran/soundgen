@@ -191,6 +191,7 @@ estimateVTL = function(
 #' @param formants_relative a numeric vector of target relative formant
 #'   frequencies, \% deviation from schwa (see examples)
 #' @param nForm the number of formants to estimate (integer)
+#' @param plot if TRUE, plots vowel quality in speaker-normalized F1-F2 space
 #' @inheritParams getSpectralEnvelope
 #' @inheritParams estimateVTL
 #' @export
@@ -204,44 +205,44 @@ estimateVTL = function(
 #' # Let's take formant frequencies in three vocalizations, namely
 #' # (/a/, /i/, /roar/) by the same male speaker:
 #' formants_a = c(860, 1430, 2900, NA, 5200)  # NAs are OK - here F4 is unknown
-#' s_a = schwa(formants = formants_a)
+#' s_a = schwa(formants = formants_a, plot = TRUE)
 #' s_a
 #' # We get an estimate of VTL (s_a$vtl_apparent),
 #' #   same as with estimateVTL(formants_a)
 #' # We also get theoretical schwa formants: s_a$ff_schwa
 #' # And we get the difference (% and semitones) in observed vs expected
 #' #   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones')]
-#' # [a]: F1 much higher than expected, F2 slightly lower
+#' # [a]: F1 much higher than expected, F2 slightly lower (see plot)
 #'
 #' formants_i = c(300, 2700, 3400, 4400, 5300, 6400)
-#' s_i = schwa(formants = formants_i)
+#' s_i = schwa(formants = formants_i, plot = TRUE)
 #' s_i
 #' # The apparent VTL is slightly smaller (14.5 cm)
 #' # [i]: very low F1, very high F2
 #'
 #' formants_roar = c(550, 1000, 1460, 2280, 3350,
 #'                   4300, 4900, 5800, 6900, 7900)
-#' s_roar = schwa(formants = formants_roar)
+#' s_roar = schwa(formants = formants_roar, plot = TRUE)
 #' s_roar
 #' # Note the enormous apparent VTL (22.5 cm!)
 #' # (lowered larynx and rounded lips exaggerate the apparent size)
 #' # s_roar$ff_relative: high F1 and low F2-F4
 #'
-#' schwa(formants = formants_roar[1:4])
+#' schwa(formants = formants_roar[1:4], plot = TRUE)
 #' # based on F1-F4, apparent VTL is almost 28 cm!
 #' # Since the lowest formants are the most salient,
 #' # the apparent size is exaggerated even further
 #'
 #' # If you know VTL, a few lower formants are enough to get
 #' #   a good estimate of the relative formant values:
-#' schwa(formants = formants_roar[1:4], vocalTract = 19)
+#' schwa(formants = formants_roar[1:4], vocalTract = 19, plot = TRUE)
 #' # NB: in this case theoretical and relative formants are calculated
 #' #  based on user-provided VTL (vtl_measured) rather than vtl_apparent
 #'
 #' ## CASE 3: from relative to absolute formant frequencies
 #' # Say we want to generate a vowel sound with F1 20% below schwa
 #' #    and F2 40% above schwa, with VTL = 15 cm
-#' s = schwa(formants_relative = c(-20, 40), vocalTract = 15)
+#' s = schwa(formants_relative = c(-20, 40), vocalTract = 15, plot = TRUE)
 #' # s$ff_schwa gives formant frequencies for a schwa, while
 #' #   s$ff_theoretical gives formant frequencies for a sound with
 #' #   target relative formant values (low F1, high F2)
@@ -251,7 +252,8 @@ schwa = function(formants = NULL,
                  formants_relative = NULL,
                  nForm = 8,
                  interceptZero = TRUE,
-                 speedSound = 35400) {
+                 speedSound = 35400,
+                 plot = FALSE) {
   # check input
   if (is.null(formants) & is.null(vocalTract)) {
     stop('Please pecify formant frequencies and/or vocal tract length')
@@ -340,6 +342,32 @@ schwa = function(formants = NULL,
              ff_theoretical = ff_theoretical,
              ff_relative = ff_relative,
              ff_relative_semitones = ff_relative_semitones)
+
+  # plotting
+  if (plot) {
+    fmrs = out$ff_relative_semitones[1:2]
+    if (!any(!is.finite(fmrs))) {
+      if (!is.null(out$vtl_apparent)) {
+        main = paste('Apparent VTL =', round(out$vtl_apparent, 1), 'cm')
+      } else {
+        if (!is.null(out$vtl_measured)) {
+          main = paste('Measured VTL =', round(out$vtl_measured, 1), 'cm')
+        } else {
+          main = 'VTL unknown'
+        }
+      }
+      xlim = range(c(hillenbrand$F1Rel, fmrs[1]))
+      ylim = range(c(hillenbrand$F2Rel, fmrs[2]))
+      hillenbrand = hillenbrand  # otherwise CMD check complains
+      plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n',
+           xlab = 'F1, semitones', ylab = 'F2, semitones',
+           xlim = xlim, ylim = ylim, main = main)
+      text(hillenbrand$F1Rel, hillenbrand$F2Rel,
+           labels = hillenbrand$vowel, cex = 1, col = 'blue')
+      points(fmrs[1], fmrs[2], pch = 4, cex = 1.5, col = 'red')
+    }
+  }
+
   # do not return empty elements
   out = out[lapply(out, length) > 0]
   return(out)

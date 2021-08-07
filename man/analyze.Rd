@@ -40,6 +40,7 @@ analyze(
   pitchHps = list(),
   harmHeight = list(),
   subh = list(method = "cep", nSubh = 5),
+  flux = list(thres = 0.15, smoothWin = 100),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = list(win = 75, tol = 0.3, cert = 0.3),
@@ -194,6 +195,9 @@ harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 subharmonics per frame - that is, spectral energy at integer ratios of f0:
 see \code{?soundgen:::subhToHarm}}
 
+\item{flux}{a list of control parameters for calculating feature-based flux
+(not spectral flux) passed to \code{\link{getFeatureFlux}}}
+
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
 if unvoiced)}
@@ -287,22 +291,25 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   of the current frame. Close to 0: pure tone or tonal sound with nearly all
   energy in harmonics; close to 1: white noise} \item{f1_freq, f1_width,
   ...}{the frequency and bandwidth of the first nFormants formants per STFT
-  frame, as calculated by phonTools::findformants} \item{harmEnergy}{the
-  amount of energy in upper harmonics, namely the ratio of total spectral
-  mass above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
-  \item{harmHeight}{how high harmonics reach in the spectrum, based on the
-  best guess at pitch (or the manually provided pitch values)}
-  \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
-  by soundgen:::getPitchAutocor (see "Pitch tracking methods /
-  Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as
-  in noise} \item{loudness}{subjective loudness, in sone, corresponding to
-  the chosen SPL_measured - see \code{\link{getLoudness}}}
-  \item{novelty}{spectral novelty - a measure of how variable the spectrum is
-  on a particular time scale, as estimated by \code{\link{ssm}}}
-  \item{peakFreq}{the frequency with maximum spectral power (Hz)}
-  \item{pitch}{post-processed pitch contour based on all F0 estimates}
-  \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
-  quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
+  frame, as calculated by phonTools::findformants} \item{flux}{feature-based
+  flux, the rate of change in acoustic features such as pitch, HNR, etc. (0 =
+  none, 1 = max); "epoch" is an audio segment between two peaks of flux that
+  exceed a threshold of \code{flux = list(thres = ...)} (listed in
+  output$detailed only)} \item{harmEnergy}{the amount of energy in upper
+  harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
+  total spectral mass below 1.25 x F0 (dB)} \item{harmHeight}{how high
+  harmonics reach in the spectrum, based on the best guess at pitch (or the
+  manually provided pitch values)} \item{HNR}{harmonics-to-noise ratio (dB),
+  a measure of harmonicity returned by soundgen:::getPitchAutocor (see "Pitch
+  tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much
+  energy in harmonics as in noise} \item{loudness}{subjective loudness, in
+  sone, corresponding to the chosen SPL_measured - see
+  \code{\link{getLoudness}}} \item{novelty}{spectral novelty - a measure of
+  how variable the spectrum is on a particular time scale, as estimated by
+  \code{\link{ssm}}} \item{peakFreq}{the frequency with maximum spectral
+  power (Hz)} \item{pitch}{post-processed pitch contour based on all F0
+  estimates} \item{quartile25, quartile50, quartile75}{the 25th, 50th, and
+  75th quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
   amount of amplitude modulation, see modulationSpectrum}
   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit

@@ -6,8 +6,7 @@
 #'
 #' Called by \code{\link{segment}}.
 #'
-#' @param envelope downsampled amplitude envelope: dataframe with columns "time"
-#'   and "value"
+#' @param ampl downsampled amplitude envelope
 #' @param step time difference between two points in the envelope (ms)
 #' @param threshold all continuous segments above this value are considered to
 #'   be syllables

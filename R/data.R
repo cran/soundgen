@@ -1,5 +1,3 @@
-# usethis::use_data(noiseThresholdsDict, BaNaRatios, spreadSpecCoef, phonCurves, internal = TRUE, overwrite = TRUE)
-
 #' Shiny app defaults
 #'
 #' A list of default values for Shiny app soundgen_app() - mostly the same as
