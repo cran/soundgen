@@ -9,7 +9,6 @@ drawContour(
   anchors,
   interpol,
   valueFloor,
-  valueCeiling,
   duration_ms = 500,
   loessSpan = NULL
 )
@@ -31,8 +30,6 @@ with \code{\link{approx}}, "spline" = cubic splines with
 \code{\link{loess}}}
 
 \item{valueFloor}{lowser/upper bounds for the contour}
-
-\item{valueCeiling}{lowser/upper bounds for the contour}
 
 \item{duration_ms}{contour duration, ms}
 

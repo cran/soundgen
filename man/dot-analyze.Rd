@@ -34,6 +34,7 @@
   pitchCep = list(),
   pitchSpec = list(),
   pitchHps = list(),
+  pitchZc = list(),
   harmHeight = list(),
   subh = list(),
   flux = list(),
@@ -57,6 +58,7 @@
   pitchCep_plotPars = list(),
   pitchSpec_plotPars = list(),
   pitchHps_plotPars = list(),
+  pitchZc_plotPars = list(),
   extraContour = NULL,
   ylim = NULL,
   xlab = NULL,
@@ -173,6 +175,10 @@ BaNa or "spec" method; see details and \code{?soundgen:::getPitchSpec}}
 harmonic product spectrum or "hps" method; see details and
 \code{?soundgen:::getPitchHps}}
 
+\item{pitchZc}{a list of control parameters for pitch tracking based on zero
+crossings in bandpass-filtered audio or "zc" method; see
+\code{\link{getPitchZc}}}
+
 \item{harmHeight}{a list of control parameters for estimating how high
 harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 
@@ -238,7 +244,8 @@ contour plot, eg 'peakFreq' or 'loudness'; can also be a list with extra
 graphical parameters, eg \code{extraContour = list(x = 'harmHeight', col =
 'red')}}
 
-\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
+\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
+frequency). NB: still in kHz, even if yScale = bark or mel}
 
 \item{xlab}{plotting parameters}
 

@@ -13,7 +13,7 @@ bandpass(
   na.rm = TRUE,
   from = NULL,
   to = NULL,
-  normalize = TRUE,
+  normalize = FALSE,
   reportEvery = NULL,
   saveAudio = NULL,
   plot = FALSE,
@@ -101,14 +101,14 @@ NAs back in.
 # Filter white noise
 s1 = fade(c(runif(2000, -1, 1)))
 bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
-bandpass(s1, 16000, lwr = 2000, plot = TRUE)  # high-pass
+bandpass(s1, 16000, lwr = 2000, plot = TRUE)    # high-pass
 bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
 s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE) # bandpass
 # playme(rep(s2, 5))
 spectrogram(s2, 16000)  # more accurate than plotting the spectrum with plot = TRUE
 
 # a short vector with some NAs
-x = rnorm(150) + 3 * sin((1:50) / 5)
+x = rnorm(150, 10) + 3 * sin((1:50) / 5)
 x[sample(1:length(x), 50)] = NA
 plot(x, type = 'l')
 points(bandpass(x, samplingRate = 100, upr = 10), type = 'l', col = 'blue')

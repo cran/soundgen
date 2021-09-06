@@ -16,17 +16,9 @@ vignette: >
   
 # Purpose
   
-There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages. For in-depth analysis of individual mammalian sounds it's hard to beat PRAAT (batch processing is possible, but a bit tricky because PRAAT uses its own, rather unusual scripting language). For bird sounds, a sophisticated tool is Sound Analysis Pro. In R, the most general-purpose acoustic toolkit is the <a href="https://CRAN.R-project.org/package=seewave">seewave</a> package. Soundgen builds upon the functionality of seewave, adding high-level functions for sound synthesis (see the vignette on sound synthesis), manipulation, and analysis.
+There are numerous programs out there for performing acoustic analysis, including several open-source options and R packages such as <a href="https://CRAN.R-project.org/package=seewave">seewave</a> and <a href="https://cran.r-project.org/package=warbleR ">warbleR</a>. Soundgen offers tools for visualizing audio (oscillograms, spectrograms, modulation spectra, self-similarity matrices), pitch tracking and formant analysis (both as standard functions and as interactive web apps), audio segmentation, as well as more specialized functions for estimating subjective loudness, roughness, acoustic novelty, surprisal, etc.
   
-Reasons to use `soundgen` for acoustic analysis might be: 
-  
-  1. User-friendly approach: a single call to the `analyzeFolder` function will give you a dataframe containing dozens of commonly used acoustic descriptors for each file in an entire folder. So if you'd rather get started with model-building without delving too deeply into acoustics, you are one line of code away from your dataset.
-  1. Flexible pitch tracking: soundgen uses several popular methods of pitch detection in parallel, followed by their integration and postprocessing. While the abundance of control parameters may initially seem daunting, for those who do wish to delve deeply this makes soundgen's pitch tracker very versatile and offers a lot of power for high-precision analysis.
-  1. Interactive apps for manual correction of pitch contours (`pitch_app`) and formants (`formant_app`).
-  1. Audio segmentation with in-built optimization: the tools for syllable segmentation and detection of energy bursts are fast and simple (based on smoothed intensity contours) but quite flexible. Control parameters can also be optimized automatically as long as you have a manually segmented training sample.
-  1. Additional specialized tools for acoustic analysis such as modulation spectra and self-similarity matrices.
-  
-Many of the large variety of existing tools for acoustic analysis were designed with a particular type of sound in mind, usually human speech or bird songs. Soundgen has been developed to work with human nonverbal vocalizations such as screams and laughs. These sounds are much harsher and noisier than ordinary speech, but they closely resemble vocalizations of other mammals. Acoustic analysis with soundgen may be particularly appropriate if you are extracting a large number of acoustic predictors from a large number of audio files, for example:
+Many of the large variety of existing tools for acoustic analysis were designed with a particular type of sound in mind, usually human speech or bird songs. Soundgen was originally developed to work with human nonverbal vocalizations such as screams and laughs. These sounds are much harsher and noisier than ordinary speech, but they closely resemble vocalizations of other mammals. Acoustic analysis with soundgen may therefore be particularly useful for extracting a large number of acoustic predictors from collection of vocalizations of humans and other mammals, for example:
   
 * describing the vocal repertoire of a species (clustering),
 * using machine learning for acoustic classification,
@@ -34,7 +26,7 @@ Many of the large variety of existing tools for acoustic analysis were designed 
   
 The most relevant soundgen functions for acoustic analysis are:
   
-* `analyze`: extracts a number of acoustic predictors such as pitch, harmonics-to-noise ratio, mean frequency, peak frequency, formants, etc. The output includes a summary per file, with each variable presented as mean / median / SD, as well as detailed statistics per STFT frame
+* `analyze`: extracts a number of acoustic predictors such as pitch, harmonics-to-noise ratio, mean frequency, peak frequency, formants, roughness, intensity and loudness, etc. The output includes a summary per file, with each variable presented as mean / median / SD / ..., as well as detailed statistics per STFT frame
 * `pitch_app`: opens a shiny app in a web browser for manually correcting and exporting the pitch contours extracted by `analyze`
 * `formant_app`: another web app, for annotating and manually correcting formant measurements provided by phonTools::findformants()
 * `segment`: segments a long recording into individual syllables using spectral signal-noise separation
@@ -44,14 +36,14 @@ The most relevant soundgen functions for acoustic analysis are:
 * `getRMS`: measures the root mean square amplitude of audio files
 * `spectrogram`, `osc`: basic plots
   
-*TIP Soundgen's functions for acoustic analysis are not meant to be exhaustive. MFCC extraction is readily available in R (e.g., with `tuneR::melfcc`), so there was no need to duplicate it in soundgen. Linear predictive coding (LPC) is also implemented in R (see `phonTools::lpc` and `phonTools::findformants`). As a convenience, `soundgen::analyze` shows the output of `phonTools::findformants`, but for serious formant analysis you might want to use formant_app or another interactive program like PRAAT and check everything manually. A good approach may be to start with pitch_app to ensure accurate pitch tracking, then run `soundgen::analyze` with these manual pitch values to get a table of many common acoustic predictors.*
+*TIP For a tour-de-force overview of alternatives together with highly accessible theoretical explanations of sound characteristics, see Sueur (2018) "Sound analysis and synthesis with R"* 
   
 This vignette is designed to show how soundgen can be used effectively to perform acoustic analysis. It assumes that the reader is already familiar with key concepts of phonetics and bioacoustics.
-
-*TIP This vignette mostly covers acoustic analysis with soundgen. In many cases, there are related R functions from other packages. For a tour-de-force overview of alternatives together with highly accessible theoretical explanations of sound characteristics, see Sueur (2018) "Sound analysis and synthesis with R"*
   
-# Acoustic analysis with `analyze`
+  
+# Visualization
 To demonstrate acoustic analysis in practice, let's begin by generating a sound with a known pitch contour. To make pitch tracking less trivial and demonstrate some of its challenges, let's add some noise, subharmonics, and jitter:
+
 ```{r fig.width = 5, fig.height = 5}
 library(soundgen)
 s1 = soundgen(sylLen = 900, temperature = 0.001,
@@ -60,41 +52,89 @@ s1 = soundgen(sylLen = 900, temperature = 0.001,
               noise = c(-40, -20), 
               subFreq = 100, subDep = 20, jitterDep = 0.5, 
               plot = TRUE, ylim = c(0, 4))
-# playme(s1)  # replay as many times as needed w/o re-synthesizing the sound
+# playme(s1)  # to replay w/o re-synthesizing the sound
 ```
 
-The contour of f0 is determined by our pitch anchors, so we can calculate the true median pitch:
-```{r}
-true_pitch = getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
-                                             value = c(300, 900, 400, 1300)),
-                              len = 1000)  # any length will do
-median(true_pitch)  # 633 Hz
+Mathematically, digital audio is a time series - a long vector of real numbers representing sound pressure levels over time. This time series can be visualized in different domains: 
+
+1. Time domain. We just plot the original time series as an *oscillogram*. Function: `osc()` 
+```{r fig.width = 5, fig.height = 3}
+osc(s1, samplingRate = 16000, dB = TRUE)
+# Or just plain base R: plot(s1, type = 'l')
 ```
 
+1. Frequency domain. We can use a Fast Fourier Transform (FFT) to obtain the *spectrum* showing which frequencies are present in the signal. Functions: `seewave::spec()`, `seewave::meanspec()`. If we want to see how this frequency composition varies over time, we produce a *spectrogram* such as the plot above. The most common method for doing this is Short-Time Fourier Transform (STFT, function `spectrogram()`), but it is also possible to use a bank of bandpass filters (function `audSpectrogram()`) or the wavelet transform (e.g., function `wavelets::dwt()`).  
+
+Long-time average spectrum:
+```{r fig.width = 5, fig.height = 3}
+seewave::meanspec(s1, f = 16000, dB = 'max0', main = 'Spectrum')
+```
+
+Spectrogram with an oscillogram shown underneath:
+```{r fig.width = 5, fig.height = 5}
+spectrogram(
+  s1, samplingRate = 16000,
+  osc = 'dB',  # plot oscillogram in dB
+  heights = c(2, 1),  # spectro/osc height ratio
+  noiseReduction = .5,  # subtract the spectrum of noisy parts
+  brightness = -1,  # reduce brightness
+  contrast = .5,  # increase contrast
+  colorTheme = 'heat.colors',  # pick color theme
+  cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
+  grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
+  ylim = c(0, 5),  # always in kHzmain = 'Spectrogram')
+  main = 'Spectrogram'
+)
+# see ?spectrogram for explanation of settings and more examples
+```
+
+Auditory spectrogram of the same sound, obtained with a bank of filters, on the bark frequency scale :
+```{r fig.width = 5, fig.height = 5}
+audSpectrogram(s1, samplingRate = 16000, 
+               nFilters = 128, step = 5,
+               colorTheme = 'terrain.colors',
+               main = 'Auditory spectrogram')
+```
+
+1. Cepstral domain: taking a Fourier-flavored transformation one step further, we can also analyze what frequencies are present in the spectrum (used for pitch tracking in `analyze()`) or spectrogram (function `modulationSpectrum()` - more detail in section 7). 
+
+```{r fig.width = 5, fig.height = 5}
+modulationSpectrum(s1, samplingRate = 16000, colorTheme = 'seewave',
+                   plot = TRUE, main = 'Modulation spectrum')
+```
+
+1. Other. Less common visual representations of audio include neurologically inspired spectro-temporal receptive fields, gammatones, etc. For example, soundgen can plot self-similarity matrices that represent spectral changes over time (more detail in section 8):
+
+```{r fig.width = 5, fig.height = 5}
+ssm(s1, samplingRate = 16000, main = 'Self-similarity matrix')
+```
+
+
+*TIP: most soundgen functions for acoustic analysis and visualization accept as input both a single sound and a path to folder, in which case all the audio files in this folder are processed in one go. For example, copy a few recordings into '~/Downloads/temp' and run `spectrogram('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')` --> a separate .png file will be saved for each recording. Likewise, `analyze('path_to_folder') analyzes all audio files in the target folder.*
+
+
+# Acoustic analysis with `analyze`
+Soundgen has specialized functions for particular types of acoustic analysis. However, for convenience, most of them are called internally by `analyze()`, which provides basic spectral descriptives, pitch tracking, formant analysis, as well as estimates of roughness, subjective loudness, novelty, etc.
 
 ## Basic principles
-At the heart of acoustic analysis with soundgen is the short-time Fourier transform (STFT): we look at one short segment of sound at a time (one STFT frame), analyze its spectrum using Fast Fourier Transform (FFT), and then move on to the next - perhaps overlapping - frame. As the analysis window slides along the signal, STFT shows which frequencies it contains at different points of time. The nuts and bolts of STFT are beyond the scope of this vignette, but they can be found in just about any textbook on phonetics, acoustics, digital signal processing, etc. For a quick R-friendly introduction, see <a href="https://CRAN.R-project.org/package=seewave">seewave</a> vignette on acoustic analysis. 
-
-Putting the spectra of all frames together, we get a spectrogram. `analyze` calls another function from soundgen package, `spectrogram`, to produce a spectrogram and then plot pitch candidates on top of it. See the examples in `?spectrogram` for plot customization like color themes, contrast, brightness, etc. To analyze a sound with default settings and plot its spectrogram, all we need to specify is its sampling rate (the default in soundgen is 16000 Hz):
+At the heart of acoustic analysis with soundgen is the short-time Fourier transform (STFT): we look at one short segment of sound at a time (one STFT frame), analyze its spectrum using Fast Fourier Transform (FFT), and then move on to the next - perhaps overlapping - frame. To analyze a sound with default settings and plot its spectrogram, all we need to specify is its sampling rate (the default in soundgen is 16000 Hz):
 
 ```{r fig.show = "hold", fig.height = 5, fig.width = 7}
 a1 = analyze(s1, samplingRate = 16000, plot = TRUE, ylim = c(0, 4))
 # a1$detailed  # many acoustic predictors measured for each STFT frame
-median(true_pitch)  # true value, as synthesized above
-median(a1$detailed$pitch, na.rm = TRUE)  # our estimate
+median(a1$detailed$pitch, na.rm = TRUE)  # our estimate of median pitch
 # Pitch postprocessing is stochastic (see below), so the contour may vary.
-# Many candidates are off target, mainly b/c of misleading subharmonics.
 ```
 
 There are several key parameters that control the behavior of STFT and affect all extracted acoustic variables. The same parameters serve as arguments to `spectrogram`. As a result, you can immediately see what frame-by-frame input you have fed into the algorithm for acoustic analysis by visually inspecting the produced spectrogram. If you can hear f0, but can't see individual harmonics in the spectrogram, the pitch tracker probably will not see them, either, and will therefore fail to detect f0 correctly. The first remedy is thus to adjust STFT settings, using the spectrogram for visual feedback:
 
-* `windowLength`: the length of sliding STFT window. Longer windows (e.g., 40 - 50 ms) improve frequency resolution at the expense of time resolution, so they are good for detecting relatively low, slowly changing f0, as in human moans or grunts. Shorter windows (e.g., 5 - 10 ms) improve time resolution at the expense of frequency resolution, so they are good for visualizing formants or tracking high-frequency, rapidly changing f0 as in bird chirps or dolphin whistles.
-* `step`: the step of sliding STFT window. For example, if `windowLength = 50` and `step = 25`, each time we move the analysis frame, there is a 50% overlap with the previous frame. This introduces redundancy into the analysis, but it also - to some limited extent - improves time resolution while maintaining relatively high frequency resolution. The main cost of small steps (large overlap) is processing time, but very large overlap is not always desirable, even when processing time is not an issue. If some audio segments are problematic (e.g., very noisy), pitch contour may actually be more accurate with relatively large steps and more smoothing. It is therefore best to check the results with different steps and/or run formal optimization (remember to adjust smoothing and other postprocessing parameters together with STFT settings).
+* `windowLength`: the length of sliding STFT window. Longer windows (e.g., 40 - 50 ms) improve frequency resolution at the expense of time resolution, so they are good for detecting relatively low, slowly changing f0. Shorter windows (e.g., 5 - 10 ms) improve time resolution at the expense of frequency resolution, so they are good for visualizing formants or for tracking high-frequency, rapidly changing f0 as in bird chirps or dolphin whistles.
+* `step`: the step of sliding STFT window. For example, if `windowLength = 50` and `step = 25`, each time we move the analysis frame, there is a 50% overlap with the previous frame. Short steps improve time resolution while maintaining relatively high frequency resolution at the price of processing time. For noisy recordings, pitch contour may actually be more accurate with relatively large steps and more smoothing.
 * `wn`: the type of windowing function used to taper the analysis frame during STFT. In practice the windowing function doesn't seem to have a major effect on the result, as long as you choose something reasonable like gaussian, hanning, or bartlett. 
-* `zp`: zero-padding. You can use a short STFT window and improve its frequency resolution by padding each frame with zeroes. This is a computational trick that - again, to some limited extent - improves frequency resolution while maintaining relatively high time resolution. 
+* `zp`: zero-padding. You can use a short STFT window and improve its frequency resolution by padding each frame with zeroes. This is a computational trick for improving frequency resolution while maintaining relatively high time resolution. 
 * `silence`: frames with root mean square (RMS) amplitude below silence threshold are not analyzed at all. Quiet frames are harder to analyze, because their signal-to-noise ratio is lower. As a result, we want to strike a good balance. Setting `silence` too low (close to 0) produces a lot of garbage, as the algorithm tries to analyze frames that are essentially just background noise without any signal. Setting `silence` too high (close to 1) excludes too many perfectly good frames, misrepresenting the signal. In soundgen `silence` is dynamically updated: it can never be lower than specified, but it may be raised to the minimum root mean square amplitude of all frames, if this minimum is higher than `silence`. This ensures that empty frames are not analyzed in recordings with unusually high levels of steady background noise (e.g., microphone hiss).
 
-## Basic spectral descriptives
+## Spectral descriptives
 Apart from pitch tracking, `analyze` calculates and returns several acoustic characteristics from each non-silent STFT frame:
 
 * `time`: time of the middle of each frame (ms)
@@ -172,62 +212,27 @@ summary(out)
 
 If you need to do this analysis repeatedly, just wrap the code into your own function that takes a wav file as input and returns all these spectral descriptives. You can also save the actual spectra of different sound files and add them up to obtain an average spectrum across multiple sound files, work with cochleograms instead of raw spectra (check out `tuneR::melfcc`), etc. Be your own boss!
 
-## Loudness
-The digital representation of a sound is a long vector of numbers on some arbitrary scale, say [-1, 1]. Values further from zero correspond to a higher amplitude - in physical terms, to greater pertubations of sound pressure level caused by the propagating sound wave. A smoothed line following peak amplitude values is known as an amplitude envelope. However, there is no simple correspondence between the absolute height of amplitude peaks and the subjectively experienced loudness of the corresponding sound. A commonly reported measure of sound intensity is its root mean square (RMS) amplitude, which takes into account the average value of sound pressure, and not only the height of peaks. More sophisticated estimates of loudness also take into account the relative sensitivity of human hearing to different frequencies, masking of adjacent tones in the time and frequency domains, etc. 
-
-To illustrate the differences between these estimates, let's look at a pure tone sweeping with fixed absolute amplitude from 100 to 4000 Hz over 2 s:
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
-dur = 2  # 2 s duration
-samplingRate = 16000
-f0 = seq(100, 8000, length.out = samplingRate * dur)
-sweep = sin(2 * pi * cumsum(f0) / samplingRate)
-# playme(sweep)
-# spectrogram(sweep, 16000)
-# plot(sweep, type = 'l')
-```
-
-Smoothed absolute amplitude envelope (flat):
-```{r fig.height = 4, fig.width = 7}
-seewave::env(sweep, f = samplingRate, envt = 'abs', msmooth=c(50, 0))
-```
-
-RMS amplitude per STFT frame, as returned by `analyze()`, column "ampl":
-```{r fig.height = 4, fig.width = 7}
-a = analyze(sweep, samplingRate = samplingRate, pitchMethods = NULL, plot = FALSE)
-plot(seq(0, dur, length.out = length(a$detailed$ampl)), 
-     a$detailed$ampl, type = 'b', xlab = 'Time, s')
-```
-
-An estimate of subjectively experienced loudness in sone, column "loudness":
-```{r fig.height = 4, fig.width = 7}
-plot(seq(0, dur, length.out = length(a$detailed$loudness)), a$detailed$loudness, 
-     type = 'b', xlab= 'Time, s')
-```
-
-Soundgen also has a dedicated function for calculating the loudness and plotting the output, `getLoudness()`. Loudness values are overlaid on the spectrogram - observe how the loudness peaks as f0 reaches about 2-3 kHz and then drops. The absolute values in sone are only an approximation, since they are dictated by the playback device (e.g. your headphones), but the change of loudness within one sound, or across different sounds analyzed with the same settings, is informative.
-```{r fig.height = 5, fig.width = 7}
-l = getLoudness(sweep, samplingRate = samplingRate)
-```
-
 
 ## Pitch tracking
-If you look at the source code of `soundgen::analyze()` and embedded functions, you will see that almost all of this code deals with a single acoustic characteristic: fundamental frequency (f0) or its perceptual equivalent, pitch. That's because pitch is both highly salient to listeners and notoriously difficult to measure accurately. The approach followed by soundgen's pitch tracker is to use several different estimates of f0, each of which is better suited to certain types of sounds. You can use any pitch tracker individually, but their output is also automatically integrated and postprocessed so as to generate the best overall estimate of frame-by-frame pitch. Autocorrelation is needed to calculate the harmonics-to-noise ratio (HNR) of an STFT frame, and then this information is used to adjust the expectations of the cepstral and spectral algorithms. In particular, if autocorrelation suggests that the pitch is high, confidence in cepstral estimates is attenuated; and if autocorrelation suggests that HNR is low, thresholds for spectral peak detection are raised, making spectral pitch estimates more conservative. 
+Fundamental frequency (f0) or its perceptual equivalent - pitch - is both highly salient to listeners and notoriously difficult to measure accurately. The approach followed by soundgen's pitch tracker is to use several different estimates of f0, each of which is better suited to certain types of sounds. You can use any pitch tracker individually, but their output is also automatically integrated and postprocessed so as to generate the best overall estimate of frame-by-frame pitch. Autocorrelation is needed to calculate the harmonics-to-noise ratio (HNR) of an STFT frame, and then this information is used to adjust the expectations of the cepstral and spectral algorithms. In particular, if autocorrelation suggests that the pitch is high, confidence in cepstral estimates is attenuated; and if autocorrelation suggests that HNR is low, thresholds for spectral peak detection are raised, making spectral pitch estimates more conservative. 
 
 The plot below shows a spectrogram of the sound with overlaid pitch candidates generated by five different methods (listed in `pitchMethods`), with a very vague prior - that is, with no specific expectations regarding the true range of pitch values. The size of each point shows the certainty of estimation: smaller points are calculated with lower certainty and have less weight when all candidates are integrated into the final pitch contour (blue line).
 ```{r fig.show = "hold", fig.height = 5, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, priorSD = 24, 
-            pitchMethods = c('autocor', 'cep', 'dom', 'spec', 'hps'),
+            pitchMethods = c('autocor', 'cep', 'dom', 'spec', 'hps', 'zc'),
             plot = TRUE, ylim = c(0, 4))
 ```
 
-Different pitch tracking methods have their own pros and cons. Cepstrum is helpful for speech but pretty useless for high-frequency whistles or screams, harmonic product spectrum (hps) is easily misled by subharmonics (as in this example), lowest dominant frequency band (dom) can't handle low-frequency wind noise, etc. The default is to use "dom" and "autocor" as the most generally applicable, but you can experiment with all methods and check which ones perform best with the specific type of audio that you are analyzing. Each method can also be fine-tuned (see below), but first it is worth considering the general pitch-related settings.
+Different pitch tracking methods have their own pros and cons. Cepstrum is helpful for speech but pretty useless for high-frequency whistles or screams, harmonic product spectrum (hps) is easily misled by subharmonics (as in this example), lowest dominant frequency band (dom) can't handle low-frequency wind noise or missing fundamental, etc. The default is to use "dom" and "autocor" as the most generally applicable, but you can experiment with all methods and check which ones perform best with the specific type of audio that you are analyzing. Each method can also be fine-tuned (see below), but first it is worth considering the general pitch-related settings.
 
 ### General settings
 `analyze` has a few arguments that affect all methods of pitch tracking:
 
 * `entropyThres`: all non-silent frames are analyzed to produce basic spectral descriptives. However, pitch tracking is both computationally costly and can be misleading if applied to obviously voiceless frames. To define what an "obviously voiceless" frame is, we set some cutoff value of Weiner entropy, above which we don't want to even try pitch tracking. To disable this feature and track pitch in all non-silent frames, set `entropyThres = NULL`.
 * `pitchFloor`, `pitchCeiling`: absolute thresholds for pitch candidates. No values outside these bounds will be considered.
-* `priorMean` and `priorSD` specify the mean and sd of prior distribution describing our prior knowledge about the most likely pitch values. If `priorAdapt = TRUE`, this user-defined prior is only applies to the first pass of optimizing pitch contours, after which the first-pass contour becomes the new prior for the second pass. Both of these priors work by scaling the certainties associated with particular pitch candidates. If you are working with a single type of sound, such as speech by a male speaker or cricket sounds, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds with `analyzeFolder()`, the recommended approach is to set a vague, but still mildly informative prior. `priorMean` is specified in Hz, but the expected deviation from this typical value is calculated on a musical scale, so `priorSD` is in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted with `getPrior`:
+* `priorMean` and `priorSD` specify the mean and sd of prior distribution describing our prior knowledge about the most likely pitch values. If `priorAdapt = TRUE`, this user-defined prior is only applies to the first pass of optimizing pitch contours, after which the first-pass contour becomes the new prior for the second pass. Both of these priors work by scaling the certainties associated with particular pitch candidates. If you are working with a single type of sound, such as speech by a male speaker or cricket sounds, specifying a strong prior can greatly improve the quality of the resulting pitch contour. When batch-processing a large number of sounds, the recommended approach is to set a vague, but still mildly informative prior. 
+
+Note that `priorMean` is specified in Hz and `priorSD` in semitones. For example, if we expect f0 values of about 300 Hz plus-minus half an octave (6 semitones), a prior can be defined as `priorMean = 300, priorSD = 6`. For convenience, the prior can be plotted with `getPrior`:
 
 ```{r fig.show = "hold", fig.height = 5, fig.width = 7}
 par(mfrow = c(1, 2))
@@ -257,9 +262,9 @@ This is an R implementation of the algorithm used in the popular open-source pro
 * `autocorBestPeak`: amplitude of the lowest best candidate relative to the absolute maximum of the autocorrelation function.
 
 To use only autocorrelation pitch tracking, but with lower-than-default voicing threshold and more candidates, we can do something like this (prior is disabled so as not to influence the certainties of different pitch candidates):
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 4), priorMean = NA,
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
             pitchMethods = 'autocor',
             pitchAutocor = list(autocorThres = .45, 
                                 # + plot pars if needed
@@ -279,9 +284,9 @@ The settings that control `dom` are:
 
 For the sound we are trying to analyze, we can increase `domSmooth` and/or raise `domThres` to ignore the subharmonics and trace the true pitch contour:
 
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
 a = analyze(s1,  samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 4), priorMean = NA,
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
             pitchMethods = 'dom',
             pitchDom = list(domThres = .1, domSmooth = 500, cex = 1.5))
 ```
@@ -297,33 +302,34 @@ The settings that control `pitchCep` are:
 * `cepSmooth`: the width of smoothing interval (in Hz) for finding peaks in the cepstrum. If left NULL, it defaults to 31 bins for sampling rate 44100 and smaller odd numbers for lower values of sampling rate.
 * `cepZp` (defaults to 0): zero-padding of the spectrum used for cepstral pitch detection (points). Zero-padding may improve the precision of cepstral pitch detection, but it also slows down the algorithm.
 
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 4), priorMean = NA,
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
             pitchMethods = 'cep',
             pitchCep = list(cepThres = .3),
             nCands = 2)
 ```
 
-#### Ratio of harmonics
-Frequency domain: ratios of harmonics, BaNa, `pitchSpec`. 
+#### Spectral harmonics
+Frequency domain: common factor of harmonics or ratios of harmonics, `pitchSpec`. 
 
-All harmonics are multiples of the fundamental frequency. The ratio of two neighboring harmonics is thus predictably related to their rank relative to f0. For example, `(3 * f0) / (2 * f0) = 1.5`, so if we find two harmonics in the spectrum that have a ratio of exactly 1.5, it is likely that f0 is half the lower one (Ba et al., 2012). This is the principle behind the spectral pitch estimate in soundgen, which seems to be particularly useful for noisy, relatively low-pitched sounds.
+All harmonics are multiples of the fundamental frequency. If we can detect several harmonics, we can therefore find f0 as the highest common ratio of harmonics (method = "commonFactor"). Alternatively, we can exploit the fact that the ratio of two neighboring harmonics is predictably related to their rank relative to f0 (method = "BaNa"). For example, `(3 * f0) / (2 * f0) = 1.5`, so if we find two harmonics in the spectrum that have a ratio of exactly 1.5, it is likely that f0 is half the lower one (Ba et al., 2012).
 
 The settings that control `pitchSpec` are:
 
-* `specThres` (0 to 1, defaults to 0.3): voicing threshold for pitch candidates suggested by the spectral method. The scale is 0 to 1, as usual, but it is the result of a rather arbitrary normalization. The "strength" of spectral pitch candidates is basically calculated as a sigmoid function of the number of harmonic ratios that together converge on the same f0 value. Setting `specThres` too low may produce garbage, while setting it too high makes the spectral method excessively conservative.
-* `specPeak` (0 to 1, defaults to 0.35), `specHNRslope` (0 to Inf, defaults to 0.8): when looking for putative harmonics in the spectrum, the threshold for peak detection is calculated as `specPeak * (1 - HNR * specHNRslope)`. For noisy sounds the threshold is high to avoid false sumharmonics, while for tonal sounds it is low to catch weak harmonics. If `HNR` (harmonics-to-noise ratio) is not known, say if we have disabled the autocorrelation pitch tracker or if it returns NA for a frame, then the threshold defaults to simply `specPeak`. This key parameter strongly affects how many pitch candidates the spectral method suggests.
+* `specMethod`: "commonFactor" = highest common factor of putative harmonics, "BaNa" = ratio of putative harmonics
+* `specRatios`: for method = "commonFactor", the number of harmonics AND integer fractions to consider
+* `specMerge` (0 to Inf semitones, defaults to 1): pitch candidates within `specMerge` semitones are merged with boosted certainty. Since the idea behind the spectral pitch tracker is that multiple harmonic ratios should converge on the same f0, we have to decide what counts as "the same" f0
+* `specThres` (0 to 1, defaults to 0.1): voicing threshold for pitch candidates suggested by the spectral method. The scale is 0 to 1, as usual, but it is the result of a rather arbitrary normalization. The "strength" of spectral pitch candidates is basically calculated as a sigmoid function of the number of common factors or harmonic ratios that imply (nearly) the same f0 value. Setting `specThres` too low may produce garbage, while setting it too high makes the spectral method excessively conservative.
+* `specPeak` (0 to 1, defaults to 0.25), `specHNRslope` (0 to Inf, defaults to 0.8): when looking for putative harmonics in the spectrum, the threshold for peak detection is calculated as `specPeak * (1 - HNR * specHNRslope)`. For noisy sounds the threshold is high to avoid false sumharmonics, while for tonal sounds it is low to catch weak harmonics. If `HNR` (harmonics-to-noise ratio) is not known, say if we have disabled the autocorrelation pitch tracker or if it returns NA for a frame, then the threshold defaults to simply `specPeak`. This key parameter strongly affects how many pitch candidates the spectral method suggests.
 * `specSmooth` (0 to Inf, defaults to 150 Hz): the width of window for detecting peaks in the spectrum, in Hz. You may want to adjust it if you are working with sounds with a specific f0 range, especially if it is unusually high or low compared to human sounds.
-* `specMerge` (0 to Inf semitones, defaults to 1): pitch candidates within `specMerge` semitones are merged with boosted certainty. Since the idea behind the spectral pitch tracker is that multiple harmonic ratios should converge on the same f0, we have to decide what counts as "the same" f0.
 * `specSinglePeakCert`: (0 to 1, defaults to 0.4) if a`pitchSpec` candidate is calculated based on a single harmonic ratio (as opposed to several ratios converging on the same candidate), its weight (certainty) is taken to be `specSinglePeakCert`. This mainly has implications for how much we trust spectral vs. other pitch estimates.
 
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 4), priorMean = NA,
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
             pitchMethods = 'spec',
-            pitchSpec = list(specThres = .2, specPeak = .1, cex = 2),
-            nCands = 2)
+            pitchSpec = list(specPeak = .025, specSmooth = 400, cex = 2))
 ```
 
 #### Harmonic product spectrum
@@ -338,43 +344,57 @@ The settings that control `pitchHps` are:
 * `hpsNorm`: the amount of inflation of hps pitch certainty (0 = none). Because the downsampled spectra are multiplied, the height of the resulting peak tends to be rather low; `hpsNorm` (defaults to 2, 0 = none) compensates for it, otherwise this method would have very low confidence compared to other pitch trackers
 * `hpsPenalty` (defaults to 2, 0 = none): the amount of penalizing hps candidates in low frequencies (0 = none). HPS doesn't perform very well at low frequencies, so the certainty in low-frequency candidates is attenuated
 
-```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 4), priorMean = NA,
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
             pitchMethods = 'hps',
             pitchHps = list(hpsNum = 2, # try 8 or so to measure subharmonics
                             hpsThres = .2))
 ```
 
-*TIP Each pitch tracking method can be tweaked to produce reasonable results for a particular sound (read: to agree with human intuition). The real trick is to find settings that are accurate on average, across a wide range of sounds and recording conditions. The default settings in `analyze` are the result of optimization against manually verified pitch measurements of a corpus of 260 human non-linguistic vocalizations. For other types of sounds, you will need to perform your own manual tweaking and/or formal optimization.*
 
-### Missing fundamental
-The perception of pitch does not depend on the presence of the lowest partial corresponding to the actual fundamental frequency: even if it is removed or masked by low-frequency noise, the pitch remains unchanged. By definition, the "dom" estimate of pitch cannot function when this lowest partial is missing (it works by literally tracking the lowest dominant frequency band). However, the remaining four pitch tracking methods - autocorrelation, cepstrum, BaNa, and HPS - have no problem dealing with a missing fundamental frequency because they take the entire spectrum into account, not only the lowest partial.
+#### Zero crossings
+Time domain: `pitchZc`. 
 
-A sound with four partials at 300 Hz (f0), 600 Hz, 900 Hz, and 1200 Hz:
-```{r fig.show = "hold", fig.height = 3, fig.width = 4}
-s_withf0 = soundgen(sylLen = 600, pitch = 300,
-              rolloffExact = c(1, 1, 1, 1), formants = NULL, lipRad = 0)
-# playme(s_withf0)
-seewave::meanspec(s_withf0, f = 16000, dB = 'max0', flim = c(0, 3))
+This is a very simple and fast time-domain method based on detecting zero crossings after bandpass-filtering the audio. This method only works if f0 is strong enough (e.g., well below the first formant in speech) and can be suitable for rapidly analyzing long speech recordings. Note that a relatively low `pitchCeiling` must be specified, essentially just above the upper values of f0.
+
+The settings that control `pitchZc` are:
+
+* `zcThres` (0 to 1, defaults to 0.1): pitch candidates with certainty below this value are treated as noise and set to NA
+* `zcWin` (odd integer > 3): certainty in pitch candidates depends on how stable pitch is over zcWin glottal cycles
+
+```{r fig.show = "hold", fig.height = 4, fig.width = 7}
+a = analyze(s1, samplingRate = 16000, 
+            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            pitchMethods = 'zc',
+            pitchCeiling = 600,  # higher pitch values blend with F1
+            pitchZc = list(zcWin = 3, zcThres = 0))
 ```
 
-Now the same sound, but without the first partial (f0):
+*TIP Most pitch tracking methods can be tweaked to produce reasonable results for a particular sound (read: to agree with human intuition). The real trick is to find settings that are accurate on average, across a wide range of sounds and recording conditions. The default settings in `analyze` are the result of optimization against manually verified pitch measurements in human non-linguistic vocalizations. For other types of sounds, you may need to perform your own manual tweaking and/or formal optimization.*
+
+
+### Missing fundamental
+The perception of pitch does not depend on the presence of the lowest partial corresponding to the actual fundamental frequency, but this "missing fundamental" problem may affect pitch tracking. This situation can arise if a recording is high-pass filtered or if there is a lot of low-frequency noise such as wind in the microphone. By definition, the "dom" estimate of pitch cannot function when the lowest partial is missing (it works by literally tracking the lowest dominant frequency band), and this is also a problem for `pitchMethods = "zc"` (zero crossings). Other pitch tracking methods have no problem dealing with a missing fundamental frequency because they take the entire spectrum into account, not only the lowest partial. For `pitchMethods = "spec"`, however, remember to switch to BaNa algorithm (see example below).
+
+A sound with implicit pitch = 300 Hz based on partials at 600 Hz, 900 Hz, and 1200 Hz (f0 at 300 Hz is missing):
 ```{r fig.show = "hold", fig.height = 3, fig.width = 4}
 s_withoutf0 = soundgen(sylLen = 600, pitch = 300,
               rolloffExact = c(0, 1, 1, 1), formants = NULL, lipRad = 0)
 # playme(s_withoutf0)  # you can clearly hear the difference
 seewave::meanspec(s_withoutf0, f = 16000, dB = 'max0', flim = c(0, 3))
 ```
-
-No problem with pitch tracking (except for the `dom` method), although the pitch contour is following a partial that is no longer there:
+No problem with pitch tracking (except for the `dom` and `zc` methods):
 ```{r fig.show = "hold", fig.height = 4, fig.width = 6}
-a_withoutf0 = analyze(s_withoutf0, 16000, , priorMean = NA,
-             pitchMethods = c('autocor', 'dom', 'cep', 'spec', 'hps'),
+a_withoutf0 = analyze(s_withoutf0, 16000, priorMean = NA, priorAdapt = FALSE,
+             pitchMethods = c('autocor', 'dom', 'cep', 'spec', 'hps', 'zc'),
+             pitchSpec = list(specMethod = 'BaNa'),
              plot = TRUE, ylim = c(0, 2), dynamicRange = 60, osc = FALSE)
 ```
 
-The implications are as follows: if the lower part of your signal is degraded (wind noise, an engine running, somebody else talking in the background, etc.), you can apply a high-pass filter to remove low frequencies. Even if you filter out the first partial by doing so, pitch tracking will still be possible. *BUT: do NOT use the "dom" pitch estimate if f0 is either filtered out or invisible because of noise!*
+The implications are as follows: if the lower part of your signal is degraded (wind noise, an engine running, somebody else talking in the background, etc.), you can apply a high-pass filter to remove low frequencies. Even if you filter out the first partial by doing so, pitch tracking will still be possible.
+
+*BUT: do NOT use the "dom" pitch estimate if f0 is either filtered out or invisible because of noise!*
 
 ## Postprocessing of pitch contour
 Pitch postprocessing in soundgen includes a whole battery of distinct operations through which the pitch candidates generated by one or more tracking methods are integrated into the final pitch contour. We will look at them one by one, in the order in which they are performed in `analyze`. But first of all, here is how to disable them all:
@@ -392,25 +412,21 @@ a = analyze(
 
 When the sound is not too tricky and enough pitch candidates are available, postprocessing actually makes little difference. In terms of the accuracy of median estimate of f0, you are likely to get a good result even with postprocessing is completely disabled. However, if you are interested in the actual intonation contours, not just the global average, postprocessing can help a lot.
 
-### Continuous voiced fragments
-It often makes sense to make assumptions about the possible temporal structure of voiced fragments, such as their minimum expected length (`shortestSyl`) and spacing (`shortestPause`). If these two parameters are positive numbers, the first stage of postprocessing is to divide the sound into continuous voiced fragments that satisfy these assumptions. The default minimum length of a voiced fragment is a single STFT frame. If `shortestSyl` is longer than a single frame, then we need at least two adjacent voiced frames to start a new voiced fragment. A single voiced frame surrounded by unvoiced frames then gets discarded (assumed to be unvoiced). If two voiced fragments are separated by less than `shortestPause`, they are merged. What this means is simply that they are processed as a single syllable by `pathfinder()` (see below). No interpolation takes place at this stage.
+The first stage of postprocessing is to divide the sound into continuous voiced fragments or "syllables" based on their minimum expected length (`shortestSyl`) and spacing (`shortestPause`). Voiced fragments shorter than `shortestSyl` get discarded (assumed to be unvoiced). If two voiced fragments are separated by less than `shortestPause`, they are merged. 
 
-The next few blocks of postprocessing are performed by an internal function, `soundgen:::pathfinder()`. Its input is a matrix of pitch candidates for each frame of a single voiced syllable, usually with multiple candidates per frame. Each candidate is also associated with a different certainty. We want to find a good path through these candidates - that is, a pitch contour that both passes close to the strongest candidates and minimizes pitch jumps, producing a relatively smooth contour. The simplest first approximation is to take a mean of all pitch candidates per frame weighted by their certainty - the "center of gravity" of pitch candidates - and for each frame to select the candidate that lies closest to this center of gravity. This initial guess at a reasonable path may or may not be processed further, depending on the settings described below.
-
-### Interpolation
-To make sure we have at least one pitch candidate for every frame in the supposedly continuous voiced fragment, we interpolate to fill in any missing values. The same algorithm also adds new pitch candidates with certainty `interpol$cert` if a frame has no pitch candidates within `interpol$tol` of the median of the "center of gravity" estimate over plus-minus `interpol$win` frames. The frequency of new candidates is equal to this median. For example, if `interpol$tol = 0.05`, new candidates are calculated if there are none within 0.95 to 1.05 times the median over the interpolation window. You can also enable interpolation to fill in unvoiced frames, but without adding new pitch candidates in voiced frames. To do so, set `interpol$tol = Inf`.
+To make sure we have at least one pitch candidate for every frame in the supposedly continuous voiced fragment, we interpolate to fill in any missing values. The same algorithm also adds new pitch candidates with certainty `interpol$cert` if a frame has no pitch candidates within `interpol$tol` of the median of the "center of gravity" estimate over plus-minus `interpol$win` frames. The frequency of new candidates is equal to this median. For example, if `interpol$tol = 0.05`, new candidates are calculated if there are none within 0.95 to 1.05 times the median over the interpolation window. Interpolation thus has the effect of smoothing a pitch contour, avoiding discontinuities or sudden jumps. You can also enable interpolation to fill in unvoiced frames, but without adding new pitch candidates in voiced frames. To do so, set `interpol$tol = Inf`.
 
 Here is an example (interpolated segments are shown with a dotted line)
 
 ```{r fig.show = "hold", fig.height = 3, fig.width = 7}
 a1 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .45),
+             pitchMethods = 'cep', pitchCep = list(cepThres = .25),
              interpol = NULL,   # disable interpolation
              pathfinding = 'none',  
              snakeStep = 0, smooth = 0, plot = FALSE)
 a2 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .45),
-             # interpol = list(win = 100, tol = .1),
+             pitchMethods = 'cep', pitchCep = list(cepThres = .25),
+             interpol = list(win = 100, tol = .1),
              pathfinding = 'none', 
              snakeStep = 0, smooth = 0, plot = FALSE)  
 plot(a1$detailed$time, a1$detailed$pitch, type = 'l', 
@@ -420,46 +436,9 @@ points(a2$detailed$time, a2$detailed$pitch, type = 'l',
 
 ```
 
-### Pathfinding
-The next step after interpolation is pathfinding proper - searching for the optimal path through pitch candidates. If `pathfinding = "none"`, this step is skipped, so we just continue working with the path that lies as close as possible to the (possibly interpolated) center of gravity of pitch candidates. If `pathfinding = "fast"` (the default option), a simple heuristic is employed, in which we walk down the path twice, first left to right and then right to left, trying to minimize the cost measured as a weighted mean of the distance from the center of gravity and the deviation from a smooth contour. The key setting is `certWeight`, which specifies how much we prioritize the certainty of pitch candidates vs. pitch jumps / the internal tension of the resulting pitch curve. Low `certWeight` (close to 0): we are mostly concerned with avoiding rapid pitch fluctuations in our contour. High `certWeight` (close to 1): we mostly pay attention to our certainty in particular pitch candidates. The example below is intended as an illustration of how pathfinding works, so all other types of smoothing are disabled, forcing the final pitch contour to pass strictly through existing candidates.
+At the next stage, an optimal pitch contour is found through pitch candidates within each voiced syllable. There may be multiple pitch candidates for each frame, and each candidate comes with a particular degree of certainty. We want to find a good path through these candidates - that is, a pitch contour that both passes close to the strongest candidates and minimizes pitch jumps, producing a relatively smooth contour. The default is to use a modification of the Viterbi algorithm - see `?soundgen:::pathfinder()` for details. A complementary or alternative approach is to run a "snake" algorithm, which wiggles the pitch contour under a weighted combination of elastic forces and the pull of high-certainty pitch candidates. Note that the snake can add new values different from existing candidates, and it is disabled by default.
 
-```{r fig.show = "hold", fig.height = 6, fig.width = 7}
-a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 2,
-             snakeStep = 0, smooth = 0, interpol = list(tol = Inf),
-             certWeight = 0,  # minimize pitch jumps
-             plot = TRUE, main = 'Minimize jumps', 
-             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))  
-a2 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .15), nCands = 2,
-             snakeStep = 0, smooth = 0, interpol = list(tol = Inf),
-             certWeight = 1,  # minimize deviation from high-certainty candidates
-             plot = TRUE, main = 'Pass through top cand-s', 
-             showLegend = FALSE, osc = FALSE, ylim = c(0, 3))
-```
-
-The final option is `pathfinding = 'slow'`, which calls `stats::optim(method = 'SANN')` to perform simulated annealing. This is a more powerful algorithm than the simple heuristic in `pathfinding = 'fast'`, but it is called "slow" for a good reason. In case you have plenty of time, it does improve the results, but note that this algorithm is stochastic, so each run may produce different results. Use an additional argument, `annealPars`, to control the algorithm. See `?stats::optim` for more details. 
-
-### Snake
-What is here esoterically referred to as the "snake" can be seen as an alternative to the pathfinding algorithms above, although both can also be performed sequentially. Whereas pathfinding attempts to find the best path through existing pitch candidates, the snake wiggles the contour under a weighted combination of (a) elastic forces trying to snap the pitch contour to a straight line and (b) the pull of high-certainty pitch candidates. In a sense the snake is thus a combination of interpolation and pathfinding: like interpolation, it can add new values different from existing candidates, and like pathfinding, it balances the certainty in candidates against the smoothness of the resulting contour. 
-
-The only new control parameter in the snake module (apart from `certWeight`) is `snakeStep`, which controls the speed of adaptation (the default is 0.05). The higher it is, the faster the snake "wiggles". This reduces processing time, but introduces a risk of "overshooting". If `snakeStep` is too low (close to 0), the snake moves too slowly and may fail to reach its optimal configuration. To disable the snake module, set `snakeStep = NULL`. You can also produce a separate plot of the snake by setting `snakePlot = TRUE`, as in the example below (again, all other postprocessing is disabled to show what the snake alone will do). The zigzagging line is the initial contour (the path through pitch candidates that lie as close as possible to the center of gravity of each frame), the smooth blue line is the pitch contour after running the snake, and the green lines trace the progress of iterative snake adaptation. Note that at `certWeight = 0.1` the snake is heavily biased towards producing a smooth contour, regardless of its distance from high-certainty pitch candidates.
-
-```{r fig.height = 5, fig.width = 7}
-a1 = analyze(s1, samplingRate = 16000, plot = FALSE, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .2), nCands = 2,
-             pathfinding = 'none', smooth = 0, interpolTol = Inf,
-             certWeight = 0.1,  # like pathfinding, the snake is affected by certWeight
-             snakeStep = 0.05, snakePlot = TRUE)
-```
-
-*TIP Should you use pathfinding, the snake, or both? Pathfinding makes more sense if you want the final contour to pass strictly through existing candidates, say if there are relatively few candidates, most of which are right on target and some completely off. In these conditions the snake will not do much (but not much harm, either). The snake becomes attractive if you have a lot of candidates from different pitch tracking methods, many of which are slightly off and should be averaged. In addition, the more garbage you expect among your pitch candidates, the more you might want to interpolate and apply median smoothing*
-
-### Median smoothing
-The final postprocessing stage is median smoothing. It is conceptually similar to interpolation, except that by now there is only a single f0 value left per frame, so we can forget about the multiple candidates and their certainties. It wouldn't make much sense to apply kernel smoothing to this curve: the snake can usually do this in a smarter way, since it does know about the multiple candidates and their certainties. What we want from the smoothing algorithm is to detect and correct only outliers: the values that stick out from the surrounding frames. The parameters that control this module are `smooth` and `smoothVars`.
-
-If `smooth` is a positive number, contours of the variables in `smoothVars` are smoothed using a customized version of median smoothing. This modifies only the values that deviate considerably from the moving median and preserves all other values (so this is a bit different from applying a moving median or kernel smoothing). `smooth` controls both the tolerated deviance and the size of the window for calculating a moving median. `smooth = 1` (the default) corresponds to a window of ~100 ms and tolerated deviation of ~4 semitones. 
-This smoothing can be applied to any measured value, not only the final pitch contour. The default is `smoothVars = c('pitch', 'dom')`. To turn off the median smoothing, set `smooth = 0` or `smoothVars = NULL`.
+The final postprocessing stage is median smoothing. It is conceptually similar to interpolation, except that by now there is only a single f0 value left per frame, so we can forget about the multiple candidates and their certainties. If `smooth` is a positive number, contours of the variables in `smoothVars` are smoothed using a customized version of median smoothing. This modifies only the values that deviate considerably from the moving median and preserves all other values (so this is a bit different from applying a moving median or kernel smoothing). `smooth` controls both the tolerated deviance and the size of the window for calculating a moving median. `smooth = 1` (the default) corresponds to a window of ~100 ms and tolerated deviation of ~4 semitones. Smoothing can be applied to any measured value, not only the final pitch contour; the default is `smoothVars = c('pitch', 'dom')`. To turn off median smoothing, set `smooth = 0` or `smoothVars = NULL`.
 
 ```{r fig.show = "hold", fig.height = 3, fig.width = 7}
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
@@ -475,9 +454,9 @@ points(medianSmooth ~ time, data = a1$detailed, type = 'l', col = 'red', lty = 3
 # dotted line = with median smoothing
 ```
 
-*TIP Pathfinding ("slow", "fast" or "none") is the only postprocessing module that does not deviate from pitch candidates actually returned by pitch tracking algorithms. Interpolation, snake, and median smoothing produce new pitch values per frame, which may be quite different from any actual candidates*
+*TIP Pathfinding is the only postprocessing module that does not deviate from pitch candidates actually returned by pitch tracking algorithms. Interpolation, snake, and median smoothing produce new pitch values per frame, which may be quite different from any actual candidates*
 
-Naturally, the extracted pitch contours can be smoothed outside `analyze()` using any algorithm you like, such as GAM, low-pass filter, etc. For users of PRAAT, there is a function that implements its smoothing algorithm:
+Naturally, the extracted pitch contours can then be smoothed outside `analyze()` using any algorithm you like, such as GAM, low-pass filter, etc. For users of PRAAT, there is a function that implements its smoothing algorithm:
 ```{r fig.show = "hold", fig.height = 3, fig.width = 7}
 a1$detailed$ps = pitchSmoothPraat(
   a1$detailed$pitch, 
@@ -539,7 +518,7 @@ a = analyze('~/Downloads/temp2', savePlots = '',
 ## Manual correction of pitch contours with pitch_app()
 Just like `soundgen_app()` is an interactive shiny app for sound synthesis, `pitch_app()` provides a wrapper around `analyze()` with an option to step in and manually correct the intonation contour. The app runs in a browser; you can load one or more wav or mp3 files, adjust the settings, verify and correct the pitch contours, and save the output as a .csv file. Please see `?pitch_app` for more information.
 
-*TIP `pitch_app()` is meant for extracting pitch contours. Although its output is similar to that of `analyze()`, it doesn't offer options for measuring formants, loudness, etc. Suggested workflow: extract manually corrected pitch contours first, and then run `analyzeFolder(..., pitchManual = output.csv)`, where output.csv is the dataset produced by `pitch_app`*
+*TIP `pitch_app()` is meant for extracting pitch contours. Although its output is similar to that of `analyze()`, it doesn't offer options for measuring formants, loudness, etc. Suggested workflow: extract manually corrected pitch contours first, and then run `analyze(..., pitchManual = output.csv)`, where output.csv is the dataset produced by `pitch_app`*
 
 
 ## Summarizing pitch contours
@@ -560,11 +539,10 @@ colnames(pd)
 # Formant analysis with formant_app()
 Formants are the natural resonances of the vocal tract - that is, frequency bands that are amplified as the sound passes through the vocal tract. In speech, formants are responsible for differences between vowel sounds such as /a/, /i/, /u/, etc., but formants are also present in many animal calls. The most common way to estimate formant frequencies and bandwidth is by using Linear Predictive Coding (LPC), which is implemented in `phonTools::findformants()`. Because formant measurement is quite error-prone, however, any serious analysis should include manual verification of LPC measurements. Soundgen offers a web app for this task: `formant_app()`. Just like `pitch_app()`, it runs in the system-default web browser; you can add annotations to audio files and manually verify and, if needed, correct the formant measurements for each annotated segment.
 
-*TIP: pitch_app and formant_app are meant to work in the Firefox browser. A bug in Chrome interferes with correct audio playback; Safari and IE may or may not work.*
+*TIP: linear predictive coding (LPC) is implemented in `phonTools::lpc` and `phonTools::findformants`. As a convenience, `soundgen::analyze` shows the output of `phonTools::findformants`, but for serious formant analysis you might want to use formant_app or another interactive program like PRAAT and check everything manually. Also note that pitch_app and formant_app are meant to work in the Firefox browser. A bug in Chrome interferes with correct audio playback; Safari and IE may or may not work.*
 
 
-# Audio segmentation 
-## Finding syllables with segment()
+# Audio segmentation with segment()
 In addition to measuring spectral characteristics and fundamental frequency, it is often important to analyze the temporal structure of a sound. In particular, it is often helpful to divide a sound into separate "syllables" - continuous acoustic fragments separated by what we consider to be "silence". If this "silence" was not full of background noise and breathing, the task would be trivial: we could simply define syllables as continuous segments with ampiltude above some threshold. As it is, with non-studio material it is problematic to find a single threshold that would accurately coincide with the beginning and end of syllables in different sounds (presuming that we are interested in batch processing multiple sounds without manually adjusting the settings for each sound). Soundgen attempts to solve this problem by using an adaptive algorithm sensitive to the nature of background noise, signal-to-noise ratio, and acoustic novelty to achieve flexible and fast syllable segmentation.
 
 Sometimes we are more interested in the rate of syllables per second and in their regularity, rather than the absolute duration of each syllable. In this case it makes more sense to look for bursts of acoustic energy or sudden changes relative to background noise. The spacing between bursts - the interburst interval - is a perceptually salient characteristic of a bout of vocalizing.
@@ -594,7 +572,6 @@ a2 = suppressWarnings(segment(s2, samplingRate = 16000, plot = TRUE,
             SNR = 14, main = 'SNR very high'))
 ```
 
-
 * `windowLength`, `overlap`: length (ms) and overlap (%) of the smoothing window used to produce the signal envelope. Setting the overlap too low makes the enveloped jagged and imprecise, while setting the window length too low produces insufficient smoothing:
 
 ```{r fig.show = "hold", fig.height = 4, fig.width = 5}
@@ -623,38 +600,33 @@ a2 = segment(s2, samplingRate = 16000, plot = TRUE,
 *TIP For batch processing without manual adjustments, and particularly when the focus is on describing the overall rate of acoustic events rather than on actually segmenting a recording into separate vocalizations, bursts may be more robust than syllables*
 
 
-## Self-similarity matrices
-The basic idea behind self-similarity matrices (SSMs) is to compare different parts of the same sound with each other and present their pairwise similarity indices as a square matrix with time along both dimensions. The diagonal going from bottom-left to top-right represents the similarity of each fragment with itself. For example, at (100, 100) we have the similarity of the fragment at 100 ms with itself, while at (100, 200) we have the similarity of the fragments at 100 ms and 200 ms. Let's begin with an example taken from `?ssm`:
+# Loudness
+The digital representation of a sound is a long vector of numbers on some arbitrary scale, say [-1, 1]. Values further from zero correspond to a higher amplitude - in physical terms, to greater pertubations of sound pressure level caused by the propagating sound wave. A smoothed line following peak amplitude values is known as an amplitude envelope. However, there is no simple correspondence between the absolute height of amplitude peaks and the subjectively experienced loudness of the corresponding sound. A commonly reported measure of sound intensity is its root mean square (RMS) amplitude, which takes into account the average value of sound pressure, and not only the height of peaks. More sophisticated estimates of loudness also take into account the relative sensitivity of human hearing to different frequencies, masking of adjacent tones in the time and frequency domains, etc. 
 
-```{r fig.show = "hold", fig.height = 6, fig.width = 7}
-s3 = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70, 
-       formants = NA, pitch = c(500, 330)))
-# playme(s3, 16000)
-m = ssm(s3, samplingRate = 16000)
+To illustrate the differences between these estimates, let's look at a pure tone sweeping with fixed absolute amplitude from 100 to 4000 Hz over 2 s:
+```{r fig.show = "hold", fig.height = 5, fig.width = 7}
+dur = .5  # .5 s duration
+samplingRate = 16000
+f0 = getSmoothContour(c(70, 8000), len = samplingRate * dur, thisIsPitch = TRUE)
+sweep = sin(2 * pi * cumsum(f0) / samplingRate)
+# playme(sweep)
+# spectrogram(sweep, 16000)
+# plot(sweep, type = 'l')
 ```
 
-Look at the upper panel first. There are three main regions: the large red square in the lower left corner, which corresponds to the first bout; the red square in the center, which corresponds to the long pause between the bouts; and the checkered field in the upper right corner, which corresponds to the second bout. Observe the characteristic diagonal. The SSM clearly shows periodicity within the second bout, which confirms that these syllables are very similar to each other in terms of their spectral characteristics. Now look at the lower panel of the plot. This is a spectrogram overlaid with so-called "novelty": peaks show when something changes in the sound, based on the SSM.
-
-The results of SSM analysis can vary dramatically, depending on how it is performed. We begin by extracting some form of spectrogram of the entire sound, then we somehow compare each frame to each other frame, and finally we calculate a measure of novelty. At each step there are crucial decisions to make, which can dramatically alter the result. Let's look at the settings that control each step. As you play with these settings, don't be surprised if your SSM suddenly looks completely different!
-
-  1. Spectrogram extraction is controlled by some already familiar settings such as `windowLength` and `overlap` (or `step` if you prefer). However, it can often be helpful to base the SSM on some other spectral characteristics than the usual spectrogram. Under the hood, `ssm` calls `tuneR::melfcc` to return the power spectrum (as in a spectrogram, `input = 'spectrum'`), mel-transformed spectrum (auditory spectrum, which is supposed to be closer to how humans perceive sounds, `input = 'audiogram'`), or mel-frequency cepstral coefficients (MFCCs - a popular choice of input for automatic sound classification, as in speech recognition software, `input = 'mfcc'`). There are also several arguments that are passed to `tuneR::melfcc`: `maxFreq` controls the highest frequency analyzed, `MFCC` controls the number of mel-frequency cepstral coefficients to extract, and `nBands` basically controls the frequency resolution. 
-
-  1. SSM calculation starts with the spectrogram (or the MFCCs matrix) produced at the previous stage. This input is divided into windows, each of which can be one or several STFT frames in length, and then each window is compared to each other window using either cosine similarity (`simil = 'cosine'`) or Pearson's correlation (`simil = 'cor'`). Prior to this the input matrix can be normalized column-wise, so as to level out the differences in sound intensity across frames (`norm = TRUE`). The size of analysis window is controlled by the argument `ssmWin`, ms. Note that as you increase `ssmWin`, the resulting SSM literally shrinks in size, reducing its resolution. This is a great feature if your sound is very long, but it is seldom needed for shorter sounds. As you decrease `ssmWin`, it ultimately reaches the size of a single STFT frame (`step`) and can't go down any further, unless you improve time resolution of the spectrogram itself by reducing `windowLength` and/or increasing `overlap`. 
-
-  1. Novelty calculation starts with the SSM computed at the previous step. Here the idea is to move along the diagonal and multiply the SSM by a Gaussian checkerboard matrix, so as to detect changes in the spectral structure (see Foote, 2000). The settings that control this algorithm are `kernelLen` and `kernelSD`. The crucial parameter is `kernelLen` (ms): a large kernel is good for detecting global changes in the sound, such as transitions between different vocalizations, whereas a small kernel is good for detecting rapid changes, such as individual bursts in a laugh. If you are curious about the kernel itself, take a look at `?soundgen:::getCheckerboardKernel()`.
-
-```{r fig.show = "hold", fig.height = 6, fig.width = 7}
-par(mfrow = c(2, 1))
-m1 = ssm(s3, samplingRate = 16000,
-         input = 'melspec', simil = 'cor', norm = FALSE, 
-         ssmWin = 10, kernelLen = 150)  # detailed, local features
-m2 = ssm(s3, samplingRate = 16000,
-         input = 'mfcc', simil = 'cosine', norm = TRUE, 
-         ssmWin = 50, kernelLen = 600)  # more global
+Compare the flat contour of RMS amplitude per STFT frame vs. loudness, both returned by `analyze()`:
+```{r fig.height = 3, fig.width = 7}
+a = analyze(sweep, samplingRate = samplingRate, pitchMethods = NULL, plot = FALSE)
+par(mfrow = c(1, 2))
+plot(a$detailed$time, a$detailed$ampl, type = 'l', ylim = c(0, 1), main = 'RMS')
+plot(a$detailed$time, a$detailed$loudness, type = 'l', main = 'Loudness')
 par(mfrow = c(1, 1))
 ```
 
-*TIP analyze() internally calls ssm() to calculate novelty*
+Soundgen also has a dedicated function for calculating the loudness and plotting the output, `getLoudness()`. Loudness values are overlaid on the spectrogram - observe how the loudness peaks as f0 reaches about 2-3 kHz and then drops. The absolute values in sone are only an approximation, since they are dictated by the playback device (e.g. your headphones), but the change of loudness within one sound, or across different sounds analyzed with the same settings, is informative.
+```{r fig.height = 5, fig.width = 7}
+l = getLoudness(sweep, samplingRate = 16000)
+```
 
 
 # Modulation spectrum
@@ -697,6 +669,41 @@ ms[c('roughness', 'amFreq', 'amDep')]
 ```
 
 *TIP Roughness and amplitude modulation can be calculated for the entire sound (set `amRes = NULL`) or for as many frames as possible given the duration of audio and the desired resolution for the analysis of temporal modulation (one frame for the analysis of roughness comprises several STFT frames, so we measure about `amRes` values per second)*
+
+
+# Self-similarity matrices
+The basic idea behind self-similarity matrices (SSMs) is to compare different parts of the same sound with each other and present their pairwise similarity indices as a square matrix with time along both dimensions. The diagonal going from bottom-left to top-right represents the similarity of each fragment with itself. For example, at (100, 100) we have the similarity of the fragment at 100 ms with itself, while at (100, 200) we have the similarity of the fragments at 100 ms and 200 ms. Let's begin with an example taken from `?ssm`:
+
+```{r fig.show = "hold", fig.height = 6, fig.width = 7}
+s3 = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70, 
+       formants = NA, pitch = c(500, 330)))
+# playme(s3, 16000)
+m = ssm(s3, samplingRate = 16000)
+```
+
+Look at the upper panel first. There are three main regions: the large red square in the lower left corner, which corresponds to the first bout; the red square in the center, which corresponds to the long pause between the bouts; and the checkered field in the upper right corner, which corresponds to the second bout. Observe the characteristic diagonal. The SSM clearly shows periodicity within the second bout, which confirms that these syllables are very similar to each other in terms of their spectral characteristics. Now look at the lower panel of the plot. This is a spectrogram overlaid with so-called "novelty": peaks show when something changes in the sound, based on the SSM.
+
+The results of SSM analysis can vary dramatically, depending on how it is performed. We begin by extracting some form of spectrogram of the entire sound, then we somehow compare each frame to each other frame, and finally we calculate a measure of novelty. At each step there are crucial decisions to make, which can dramatically alter the result. Let's look at the settings that control each step. As you play with these settings, don't be surprised if your SSM suddenly looks completely different!
+
+  1. Spectrogram extraction is controlled by some already familiar settings such as `windowLength` and `overlap` (or `step` if you prefer). However, it can often be helpful to base the SSM on some other spectral characteristics than the usual spectrogram. Under the hood, `ssm` calls `tuneR::melfcc` to return the power spectrum (as in a spectrogram, `input = 'spectrum'`), mel-transformed spectrum (auditory spectrum, which is supposed to be closer to how humans perceive sounds, `input = 'audiogram'`), or mel-frequency cepstral coefficients (MFCCs - a popular choice of input for automatic sound classification, as in speech recognition software, `input = 'mfcc'`). There are also several arguments that are passed to `tuneR::melfcc`: `maxFreq` controls the highest frequency analyzed, `MFCC` controls the number of mel-frequency cepstral coefficients to extract, and `nBands` basically controls the frequency resolution. 
+
+  1. SSM calculation starts with the spectrogram (or the MFCCs matrix) produced at the previous stage. This input is divided into windows, each of which can be one or several STFT frames in length, and then each window is compared to each other window using either cosine similarity (`simil = 'cosine'`) or Pearson's correlation (`simil = 'cor'`). Prior to this the input matrix can be normalized column-wise, so as to level out the differences in sound intensity across frames (`norm = TRUE`). The size of analysis window is controlled by the argument `ssmWin`, ms. Note that as you increase `ssmWin`, the resulting SSM literally shrinks in size, reducing its resolution. This is a great feature if your sound is very long, but it is seldom needed for shorter sounds. As you decrease `ssmWin`, it ultimately reaches the size of a single STFT frame (`step`) and can't go down any further, unless you improve time resolution of the spectrogram itself by reducing `windowLength` and/or increasing `overlap`. 
+
+  1. Novelty calculation starts with the SSM computed at the previous step. Here the idea is to move along the diagonal and multiply the SSM by a Gaussian checkerboard matrix, so as to detect changes in the spectral structure (see Foote, 2000). The settings that control this algorithm are `kernelLen` and `kernelSD`. The crucial parameter is `kernelLen` (ms): a large kernel is good for detecting global changes in the sound, such as transitions between different vocalizations, whereas a small kernel is good for detecting rapid changes, such as individual bursts in a laugh. If you are curious about the kernel itself, take a look at `?soundgen:::getCheckerboardKernel()`.
+
+```{r fig.show = "hold", fig.height = 6, fig.width = 7}
+par(mfrow = c(2, 1))
+m1 = ssm(s3, samplingRate = 16000,
+         input = 'melspec', simil = 'cor', norm = FALSE, 
+         ssmWin = 10, kernelLen = 150)  # detailed, local features
+m2 = ssm(s3, samplingRate = 16000,
+         input = 'mfcc', simil = 'cosine', norm = TRUE, 
+         ssmWin = 50, kernelLen = 600)  # more global
+par(mfrow = c(1, 1))
+```
+
+*TIP analyze() internally calls ssm() to calculate novelty*
+
 
 
 # Optimization

@@ -8,9 +8,11 @@ pathfinding_fast(
   pitchCands,
   pitchCert,
   pitchSource,
-  manual,
+  step,
   pitchCenterGravity,
-  certWeight
+  certWeight,
+  seed_ms = 250,
+  plot = FALSE
 )
 }
 \arguments{
@@ -21,8 +23,10 @@ column is one fft frame, each row is one candidate (the last row is always
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
 
-\item{manual}{dataframe giving manual pitch candidates, which the path
-MUST go through}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
+because digital audio is sampled at discrete time intervals of
+1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{pitchCenterGravity}{numeric vector giving the mean of all pitch
 candidates per fft frame weighted by our certainty in each of these
@@ -31,16 +35,20 @@ candidates}
 \item{certWeight}{(0 to 1) in pitch postprocessing, specifies how much we
 prioritize the certainty of pitch candidates vs. pitch jumps / the internal
 tension of the resulting pitch curve}
+
+\item{seed_ms}{start a new seed roughly every ... ms}
+
+\item{plot}{if TRUE, plots pitch candidates and explored paths}
 }
 \description{
 Internal soundgen function.
 }
 \details{
-Uses a quick-and-simple heuristic to find a reasonable path though pitch
-candidates. The idea is to start at the median of the center of gravity of
-pitch candidates over the first/last few frames and then go over the path
-twice (forward and backward), minimizing the cost of transitions at each step
-in terms of pitch jumps and distance from high-certainty candidates. The best
-of these two paths is accepted.
+Uses a modified Viterbi algorithm to find a reasonable path though pitch
+candidates. The idea is to start at several random "seeds", each time
+exploring as many paths as there are candidates per seed. The path with the
+lowest global cost is returned. Transition costs are a weighted mean of two
+penalties: based on pitch certainties (corrected for distance from pitch
+center of gravity) and on pitch jumps.
 }
 \keyword{internal}

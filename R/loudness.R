@@ -4,6 +4,7 @@
 #'
 #' Deprecated; use \code{\link{getLoudness}} instead
 #' @param ... any input parameters
+#' @keywords internal
 getLoudnessFolder = function(...) {
   message('getLoudnessFolder() is deprecated; please use getLoudness() instead')
 }
@@ -258,10 +259,12 @@ getLoudness = function(x,
   # image(t(powerSpec_scaled))
 
   # get auditory spectrum
-  audSpec = tuneR::audspec(
+  audSpec = try(tuneR::audspec(
     powerSpec_scaled,
     sr = audio$samplingRate,
-    fbtype = 'bark')$aspectrum
+    fbtype = 'bark')$aspectrum, silent = TRUE)
+  if ('try-error' %in% class(audSpec))
+    return(list(specSone = NA, loudness = NA))
   # image(t(audSpec))
   # range(log10(audSpec) * 10)
   # plot(audSpec[, 1], type = 'l')

@@ -1268,3 +1268,36 @@ warpMatrix = function(m, scaleFactor, interpol = c('approx', 'spline')[1]) {
 #' @param x real number representing phase angle
 #' @keywords internal
 princarg = function(x) (x + pi) %% (2 * pi) - pi
+
+
+#' Hz to mel
+#'
+#' Internal soundgen function: a temporary fix needed because tuneR::hz2mel
+#' doesn't accept NAs.
+#' @param f frequency, Hz
+#' @param htk algrithm
+#' @keywords internal
+#' @examples
+#' soundgen:::hz2mel(c(440, NA))
+hz2mel = function(f, htk = FALSE) {
+  # if (!is.numeric(f) || f < 0)
+  #     stop("frequencies have to be non-negative")
+  idx_nonFinite = which(!is.finite(f))
+  f[idx_nonFinite] = 0
+  if (htk) {
+    z <- 2595 * log10(1 + f/700)
+  }
+  else {
+    f_0 <- 0
+    f_sp <- 200/3
+    brkfrq <- 1000
+    brkpt <- (brkfrq - f_0)/f_sp
+    logstep <- exp(log(6.4)/27)
+    linpts <- (f < brkfrq)
+    z <- 0 * f
+    z[linpts] <- (f[linpts] - f_0)/f_sp
+    z[!linpts] <- brkpt + (log(f[!linpts]/brkfrq))/log(logstep)
+  }
+  z[idx_nonFinite] = NA
+  return(z)
+}

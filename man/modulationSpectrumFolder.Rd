@@ -12,3 +12,4 @@ modulationSpectrumFolder(...)
 \description{
 Deprecated; use \code{\link{modulationSpectrum}} instead
 }
+\keyword{internal}

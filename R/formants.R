@@ -192,6 +192,7 @@ getSpectralEnvelope = function(
   # create a "spectrogram"-shaped filter matrix
   spectralEnvelope = matrix(0, nrow = nr, ncol = nc)
 
+
   ### START OF FORMANTS
   if (is.list(formants)) {
     ## Upsample to the length of fft steps

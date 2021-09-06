@@ -220,17 +220,21 @@ defaults_analyze = matrix(c(
   'cepZp', 0, 0, 13, 1,
   'cepPenalty', 10, 0, 100, .1,
 
-  'specThres', 0.3, 0, 1, 0.01,
-  'specPeak', 0.35, 0, 1, 0.01,
+  'specThres', 0.05, 0, 1, 0.01,
+  'specPeak', 0.25, 0, 1, 0.01,
   'specHNRslope', 0.8, 0, 5, 0.05,
   'specSmooth', 150, 1, 600, 10,
-  'specMerge', 1, 0.01, 10, 0.1,
+  'specMerge', 0.1, 0.01, 10, 0.1,
   'specSinglePeakCert', 0.4, 0, 1, 0.01,
+  'specRatios', 3, 1, 20, 1,
 
   'hpsNum', 5, 2, 100, 1,
   'hpsThres', .1, 0, 1, .01,
   'hpsNorm', 2, 0, 10, .1,
   'hpsPenalty', 2, 0, 100, .1,
+
+  'zcThres', .1, 0, 1, .01,
+  'zcWin', 5, 3, 25, 2,
 
   'certWeight', 0.5, 0, 1, 0.01,
   'shortestSyl', 20, 0, 500, 1,
@@ -285,6 +289,7 @@ defaults_analyze_pitchCand = as.data.frame(matrix(c(
   'cep', 'violet', 7, 2, 1, 1,
   'spec', 'red', 2, 2, 1, 1,
   'hps', 'brown', 8, 2, 1, 1,
+  'zc', 'pink', 0, 2, 1, 1,
   'def', 'black', 1, 2, 1, 1  # default par() for dealing with NAs
 ), ncol = 6, byrow = TRUE), stringsAsFactors = FALSE)
 colnames(defaults_analyze_pitchCand) = c('method', 'col', 'pch', 'cex', 'lwd', 'lty')

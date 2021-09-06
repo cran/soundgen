@@ -12,3 +12,4 @@ getRMSFolder(...)
 \description{
 Deprecated; use \code{\link{getRMS}} instead
 }
+\keyword{internal}

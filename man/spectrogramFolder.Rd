@@ -12,3 +12,4 @@ spectrogramFolder(...)
 \description{
 Deprecated; use \code{\link{spectrogram}} instead
 }
+\keyword{internal}

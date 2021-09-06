@@ -1,3 +1,6 @@
+soundgen readme
+================
+
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
 [![CRAN
@@ -15,15 +18,13 @@ self-similarity matrices, morphing, etc.
 
 # Key functions
 
-  - Sound synthesis from R console: `soundgen()`
-  - Shiny app for sound synthesis (opens in a browser): `soundgen_app()`
-  - Acoustic analysis of a wav/mp3 file / folder: `analyze()` / `analyzeFolder()`
-  - Shiny app for editing intonation contours (opens in a browser):
+-   Sound synthesis from R console: `soundgen()`
+-   Shiny app for sound synthesis (opens in a browser): `soungen_app()`
+-   Acoustic analysis of a wav/mp3 file: `analyze()`
+-   Shiny app for editing intonation contours (opens in a browser):
     `pitch_app()`
-  - Shiny app for measuring formants (opens in a browser):
-    `formant_app()`
-  - Measuring syllables, pauses, and bursts in a wav/mp3 file / folder:
-    `segment()` / `segmentFolder`
+-   Measuring syllables, pauses, and bursts in a wav/mp3 file:
+    `segment()`
 
 For more information, please see the vignettes on sound synthesis and
 acoustic analysis:
@@ -63,6 +64,9 @@ s = soundgen(
 <img src="man/figures/README-synthsesis-1.png" width="80%" style="display: block; margin: auto;" />
 
 <p>
+<audio controls style = "display: block">
+<source src="man/figures/s.mp3" type="audio/mp3">
+</audio>
 </p>
 
 # Example of acoustic analysis
@@ -72,42 +76,30 @@ descriptives of the sound we have just synthesized:
 
 ``` r
 a = analyze(s, 44100, ylim = c(0, 6))
-#> Scale not specified. Assuming that max amplitude is 1
-```
-
-<img src="man/figures/README-analysis-1.png" width="80%" style="display: block; margin: auto;" />
-
-``` r
-a[1:5, c('pitch', 'peakFreq', 'harmHeight', 'HNR', 'ampl', 'loudness')]
-#>      pitch peakFreq harmHeight       HNR      ampl  loudness
-#> 1       NA       NA         NA        NA 0.0305833        NA
-#> 2       NA 305.2747         NA  1.083205 0.1442435  9.636858
-#> 3 300.0882 305.2747   1197.802 12.934929 0.3642711 17.808124
-#> 4 299.4505 305.2747   1197.802 14.042033 0.5131389 22.289716
-#> 5 296.0563 305.2747   1110.114 13.450248 0.4959925 22.193244
+a$detailed[1:5, c('pitch', 'peakFreq', 'harmHeight', 'HNR', 'ampl', 'loudness')]
+#>      pitch peakFreq harmHeight       HNR       ampl loudness
+#> 1       NA       NA         NA        NA 0.02638271       NA
+#> 2 295.1621 300.1361   296.6386  5.621424 0.15939804 10.50662
+#> 3 296.6386 300.1361   593.2772 13.417414 0.36515952 18.01119
+#> 4 296.4598 300.1361  1185.8392 13.250932 0.47913904 23.01556
+#> 5 292.8389 300.1361  1231.4125 11.141331 0.45389806 22.25239
 colnames(a)
-#>  [1] "duration"           "duration_noSilence" "time"               "ampl"              
-#>  [5] "amplVoiced"         "dom"                "entropy"            "f1_freq"           
-#>  [9] "f1_width"           "f2_freq"            "f2_width"           "f3_freq"           
-#> [13] "f3_width"           "harmEnergy"         "harmHeight"         "HNR"               
-#> [17] "loudness"           "peakFreq"           "pitch"              "quartile25"        
-#> [21] "quartile50"         "quartile75"         "specCentroid"       "specSlope"         
-#> [25] "voiced"
+#> NULL
 ```
 
 # Installation
 
 To install the current release from CRAN: `install.packages("soundgen")`
 
-NB: Make sure all dependencies have been installed correctly\! For
+NB: Make sure all dependencies have been installed correctly! For
 problems with seewave, see <https://rug.mnhn.fr/seewave/>
 
 On Macs, you may need to do the following:
 
-  - First install brew according to the instructions here:
+-   First install brew according to the instructions here:
     <https://brew.sh/>
-  - Then run the following from the terminal  
+-   Then run the following from the terminal  
     `brew install libsndfile`  
     `brew install fftw`
-  - Finally, install soundgen in R:  
+-   Finally, install soundgen in R:  
     `install.packages("soundgen")`

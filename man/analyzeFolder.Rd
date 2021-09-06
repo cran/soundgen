@@ -12,3 +12,4 @@ analyzeFolder(...)
 \description{
 Deprecated; use \code{\link{analyze}} instead
 }
+\keyword{internal}

@@ -4,6 +4,7 @@
 #'
 #' Deprecated; use \code{\link{spectrogram}} instead
 #' @param ... any input parameters
+#' @keywords internal
 spectrogramFolder = function(...) {
   message('spectrogramFolder() is deprecated; please use spectrogram() instead')
 }
@@ -78,9 +79,11 @@ spectrogramFolder = function(...) {
 #'   don't save, '' = same folder as audio)
 #' @param osc "none" = no oscillogram; "linear" = on the original scale; "dB" =
 #'   in decibels
-#' @param ylim frequency range to plot, kHz (defaults to 0 to Nyquist frequency)
+#' @param ylim frequency range to plot, kHz (defaults to 0 to Nyquist
+#'   frequency). NB: still in kHz, even if yScale = bark or mel
 #' @param yScale scale of the frequency axis: 'linear' = linear, 'log' =
-#'   logarithmic
+#'   logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
+#'   'mel' = mel with \code{\link[tuneR]{hz2mel}}
 #' @param heights a vector of length two specifying the relative height of the
 #'   spectrogram and the oscillogram (including time axes labels)
 #' @param padWithSilence if TRUE, pads the sound with just enough silence to
@@ -89,9 +92,10 @@ spectrogramFolder = function(...) {
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
 #'   or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 #'   'cm.colors', etc
-#' @param extraContour a vector of arbitrary length scaled in Hz that will be
-#'   plotted over the spectrogram (eg pitch contour); can also be a list with
-#'   extra graphical parameters such as lwd, col, etc. (see examples)
+#' @param extraContour a vector of arbitrary length scaled in Hz (regardless of
+#'   yScale!) that will be plotted over the spectrogram (eg pitch contour); can
+#'   also be a list with extra graphical parameters such as lwd, col, etc. (see
+#'   examples)
 #' @param xlab,ylab,main,mar,xaxp graphical parameters for plotting
 #' @param grid if numeric, adds n = \code{grid} dotted lines per kHz
 #' @param width,height,units,res graphical parameters for saving plots passed to
@@ -110,7 +114,7 @@ spectrogramFolder = function(...) {
 #' # playme(sound, samplingRate = 16000)
 #'
 #' # basic spectrogram
-#' spectrogram(sound, samplingRate = 16000, yScale = 'log')
+#' spectrogram(sound, samplingRate = 16000, yScale = 'bark')
 #'
 #' \dontrun{
 #' # add bells and whistles
@@ -134,7 +138,7 @@ spectrogramFolder = function(...) {
 #' # remove the oscillogram
 #' spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 #'
-#' # frequencies on a logarithmic scale
+#' # frequencies on a logarithmic (musical) scale (mel/bark also available)
 #' spectrogram(sound, samplingRate = 16000,
 #'             yScale = 'log', ylim = c(.05, 8))
 #'
@@ -204,7 +208,7 @@ spectrogram = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log')[1],
+  yScale = c('linear', 'log', 'bark', 'mel')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -285,7 +289,7 @@ spectrogram = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log')[1],
+  yScale = c('linear', 'log', 'bark', 'mel')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -585,11 +589,19 @@ filled.contour.mod = function(
   xaxs = "i",
   yaxs = "i",
   log = '',
+  yScale = c('orig', 'bark', 'mel')[1],
   axisX = TRUE,
   axisY = TRUE,
   maxPoints = 5e5,
   ...
 ) {
+  if (yScale == 'bark') {
+    y = tuneR::hz2bark(y)
+    ylim = tuneR::hz2bark(ylim)
+  } else if (yScale == 'mel') {
+    y = hz2mel(y)
+    ylim = hz2mel(ylim)
+  }
   suppressWarnings({
     plot.new()
     plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
@@ -600,21 +612,16 @@ filled.contour.mod = function(
 
     # for very large matrices, downsample before plotting to avoid delays
     if (!is.null(maxPoints)) {
-      lx = length(x)
-      ly = length(y)
-      lxy = lx *ly
-      if (maxPoints < lxy) {
+      len_z = length(z)
+      if (len_z > maxPoints) {
         message(paste('Plotting with reduced resolution;',
                       'increase maxPoints or set to NULL to override'))
-        downs = sqrt(lxy / maxPoints)
-        seqx = seq(1, lx, length.out = ceiling(lx / downs))
-        seqy = seq(1, ly, length.out = ceiling(ly / downs))
+        lx = length(x)
+        seqx = seq(1, lx, length.out = ceiling(lx / (len_z / maxPoints)))
         x = x[seqx]
-        y = y[seqy]
-        z = z[seqx, seqy]
+        z = z[seqx, ]
       }
     }
-
     .filled.contour(as.double(x), as.double(y), z, as.double(levels), col = col)
     title(...)
     if (axisX) axis(1, ...)
@@ -705,13 +712,14 @@ plotSpec = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log')[1],
+  yScale = c('linear', 'log', 'bark', 'mel')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
   padWithSilence = TRUE,
   colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
   extraContour = NULL,
+  rescaleExtraContour = TRUE,
   xlab = NULL,
   ylab = NULL,
   xaxp = NULL,
@@ -800,6 +808,11 @@ plotSpec = function(
     X = X / 1000
     xlim = c(0, audio$duration) + audio$timeShift
   }
+  if (yScale %in% c('bark', 'mel')) {
+    y_Hz = TRUE
+    if (is.null(ylab) & yScale == 'bark') ylab = 'Frequency, bark'
+    if (is.null(ylab) & yScale == 'mel') ylab = 'Frequency, mel'
+  }
   if (y_Hz) {
     Y = Y * 1000
     ylim = ylim * 1000
@@ -824,6 +837,7 @@ plotSpec = function(
     xlab = xlab, ylab = ylab,
     xlim = xlim, xaxt = 'n',
     log = ifelse(yScale == 'log', 'y', ''),
+    yScale = yScale,
     maxPoints = maxPoints[2],
     ...
   )
@@ -842,7 +856,7 @@ plotSpec = function(
     #      equilogs = TRUE)
   }
   if (!is.null(internal$pitch)) {
-    do.call(addPitchCands, c(internal$pitch, list(y_Hz = y_Hz)))
+    do.call(addPitchCands, c(internal$pitch, list(y_Hz = y_Hz, yScale = yScale)))
   }
 
   # add an extra contour, if any
@@ -860,6 +874,13 @@ plotSpec = function(
     cnt = approx(x = 1:lc, y = cnt,
                  xout = seq(1, lc, length.out = length(X)),
                  na.rm = FALSE)$y  # see ex. in ?approx on handling NAs
+    if (rescaleExtraContour) {
+      if (yScale == 'bark') {
+        cnt = 6 * asinh(cnt / 600)
+      } else if (yScale == 'mel') {
+        cnt = hz2mel(cnt)
+      }
+    }
     do.call(addPitchCands, list(
       extraContour = cnt, extraContour_pars = extraContour_pars,
       y_Hz = y_Hz, timestamps = X,

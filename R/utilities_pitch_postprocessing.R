@@ -30,6 +30,7 @@
 pathfinder = function(pitchCands,
                       pitchCert,
                       pitchSource,
+                      step,
                       manual = NULL,
                       certWeight = 0.5,
                       pathfinding = c('none', 'fast', 'slow')[2],
@@ -48,6 +49,7 @@ pathfinder = function(pitchCands,
     freqMan = certMan = rep(NA, nc)
     freqMan[manual$frame] = manual$freq
     certMan[manual$frame] = manualCert
+    pitchCands[, manual$frame] = NA  # ignore all other candidates in manual frames
     pitchCands = rbind(pitchCands, freqMan)
     pitchCert = rbind(pitchCert, certMan)
     pitchSource = rbind(pitchSource, rep('manual', nc))
@@ -130,9 +132,9 @@ pathfinder = function(pitchCands,
       pitchCands = pitchCands,
       pitchCert = pitchCert,
       pitchSource = pitchSource,
-      manual = manual,
       pitchCenterGravity = pitchCenterGravity,
-      certWeight = certWeight
+      certWeight = certWeight,
+      step = step
     )
   } else if (pathfinding == 'slow') {
     bestPath = pathfinding_slow(
@@ -276,123 +278,139 @@ interpolate = function(pitchCands,
 #'
 #' Internal soundgen function.
 #'
-#' Uses a quick-and-simple heuristic to find a reasonable path though pitch
-#' candidates. The idea is to start at the median of the center of gravity of
-#' pitch candidates over the first/last few frames and then go over the path
-#' twice (forward and backward), minimizing the cost of transitions at each step
-#' in terms of pitch jumps and distance from high-certainty candidates. The best
-#' of these two paths is accepted.
+#' Uses a modified Viterbi algorithm to find a reasonable path though pitch
+#' candidates. The idea is to start at several random "seeds", each time
+#' exploring as many paths as there are candidates per seed. The path with the
+#' lowest global cost is returned. Transition costs are a weighted mean of two
+#' penalties: based on pitch certainties (corrected for distance from pitch
+#' center of gravity) and on pitch jumps.
 #' @inheritParams pathfinder
 #' @inheritParams analyze
 #' @param pitchCenterGravity numeric vector giving the mean of all pitch
 #'   candidates per fft frame weighted by our certainty in each of these
 #'   candidates
-#' @param manual dataframe giving manual pitch candidates, which the path
-#'   MUST go through
+#' @param seed_ms start a new seed roughly every ... ms
+#' @param plot if TRUE, plots pitch candidates and explored paths
 #' @keywords internal
 pathfinding_fast = function(pitchCands,
                             pitchCert,
                             pitchSource,
-                            manual,
+                            step,
                             pitchCenterGravity,
-                            certWeight) {
+                            certWeight,
+                            seed_ms = 250,
+                            plot = FALSE) {
   nc = ncol(pitchCands)
   nr = nrow(pitchCands)
 
-  # find the most plausible starting pitch by taking median over the first few
-  # frames, weighted by certainty
-  if (1 %in% manual$frame) {
-    point_current = manual$freq[manual$frame == 1]
-  } else {
-    p = median(pitchCenterGravity[1:min(5, nc)], na.rm = TRUE)
-    c = pitchCert[, 1] / abs(pitchCands[, 1] - p)
-    point_current = pitchCands[which.max(c), 1]
-    if (length(point_current) < 1) point_current = NA
+  ## Boost certainties of similar pitch candidates per frame (close to pitchCenterGravity)
+  for (i in 1:nc) {
+    pitchCert[, i] = pitchCert[, i] / (1 + abs(pitchCands[, i] - pitchCenterGravity[i]))
   }
-  path = point_current
-  costPathForward = 0
+  pitchUncert = 1 - pitchCert
 
-  # run forwards
-  for (i in 2:nc) {
-    cands = pitchCands[, i]
-    if (any(!is.na(cands))) {
-      cost_cert = abs(cands - pitchCenterGravity[i])
-      # get the cost of transition from the current point to each of the pitch
-      # candidates in the next frame
-      cost_pitchJump = apply(as.matrix(1:length(cands), nrow = 1), 1, function(x) {
-        costJumps(point_current, cands[x])
-      })
-      if (length(cost_pitchJump) == 0 || !any(!is.na(cost_pitchJump))) cost_pitchJump = 0
-      # get a weighted average of transition costs associated with the certainty
-      # of each estimate vs. the magnitude of pitch jumps
-      costs = certWeight * cost_cert + (1 - certWeight) * cost_pitchJump
-      if (i %in% manual$frame) {
-        idx = which(pitchSource[, i] == 'manual')
+  ## Pick a few points along the contour for re-seeding the path search
+  nSeeds = max(1, round(nc * step / seed_ms))
+  if (nSeeds == 1) seed_approx_pos = 1
+  seed_step = max(2, round(nc / (nSeeds + 1)))
+  seed_half_step = floor(seed_step / 2)
+  seed_approx_pos = round(seed_step * (1:nSeeds))
+
+  # Repeat pathfinding at each seed to explore possible paths without getting stuck
+  paths = costs = vector('list', nSeeds)
+  for (seed in 1:nSeeds) {
+    # Find the frame with the greatest number of candidates (to explore as many paths as possible)
+    seed_win = max(1, (seed_approx_pos[seed] - seed_half_step)) :
+      min(nc, (seed_approx_pos[seed] + seed_half_step))
+    idx_max = which.max(apply(pitchCands[, seed_win], 2, function(x) sum(!is.na(x))))
+    start = seed_win[1] - 1 + idx_max
+    start_cands_idx = which(!is.na(pitchCands[, start]))
+    start_cands = pitchCands[start_cands_idx, start]
+
+    # We'll try as many paths as there are candidates in the starting frame
+    nPaths = length(start_cands)
+    paths[[seed]] = costs[[seed]] = vector('list', nPaths)
+
+    # Work backwards and forwards from each starting candidate, taking the least costly transitions
+    for (p in 1:nPaths) {
+      idx_start = start_cands_idx[p]
+      point_current = pitchCands[idx_start, start]
+      cost_start = certWeight * pitchUncert[idx_start, start]
+
+      # work backwards
+      cost_back = 0
+      if (start > 1) {
+        path_back = rep(NA, start - 1)
+        for (i in rev(1:(start - 1))) {
+          cands = pitchCands[, i]
+          if (any(!is.na(cands))) {
+            cost_cert = pitchUncert[, i]
+            # get the cost of transition from the current point to each of the pitch
+            # candidates in the next frame
+            cost_pitchJump = abs(point_current - cands) * (25 / step)
+            if (length(cost_pitchJump) == 0 || !any(!is.na(cost_pitchJump))) cost_pitchJump = 0
+            # get a weighted average of transition costs associated with the certainty
+            # of each estimate vs. the magnitude of pitch jumps
+            costs_i = certWeight * cost_cert + (1 - certWeight) * cost_pitchJump
+            idx_i = which.min(costs_i)
+            point_current = pitchCands[idx_i, i]
+            path_back[i] = point_current
+            cost_back = cost_back + costs_i[idx_i]
+          } else {
+            path_back[i] = NA
+          }
+        }
       } else {
-        idx = which.min(costs)
+        path_back = numeric(0)
       }
-      point_current = pitchCands[idx, i]
-      path = c(path, point_current)
-      costPathForward = costPathForward + costs[idx]
-    } else {
-      path = c(path, NA)
+
+      # work forwards
+      cost_forward = 0
+      if (start < nc) {
+        point_current = pitchCands[idx_start, start]
+        path_forward = rep(NA, nc - start)
+        for (i in (start + 1):nc) {
+          cands = pitchCands[, i]
+          if (any(!is.na(cands))) {
+            cost_cert = pitchUncert[, i] # abs(cands - pitchCenterGravity[i])
+            # get the cost of transition from the current point to each of the pitch
+            # candidates in the next frame
+            cost_pitchJump = abs(point_current - cands) * (25 / step)
+            if (length(cost_pitchJump) == 0 || !any(!is.na(cost_pitchJump))) cost_pitchJump = 0
+            # get a weighted average of transition costs associated with the certainty
+            # of each estimate vs. the magnitude of pitch jumps
+            costs_i = certWeight * cost_cert + (1 - certWeight) * cost_pitchJump
+            idx_i = which.min(costs_i)
+            point_current = pitchCands[idx_i, i]
+            path_forward[i - start] = point_current
+            cost_forward = cost_forward + costs_i[idx_i]
+          } else {
+            path_forward[i - start] = NA
+          }
+        }
+      } else {
+        path_forward = numeric(0)
+      }
+      paths[[seed]][[p]] = c(path_back, pitchCands[idx_start, start], path_forward)
+      costs[[seed]][[p]] = cost_back + cost_start + cost_forward
     }
   }
+  idx_best_path = which.min(unlist(costs))
+  paths = do.call(c, paths)
+  path = paths[[idx_best_path]]
 
-  # run backwards
-  pitchCands_rev = pitchCands[, rev(1:nc), drop = FALSE]
-  pitchCert_rev = pitchCert[, rev(1:nc), drop = FALSE]
-  pitchSource_rev = pitchSource[, rev(1:nc), drop = FALSE]
-  pitchCenterGravity_rev = rev(pitchCenterGravity)
-  manual_rev = manual
-  manual_rev$frame = nc - manual$frame + 1
-
-  if (1 %in% manual_rev$frame) {
-    point_current = manual_rev$freq[manual_rev$frame == 1]
-  } else {
-    p = median(pitchCenterGravity_rev[1:min(5, nc)], na.rm = TRUE)
-    c = pitchCert_rev[, 1] / abs(pitchCands_rev[, 1] - p)
-    point_current = pitchCands_rev[which.max(c), 1]
-    if (length(point_current) < 1) point_current = NA
-  }
-  path_rev = point_current
-  costPathBackward = 0
-
-  for (i in 2:nc) {
-    cands = pitchCands_rev[, i]
-    if (any(!is.na(cands))) {
-      cost_cert = abs(cands - pitchCenterGravity_rev[i])
-      cost_pitchJump = apply(as.matrix(1:length(cands), nrow = 1), 1, function(x) {
-        costJumps(point_current, cands[x])
-      })
-      if (length(cost_pitchJump) == 0 || !any(!is.na(cost_pitchJump))) cost_pitchJump = 0
-      costs = certWeight * cost_cert + (1 - certWeight) * cost_pitchJump
-      if (i %in% manual_rev$frame) {
-        idx = which(pitchSource_rev[, i] == 'manual')
-      } else {
-        idx = which.min(costs)
-      }
-      point_current = pitchCands_rev[idx, i]
-      path_rev = c(path_rev, point_current)
-      costPathBackward = costPathBackward + costs[idx]
-    } else {
-      path_rev = c(path_rev, NA)
+  if (plot) {
+    plot(1:nc, type = 'n', xlab = '', ylab = '',
+         ylim = range(pitchCands, na.rm = TRUE))
+    for (i in 1:nr) {
+      points(pitchCands[i, ], cex = 2 * pitchCert[i, ])
     }
+    for (p in (1:length(paths))[-idx_best_path]) {
+      points(paths[[p]], type = 'l', col = 'gray')
+    }
+    points(paths[[idx_best_path]], type = 'l', col = 'blue')
   }
-  #
-  #   er = try(costPathForward < costPathBackward, silent = TRUE)
-  #   if (class(er)[1] == 'try-error' | is.na(er)) browser()
-  if (length(costPathForward) != 1 | length(costPathBackward) != 1) {
-    # browser()
-    return(NA)
-  }
-  if (costPathForward < costPathBackward) {
-    bestPath = path
-  } else {
-    bestPath = rev(path_rev)
-  }
-  # if (length(bestPath) != nc) browser()
-  return(bestPath)
+  return(path)
 }
 
 
@@ -637,11 +655,11 @@ snake = function(pitch,
 #' @return Returns a numeric vector of the same length as \code{pitch} that
 #'   gives the total force acting on the snake at each point.
 #' @keywords internal
-forcePerPath = function (pitch,
-                         pitchCands,
-                         pitchCert,
-                         pitchCenterGravity,
-                         certWeight) {
+forcePerPath = function(pitch,
+                        pitchCands,
+                        pitchCert,
+                        pitchCenterGravity,
+                        certWeight) {
   ran = diff(range(pitchCands, na.rm = TRUE))
   # external_force = -(pitch_path - pitchCenterGravity) / ran
   external_force = pitch # just a quick way to initialize a vector of the right length
@@ -924,6 +942,7 @@ addPitchCands = function(pitchCands,
                          addToExistingPlot = TRUE,
                          showLegend = TRUE,
                          y_Hz = FALSE,
+                         yScale = c('orig', 'bark', 'mel')[1],
                          ...) {
   if (is.null(pitchCands) & is.null(pitch)) invisible()
   if (length(pitchCands) < 1 & length(pitch) < 1) invisible()
@@ -949,6 +968,18 @@ addPitchCands = function(pitchCands,
   }
   pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
   yScaleCoef = ifelse(y_Hz, 1, 1/1000)
+  if (yScale == 'bark') {
+    # NB: tuneR::hz2bark can't handle NAs
+    pitchCands = 6 * asinh(pitchCands / 600)
+    pitch = 6 * asinh(pitch / 600)
+    if (!is.null(prior)) prior$freq = 6 * asinh(prior$freq / 600)
+    if (!is.null(extraContour)) extraContour = 6 * asinh(extraContour / 600)
+  } else if (yScale == 'mel') {
+    pitchCands = hz2mel(pitchCands)
+    pitch = hz2mel(pitch)
+    if (!is.null(prior)) prior$freq = hz2mel(prior$freq)
+    if (!is.null(extraContour)) extraContour = hz2mel(extraContour)
+  }
 
   # If addToExistingPlot is FALSE, we first have to set up an empty plot
   if (addToExistingPlot == FALSE) {

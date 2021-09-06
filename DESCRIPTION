@@ -1,8 +1,8 @@
 Package: soundgen
 Type: Package
 Title: Sound Synthesis and Acoustic Analysis
-Version: 2.2.0
-Date: 2021-08-07
+Version: 2.3.0
+Date: 2021-09-06
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
@@ -23,7 +23,7 @@ RoxygenNote: 7.1.1
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2021-08-07 16:21:53 UTC; allgoodguys
+Packaged: 2021-09-06 05:22:35 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2021-08-07 16:50:02 UTC
+Date/Publication: 2021-09-06 05:40:02 UTC

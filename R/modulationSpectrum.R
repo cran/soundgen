@@ -4,6 +4,7 @@
 #'
 #' Deprecated; use \code{\link{modulationSpectrum}} instead
 #' @param ... any input parameters
+#' @keywords internal
 modulationSpectrumFolder = function(...) {
   message('modulationSpectrumFolder() is deprecated;',
           'please use modulationSpectrum(averageMS = FALSE) instead')

@@ -4,6 +4,7 @@
 #'
 #' Deprecated; use \code{\link{segment}} instead
 #' @param ... any input parameters
+#' @keywords internal
 segmentFolder = function(...) {
   message('segmentFolder() is deprecated; please use segment() instead')
 }
@@ -244,7 +245,7 @@ segment = function(
   if (!is.null(pa$input$savePlots)) {
     htmlPlots(
       htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_segment.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_segment.png"),
+      plotFiles = paste0(pa$input$filenames_noExt, "_segment.png"),
       audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
       width = paste0(width, units))
   }
@@ -388,12 +389,12 @@ segment = function(
       ampl = seewave::env(
         sound_part,
         f = audio$samplingRate,
-        envt = 'hil',
+        envt = 'abs',  # hil behaves weirdly with absolute silence
         msmooth = c(windowLength_points, overlap),
         fftw = FALSE,
         plot = FALSE
       )[, 1]
-      ampl = 20 * log10(ampl)
+      ampl = 20 * log10(ampl + 1e-6)  # + 1e-6 in case of complete silence giving log(0)
       ampl = ampl - min(ampl)
       nc = length(ampl)
       # plot(ampl, type = 'l')

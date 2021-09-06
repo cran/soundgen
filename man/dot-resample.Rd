@@ -7,6 +7,7 @@
 .resample(
   audio,
   mult = NULL,
+  len = NULL,
   samplingRate_new = NULL,
   lowPass = TRUE,
   na.rm = FALSE,
@@ -23,6 +24,9 @@
 
 \item{mult}{multiplier of sampling rate: new sampling rate = old sampling
 rate x mult, so 1 = no effect, >1 = upsample, <1 = downsample}
+
+\item{len}{if specified, overrides mult and samplingRate_new and simply
+returns a vector of length \code{len}}
 
 \item{samplingRate_new}{an alternative to \code{mult} provided that the old
 \code{samplingRate is know} (NB: \code{mult} takes precedence)}

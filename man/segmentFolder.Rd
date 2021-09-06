@@ -12,3 +12,4 @@ segmentFolder(...)
 \description{
 Deprecated; use \code{\link{segment}} instead
 }
+\keyword{internal}

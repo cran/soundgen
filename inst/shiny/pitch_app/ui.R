@@ -175,12 +175,14 @@ ui = fluidPage(
             checkboxGroupInput(
               'pitchMethods',
               label = 'Pitch tracking methods ("pitchMethods")',
-              choiceValues = c('dom', 'autocor', 'cep', 'spec', 'hps'),
+              choiceValues = c('dom', 'autocor', 'cep', 'spec', 'hps', 'zc'),
               choiceNames = c('Lowest dominant frequency ("dom")',
                               'Autocorrelation ("autocor")',
                               'Cepstrum ("cep")',
-                              'Ratio of harmonics ("spec")',
-                              'Harmonic product spectrum ("hps")'),
+                              'Spectral harmonics ("spec")',
+                              'Harmonic product spectrum ("hps")',
+                              'Zero-crossing rate ("zc")'
+              ),
               selected = c('dom', 'autocor'))
           ),
 
@@ -260,7 +262,13 @@ ui = fluidPage(
           ),
 
           tabPanel(
-            'Ratio of harmonics ("spec")',
+            'Spectral harmonics ("spec")',
+            radioButtons(
+              'specMethod',
+              'Method ("specMethod")',
+              choices = c("Highest common factor" = "commonFactor",
+                          "Ratio of harmonics (BaNa)" = "BaNa"),
+              selected = 'commonFactor', inline = TRUE, width = NULL),
             sliderInput(
               'specThres',
               'Voicing threshold ("specThres")',
@@ -275,6 +283,13 @@ ui = fluidPage(
               min = defaults_analyze['specPeak', 'low'],
               max = defaults_analyze['specPeak', 'high'],
               step = defaults_analyze['specPeak', 'step']),
+            sliderInput(
+              'specRatios',
+              'Number of ratios ("specRatios")',
+              value = defaults_analyze['specRatios', 'default'],
+              min = defaults_analyze['specRatios', 'low'],
+              max = defaults_analyze['specRatios', 'high'],
+              step = defaults_analyze['specRatios', 'step']),
             sliderInput(
               'specHNRslope',
               'Slope of HNR discount ("specHNRslope")',
@@ -291,7 +306,7 @@ ui = fluidPage(
               step = defaults_analyze['specSmooth', 'step']),
             sliderInput(
               'specMerge',
-              'Margin for merging candidates, Hz ("specMerge")',
+              'Margin for merging candidates, semitones ("specMerge")',
               value = defaults_analyze['specMerge', 'default'],
               min = defaults_analyze['specMerge', 'low'],
               max = defaults_analyze['specMerge', 'high'],
@@ -335,6 +350,24 @@ ui = fluidPage(
               min = defaults_analyze['hpsPenalty', 'low'],
               max = defaults_analyze['hpsPenalty', 'high'],
               step = defaults_analyze['hpsPenalty', 'step'])
+          ),
+
+          tabPanel(
+            'Zero-crossing rate ("zc")',
+            sliderInput(
+              'zcThres',
+              'Voicing threshold ("zcThres")',
+              value = defaults_analyze['zcThres', 'default'],
+              min = defaults_analyze['zcThres', 'low'],
+              max = defaults_analyze['zcThres', 'high'],
+              step = defaults_analyze['zcThres', 'step']),
+            sliderInput(
+              'zcWin',
+              'Window for estimating stability, glottal cycles ("zcWin")',
+              value = defaults_analyze['zcWin', 'default'],
+              min = defaults_analyze['zcWin', 'low'],
+              max = defaults_analyze['zcWin', 'high'],
+              step = defaults_analyze['zcWin', 'step'])
           )
         ),
 

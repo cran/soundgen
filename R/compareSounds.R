@@ -358,15 +358,15 @@ getMelSpec = function(s,
     ), specPars
   ))$aspectrum)
   # strip empty frames
-  spec = spec[, colMeans(spec, na.rm = TRUE) > throwaway01, drop = FALSE]
+  # spec = spec[, colMeans(spec, na.rm = TRUE) > throwaway01, drop = FALSE]
   # log-transform and normalize
   spec = log01(spec)
+  colnames(spec) = windowLength / 2 + step * (1:ncol(spec))
 
   if (plot) {
     # show the spectrogram of the target
     filled.contour.mod(
-      x = seq(1, ncol(spec) * step,
-              length.out = ncol(spec)),
+      x = as.numeric(colnames(spec)),
       y = 1:nrow(spec),
       z = t(spec),
       levels = seq(0, 1, length = 30),

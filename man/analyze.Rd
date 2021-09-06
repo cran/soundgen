@@ -38,6 +38,7 @@ analyze(
   pitchCep = list(),
   pitchSpec = list(),
   pitchHps = list(),
+  pitchZc = list(),
   harmHeight = list(),
   subh = list(method = "cep", nSubh = 5),
   flux = list(thres = 0.15, smoothWin = 100),
@@ -62,7 +63,7 @@ analyze(
   extraContour = NULL,
   ylim = NULL,
   xlab = "Time, ms",
-  ylab = "kHz",
+  ylab = NULL,
   main = NULL,
   width = 900,
   height = 500,
@@ -188,6 +189,10 @@ BaNa or "spec" method; see details and \code{?soundgen:::getPitchSpec}}
 harmonic product spectrum or "hps" method; see details and
 \code{?soundgen:::getPitchHps}}
 
+\item{pitchZc}{a list of control parameters for pitch tracking based on zero
+crossings in bandpass-filtered audio or "zc" method; see
+\code{\link{getPitchZc}}}
+
 \item{harmHeight}{a list of control parameters for estimating how high
 harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 
@@ -264,7 +269,8 @@ contour plot, eg 'peakFreq' or 'loudness'; can also be a list with extra
 graphical parameters, eg \code{extraContour = list(x = 'harmHeight', col =
 'red')}}
 
-\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
+\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
+frequency). NB: still in kHz, even if yScale = bark or mel}
 
 \item{xlab, ylab, main}{plotting parameters}
 
@@ -397,21 +403,7 @@ a = analyze(sound, samplingRate = 16000,
   nFormants = 0         # no formant analysis
 )
 
-sound1 = soundgen(sylLen = 900, pitch = list(
-  time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
-  noise = list(time = c(0, 300), value = c(-40, 0)),
-  temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
-# improve the quality of postprocessing:
-a1 = analyze(sound1, samplingRate = 44100, priorSD = 24,
-             plot = TRUE, pathfinding = 'slow', ylim = c(0, 5))
-median(a1$pitch, na.rm = TRUE)
-# (can vary because postprocessing is stochastic)
-# compare to the true value:
-median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
-  value = c(300, 900, 400, 2300)), len = 1000))
-
-# the same pitch contour, but harder to analyze b/c of
-# subharmonics and jitter
+# Take a sound hard to analyze b/c of subharmonics and jitter
 sound2 = soundgen(sylLen = 900, pitch = list(
   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
   noise = list(time = c(0, 900), value = c(-40, -20)),
@@ -419,10 +411,17 @@ sound2 = soundgen(sylLen = 900, pitch = list(
   temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 # playme(sound2, 44100)
 a2 = analyze(sound2, samplingRate = 44100, priorSD = 24,
-             plot = TRUE, pathfinding = 'fast', ylim = c(0, 5))
+             plot = TRUE, ylim = c(0, 5))
+
+# Compare the available pitch trackers
+analyze(sound2, 44100,
+  pitchMethods = c('dom', 'autocor', 'spec', 'cep', 'hps', 'zc'),
+  # don't use priors to see weird pitch candidates better
+  priorMean = NA, priorAdapt = FALSE,
+  plot = TRUE, yScale = 'bark')
 
 # Fancy plotting options:
-a = analyze(sound1, samplingRate = 44100, plot = TRUE,
+a = analyze(sound2, samplingRate = 44100, plot = TRUE,
   xlab = 'Time, ms', colorTheme = 'seewave',
   contrast = .5, ylim = c(0, 4), main = 'My plot',
   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
@@ -431,6 +430,15 @@ a = analyze(sound1, samplingRate = 44100, plot = TRUE,
   pitchPlot = list(col = 'black', pch = 9, lty = 3, lwd = 3),
   extraContour = list(x = 'peakFreq', type = 'b', pch = 4, col = 'brown'),
   osc = 'dB', heights = c(2, 1))
+
+# Analyze an entire folder in one go, saving spectrograms with pitch contours
+# plus an html file for easy access
+s2 = analyze('~/Downloads/temp',
+  savePlots = '',  # save in the same folder as audio
+  showLegend = TRUE, yScale = 'bark',
+  width = 20, height = 12,
+  units = 'cm', res = 300, ylim = c(0, 5))
+s2$summary[, 1:5]
 
 # Different options for summarizing the output
 a = analyze(sound1, 44100,
@@ -514,12 +522,6 @@ free" when running pitch_app)
 s1 = analyze(myfolder, pitchManual = pitchContour)
 plot(s$summary$harmonics_median, s1$summary$harmonics_median)
 abline(a=0, b=1, col='red')
-
-# Save spectrograms with pitch contours plus an html file for easy access
-s2 = analyze('~/Downloads/temp', savePlots = '',
-  showLegend = TRUE,
-  width = 20, height = 12,
-  units = 'cm', res = 300, ylim = c(0, 5))
 }
 }
 \seealso{

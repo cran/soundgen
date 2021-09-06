@@ -8,15 +8,17 @@ getPitchSpec(
   frame,
   bin,
   freqs,
+  specMethod = c("commonFactor", "BaNa")[1],
+  specRatios,
   specSmooth,
+  specThres,
+  specMerge,
+  specPeak,
   specHNRslope,
   HNR = NULL,
-  specThres,
-  specPeak,
   specSinglePeakCert,
   pitchFloor,
   pitchCeiling,
-  specMerge,
   nCands
 )
 }
@@ -28,17 +30,26 @@ getPitchSpec(
 
 \item{freqs}{frequency per bin of spectrogram}
 
+\item{specMethod}{"commonFactor" = highest common factor of putative
+harmonics, "BaNa" = ratio of putative harmonics}
+
+\item{specRatios}{for method = "commonFactor", the number of harmonics AND
+integer fractions to consider}
+
 \item{specSmooth}{the width of window for detecting peaks in the spectrum, Hz}
 
-\item{HNR}{harmonics-to-noise ratio returned by \code{\link{getPitchAutocor}}}
-
 \item{specThres}{voicing threshold (unitless, ~0 to 1)}
+
+\item{specMerge}{pitch candidates within \code{specMerge} semitones are
+merged with boosted certainty}
 
 \item{specPeak, specHNRslope}{when looking for putative harmonics in
 the spectrum, the threshold for peak detection is calculated as
 \code{specPeak * (1 - HNR * specHNRslope)}}
 
-\item{specSinglePeakCert}{(0 to 1) if F0 is calculated based on a single
+\item{HNR}{harmonics-to-noise ratio returned by \code{\link{getPitchAutocor}}}
+
+\item{specSinglePeakCert}{(0 to 1) if f0 is calculated based on a single
 harmonic ratio (as opposed to several ratios converging on the same
 candidate), its certainty is taken to be \code{specSinglePeakCert}}
 
@@ -46,11 +57,8 @@ candidate), its certainty is taken to be \code{specSinglePeakCert}}
 
 \item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
-\item{specMerge}{pitch candidates within \code{specMerge} semitones are
-merged with boosted certainty}
-
-\item{nCands}{maximum number of pitch candidates per method, normally 1...4
-(except for \code{dom}, which returns at most one candidate per frame)}
+\item{nCands}{number of pitch candidates pre frame (specMethod =
+"commonFactor" always returns a single candidate)}
 }
 \value{
 Returns either NULL or a dataframe of pitch candidates.
@@ -59,9 +67,12 @@ Returns either NULL or a dataframe of pitch candidates.
 Internal soundgen function.
 }
 \details{
-Attempts to find F0 of a frame by calculating ratios of putative harmonics
-(frequency domain analysis, ~ modified BaNa algorithm). See Ba et al. (2012)
-"BaNa: A hybrid approach for noise resilient pitch detection." Statistical
-Signal Processing Workshop (SSP), 2012 IEEE.
+Attempts to find F0 of a frame by detecting several putative harmonics and
+either finding their highest common factor (specMethod = "commonFactor") or
+comparing their ratios (specMethod = "BaNa"). For the highest common factor
+method, see Howard & Angus (2017) "Acoustics and psychoacoustics" (section
+3.2.1). For BaNa, see Ba et al. (2012) "BaNa: A hybrid approach for noise
+resilient pitch detection." Statistical Signal Processing Workshop (SSP),
+2012 IEEE.
 }
 \keyword{internal}

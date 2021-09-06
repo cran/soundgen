@@ -10,7 +10,7 @@
   upr,
   action = c("pass", "stop")[1],
   na.rm = TRUE,
-  normalize = TRUE,
+  normalize = FALSE,
   plot = FALSE,
   width = 900,
   height = 500,

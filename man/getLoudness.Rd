@@ -78,7 +78,8 @@ don't save, '' = same folder as audio)}
 
 \item{main}{graphical parameters for plotting}
 
-\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
+\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
+frequency). NB: still in kHz, even if yScale = bark or mel}
 
 \item{width}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}

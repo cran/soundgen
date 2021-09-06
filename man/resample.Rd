@@ -9,6 +9,7 @@ resample(
   samplingRate = NULL,
   samplingRate_new = NULL,
   mult = NULL,
+  len = NULL,
   lowPass = TRUE,
   na.rm = FALSE,
   reportEvery = NULL,
@@ -35,6 +36,9 @@ numeric vector)}
 
 \item{mult}{multiplier of sampling rate: new sampling rate = old sampling
 rate x mult, so 1 = no effect, >1 = upsample, <1 = downsample}
+
+\item{len}{if specified, overrides mult and samplingRate_new and simply
+returns a vector of length \code{len}}
 
 \item{lowPass}{if TRUE, applies a low-pass filter before decimating or after
 upsampling to avoid aliasing}
@@ -72,7 +76,8 @@ Changes the sampling rate without introducing artefacts like aliasing.
 Algorithm: to downsample, applies a low-pass filter, then decimates with
 \code{approx}; to upsample, performs linear interpolation with \code{approx},
 then applies a low-pass filter. NAs can be interpolated or preserved in the
-output.
+output. The length of output is determined, in order of precedence, by
+\code{len / mult / samplingRate_new}.
 }
 \examples{
 ## Example 1: a short vector with NAs
@@ -86,6 +91,7 @@ soundgen::resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
 # downsample
 soundgen::resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
 soundgen::resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
+soundgen::resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
 
 
 ## Example 2: a sound

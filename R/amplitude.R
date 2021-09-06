@@ -2,6 +2,7 @@
 #'
 #' Deprecated; use \code{\link{getRMS}} instead
 #' @param ... any input parameters
+#' @keywords internal
 getRMSFolder = function(...) {
   message('getRMSFolder() is deprecated; please use getRMS() instead')
 }

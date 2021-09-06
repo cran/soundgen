@@ -30,7 +30,7 @@ spectrogram(
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c("linear", "log")[1],
+  yScale = c("linear", "log", "bark", "mel")[1],
   contrast = 0.2,
   brightness = 0,
   maxPoints = c(1e+05, 5e+05),
@@ -121,10 +121,12 @@ in decibels}
 \item{heights}{a vector of length two specifying the relative height of the
 spectrogram and the oscillogram (including time axes labels)}
 
-\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist frequency)}
+\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
+frequency). NB: still in kHz, even if yScale = bark or mel}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
-logarithmic}
+logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
+'mel' = mel with \code{\link[tuneR]{hz2mel}}}
 
 \item{contrast}{spectrum is exponentiated by contrast (any real number,
 recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
@@ -144,9 +146,10 @@ apparent duration doesn't change)}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
-\item{extraContour}{a vector of arbitrary length scaled in Hz that will be
-plotted over the spectrogram (eg pitch contour); can also be a list with
-extra graphical parameters such as lwd, col, etc. (see examples)}
+\item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
+yScale!) that will be plotted over the spectrogram (eg pitch contour); can
+also be a list with extra graphical parameters such as lwd, col, etc. (see
+examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
@@ -185,7 +188,7 @@ sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
 # playme(sound, samplingRate = 16000)
 
 # basic spectrogram
-spectrogram(sound, samplingRate = 16000, yScale = 'log')
+spectrogram(sound, samplingRate = 16000, yScale = 'bark')
 
 \dontrun{
 # add bells and whistles
@@ -209,7 +212,7 @@ spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
 # remove the oscillogram
 spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 
-# frequencies on a logarithmic scale
+# frequencies on a logarithmic (musical) scale (mel/bark also available)
 spectrogram(sound, samplingRate = 16000,
             yScale = 'log', ylim = c(.05, 8))
 

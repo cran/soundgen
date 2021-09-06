@@ -4,11 +4,14 @@
 #' Algorithm: to downsample, applies a low-pass filter, then decimates with
 #' \code{approx}; to upsample, performs linear interpolation with \code{approx},
 #' then applies a low-pass filter. NAs can be interpolated or preserved in the
-#' output.
+#' output. The length of output is determined, in order of precedence, by
+#' \code{len / mult / samplingRate_new}.
 #' @inheritParams spectrogram
 #' @inheritParams segment
 #' @param mult multiplier of sampling rate: new sampling rate = old sampling
 #'   rate x mult, so 1 = no effect, >1 = upsample, <1 = downsample
+#' @param len if specified, overrides mult and samplingRate_new and simply
+#'   returns a vector of length \code{len}
 #' @param samplingRate_new an alternative to \code{mult} provided that the old
 #'   \code{samplingRate is know} (NB: \code{mult} takes precedence)
 #' @param lowPass if TRUE, applies a low-pass filter before decimating or after
@@ -28,6 +31,7 @@
 #' # downsample
 #' soundgen::resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
 #' soundgen::resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
+#' soundgen::resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
 #'
 #'
 #' ## Example 2: a sound
@@ -60,6 +64,7 @@ resample = function(x,
                     samplingRate = NULL,
                     samplingRate_new = NULL,
                     mult = NULL,
+                    len = NULL,
                     lowPass = TRUE,
                     na.rm = FALSE,
                     reportEvery = NULL,
@@ -72,12 +77,9 @@ resample = function(x,
                     res = NA,
                     ...) {
   # check mult / samplingRate_new
-  if (is.null(mult)) {
+  if (is.null(mult) & is.null(len)) {
     if (is.null(samplingRate_new))
-      stop('Please specify either mult or samplingRate_new')
-  } else {
-    if (!is.null(samplingRate_new))
-      warning('samplingRate_new will be ignored because mult is specified')
+      stop('Please specify len, mult or samplingRate_new')
   }
   if (is.null(samplingRate)) samplingRate = 1  # just to avoid warnings
 
@@ -85,7 +87,8 @@ resample = function(x,
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'savePlots', 'saveAudio', 'width', 'height', 'units')]
+    'x', 'samplingRate', 'reportEvery', 'savePlots',
+    'saveAudio', 'width', 'height', 'units')]
 
   pa = processAudio(x = x,
                     samplingRate = samplingRate,
@@ -130,6 +133,7 @@ resample = function(x,
 #' @keywords internal
 .resample = function(audio,
                      mult = NULL,
+                     len = NULL,
                      samplingRate_new = NULL,
                      lowPass = TRUE,
                      na.rm = FALSE,
@@ -139,10 +143,18 @@ resample = function(x,
                      units = 'px',
                      res = NA,
                      ...) {
-  if (is.null(mult)) mult = samplingRate_new / audio$samplingRate
+  # calculate length
   x = audio$sound
   n1 = length(x)
-  n2 = round(n1 * mult)
+  if (is.null(len)) {
+    if (is.null(mult)) mult = samplingRate_new / audio$samplingRate
+    n2 = round(n1 * mult)
+  } else {
+    n2 = len
+    mult = n2 / n1
+  }
+
+  # prepare to deal with NAs
   idx_na = which(is.na(x))
   n_na = length(idx_na)
   any_na = n_na > 0
@@ -154,6 +166,7 @@ resample = function(x,
   }
   if (!any(diff(x_noNA) != 0)) return(rep(x[1], n2))
 
+  # up- or downsample
   if (!is.finite(mult) | mult < 0) {
     stop('mult must be a real positive number')
   } else if (mult == 1 | length(idx_na) == n1) {
@@ -180,9 +193,9 @@ resample = function(x,
     time_stamps = seq(0, 1, length.out = n1)
     na_pos_01 = data.frame(beg = time_stamps[beg], end = time_stamps[end])
     na_pos2 = round(na_pos_01 * n2)  # from % to position indices
-    na_pos2_vector = unlist(apply(na_pos2, 1, function(x) x[1]:x[2]))
+    na_pos2_vector = as.numeric(unlist(apply(na_pos2, 1, function(x) x[1]:x[2])))
     na_pos2_vector = na_pos2_vector[na_pos2_vector > 0 &
-                                      na_pos2_vector < n2]
+                                      na_pos2_vector <= n2]
     out[na_pos2_vector] = NA  # fill in NAs in the new vector
   }
 

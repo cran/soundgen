@@ -84,7 +84,7 @@
 #' plot(a2)
 #' plot(a3)  # NB: the segment before the jump is upsampled to compensate
 #'
-#' # Control the amount of smoothing
+#' ## Control the amount of smoothing
 #' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
 #'   loessSpan = NULL)  # default amount of smoothing (depends on dur)
 #' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
@@ -93,6 +93,17 @@
 #'   loessSpan = .5)    # less smoothing
 #' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
 #'   interpol = 'approx')  # linear interpolation (no smoothing)
+#'
+#' ## Upsample preserving leading and trailing NAs
+#' anchors = data.frame(time =  c(1,  4,  5,  7,  10, 20, 23, 25, 30),
+#'                      value = c(NA, NA, 10, 15, 12, NA, 17, 15, NA))
+#' plot(anchors, type = 'b')
+#' anchors_ups = getSmoothContour(
+#'   anchors, len = 200,
+#'   interpol = 'approx',  # only approx can propagate NAs
+#'   NA_to_zero = FALSE,   # preserve NAs
+#'   discontThres = 0)     # don't break into sub-contours
+#' plot(anchors_ups, type = 'b')
 getSmoothContour = function(
   anchors = data.frame(time = c(0, 1), value = c(0, 1)),
   len = NULL,
@@ -120,8 +131,8 @@ getSmoothContour = function(
       main = ''
   }
   # if (is.null(my_args$main)) {
-  if (!is.null(len) && len == 1) return(anchors[1])
   anchors = reformatAnchors(anchors, normalizeTime = normalizeTime)
+  if (!is.null(len) && len == 1) return(anchors$value[1])
   if (is.list(anchors)) {
     if (nrow(anchors) > 10 & nrow(anchors) < 50 & interpol == 'loess') {
       interpol = 'spline'
@@ -163,6 +174,7 @@ getSmoothContour = function(
   } else if (duration_ms == 0 | len == 0) {
     return(NA)
   }
+  if (NA_to_zero) anchors$value[is.na(anchors$value)] = 0
 
   # get smooth contours
   nr = nrow(anchors)
@@ -179,7 +191,6 @@ getSmoothContour = function(
                                 interpol = interpol,
                                 loessSpan = loessSpan,
                                 valueFloor = valueFloor,
-                                valueCeiling = valueCeiling,
                                 duration_ms = duration_ms)
   } else {
     # some anchors might be too close, so we split the contour into segments
@@ -197,7 +208,6 @@ getSmoothContour = function(
                          interpol = interpol,
                          loessSpan = loessSpan,
                          valueFloor = valueFloor,
-                         valueCeiling = valueCeiling,
                          duration_ms = duration_ms)
       transition = vector()
       if (i < nrow(sections)) {
@@ -309,6 +319,10 @@ getSmoothContour = function(
   # NA's may arise if the first anchor time > 0
   if (nrow(anchors) > 0 & NA_to_zero)
     smoothContour[is.na(smoothContour)] = 0
+
+  # floor / ceiling
+  smoothContour[smoothContour < valueFloor] = valueFloor
+  smoothContour[smoothContour > valueCeiling] = valueCeiling
   if (thisIsPitch)
     smoothContour = semitonesToHz(smoothContour)
   return(smoothContour)
@@ -328,11 +342,11 @@ drawContour = function(len,
                        anchors,
                        interpol,
                        valueFloor,
-                       valueCeiling,
                        duration_ms = 500,
                        loessSpan = NULL) {
   time = 1:len
   nr = nrow(anchors)
+  if (nr == len) return(anchors$value)
   if (nr == 1) {
     # flat
     smoothContour = rep(anchors$value[1], len)
@@ -342,10 +356,26 @@ drawContour = function(len,
   } else {
     # smooth contour
     if (interpol == 'approx') {
-      if (len > nr) {
-        smoothContour = approx(anchors$value, n = len, x = anchors$time)$y
+      # approx can handle NAs, but we only really care about leading/trailing
+      # NAs, because NAs in the middle can be handled automatically
+      if (is.na(anchors$value[1]) | is.na(anchors$value[nr])) {
+        # if there are leading and/or trailing NAs, we have to upsample them separately
+        # replace trailing NA with the first / last non-NA values
+        idx_notNA = which(!is.na(anchors$value))
+        idx_na = which(is.na(anchors$value))
+        n_leading_na = round(len * anchors$time[idx_notNA[1]])
+        n_trailing_na = round(len * (1 - anchors$time[tail(idx_notNA, 1)]))
+        n_mid = len - n_leading_na - n_trailing_na
+
+        leading_na = trailing_na = numeric(0)
+        if (n_leading_na > 0)
+          leading_na = rep(NA, n_leading_na)
+        if (n_trailing_na > 0)
+          trailing_na = rep(NA, n_trailing_na)
+        mid_new = approx(x = anchors$time, y = anchors$value, n = n_mid, na.rm = FALSE)$y
+        smoothContour = c(leading_na, mid_new, trailing_na)
       } else {
-        smoothContour = anchors$value
+        smoothContour = approx(anchors$value, n = len, x = anchors$time, na.rm = FALSE)$y
       }
       # plot(smoothContour, type='l')
     } else if (interpol == 'spline') {
@@ -394,10 +424,6 @@ drawContour = function(len,
         }
       }
     }
-
-    # floor / ceiling
-    smoothContour[smoothContour < valueFloor] = valueFloor
-    smoothContour[smoothContour > valueCeiling] = valueCeiling
     return(smoothContour)
   }
 }

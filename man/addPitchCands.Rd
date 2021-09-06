@@ -21,6 +21,7 @@ addPitchCands(
   addToExistingPlot = TRUE,
   showLegend = TRUE,
   y_Hz = FALSE,
+  yScale = c("orig", "bark", "mel")[1],
   ...
 )
 }

@@ -4,6 +4,7 @@
 #'
 #' Deprecated; use \code{\link{analyze}} instead
 #' @param ... any input parameters
+#' @keywords internal
 analyzeFolder = function(...) {
   message('analyzeFolder() is deprecated; please use analyze() instead')
 }
@@ -133,6 +134,9 @@ analyzeFolder = function(...) {
 #' @param pitchHps a list of control parameters for pitch tracking using the
 #'   harmonic product spectrum or "hps" method; see details and
 #'   \code{?soundgen:::getPitchHps}
+#' @param pitchZc a list of control parameters for pitch tracking based on zero
+#'   crossings in bandpass-filtered audio or "zc" method; see
+#'   \code{\link{getPitchZc}}
 #' @param harmHeight a list of control parameters for estimating how high
 #'   harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}
 #' @param subh a list of control parameters for estimating the strength of
@@ -255,21 +259,7 @@ analyzeFolder = function(...) {
 #'   nFormants = 0         # no formant analysis
 #' )
 #'
-#' sound1 = soundgen(sylLen = 900, pitch = list(
-#'   time = c(0, .3, .9, 1), value = c(300, 900, 400, 2300)),
-#'   noise = list(time = c(0, 300), value = c(-40, 0)),
-#'   temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
-#' # improve the quality of postprocessing:
-#' a1 = analyze(sound1, samplingRate = 44100, priorSD = 24,
-#'              plot = TRUE, pathfinding = 'slow', ylim = c(0, 5))
-#' median(a1$pitch, na.rm = TRUE)
-#' # (can vary because postprocessing is stochastic)
-#' # compare to the true value:
-#' median(getSmoothContour(anchors = list(time = c(0, .3, .8, 1),
-#'   value = c(300, 900, 400, 2300)), len = 1000))
-#'
-#' # the same pitch contour, but harder to analyze b/c of
-#' # subharmonics and jitter
+#' # Take a sound hard to analyze b/c of subharmonics and jitter
 #' sound2 = soundgen(sylLen = 900, pitch = list(
 #'   time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
 #'   noise = list(time = c(0, 900), value = c(-40, -20)),
@@ -277,10 +267,17 @@ analyzeFolder = function(...) {
 #'   temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
 #' # playme(sound2, 44100)
 #' a2 = analyze(sound2, samplingRate = 44100, priorSD = 24,
-#'              plot = TRUE, pathfinding = 'fast', ylim = c(0, 5))
+#'              plot = TRUE, ylim = c(0, 5))
+#'
+#' # Compare the available pitch trackers
+#' analyze(sound2, 44100,
+#'   pitchMethods = c('dom', 'autocor', 'spec', 'cep', 'hps', 'zc'),
+#'   # don't use priors to see weird pitch candidates better
+#'   priorMean = NA, priorAdapt = FALSE,
+#'   plot = TRUE, yScale = 'bark')
 #'
 #' # Fancy plotting options:
-#' a = analyze(sound1, samplingRate = 44100, plot = TRUE,
+#' a = analyze(sound2, samplingRate = 44100, plot = TRUE,
 #'   xlab = 'Time, ms', colorTheme = 'seewave',
 #'   contrast = .5, ylim = c(0, 4), main = 'My plot',
 #'   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
@@ -289,6 +286,15 @@ analyzeFolder = function(...) {
 #'   pitchPlot = list(col = 'black', pch = 9, lty = 3, lwd = 3),
 #'   extraContour = list(x = 'peakFreq', type = 'b', pch = 4, col = 'brown'),
 #'   osc = 'dB', heights = c(2, 1))
+#'
+#' # Analyze an entire folder in one go, saving spectrograms with pitch contours
+#' # plus an html file for easy access
+#' s2 = analyze('~/Downloads/temp',
+#'   savePlots = '',  # save in the same folder as audio
+#'   showLegend = TRUE, yScale = 'bark',
+#'   width = 20, height = 12,
+#'   units = 'cm', res = 300, ylim = c(0, 5))
+#' s2$summary[, 1:5]
 #'
 #' # Different options for summarizing the output
 #' a = analyze(sound1, 44100,
@@ -372,12 +378,6 @@ analyzeFolder = function(...) {
 #' s1 = analyze(myfolder, pitchManual = pitchContour)
 #' plot(s$summary$harmonics_median, s1$summary$harmonics_median)
 #' abline(a=0, b=1, col='red')
-#'
-#' # Save spectrograms with pitch contours plus an html file for easy access
-#' s2 = analyze('~/Downloads/temp', savePlots = '',
-#'   showLegend = TRUE,
-#'   width = 20, height = 12,
-#'   units = 'cm', res = 300, ylim = c(0, 5))
 #' }
 analyze = function(
   x,
@@ -413,6 +413,7 @@ analyze = function(
   pitchCep = list(),
   pitchSpec = list(),
   pitchHps = list(),
+  pitchZc = list(),
   harmHeight = list(),
   subh = list(method = 'cep', nSubh = 5),
   flux = list(thres = 0.15, smoothWin = 100),
@@ -437,7 +438,7 @@ analyze = function(
   extraContour = NULL,
   ylim = NULL,
   xlab = 'Time, ms',
-  ylab = 'kHz',
+  ylab = NULL,
   main = NULL,
   width = 900,
   height = 500,
@@ -468,7 +469,8 @@ analyze = function(
   # Check parameters supplied as lists
   pitchDom_plotPars = pitchAutocor_plotPars =
     pitchCep_plotPars = pitchSpec_plotPars =
-    pitchHps_plotPars = harmHeight_plotPars = NULL  # otherwise CMD check complains
+    pitchHps_plotPars = pitchZc_plotPars =
+    harmHeight_plotPars = NULL  # otherwise CMD check complains
   # Here we specify just the names of pars as c('', '').
   # (values are in defaults_analyze)
   parsToValidate = list(
@@ -478,8 +480,10 @@ analyze = function(
                      'autocorUpsample', 'autocorBestPeak'),
     pitchCep = c('cepThres', 'cepSmooth', 'cepZp', 'cepPenalty', 'logSpec'),
     pitchSpec = c('specSmooth', 'specHNRslope', 'specThres',
-                  'specPeak', 'specSinglePeakCert', 'specMerge'),
-    pitchHps = c('hpsNum', 'hpsThres', 'hpsNorm', 'hpsPenalty')
+                  'specPeak', 'specSinglePeakCert', 'specMerge',
+                  'specMethod', 'specRatios'),
+    pitchHps = c('hpsNum', 'hpsThres', 'hpsNorm', 'hpsPenalty'),
+    pitchZc = c('zcThres', 'zcWin')
   )
   for (i in 1:length(parsToValidate)) {
     parGroup_user = get(names(parsToValidate)[i])
@@ -506,10 +510,11 @@ analyze = function(
   }
   rm('parsToValidate', 'parGroup_user', 'parGroup_def', 'p', 'i',
      'harmHeight_plotPars')
+  if (is.na(pitchSpec$specMethod)) pitchSpec$specMethod = 'commonFactor'
 
   # Check defaults that depend on other pars or require customized warnings
   if (is.character(pitchMethods) && pitchMethods[1] != '') {
-    valid_names = c('dom', 'autocor', 'cep', 'spec', 'hps')
+    valid_names = c('dom', 'autocor', 'cep', 'spec', 'hps', 'zc')
     invalid_names = pitchMethods[!pitchMethods %in% valid_names]
     if (length(invalid_names) > 0) {
       message(paste('Ignoring unknown pitch tracking methods:',
@@ -593,7 +598,7 @@ analyze = function(
   list_pars = c('pitchManual_list', 'pitchPlot',
                 'pitchDom_plotPars', 'pitchAutocor_plotPars',
                 'pitchCep_plotPars', 'pitchSpec_plotPars',
-                'pitchHps_plotPars',
+                'pitchHps_plotPars', 'pitchZc_plotPars',
                 'loudness', 'roughness', 'novelty', 'interpol', 'subh')
   for (lp in list_pars) myPars[[lp]] = get(lp)
 
@@ -693,6 +698,7 @@ analyze = function(
   pitchCep = list(),
   pitchSpec = list(),
   pitchHps = list(),
+  pitchZc = list(),
   harmHeight = list(),
   subh = list(),
   flux = list(),
@@ -716,6 +722,7 @@ analyze = function(
   pitchCep_plotPars = list(),
   pitchSpec_plotPars =list(),
   pitchHps_plotPars = list(),
+  pitchZc_plotPars = list(),
   extraContour = NULL,
   ylim = NULL,
   xlab = NULL,
@@ -1108,9 +1115,39 @@ analyze = function(
   result$time = as.numeric(colnames(frameBank))
   result$duration_noSilence = duration_noSilence
   result$duration = audio$duration
-  nc = ncol(result)
+  nc = ncol(result); nr = nrow(result)
   result = result[, c(rev((nc-4):nc), 1:(nc-5))]  # change the order of columns
 
+  ## Pitch tracking based on zero crossing rate
+  if ('zc' %in% pitchMethods) {
+    pitch_zc = do.call(.getPitchZc, c(pitchZc, list(
+      audio = audio,
+      env = ampl,
+      pitchFloor = pitchFloor,
+      pitchCeiling = pitchCeiling, # priorMean * 2 ^ (priorSD / 12),
+      silence = silence)))
+    # plot(pitch_zc$time, pitch_zc$pitch, type = 'l')
+    pitch_zc_cnt = getSmoothContour(
+      data.frame(time = pitch_zc$time, value = pitch_zc$pitch),
+      len = nr, interpol = 'approx', NA_to_zero = FALSE, discontThres = 0)
+    pitch_zc_cnt[-framesToAnalyze] = NA
+    # plot(pitch_zc_cnt, type = 'l')
+    pitch_zc_cert = getSmoothContour(
+      data.frame(time = pitch_zc$time, value = pitch_zc$cert),
+      len = nr, interpol = 'approx', NA_to_zero = FALSE, discontThres = 0)
+    # plot(pitch_zc_cert, type = 'l')
+    idx_notNA = which(!is.na(pitch_zc_cnt))
+    idx_notNA = idx_notNA[idx_notNA %in% framesToAnalyze]
+    if (length(idx_notNA) > 0) {
+      for (i in idx_notNA) {
+        zc_i = data.frame(pitchCand = pitch_zc_cnt[i],
+                          pitchCert = pitch_zc_cert[i],
+                          pitchSource = 'zc')
+        frameInfo[[i]]$pitchCands_frame = rbind(
+          frameInfo[[i]]$pitchCands_frame, zc_i)
+      }
+    }
+  }
 
   ## Postprocessing
   # extract and prepare pitch candidates for the pathfinder algorithm
@@ -1185,6 +1222,7 @@ analyze = function(
           pitchCands = pitchCands_list$freq[, myseq, drop = FALSE],
           pitchCert = pitchCands_list$cert[, myseq, drop = FALSE],
           pitchSource = pitchCands_list$source[, myseq, drop = FALSE],
+          step = step,
           certWeight = certWeight,
           pathfinding = pathfinding,
           annealPars = annealPars,
@@ -1225,6 +1263,7 @@ analyze = function(
             pitchCands = pitchCands_list$freq[, myseq, drop = FALSE],
             pitchCert = pitchCands_list$cert[, myseq, drop = FALSE],
             pitchSource = pitchCands_list$source[, myseq, drop = FALSE],
+            step = step,
             certWeight = certWeight,
             pathfinding = pathfinding,
             annealPars = annealPars,
@@ -1254,7 +1293,7 @@ analyze = function(
 
   ## Median smoothing of specified contours (by default pitch & dom)
   if (smooth > 0) {
-    points_per_sec = nrow(result) / audio$duration
+    points_per_sec = nr / audio$duration
     # smooth of 1 means that smoothing window is ~100 ms
     smoothing_ww = round(smooth * points_per_sec / 10, 0)
     # the larger smooth, the heavier the smoothing (lower tolerance
@@ -1288,7 +1327,7 @@ analyze = function(
       # up/downsample pitchManual to the right length
       pitch_true = resample(
         x = pitch_raw,
-        mult = nrow(result) / length(pitch_raw),
+        mult = nr / length(pitch_raw),
         lowPass = FALSE,
         plot = FALSE)
     } else {
@@ -1308,7 +1347,7 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            returnMS = FALSE, plot = FALSE),
       roughness))
-    mult = nrow(result) / length(ms$roughness)
+    mult = nr / length(ms$roughness)
     result$roughness = resample(ms$roughness, mult = mult,
                                 lowPass = FALSE, plot = FALSE)
     result$amFreq = resample(ms$amFreq, mult = mult,
@@ -1326,7 +1365,7 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            sparse = TRUE, plot = FALSE),
       novelty))$novelty
-    result$novelty = resample(novel, mult = nrow(result) / length(novel),
+    result$novelty = resample(novel, mult = nr / length(novel),
                               lowPass = FALSE, plot = FALSE)
     result$novelty[!cond_silence] = NA
   }
@@ -1442,7 +1481,8 @@ analyze = function(
             autocor = pitchAutocor_plotPars,
             cep = pitchCep_plotPars,
             spec = pitchSpec_plotPars,
-            hps = pitchHps_plotPars
+            hps = pitchHps_plotPars,
+            zc = pitchZc_plotPars
           ),
           extraContour = cnt,
           extraContour_pars = cnt_plotPars,

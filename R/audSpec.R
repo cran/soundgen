@@ -3,14 +3,19 @@
 #' Produces an auditory spectrogram by extracting a bank of bandpass filters
 #' (work in progress). While tuneR::audspec is based on FFT, here we convolve
 #' the sound with a bank of filters. The main difference is that we don't window
-#' the signal and therefore get full temporal resolution in all frequency bins.
+#' the signal and de factor get variable temporal resolution in different
+#' frequency channels, as with a wavelet transform. The filters are currently
+#' third-order Butterworth bandpass filters implemented in
+#' \code{\link[signal]{butter}}.
 #'
 #' @inheritParams spectrogram
-#' @param nFilters the number of filterbanks
+#' @param nFilters the number of filters (determines frequency resolution)
+#' @param step step, ms (determines time resolution). step = NULL means no
+#'   downsampling at all (ncol of output = length of input audio)
 #' @param minFreq,maxFreq the range of frequencies to analyze
 #' @param minBandwidth minimum filter bandwidth, Hz (otherwise filters may
 #'   become too narrow when nFilters is high)
-#' @keywords export
+#' @export
 #' @examples
 #' # synthesize a sound with gradually increasing hissing noise
 #' sound = soundgen(sylLen = 200, temperature = 0.001,
@@ -20,32 +25,38 @@
 #' # playme(sound, samplingRate = 16000)
 #'
 #' # auditory spectrogram
-#' soundgen:::audSpectrogram(sound, samplingRate = 16000, nFilters = 64)
+#' as = audSpectrogram(sound, samplingRate = 16000, nFilters = 48)
+#' dim(as$audSpec)
 #'
-#' # compare to an FFT-based spectrogram on log-scale
-#' spectrogram(sound, samplingRate = 16000, yScale = 'log')
+#' # compare to FFT-based spectrogram with similar time and frequency resolution
+#' fs = spectrogram(sound, samplingRate = 16000, yScale = 'bark',
+#'                  windowLength = 5, step = 1)
+#' dim(fs)
 #'
 #' \dontrun{
 #' # add bells and whistles
-#' soundgen:::audSpectrogram(sound, samplingRate = 16000,
-#'   yScale = 'linear',
+#' audSpectrogram(sound, samplingRate = 16000,
+#'   yScale = 'log',
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
 #'   brightness = -.1,  # reduce brightness
 #'   colorTheme = 'heat.colors',  # pick color theme
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
-#'   grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
-#'   ylim = c(0, 5),  # always in kHz
-#'   main = 'My spectrogram' # title
+#'   grid = 5,  # to customize, add manually with graphics::grid()
+#'   ylim = c(0.1, 5),  # always in kHz
+#'   main = 'My auditory spectrogram' # title
 #'   # + axis labels, etc
 #' )
 #'
 #' # change dynamic range
-#' soundgen:::audSpectrogram(sound, samplingRate = 16000, dynamicRange = 40)
-#' soundgen:::audSpectrogram(sound, samplingRate = 16000, dynamicRange = 120)
+#' audSpectrogram(sound, samplingRate = 16000, dynamicRange = 40)
+#' audSpectrogram(sound, samplingRate = 16000, dynamicRange = 120)
 #'
 #' # remove the oscillogram
-#' soundgen:::audSpectrogram(sound, samplingRate = 16000, osc = 'none')
+#' audSpectrogram(sound, samplingRate = 16000, osc = 'none')
+#'
+#' # save auditory spectrograms of all audio files in a folder
+#' audSpectrogram('~/Downloads/temp', savePlots = '~/Downloads/temp/audSpec')
 #' }
 audSpectrogram = function(
   x,
@@ -53,18 +64,19 @@ audSpectrogram = function(
   scale = NULL,
   from = NULL,
   to = NULL,
+  step = 1,
   dynamicRange = 80,
   nFilters = 128,
   minFreq = 20,
   maxFreq = samplingRate / 2,
-  minBandwidth = 1,
+  minBandwidth = 10,
   reportEvery = NULL,
   plot = TRUE,
   savePlots = NULL,
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('log', 'llinear')[1],
+  yScale = c('bark', 'mel', 'log')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -124,6 +136,7 @@ audSpectrogram = function(
 #' @keywords internal
 .audSpectrogram = function(
   audio,
+  step = 1,
   dynamicRange = 80,
   nFilters,
   minFreq = 20,
@@ -133,7 +146,7 @@ audSpectrogram = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('log', 'llinear')[1],
+  yScale = c('log', 'bark')[2],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -153,28 +166,68 @@ audSpectrogram = function(
   ...
 ) {
   if (is.null(maxFreq) || length(maxFreq) < 1) maxFreq = audio$samplingRate / 2
-  filter_width = max(
-    minBandwidth,
-    (HzToSemitones(maxFreq) - HzToSemitones(minFreq)) / nFilters
-  )
-  halfFW = filter_width / 2
+  if (!is.null(step)) {
+    len = max(1, round(audio$duration * 1000 / step))
+    step = audio$duration * 1000 / len  # avoid rounding error
+  } else {
+    len = NULL
+    step = 1000 / audio$samplingRate
+  }
   nyquist = audio$samplingRate / 2
-  cf_semitones = seq(
-    HzToSemitones(minFreq),
-    HzToSemitones(min(maxFreq, nyquist / 2^(filter_width / 2 / 12))) - 1,
-    length.out = nFilters
-  )
-  filters = data.frame(
-    cf = semitonesToHz(cf_semitones),
-    from = semitonesToHz(cf_semitones - halfFW),
-    to = semitonesToHz(cf_semitones + halfFW)
-  )
+
+  # set up filters
+  if (yScale == 'log') {
+    filter_width = (HzToSemitones(maxFreq) - HzToSemitones(minFreq)) / nFilters
+    halfFW = filter_width / 2
+    cf_semitones = seq(
+      HzToSemitones(minFreq),
+      HzToSemitones(min(maxFreq, nyquist / 2^(filter_width / 2 / 12))) - 1,
+      length.out = nFilters
+    )
+    filters = data.frame(
+      cf = semitonesToHz(cf_semitones),
+      from = semitonesToHz(cf_semitones - halfFW),
+      to = semitonesToHz(cf_semitones + halfFW)
+    )
+  } else if (yScale == 'bark') {
+    filter_width = (tuneR::hz2bark(maxFreq) - tuneR::hz2bark(minFreq)) / nFilters
+    halfFW = filter_width / 2
+    cf_bark = seq(
+      tuneR::hz2bark(minFreq + tuneR::bark2hz(halfFW)),
+      tuneR::hz2bark(min(maxFreq, nyquist)) - 1,
+      length.out = nFilters
+    )
+    filters = data.frame(
+      cf = tuneR::bark2hz(cf_bark),
+      from = tuneR::bark2hz(cf_bark - halfFW),
+      to = tuneR::bark2hz(cf_bark + halfFW)
+    )
+  } else if (yScale == 'mel') {
+    filter_width = (hz2mel(maxFreq) - hz2mel(minFreq)) / nFilters
+    halfFW = filter_width / 2
+    cf_mel = seq(
+      hz2mel(minFreq + tuneR::mel2hz(halfFW)),
+      hz2mel(min(maxFreq, nyquist)) - 1,
+      length.out = nFilters
+    )
+    filters = data.frame(
+      cf = tuneR::mel2hz(cf_mel),
+      from = tuneR::mel2hz(cf_mel - halfFW),
+      to = tuneR::mel2hz(cf_mel + halfFW)
+    )
+  }
+
+  # make sure the bandwidth in Hz (!) is always wide enough to avoid crashing
+  bw_hz = filters$to - filters$from
+  idx_narrow = which(bw_hz < minBandwidth)
+  if (length(idx_narrow) > 0) {
+    half_bw_hz = ceiling(minBandwidth / 2)
+    filters$from[idx_narrow] = filters$cf[idx_narrow] - half_bw_hz
+    filters$to[idx_narrow] = filters$cf[idx_narrow] + half_bw_hz
+  }
   # summary(filters)
-  # filters = filters[filters$to < (samplingRate / 2), ]
-  # nFilters = nrow(filters)
 
   # bandpass filter the signal. seewave::ffilter goes via stdft, so it's not suitable
-  # NB: signal needs to be included in dependencies (unless I use smth else)
   fb = sp = vector('list', nFilters)
   for (i in 1:nFilters) {
     btord = signal::FilterOfOrder(
@@ -184,20 +237,25 @@ audSpectrogram = function(
     )
     bt = signal::butter(btord)
     fb[[i]] = signal::filter(filt = bt, x = audio$sound)
-    # osc(fb / max(fb))
+    # osc(fb[[i]] / max(fb[[i]]))
     fb_env = seewave::env(fb[[i]], f = audio$samplingRate,
                           envt = 'hil',
-                          msmooth = c(10, 0),
+                          # msmooth = c(10, 0),
                           plot = F)
     # plot(fb_env, type = 'l')
+    if (!is.null(len)) {
+      # downsample
+      fb_env = resample(fb_env, len = len, lowPass = FALSE)
+    }
     sp[[i]] = matrix(fb_env, nrow = 1)
   }
   audSpec = do.call(rbind, sp)
   audSpec[is.na(audSpec)] = 0
   rownames(audSpec) = filters$cf / 1000
-  colnames(audSpec) = seq(0, audio$duration, length.out = ncol(audSpec)) * 1000
+  colnames(audSpec) = step / 2 + step * (0 : (ncol(audSpec) - 1))
+  # or: seq(0, audio$duration, length.out = ncol(audSpec)) * 1000
 
-  # rescale etc for plotting
+  # rescale etc in order to return $audSpectorgram_processed
   Z1 = t(audSpec)
   # set to zero under dynamic range
   threshold = max(Z1) / 10^(dynamicRange/20)
@@ -229,7 +287,9 @@ audSpectrogram = function(
   # PLOTTING
   if (is.character(audio$savePlots)) {
     plot = TRUE
-    png(filename = paste0(audio$savePlots, audio$filename_noExt, "_spectrogram.png"),
+    png(filename = paste0(audio$savePlots,
+                          audio$filename_noExt,
+                          "_audSpectrogram.png"),
         width = width, height = height, units = units, res = res)
   }
   if (plot) {
@@ -255,7 +315,8 @@ audSpectrogram = function(
   }
 
   return(list(
-    filterbank = fb,
-    audSpec = audSpec
+    audSpec = audSpec,
+    audSpec_processed = t(Z1),
+    filterbank = fb
   ))
 }

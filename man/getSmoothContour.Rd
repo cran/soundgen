@@ -126,7 +126,7 @@ a3 = getSmoothContour(anchors = list(time = c(0, .15, .155, .7, 1),
 plot(a2)
 plot(a3)  # NB: the segment before the jump is upsampled to compensate
 
-# Control the amount of smoothing
+## Control the amount of smoothing
 getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
   loessSpan = NULL)  # default amount of smoothing (depends on dur)
 getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
@@ -135,4 +135,15 @@ getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
   loessSpan = .5)    # less smoothing
 getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
   interpol = 'approx')  # linear interpolation (no smoothing)
+
+## Upsample preserving leading and trailing NAs
+anchors = data.frame(time =  c(1,  4,  5,  7,  10, 20, 23, 25, 30),
+                     value = c(NA, NA, 10, 15, 12, NA, 17, 15, NA))
+plot(anchors, type = 'b')
+anchors_ups = getSmoothContour(
+  anchors, len = 200,
+  interpol = 'approx',  # only approx can propagate NAs
+  NA_to_zero = FALSE,   # preserve NAs
+  discontThres = 0)     # don't break into sub-contours
+plot(anchors_ups, type = 'b')
 }

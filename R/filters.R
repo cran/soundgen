@@ -34,14 +34,14 @@
 #' # Filter white noise
 #' s1 = fade(c(runif(2000, -1, 1)))
 #' bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
-#' bandpass(s1, 16000, lwr = 2000, plot = TRUE)  # high-pass
+#' bandpass(s1, 16000, lwr = 2000, plot = TRUE)    # high-pass
 #' bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
 #' s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE) # bandpass
 #' # playme(rep(s2, 5))
 #' spectrogram(s2, 16000)  # more accurate than plotting the spectrum with plot = TRUE
 #'
 #' # a short vector with some NAs
-#' x = rnorm(150) + 3 * sin((1:50) / 5)
+#' x = rnorm(150, 10) + 3 * sin((1:50) / 5)
 #' x[sample(1:length(x), 50)] = NA
 #' plot(x, type = 'l')
 #' points(bandpass(x, samplingRate = 100, upr = 10), type = 'l', col = 'blue')
@@ -72,7 +72,7 @@ bandpass = function(
   na.rm = TRUE,
   from = NULL,
   to = NULL,
-  normalize = TRUE,
+  normalize = FALSE,
   reportEvery = NULL,
   saveAudio = NULL,
   plot = FALSE,
@@ -144,7 +144,7 @@ bandpass = function(
                      upr,
                      action = c('pass', 'stop')[1],
                      na.rm = TRUE,
-                     normalize = TRUE,
+                     normalize = FALSE,
                      plot = FALSE,
                      width = 900,
                      height = 500,
@@ -154,7 +154,9 @@ bandpass = function(
   x = audio$sound
   if (!any(is.finite(x))) return(x)
   len = length(x)
+  mean_x = mean(x, na.rm = TRUE)
   ran_x = range(x, na.rm = TRUE)
+  x = x - mean_x  # center to avoid a weird fade-out
   if (len > 10000) {
     # for long files, pad with 0 to the nearest power of 2 - much faster fft
     pad_with = ifelse(prod(ran_x) < 0, 0, mean(x))
@@ -245,6 +247,7 @@ bandpass = function(
 
   # back to original scale
   if (normalize) x_new = x_new * diff(ran_x) / diff(range(x_new))
+  x_new = x_new + mean_x
 
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)

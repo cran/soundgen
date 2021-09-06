@@ -1,3 +1,27 @@
+          CHANGES IN SOUNDGEN VERSION 2.3.0 [06-September-2021]
+NEW FUNCTIONS:
+  * getPitchZc(): fast pitch tracker based on zero-crossing detection
+  * getSurprisal(): tracks the (un)predictability of spectral changes over time as a measure of salience
+
+MINOR:
+  * analyze(), pitch_app(): new pitch tracker "zc"
+  * analyze(), pitch_app(): new default sub-method of pitch tracking based on heighest common factor of harmonics as an alternative to the BaNa method (pitchMethods = "spec", pitchSpec = list(method = c("commonFactor", "BaNa")[1])
+  * analyze(), pitch_app(): new pathfinding algorithm for finding optimal pitch contours (modified Viterbi with random seeds)
+  * spectrogram(), analyze(), etc.: new options for yScale = 'bark' and 'mel'
+  * audSpectrogram(): alternative scales for central frequencies of filters (defaults to bark), time resolution controlled by the new "step" argument
+  * updated and simplified vignette on acoustic analysis
+
+BUGS FIXED:
+  * bandpass(): downsampled input is centered before applying a fade-out, then re-normalized to avoid introducing artefacts at the end
+  * segment(): switch from Hilbert to absolute envelope to make sure method = "env" works correctly with complete silence between syllables
+  * analyze(), pitch_app(): pitchMethod = "spec" treats a single detected harmonic as f0
+  * segment(): correct path in html when saving plots
+  * getSmoothContour() preserves NAs when upsampling if NA_to_zero = FALSE
+  * resample() preserves final NA, extra argument "len"
+  * audSpectrogram(): plots saved correctly
+  * deprecated functions no longer exported
+
+
           CHANGES IN SOUNDGEN VERSION 2.2.0 [07-August-2021]
 NEW FUNCTIONS:
   * shiftPitch(): shifts pitch and/or formants + performs time stretch

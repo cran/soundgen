@@ -12,3 +12,4 @@ getLoudnessFolder(...)
 \description{
 Deprecated; use \code{\link{getLoudness}} instead
 }
+\keyword{internal}
