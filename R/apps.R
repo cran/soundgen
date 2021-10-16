@@ -165,3 +165,26 @@ formant_app = function() {
   }
   shiny::runApp(appDir, display.mode = "normal", launch.browser = TRUE)
 }
+
+
+#' Annotation app
+#'
+#' Starts a shiny app for annotating audio. This is a simplified version of
+#' \code{\link{formant_app}} that also works on Macs.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' # Set up Firefox as default browser either system-wide or just in R.
+#' # For ex., on Linux, run:
+#' options('browser' = '/usr/bin/firefox')  # path to the executable
+#' annotation_app()  # runs in Firefox
+#' }
+annotation_app = function() {
+  appDir = system.file("shiny", "annotation_app", package = "soundgen")
+  if (appDir == "") {
+    stop("Could not find app directory. Try re-installing `soundgen`.",
+         call. = FALSE)
+  }
+  shiny::runApp(appDir, display.mode = "normal", launch.browser = TRUE)
+}

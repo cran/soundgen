@@ -116,7 +116,6 @@ spectrogramFolder = function(...) {
 #' # basic spectrogram
 #' spectrogram(sound, samplingRate = 16000, yScale = 'bark')
 #'
-#' \dontrun{
 #' # add bells and whistles
 #' spectrogram(sound, samplingRate = 16000,
 #'   osc = 'dB',  # plot oscillogram in dB
@@ -130,7 +129,7 @@ spectrogramFolder = function(...) {
 #'   main = 'My spectrogram' # title
 #'   # + axis labels, etc
 #' )
-#'
+#' \dontrun{
 #' # change dynamic range
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
@@ -175,7 +174,7 @@ spectrogramFolder = function(...) {
 #' # will not work if osc = TRUE b/c the plot layout is modified)
 #' s = soundgen()
 #' an = analyze(s, 16000, plot = FALSE)
-#' spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2))
+#' spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2), yScale = 'bark')
 #' # For values that are not in Hz, normalize any way you like
 #' spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
 #'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
@@ -555,82 +554,6 @@ getFrameBank = function(sound,
 }
 
 
-#' Modified filled.contour
-#'
-#' Internal soundgen function
-#'
-#' A bare-bones version of \code{\link[graphics]{filled.contour}} that does not
-#' plot a legend and accepts some additional graphical parameters like tick
-#' marks.
-#' @param x,y locations of grid lines
-#' @param z numeric matrix of values to plot
-#' @param xlim,ylim,zlim limits for the plot
-#' @param levels levels for partitioning z
-#' @param nlevels numbers of levels for partitioning z
-#' @param color.palette color palette function
-#' @param col list of colors instead of color.palette
-#' @param asp,xaxs,yaxs,... graphical parameters passed to plot.window() and
-#'   axis()
-#' @param axisX,axisY plot the axis or not (logical)
-#' @param log log = 'y' log-transforms the y axis
-#' @keywords internal
-filled.contour.mod = function(
-  x = seq(0, 1, len = nrow(z)),
-  y = seq(0, 1, len = ncol(z)),
-  z,
-  xlim = range(x, finite = TRUE),
-  ylim = range(y, finite = TRUE),
-  zlim = range(z, finite = TRUE),
-  levels = pretty(zlim, nlevels),
-  nlevels = 30,
-  color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
-  col = color.palette(length(levels) - 1),
-  asp = NA,
-  xaxs = "i",
-  yaxs = "i",
-  log = '',
-  yScale = c('orig', 'bark', 'mel')[1],
-  axisX = TRUE,
-  axisY = TRUE,
-  maxPoints = 5e5,
-  ...
-) {
-  if (yScale == 'bark') {
-    y = tuneR::hz2bark(y)
-    ylim = tuneR::hz2bark(ylim)
-  } else if (yScale == 'mel') {
-    y = hz2mel(y)
-    ylim = hz2mel(ylim)
-  }
-  suppressWarnings({
-    plot.new()
-    plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
-                asp = asp, log = log, ...)
-    if (!is.matrix(z) || nrow(z) <= 1 || ncol(z) <= 1)
-      stop("no proper 'z' matrix specified")
-    if (!is.double(z))  storage.mode(z) = "double"
-
-    # for very large matrices, downsample before plotting to avoid delays
-    if (!is.null(maxPoints)) {
-      len_z = length(z)
-      if (len_z > maxPoints) {
-        message(paste('Plotting with reduced resolution;',
-                      'increase maxPoints or set to NULL to override'))
-        lx = length(x)
-        seqx = seq(1, lx, length.out = ceiling(lx / (len_z / maxPoints)))
-        x = x[seqx]
-        z = z[seqx, ]
-      }
-    }
-    .filled.contour(as.double(x), as.double(y), z, as.double(levels), col = col)
-    title(...)
-    if (axisX) axis(1, ...)
-    if (axisY) axis(2, ...)
-  })
-  invisible()
-}
-
-
 #' Get smooth spectrum
 #'
 #' Internal soundgen function.
@@ -698,7 +621,7 @@ getSmoothSpectrum = function(sound,
 #'
 #' Helper function called by spectrogram() etc to plot a spectrogram.
 #' @param X time stamps, ms
-#' @param Y frequency stamps, kHz
+#' @param Y frequency stamps, kHz / mel / bark
 #' @param Z time in rows, frequency in columns (NB: this is the transpose of the
 #'   exported spectrogram!)
 #' @param audio a list returned by \code{readAudio}
@@ -719,7 +642,6 @@ plotSpec = function(
   padWithSilence = TRUE,
   colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
   extraContour = NULL,
-  rescaleExtraContour = TRUE,
   xlab = NULL,
   ylab = NULL,
   xaxp = NULL,
@@ -752,7 +674,6 @@ plotSpec = function(
   lx = length(X)
   ly = length(Y)
   x_ms = X[lx] < 1    # need to convert x-scale
-  y_Hz = ylim[2] < 1  # need to convert y-scale
 
   if (osc %in% c('linear', 'dB')) {
     # For long files, downsample before plotting
@@ -764,7 +685,7 @@ plotSpec = function(
 
     if (osc == 'dB') {
       audio$sound = .osc(
-        audio,
+        audio[names(audio) != 'savePlots'],
         dynamicRange = dynamicRange,
         dB = TRUE,
         plot = FALSE,
@@ -808,26 +729,16 @@ plotSpec = function(
     X = X / 1000
     xlim = c(0, audio$duration) + audio$timeShift
   }
-  if (yScale %in% c('bark', 'mel')) {
-    y_Hz = TRUE
-    if (is.null(ylab) & yScale == 'bark') ylab = 'Frequency, bark'
-    if (is.null(ylab) & yScale == 'mel') ylab = 'Frequency, mel'
-  }
-  if (y_Hz) {
-    Y = Y * 1000
-    ylim = ylim * 1000
-    min_log_freq = Y[2] * 1000  # 10
-    if (is.null(ylab)) ylab = 'Frequency, Hz'
-  }  else {
-    min_log_freq = Y[2]  # .01
-    if (is.null(ylab)) ylab = 'Frequency, kHz'
-  }
-  if (yScale == 'log' & ylim[1] < min_log_freq)  ylim[1] = min_log_freq
+
+  if (yScale == 'log' & ylim[1] < .01) ylim[1] = .01  # min 10 Hz
   idx_y = which(Y >= (ylim[1] / 1.05) & Y <= (ylim[2] * 1.05))
   # 1.05 to avoid having a bit of white space
   Y = Y[idx_y]
   ly = length(Y)
   Z = Z[, idx_y]
+  y_Hz = ylim[2] < 1  # labels in Hz or kHz
+  if (!exists('ylab') || is.null(ylab))
+    if (y_Hz) ylab = 'Frequency, Hz' else ylab = 'Frequency, kHz'
 
   filled.contour.mod(
     x = X, y = Y, z = Z,
@@ -874,18 +785,129 @@ plotSpec = function(
     cnt = approx(x = 1:lc, y = cnt,
                  xout = seq(1, lc, length.out = length(X)),
                  na.rm = FALSE)$y  # see ex. in ?approx on handling NAs
-    if (rescaleExtraContour) {
-      if (yScale == 'bark') {
-        cnt = 6 * asinh(cnt / 600)
-      } else if (yScale == 'mel') {
-        cnt = hz2mel(cnt)
-      }
-    }
     do.call(addPitchCands, list(
       extraContour = cnt, extraContour_pars = extraContour_pars,
-      y_Hz = y_Hz, timestamps = X,
+      y_Hz = y_Hz, timestamps = X, yScale = yScale,
       pitchCands = NA, pitchCert = NA, pitchSource = NA, pitch = NA))
   }
   # restore original pars
   par('mar' = op$mar, 'xaxt' = op$xaxt, 'yaxt' = op$yaxt, 'mfrow' = op$mfrow)
 }
+
+
+#' Modified filled.contour
+#'
+#' Internal soundgen function
+#'
+#' A bare-bones version of \code{\link[graphics]{filled.contour}} that does not
+#' plot a legend and accepts some additional graphical parameters like tick
+#' marks.
+#' @param x,y locations of grid lines (NB: x = time, y = frequency in kHz, not Hz!)
+#' @param z numeric matrix of values to plot
+#' @param xlim,ylim,zlim limits for the plot
+#' @param levels levels for partitioning z
+#' @param nlevels numbers of levels for partitioning z
+#' @param color.palette color palette function
+#' @param col list of colors instead of color.palette
+#' @param asp,xaxs,yaxs,... graphical parameters passed to plot.window() and
+#'   axis()
+#' @param axisX,axisY plot the axis or not (logical)
+#' @param log log = 'y' log-transforms the y axis
+#' @keywords internal
+filled.contour.mod = function(
+  x = seq(0, 1, len = nrow(z)),
+  y = seq(0, 1, len = ncol(z)),
+  z,
+  xlim = range(x, finite = TRUE),
+  ylim = range(y, finite = TRUE),
+  zlim = range(z, finite = TRUE),
+  levels = pretty(zlim, nlevels),
+  nlevels = 30,
+  color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
+  col = color.palette(length(levels) - 1),
+  asp = NA,
+  xaxs = "i",
+  yaxs = "i",
+  log = '',
+  yScale = c('orig', 'bark', 'mel')[1],
+  axisX = TRUE,
+  axisY = TRUE,
+  maxPoints = 5e5,
+  ...
+) {
+  y_Hz = ylim[2] < 1  # labels in Hz or kHz
+  if (ylim[2] > tail(y, 1)) ylim[2] = tail(y, 1)
+  if (yScale == 'bark') {
+    y = tuneR::hz2bark(y * 1000)
+    ylim = tuneR::hz2bark(ylim * 1000)
+  } else if (yScale == 'mel') {
+    y = hz2mel(y * 1000)
+    ylim = hz2mel(ylim * 1000)
+  } else {
+    if (y_Hz) {
+      y = y * 1000
+      ylim = ylim * 1000
+    }
+    if (log == 'y' & ylim[1] < .01) ylim[1] = .01
+  }
+
+  suppressWarnings({
+    plot.new()
+    plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
+                asp = asp, log = log, ...)
+    if (!is.matrix(z) || nrow(z) <= 1 || ncol(z) <= 1)
+      stop("no proper 'z' matrix specified")
+    if (!is.double(z))  storage.mode(z) = "double"
+
+    # for very large matrices, downsample before plotting to avoid delays
+    if (!is.null(maxPoints)) {
+      len_z = length(z)
+      if (len_z > maxPoints) {
+        message(paste('Plotting with reduced resolution;',
+                      'increase maxPoints or set to NULL to override'))
+        lx = length(x)
+        seqx = seq(1, lx, length.out = ceiling(lx / (len_z / maxPoints)))
+        x = x[seqx]
+        z = z[seqx, ]
+      }
+    }
+    .filled.contour(as.double(x), as.double(y), z, as.double(levels), col = col)
+    title(...)
+    if (axisX) axis(1, ...)
+    # if (axisY) axis(2, ...)
+
+    # could label frequency axis in Hz, but maybe it's a bit strange, and hard
+    # to make sure ylab is correct (Hz or kHz, etc.)
+    if (axisY) {
+      if (!yScale %in% c('bark', 'mel')) {
+        axis(2, ...)
+      } else {
+        y_at = seq(y[1], tail(y, 1), length.out = 5) # pretty(c(y[1], tail(y, 1)))
+        if (yScale == 'bark') {
+          # round to pretty labels in Hz or kHz
+          if (y_Hz) {
+            y_lab = round(tuneR::bark2hz(y_at))
+            # and back to bark for precise position
+            y_at = tuneR::hz2bark(y_lab)
+          } else {
+            y_lab = round(tuneR::bark2hz(y_at) / 1000, 1)
+            y_at = tuneR::hz2bark(y_lab * 1000)
+          }
+        } else if (yScale == 'mel') {
+          # round to pretty labels in Hz or kHz
+          if (y_Hz) {
+            y_lab = round(tuneR::mel2hz(y_at))
+            # and back to bark for precise position
+            y_at = tuneR::hz2mel(y_lab)
+          } else {
+            y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
+            y_at = tuneR::hz2mel(y_lab * 1000)
+          }
+        }
+        axis(2, at = y_at, labels = y_lab, ...)
+      }
+    }
+  })
+  invisible()
+}
+

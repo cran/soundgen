@@ -21,7 +21,6 @@ plotSpec(
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
   extraContour = NULL,
-  rescaleExtraContour = TRUE,
   xlab = NULL,
   ylab = NULL,
   xaxp = NULL,
@@ -38,7 +37,7 @@ plotSpec(
 \arguments{
 \item{X}{time stamps, ms}
 
-\item{Y}{frequency stamps, kHz}
+\item{Y}{frequency stamps, kHz / mel / bark}
 
 \item{Z}{time in rows, frequency in columns (NB: this is the transpose of the
 exported spectrogram!)}

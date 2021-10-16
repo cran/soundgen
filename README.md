@@ -75,16 +75,32 @@ Use the `analyze()` function to detect pitch and obtain other spectral
 descriptives of the sound we have just synthesized:
 
 ``` r
-a = analyze(s, 44100, ylim = c(0, 6))
+a = analyze(s, 44100, plot = TRUE, ylim = c(0, 6))
+```
+
+<img src="man/figures/README-analysis-1.png" width="80%" style="display: block; margin: auto;" />
+
+``` r
 a$detailed[1:5, c('pitch', 'peakFreq', 'harmHeight', 'HNR', 'ampl', 'loudness')]
 #>      pitch peakFreq harmHeight       HNR       ampl loudness
-#> 1       NA       NA         NA        NA 0.02638271       NA
-#> 2 295.1621 300.1361   296.6386  5.621424 0.15939804 10.50662
-#> 3 296.6386 300.1361   593.2772 13.417414 0.36515952 18.01119
-#> 4 296.4598 300.1361  1185.8392 13.250932 0.47913904 23.01556
-#> 5 292.8389 300.1361  1231.4125 11.141331 0.45389806 22.25239
-colnames(a)
-#> NULL
+#> 1       NA       NA         NA        NA 0.02993491       NA
+#> 2 291.4030 300.1361   582.8060  5.743706 0.19258955 11.19230
+#> 3 293.9992 300.1361   881.9977 13.480664 0.41832141 18.21197
+#> 4 293.8760 300.1361   881.9977 13.757051 0.53108777 22.46051
+#> 5 292.1780 300.1361  1753.0680 12.266983 0.49117243 21.69834
+colnames(a$detailed)
+#>  [1] "duration"           "duration_noSilence" "time"               "amDep"             
+#>  [5] "amDepVoiced"        "amFreq"             "amFreqVoiced"       "ampl"              
+#>  [9] "amplVoiced"         "dom"                "domVoiced"          "entropy"           
+#> [13] "entropyVoiced"      "epoch"              "f1_freq"            "f1_width"          
+#> [17] "f2_freq"            "f2_width"           "f3_freq"            "f3_width"          
+#> [21] "flux"               "harmEnergy"         "harmHeight"         "HNR"               
+#> [25] "HNRVoiced"          "loudness"           "loudnessVoiced"     "novelty"           
+#> [29] "noveltyVoiced"      "peakFreq"           "peakFreqVoiced"     "pitch"             
+#> [33] "quartile25"         "quartile25Voiced"   "quartile50"         "quartile50Voiced"  
+#> [37] "quartile75"         "quartile75Voiced"   "roughness"          "roughnessVoiced"   
+#> [41] "specCentroid"       "specCentroidVoiced" "specSlope"          "specSlopeVoiced"   
+#> [45] "subDep"             "subRatio"           "voiced"
 ```
 
 # Installation

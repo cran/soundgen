@@ -1,3 +1,20 @@
+          CHANGES IN SOUNDGEN VERSION 2.4.0 [16-October-2021]
+NEW FUNCTIONS:
+  * getDuration(): returns the duration of one or more audio files, with and without leading/trailing silences
+  * annotation_app(): Shiny app for annotating audio (simplified version of formant_app)
+  * timeStretch(): a fast algorithm for time-stretching without preserving pitch
+
+MINOR:
+  * bandpass(): new argument "dB" to control the strength of effect (defaults to Inf)
+  * spectrogram() and all related functions: bark and mel frequency scales are warped as before, but labeled in Hz
+  * pitch_app(), formant_app(): platform-independent and updated hotkeys
+
+BUGS FIXED:
+  * spectrogram(): osc no longer saved as a separate png file when osc = 'dB'
+  * shiftPitch(): fixed crashing when shifting only formants
+  * formant_app(): deleted sigle annotations per file are removed from the output
+
+
           CHANGES IN SOUNDGEN VERSION 2.3.0 [06-September-2021]
 NEW FUNCTIONS:
   * getPitchZc(): fast pitch tracker based on zero-crossing detection

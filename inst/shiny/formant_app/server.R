@@ -1,6 +1,6 @@
 # formant_app()
 #
-# To do: maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
+# To do: hotkey A to create new annotation (see annotation_app); maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
 
 # Start with a fresh R session and run the command options(shiny.reactlog=TRUE)
 # Then run your app in a show case mode: runApp('inst/shiny/formant_app', display.mode = "showcase")
@@ -37,10 +37,13 @@ server = function(input, output, session) {
     scrollFactor = .75,        # how far to scroll on arrow press/click
     wheelScrollFactor = .1,    # how far to scroll on mouse wheel (prop of xlim)
     samplingRate_idx = 1,      # sampling rate scaling index for playback
+    listen_alphanum = TRUE,    # enable/disable alphanumeric hotkeys
+    listen_enter = FALSE,      # enable/disable ENTER to close modal (new annotation)
+    listen_enter_edit = FALSE, # ENTER to edit an existing annotation
     cursor = 0,
     listenToFbtn = FALSE,      # buggy
     play = list(on = FALSE),
-    debugQn = FALSE             # for debugging - click "?" to step into the code
+    debugQn = FALSE            # for debugging - click "?" to step into the code
   )
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
@@ -273,7 +276,7 @@ server = function(input, output, session) {
     # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {  # & is.null(myPars$spec)
       if (myPars$print) print('Extracting spectrogram...')
-      myPars$spec = spectrogram(
+      temp_spec = try(spectrogram(
         myPars$myAudio,
         samplingRate = myPars$samplingRate,
         dynamicRange = input$dynamicRange,
@@ -285,7 +288,11 @@ server = function(input, output, session) {
         brightness = input$specBrightness,
         output = 'processed',
         plot = FALSE
-      )
+      ))
+      if (class(temp_spec) != 'try-error' &&
+          length(temp_spec) > 0 &&
+          is.matrix(temp_spec))
+        myPars$spec = temp_spec
     }
   })
 
@@ -734,7 +741,7 @@ server = function(input, output, session) {
   } )
 
   observeEvent(input$spectrogram_click, {
-    myPars$spectrogram_brush = NULL
+    # myPars$spectrogram_brush = NULL
     # shinyjs::js$clearBrush(s = '_brush')
     myPars$cursor = input$spectrogram_click$x
     if (!is.null(myPars$currentAnn)) {
@@ -758,9 +765,7 @@ server = function(input, output, session) {
   })
 
   observeEvent(input$spectrogram_brush, {
-    if (!is.null(input$spectrogram_brush)) {
-      myPars$spectrogram_brush = input$spectrogram_brush
-    }
+    myPars$spectrogram_brush = input$spectrogram_brush
   })
 
 
@@ -1022,15 +1027,25 @@ server = function(input, output, session) {
             )
             for (i in 1:nrow(myPars$ann)) {
               r = rnorm(1, 0, .05)  # random vertical shift to avoid overlap
+              # highlight current annotation
+              highlight = ifelse(is.numeric(myPars$currentAnn) &&
+                                   i == myPars$currentAnn,
+                                 TRUE, FALSE)
               segments(x0 = myPars$ann$from[i],
                        x1 = myPars$ann$to[i],
-                       y0 = .5 + r, y1 = .5 + r, lwd = 2)
+                       y0 = .5 + r, y1 = .5 + r,
+                       lwd = ifelse(highlight, 3, 2),
+                       col = ifelse(highlight, 'blue', 'black'))
               segments(x0 = myPars$ann$from[i],
                        x1 = myPars$ann$from[i],
-                       y0 = .45 + r, y1 = .55 + r, lwd = 2)
+                       y0 = .45 + r, y1 = .55 + r,
+                       lwd = ifelse(highlight, 3, 2),
+                       col = ifelse(highlight, 'blue', 'black'))
               segments(x0 = myPars$ann$to[i],
                        x1 = myPars$ann$to[i],
-                       y0 = .45 + r, y1 = .55 + r, lwd = 2)
+                       y0 = .45 + r, y1 = .55 + r,
+                       lwd = ifelse(highlight, 3, 2),
+                       col = ifelse(highlight, 'blue', 'black'))
               middle_i = mean(as.numeric(myPars$ann[i, c('from', 'to')]))
               text(x = middle_i,
                    y = .5 + r,
@@ -1053,13 +1068,16 @@ server = function(input, output, session) {
       })
     })
   }
-  observeEvent(myPars$spec_xlim, drawAnn())
+  observeEvent(c(myPars$spec_xlim, myPars$currentAnn), drawAnn())
 
   observeEvent(myPars$currentAnn, {
     if (!is.null(myPars$currentAnn)) {
       if (myPars$print) print('Updating selection...')
       sel_points = as.numeric(round(myPars$ann[myPars$currentAnn, c('from', 'to')] /
                                       1000 * myPars$samplingRate))
+      # in case of weird times in annotations, keep selection between 0 and audio length
+      sel_points[1] = max(0, sel_points[1])
+      sel_points[2] = min(sel_points[2], myPars$ls)
       idx_points = sel_points[1]:sel_points[2]
       myPars$selection = myPars$myAudio[idx_points]
       # move the spec view to show the selected ann
@@ -1107,6 +1125,8 @@ server = function(input, output, session) {
   })
 
   dataModal_new = function() {
+    myPars$listen_alphanum = FALSE
+    myPars$listen_enter = TRUE
     modalDialog(
       textInput("annotation", "New annotation:",
                 placeholder = '...some info...'
@@ -1119,7 +1139,7 @@ server = function(input, output, session) {
     )
   }
 
-  observeEvent(input$ok_new, {
+  new_annotation = function() {
     if (myPars$print) print('Creating a new annotation...')
     new = data.frame(
       # idx = ifelse(is.null(myPars$ann), 1, nrow(myPars$ann) + 1),
@@ -1152,6 +1172,8 @@ server = function(input, output, session) {
 
     # clear the selection, close the modal
     removeModal()
+    myPars$listen_alphanum = TRUE
+    myPars$listen_enter = FALSE
     drawAnn()
     avFmPerSel()
     # hr()
@@ -1159,6 +1181,10 @@ server = function(input, output, session) {
     # save a backup in case the app crashes before done() fires
     write.csv(soundgen:::rbind_fill(myPars$out, myPars$ann),
               'www/temp.csv', row.names = FALSE)
+  }
+
+  observeEvent(input$ok_new, {
+    new_annotation()
   })
 
   updateFBtn = function(ff) {
@@ -1170,6 +1196,8 @@ server = function(input, output, session) {
   }
 
   dataModal_edit = function() {
+    myPars$listen_alphanum = FALSE
+    myPars$listen_enter_edit = TRUE
     modalDialog(
       textInput("annotation", "New annotation:",
                 placeholder = '...some info...'
@@ -1182,11 +1210,16 @@ server = function(input, output, session) {
     )
   }
 
-  observeEvent(input$ok_edit, {
+  edit_annotation = function() {
     myPars$ann$label[myPars$currentAnn] = input$annotation
     removeModal()
+    myPars$listen_alphanum = TRUE
+    myPars$listen_enter_edit = FALSE
     drawAnn()
     # drawAnnTbl()
+  }
+  observeEvent(input$ok_edit, {
+    edit_annotation()
   })
 
 
@@ -1202,7 +1235,7 @@ server = function(input, output, session) {
       }
       sel_anal = max(1, round(myPars$regionToAnalyze[1] / 1000 * myPars$samplingRate)) :
         min(myPars$ls, round(myPars$regionToAnalyze[2] / 1000 * myPars$samplingRate))
-      myPars$temp_anal = soundgen:::.analyze(
+      temp_anal = try(soundgen:::.analyze(
         list(sound = myPars$myAudio[sel_anal],
              samplingRate = myPars$samplingRate,
              scale = myPars$maxAmpl,
@@ -1220,40 +1253,46 @@ server = function(input, output, session) {
           minformant = input$minformant,
           maxbw = input$maxbw
         ),
-        pitchMethods = NULL,  # disable pitch tracking
-        SPL_measured = 0,  # disable loudness analysis
         nFormants = NULL,  # save all available formants
-        roughness = list(amRes = 0),  # no roughness analysis
+        pitchMethods = NULL,  # disable pitch tracking
+        roughness = NULL,  # no roughness analysis
+        novelty = NULL,    # no ssm
+        loudness = NULL,   # no loudness analysis
         summaryFun = NULL,
         plot = FALSE,
         returnPitchCands = FALSE
-      )
-      myPars$nMeasuredFmts = length(grep('_freq', colnames(myPars$temp_anal)))
-      myPars$allF_colnames = paste0('f', 1:myPars$nMeasuredFmts, '_freq')
-      myPars$temp_anal = myPars$temp_anal[, c('time', myPars$allF_colnames)]
-      colnames(myPars$temp_anal) = c('time', paste0('F', 1:myPars$nMeasuredFmts))
-      for (c in colnames(myPars$temp_anal)) {
-        if (any(!is.na(myPars$temp_anal[, c]))) {
-          # in case of all NAs
-          myPars$temp_anal[, c] = round(myPars$temp_anal[, c])
-        }
-      }
-      isolate({
-        myPars$analyzedUpTo = myPars$regionToAnalyze[2]
-        if (is.null(myPars$formantTracks)) {
-          myPars$formantTracks = myPars$temp_anal
-        } else {
-          new_time_range = range(myPars$temp_anal$time)
-          idx = which(myPars$formantTracks$time >= new_time_range[1] &
-                        myPars$formantTracks$time <= new_time_range[2])
-          if (length(idx) > 0) {
-            myPars$formantTracks = myPars$formantTracks[-idx, ]
+      ))
+      if (class(temp_anal) != 'try-error' &&
+          length(temp_anal) > 0 &&
+          is.list(temp_anal)) {
+        myPars$temp_anal = temp_anal
+        myPars$nMeasuredFmts = length(grep('_freq', colnames(myPars$temp_anal)))
+        myPars$allF_colnames = paste0('f', 1:myPars$nMeasuredFmts, '_freq')
+        myPars$temp_anal = myPars$temp_anal[, c('time', myPars$allF_colnames)]
+        colnames(myPars$temp_anal) = c('time', paste0('F', 1:myPars$nMeasuredFmts))
+        for (c in colnames(myPars$temp_anal)) {
+          if (any(!is.na(myPars$temp_anal[, c]))) {
+            # in case of all NAs
+            myPars$temp_anal[, c] = round(myPars$temp_anal[, c])
           }
-          myPars$formantTracks = soundgen:::rbind_fill(
-            myPars$formantTracks, myPars$temp_anal)
-          # myPars$formantTracks = myPars$formantTracks[order(myPars$formantTracks$time), ]
         }
-      })
+        isolate({
+          myPars$analyzedUpTo = myPars$regionToAnalyze[2]
+          if (is.null(myPars$formantTracks)) {
+            myPars$formantTracks = myPars$temp_anal
+          } else {
+            new_time_range = range(myPars$temp_anal$time)
+            idx = which(myPars$formantTracks$time >= new_time_range[1] &
+                          myPars$formantTracks$time <= new_time_range[2])
+            if (length(idx) > 0) {
+              myPars$formantTracks = myPars$formantTracks[-idx, ]
+            }
+            myPars$formantTracks = soundgen:::rbind_fill(
+              myPars$formantTracks, myPars$temp_anal)
+            # myPars$formantTracks = myPars$formantTracks[order(myPars$formantTracks$time), ]
+          }
+        })
+      }
     }
   })
 
@@ -1440,30 +1479,39 @@ server = function(input, output, session) {
 
   # HOTKEYS
   observeEvent(input$userPressedSmth, {
-    button_code = floor(input$userPressedSmth)
+    button_key = substr(input$userPressedSmth, 1, nchar(input$userPressedSmth) - 8)
     # see https://keycode.info/
-    if (button_code == 32) {                      # SPACEBAR (play / stop)
+    if (button_key == ' ') {                  # SPACEBAR (play / stop)
       if (myPars$play$on) stopPlay() else startPlay()
-    } else if (button_code == 46) {               # DELETE (delete current annotation)
+    } else if (button_key %in% c('Delete', 'Backspace')) {    # DELETE (delete current annotation)
       deleteSel()
-    } else if (button_code == 37) {               # ARROW LEFT (scroll left)
+    } else if (button_key == 'ArrowLeft') {    # ARROW LEFT (scroll left)
       shiftFrame('left', step = myPars$scrollFactor)
-    } else if (button_code == 39) {               # ARROW RIGHT (scroll right)
+    } else if (button_key == 'ArrowRight') {    # ARROW RIGHT (scroll right)
       shiftFrame('right', step = myPars$scrollFactor)
-    } else if (button_code == 38) {               # ARROW UP (horizontal zoom-in)
+    } else if (button_key == 'ArrowUp') {       # ARROW UP (horizontal zoom-in)
       changeZoom(myPars$zoomFactor)
-    } else if (button_code == 83) {               # S (horizontal zoom to selection)
-      #  zoomToSel()  # reserve alphanumeric for annotations
-    } else if (button_code == 40) {               # ARROW DOWN (horizontal zoom-out)
+    } else if (myPars$listen_alphanum & button_key %in% c('s', 'S')) {    # S (horizontal zoom to selection)
+      zoomToSel()
+    } else if (button_key == 'ArrowDown') {   # ARROW DOWN (horizontal zoom-out)
       changeZoom(1 / myPars$zoomFactor)
-    } else if (button_code %in% c(61, 107)) {     # + (vertical zoom-in)
+    } else if (button_key == '+') {     # + (vertical zoom-in)
       changeZoom_freq(1 / myPars$zoomFactor_freq)
-    } else if (button_code %in% c(173, 109)) {    # - (vertical zoom-out)
+    } else if (button_key == '-') {    # - (vertical zoom-out)
       changeZoom_freq(myPars$zoomFactor_freq)
-    } else if (button_code == 13) {               # ENTER (next file)
-      # nextFile()   # disable b/c it's natural to press ENTER to close a modal win
-    } else if (button_code == 8) {                # BACKSPACE (previous file)
-      # lastFile()
+    } else if (myPars$listen_alphanum & button_key %in% c('a', 'A')) {  # A (new annotation)
+      if (!is.null(myPars$spectrogram_brush))
+        showModal(dataModal_new())
+    } else if (button_key == 'PageDown') {               # PageDown (next file)
+      nextFile()   # disable b/c it's natural to press ENTER to close a modal win
+    } else if (button_key == 'PageUp') {                # PageUp (previous file)
+      lastFile()
+    } else if ((myPars$listen_enter | myPars$listen_enter_edit) & button_key == 'Enter') {
+      if (myPars$listen_enter) {
+        new_annotation()
+      } else {
+        edit_annotation()
+      }
     }
   })
 
@@ -1626,7 +1674,7 @@ server = function(input, output, session) {
         myPars$out = myPars$ann
       } else {
         # remove previous records for this file, if any
-        idx = which(myPars$out$file == myPars$ann$file[1])
+        idx = which(myPars$out$file == myPars$myAudio_filename)
         if (length(idx) > 0)
           myPars$out = myPars$out[-idx, ]
 
@@ -1759,7 +1807,7 @@ server = function(input, output, session) {
   ## Plotting
   # spectrogram
   shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window for LPC analysis, ms. Independent of the window used for plotting the spectrogram', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window for plotting the spectrogram', placement="rights", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
@@ -1779,12 +1827,12 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spectrum_len', title = 'The number of points to plot in the spectrum (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 
   # action buttons
-  shinyBS:::addTooltip(session, id='lastFile', title='Save and return to the previous file', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='nextFile', title='Save and proceed to the next file', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS:::addTooltip(session, id='lastFile', title='Save and return to the previous file (PageUp)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS:::addTooltip(session, id='nextFile', title='Save and proceed to the next file (PageDown)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS:::addTooltip(session, id='selection_stop', title='Stop playback', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS:::addTooltip(session, id='selection_play', title='Play selection (SPACEBAR)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (A or DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE / BACKSPACE)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='synthBtn', title = 'Synthesize and play a vowel with formants as measured in the current annotation. Check ?playme() if no sound', placement="bottom", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 

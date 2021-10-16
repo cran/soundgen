@@ -190,7 +190,6 @@ sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
 # basic spectrogram
 spectrogram(sound, samplingRate = 16000, yScale = 'bark')
 
-\dontrun{
 # add bells and whistles
 spectrogram(sound, samplingRate = 16000,
   osc = 'dB',  # plot oscillogram in dB
@@ -204,7 +203,7 @@ spectrogram(sound, samplingRate = 16000,
   main = 'My spectrogram' # title
   # + axis labels, etc
 )
-
+\dontrun{
 # change dynamic range
 spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
@@ -249,7 +248,7 @@ nrow(sp) * ncol(sp) / 5e3  # spec downsampled by a factor of ~2
 # will not work if osc = TRUE b/c the plot layout is modified)
 s = soundgen()
 an = analyze(s, 16000, plot = FALSE)
-spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2))
+spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2), yScale = 'bark')
 # For values that are not in Hz, normalize any way you like
 spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,

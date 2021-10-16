@@ -967,7 +967,7 @@ addPitchCands = function(pitchCands,
     prior = NULL
   }
   pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
-  yScaleCoef = ifelse(y_Hz, 1, 1/1000)
+  yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel'), 1, 1/1000)
   if (yScale == 'bark') {
     # NB: tuneR::hz2bark can't handle NAs
     pitchCands = 6 * asinh(pitchCands / 600)
@@ -1045,7 +1045,7 @@ addPitchCands = function(pitchCands,
   }
 
   # Add the final pitch contour to the plot
-  if (any(is.numeric(pitch))) {
+  if (any(is.finite(pitch))) {
     pars_pitchContour = as.list(plotPars[plotPars$method == 'final',
                                          2:ncol(plotPars)])
     # first points, in case there are isolated, unconnected points surrounded by

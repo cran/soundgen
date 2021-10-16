@@ -9,6 +9,7 @@
   lwr,
   upr,
   action = c("pass", "stop")[1],
+  dB = Inf,
   na.rm = TRUE,
   normalize = FALSE,
   plot = FALSE,
@@ -34,6 +35,9 @@ depending on 'action'}
 
 \item{action}{"pass" = preserve the selected frequency range (bandpass),
 "stop" = remove the selected frequency range (bandstop)}
+
+\item{dB}{a positive number giving the strength of effect in dB (defaults to
+Int - complete removal of selected frequencies)}
 
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}

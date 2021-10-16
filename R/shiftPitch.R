@@ -99,14 +99,13 @@ shiftPitch = function(
   normalize = TRUE,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL,
-  ...) {
+  reportEvery = NULL) {
   multPitch = reformatAnchors(multPitch)
   multFormants = reformatAnchors(multFormants)
   timeStretch = reformatAnchors(timeStretch)
 
   # match args
-  myPars = c(as.list(environment()), list(...))
+  myPars = as.list(environment())
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'reportEvery', 'saveAudio')]
@@ -128,7 +127,7 @@ shiftPitch = function(
 }
 
 
-#' Shift formants per sound
+#' Shift pitch per sound
 #'
 #' Internal soundgen function called by \code{\link{shiftPitch}}
 #' @inheritParams shiftPitch
@@ -139,7 +138,6 @@ shiftPitch = function(
   multPitch,
   multFormants,
   timeStretch,
-  samplingRate = NULL,
   freqWindow = NULL,
   dynamicRange = 80,
   windowLength = 50,
@@ -189,6 +187,7 @@ shiftPitch = function(
   if (!(any(multPitch$value != 1) | any(timeStretch$value != 1))) {
     soundFiltered = audio$sound
     recalculateSpec = FALSE
+    multPitch_vector = 1
   } else {
     recalculateSpec = TRUE  # will need a new spec of stretched/pitch-shifted sound
     bin_width = audio$samplingRate / windowLength_points
@@ -222,7 +221,7 @@ shiftPitch = function(
       # dynamic
       step_s_new = step_s * multPitch_vector * timeStretch_vector
       overlap_new = 100 * (1 - step_s_new * 1000 / windowLength)
-      soundFiltered =  istft_mod(   # instead of seewave::istft(
+      soundFiltered = istft_mod(   # instead of seewave::istft(
         spec1,
         f = audio$samplingRate,
         ovlp = overlap_new,
@@ -254,7 +253,7 @@ shiftPitch = function(
     soundFiltered = soundFiltered / max(soundFiltered) * audio$scale
     # playme(soundFiltered, audio$samplingRate)
     # spectrogram(soundFiltered, audio$samplingRate)
-  }  # end of time-streching / pitch-shifting
+  }  # end of time-stretching / pitch-shifting
 
 
   ## Shift formants, unless they are supposed to shift with pitch

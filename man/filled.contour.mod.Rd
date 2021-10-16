@@ -27,7 +27,7 @@ filled.contour.mod(
 )
 }
 \arguments{
-\item{x, y}{locations of grid lines}
+\item{x, y}{locations of grid lines (NB: x = time, y = frequency in kHz, not Hz!)}
 
 \item{z}{numeric matrix of values to plot}
 

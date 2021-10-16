@@ -23,8 +23,7 @@ shiftPitch(
   normalize = TRUE,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL,
-  ...
+  reportEvery = NULL
 )
 }
 \arguments{
@@ -88,8 +87,6 @@ per detected syllable)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
-
-\item{...}{other graphical parameters}
 }
 \description{
 Raises or lowers pitch with or without also shifting the formants (resonance

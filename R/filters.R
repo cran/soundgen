@@ -25,6 +25,8 @@
 #'   depending on 'action'
 #' @param action "pass" = preserve the selected frequency range (bandpass),
 #'   "stop" = remove the selected frequency range (bandstop)
+#' @param dB a positive number giving the strength of effect in dB (defaults to
+#'   Int - complete removal of selected frequencies)
 #' @param na.rm if TRUE, NAs are interpolated, otherwise they are preserved in
 #'   the output
 #' @param normalize if TRUE, resets the output to the original scale (otherwise
@@ -34,7 +36,7 @@
 #' # Filter white noise
 #' s1 = fade(c(runif(2000, -1, 1)))
 #' bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
-#' bandpass(s1, 16000, lwr = 2000, plot = TRUE)    # high-pass
+#' bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE)  # high-pass by 40 dB
 #' bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
 #' s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE) # bandpass
 #' # playme(rep(s2, 5))
@@ -69,6 +71,7 @@ bandpass = function(
   lwr = NULL,
   upr = NULL,
   action = c('pass', 'stop')[1],
+  dB = Inf,
   na.rm = TRUE,
   from = NULL,
   to = NULL,
@@ -143,6 +146,7 @@ bandpass = function(
                      lwr,
                      upr,
                      action = c('pass', 'stop')[1],
+                     dB = Inf,
                      na.rm = TRUE,
                      normalize = FALSE,
                      plot = FALSE,
@@ -191,12 +195,17 @@ bandpass = function(
   }
 
   # half-filter of 1/0
+  if (is.finite(dB)) {
+    m = 10 ^ (-abs(dB) / 20)
+  } else {
+    m = 0
+  }
   if (action == 'pass') {
-    filter = rep(0, half_len)
+    filter = rep(m, half_len)
     filter[idx_lwr:idx_upr] = 1
   } else {
     filter = rep(1, half_len)
-    filter[idx_lwr:idx_upr] = 0
+    filter[idx_lwr:idx_upr] = m
   }
   # plot(filter)
 

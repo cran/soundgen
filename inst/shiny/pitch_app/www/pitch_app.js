@@ -92,10 +92,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Event listeners for hotkeys
   var cntrlIsPressed = false;
   $(document).on("keydown", function (e) {
-    Shiny.onInputChange("userPressedSmth", e.which + Math.random() / 3);
+    Shiny.onInputChange("userPressedSmth", e.key +
+      Math.random().toString(36).substr(2, 8));  // key + 8 random characters
     // w/o Math.random() only the first of a series of identical
     // keydown events is sent to server()
-    if(event.key=="Control")
+    if(event.key == "Control")
         cntrlIsPressed = true;
   });
 
@@ -103,13 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
     cntrlIsPressed = false;
   });
 
-    // prevent spacebar from activating the last pressed button
-    // see https://stackoverflow.com/questions/22280139/prevent-space-button-from-triggering-any-other-button-click-in-jquery
-    $(document).keyup(function(event) {
-      if(event.which === 32) {
-  	    event.preventDefault();
-      }
-    });
+  // prevent spacebar from activating the last pressed button
+  // see https://stackoverflow.com/questions/22280139/prevent-space-button-from-triggering-any-other-button-click-in-jquery
+  $(document).keyup(function(event) {
+    if(event.key == " ") {
+      event.preventDefault();
+    }
+  });
 
 
 });

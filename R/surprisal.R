@@ -278,12 +278,7 @@ getSurprisal = function(
         main = audio$filename_noExt
       }
     }
-    maxFreq_rescaled = switch(yScale,
-                              'log' = maxFreq,
-                              'bark' = 6 * asinh(maxFreq / 600),
-                              'mel' = hz2mel(maxFreq))
-    sl_norm = surprisalLoudness / max(surprisalLoudness, na.rm = TRUE) *
-      maxFreq_rescaled
+    sl_norm = surprisalLoudness / max(surprisalLoudness, na.rm = TRUE) * maxFreq
     plotSpec(
       X = as.numeric(colnames(sp)),  # time
       Y = as.numeric(rownames(sp)),  # freq
@@ -294,7 +289,6 @@ getSurprisal = function(
       contrast = contrast, brightness = brightness,
       maxPoints = maxPoints, colorTheme = colorTheme,
       extraContour = sl_norm,
-      rescaleExtraContour = FALSE,  # since surprisal is not in Hz
       xlab = xlab, ylab = ylab, xaxp = xaxp,
       mar = mar, main = main, grid = grid,
       width = width, height = height,

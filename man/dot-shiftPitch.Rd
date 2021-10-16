@@ -2,14 +2,13 @@
 % Please edit documentation in R/shiftPitch.R
 \name{.shiftPitch}
 \alias{.shiftPitch}
-\title{Shift formants per sound}
+\title{Shift pitch per sound}
 \usage{
 .shiftPitch(
   audio,
   multPitch,
   multFormants,
   timeStretch,
-  samplingRate = NULL,
   freqWindow = NULL,
   dynamicRange = 80,
   windowLength = 50,
@@ -35,9 +34,6 @@ multFormant / timeStretch (see \code{\link{soundgen}})}
 one octave up), <1 = lower formants}
 
 \item{timeStretch}{1 = no change, >1 = longer, <1 = shorter}
-
-\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector)}
 
 \item{freqWindow}{the width of spectral smoothing window, Hz. Defaults to
 detected f0 prior to pitch shifting - see \code{\link{shiftFormants}} for
