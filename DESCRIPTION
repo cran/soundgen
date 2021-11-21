@@ -1,8 +1,8 @@
 Package: soundgen
 Type: Package
 Title: Sound Synthesis and Acoustic Analysis
-Version: 2.4.0
-Date: 2021-10-16
+Version: 2.5.0
+Date: 2021-11-21
 Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <rty.anik@rambler.ru>
 URL: http://cogsci.se/soundgen.html
@@ -18,13 +18,14 @@ License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
 Imports: stats (>= 4.0.0), graphics, utils, tuneR, seewave (>= 2.1.6),
-        zoo, reshape2, mvtnorm, dtw, phonTools, signal, shiny, shinyjs
+        zoo, reshape2, mvtnorm, dtw, phonTools, signal, shiny, shinyjs,
+        foreach, doParallel
 Depends: R (>= 4.0), shinyBS
-RoxygenNote: 7.1.1
+RoxygenNote: 7.1.2
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2021-10-16 10:06:30 UTC; allgoodguys
+Packaged: 2021-11-21 06:12:41 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2021-10-16 10:30:02 UTC
+Date/Publication: 2021-11-21 06:40:02 UTC

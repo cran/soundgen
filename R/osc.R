@@ -66,6 +66,7 @@ osc = function(
   dB = FALSE,
   returnWave = FALSE,
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   main = NULL,
@@ -86,7 +87,8 @@ osc = function(
   # myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'from', 'to', 'reportEvery', 'savePlots')]
+    'x', 'samplingRate', 'scale', 'from', 'to',
+    'reportEvery', 'cores', 'savePlots')]
 
   # call .osc
   pa = processAudio(
@@ -98,16 +100,14 @@ osc = function(
     funToCall = '.osc',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_osc.html'),
-      plotFiles = paste0(pa$input$filenames_noExt, "_osc.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "osc", width = paste0(width, units)))
   }
   if (returnWave) {
     if (pa$input$n == 1) pa$result = pa$result[[1]]

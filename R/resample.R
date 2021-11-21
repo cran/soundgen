@@ -68,6 +68,7 @@ resample = function(x,
                     lowPass = TRUE,
                     na.rm = FALSE,
                     reportEvery = NULL,
+                    cores = 1,
                     saveAudio = NULL,
                     plot = FALSE,
                     savePlots = NULL,
@@ -87,7 +88,7 @@ resample = function(x,
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'savePlots',
+    'x', 'samplingRate', 'reportEvery', 'cores', 'savePlots',
     'saveAudio', 'width', 'height', 'units')]
 
   pa = processAudio(x = x,
@@ -96,21 +97,13 @@ resample = function(x,
                     savePlots = savePlots,
                     funToCall = '.resample',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
 
   # htmlPlots
   if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
-    if (is.null(pa$input$saveAudio)) {
-      audioFiles = pa$input$filenames
-    } else {
-      audioFiles = paste0(pa$input$saveAudio, pa$input$filenames_noExt, '.wav')
-    }
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_resample.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_resample.png"),
-      audioFiles = audioFiles,
-      width = paste0(width, units))
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = TRUE,
+                  suffix = "resample", width = paste0(width, units)))
   }
 
   # prepare output
@@ -207,8 +200,13 @@ resample = function(x,
   }
   if (!exists('time_stamps')) time_stamps = seq(0, 1, length.out = n1)
   if (plot) {
+    if (audio$filename_noExt == 'sound') {
+      main = ''
+    } else {
+      main = audio$filename_noExt
+    }
     plot(time_stamps, x, type = 'p',
-         xlab = 'Relative position', ylab = '')
+         xlab = 'Relative position', ylab = '', main = main)
     points(x = seq(0, 1, length.out = n2), y = out,
            type = 'b', col = 'red', pch = 3)
     if (is.character(audio$savePlots)) dev.off()
@@ -216,9 +214,9 @@ resample = function(x,
 
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
-    seewave::savewav(
-      out, f = audio$samplingRate * mult,
-      filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav'))
+    audio$samplingRate = audio$samplingRate * mult
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(out, audio, filename)
   }
 
   return(out)

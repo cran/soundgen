@@ -1,4 +1,3 @@
-
 #' Height of harmonics
 #'
 #' Internal soundgen function

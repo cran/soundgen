@@ -16,6 +16,7 @@ bandpass(
   to = NULL,
   normalize = FALSE,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL,
   plot = FALSE,
   savePlots = NULL,
@@ -34,8 +35,8 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{lwr, upr}{cutoff frequencies, Hz. Specifying just lwr gives a low-pass
-filter, just upr high-pass filter with action = 'pass' (or vice versa with
+\item{lwr, upr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
+filter, just upr low-pass filter with action = 'pass' (or vice versa with
 action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
 depending on 'action'}
 
@@ -60,8 +61,9 @@ filtering often reduces the amplitude)}
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{cores}{number of cores for parallel processing}
+
+\item{saveAudio}{full path to the folder in which to save the processed audio}
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
@@ -103,7 +105,7 @@ NAs back in.
 }
 \examples{
 # Filter white noise
-s1 = fade(c(runif(2000, -1, 1)))
+s1 = fade(c(runif(2000, -1, 1)), samplingRate = 16000)
 bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
 bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE)  # high-pass by 40 dB
 bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop

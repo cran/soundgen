@@ -1,223 +1,5 @@
 ### UTILITIES FOR SOUND GENERATION ###
 
-#' Report time
-#'
-#' Provides a nicely formatted "estimated time left" in loops plus a summary
-#' upon completion.
-#' @param i current iteration
-#' @param time_start time when the loop started running
-#' @param nIter total number of iterations
-#' @param reportEvery report progress every n iterations
-#' @param jobs vector of length \code{nIter} specifying the relative difficulty
-#'   of each iteration. If not NULL, estimated time left takes into account
-#'   whether the jobs ahead will take more or less time than the jobs already
-#'   completed
-#' @export
-#' @examples
-#' time_start = proc.time()
-#' for (i in 1:100) {
-#'   Sys.sleep(i ^ 1.02 / 10000)
-#'   reportTime(i = i, time_start = time_start, nIter = 100, jobs = (1:100) ^ 1.02)
-#' }
-#' \dontrun{
-#' # Unknown number of iterations:
-#' time_start = proc.time()
-#' for (i in 1:20) {
-#'   Sys.sleep(i ^ 2 / 10000)
-#'   reportTime(i = i, time_start = time_start,
-#'   jobs = (1:20) ^ 2, reportEvery = 5)
-#' }
-#'
-#' # when analyzing a bunch of audio files, their size is a good estimate
-#' # of how long each will take to process
-#' time_start = proc.time()
-#' filenames = list.files('~/Downloads/temp', pattern = "*.wav|.mp3",
-#'   full.names = TRUE)
-#' filesizes = file.info(filenames)$size
-#' for (i in 1:length(filenames)) {
-#'   # ...do what you have to do with each file...
-#'   reportTime(i = i, nIter = length(filenames),
-#'              time_start = time_start, jobs = filesizes)
-#' }
-#' }
-reportTime = function(
-  i,
-  time_start,
-  nIter = NULL,
-  reportEvery = NULL,
-  jobs = NULL
-) {
-  time_diff = as.numeric((proc.time() - time_start)[3])
-  if (is.null(reportEvery))
-    reportEvery = ifelse(is.null(nIter),
-                         1,
-                         max(1, 10 ^ (floor(log10(nIter)) - 1)))
-  if (is.null(nIter)) {
-    # number of iter unknown, so we just report time elapsed
-    if (i %% reportEvery == 0) {
-      print(paste0('Completed ', i, ' iterations in ',
-                   convert_sec_to_hms(time_diff)))
-    }
-  } else {
-    # we know how many iter, so we also report time left
-    if (i == nIter) {
-      time_total = convert_sec_to_hms(time_diff)
-      print(paste0('Completed ', i, ' iterations in ', time_total, '.'))
-    } else {
-      if (i %% reportEvery == 0 || i == 1) {
-        if (is.null(jobs)) {
-          # simply count iterations
-          time_left = time_diff / i * (nIter - i)
-        } else {
-          # take into account the expected time for each iteration
-          speed = time_diff / sum(jobs[1:i])
-          time_left = speed * sum(jobs[min((i + 1), nIter):nIter])
-        }
-        time_left_hms = convert_sec_to_hms(time_left)
-        print(paste0('Done ', i, ' / ', nIter, '; Estimated time left: ', time_left_hms))
-      }
-    }
-  }
-}
-
-
-#' Print time
-#'
-#' Internal soundgen function.
-#'
-#' Converts time in seconds to time in y m d h min s for pretty printing.
-#' @param time_s time (s)
-#' @param digits number of digits to preserve for s (1-60 s)
-#' @return Returns a character string like "1 h 20 min 3 s"
-#' @keywords internal
-#' @examples
-#' time_s = c(.0001, .01, .33, .8, 2.135, 5.4, 12, 250, 3721, 10000,
-#'            150000, 365 * 24 * 3600 + 35 * 24 * 3600 + 3721)
-#' soundgen:::convert_sec_to_hms(time_s)
-#' soundgen:::convert_sec_to_hms(time_s, 2)
-convert_sec_to_hms = function(time_s, digits = 0) {
-  if (!any(time_s > 1)) {
-    output = paste(round(time_s * 1000), 'ms')
-  } else {
-    len = length(time_s)
-    output = vector('character', len)
-    for (i in 1:len) {
-      # years = time_s %/% 31536000
-      # years_string = ifelse(years > 0, paste(years, 'y '), '')
-      #
-      # months = time_s %/% 2592000 - years * 12
-      # months_string = ifelse(months > 0, paste(months, 'm '), '')
-      days_string = hours_string = minutes_string = seconds_string = ms_string = ''
-      days = time_s[i] %/% 86400
-      if (days > 0) days_string = paste(days, 'd ')
-
-      hours = time_s[i] %/% 3600 - days * 24
-      if (hours > 0) hours_string = paste(hours, 'h ')
-
-      if (days == 0) {
-        minutes = time_s[i] %/% 60 - days * 1440 - hours * 60
-        if (minutes > 0) minutes_string = paste(minutes, 'min ')
-
-        if (hours == 0) {
-          seconds = time_s[i] - days * 86400 - hours * 3600 - minutes * 60
-          seconds_floor = floor(seconds)
-          if (seconds_floor > 0) seconds_string = paste(round(seconds, digits), 's ')
-
-          if (minutes == 0 & seconds_floor == 0) {
-            ms = (time_s[i] %% 1) * 1000
-            if (ms > 0) ms_string = paste(ms, 'ms')
-          }
-        }
-      }
-      output[i] = paste0(days_string, hours_string,
-                         minutes_string, seconds_string, ms_string)
-    }
-  }
-  output = trimws(output)
-  return(output)
-}
-
-
-#' HTML for clickable plots
-#'
-#' Internal soundgen function
-#'
-#' Writes an html file for displaying clickable plots in a browser.
-#' @param myfolder full path to target folder, without a '/' at the end
-#' @param myfiles a list of full names of files (with paths and extensions)
-#' @param width default flex-basis, ie approximate default width of each image
-#' @keywords internal
-#' @examples
-#' \dontrun{
-#' htmlPlots(myfolder = '~/Downloads/temp',
-#'           myfiles = c('~/Downloads/temp/myfile1.wav',
-#'                       '~/Downloads/temp/myfile2.wav'))
-#' }
-htmlPlots = function(htmlFile,
-                     plotFiles,
-                     audioFiles = '',
-                     width = "900px") {
-  if (length(plotFiles) < 2) return(NA)
-  plotFiles_concat = paste0(plotFiles, collapse = "', '")
-  audioFiles_concat = paste0(audioFiles, collapse = "', '")
-
-  # create an html file to display nice, clickable spectrograms
-  out_html = file(htmlFile)
-  writeLines(
-    c("<!DOCTYPE html>",
-      "<html>",
-      "<head>",
-      "<title>Click to play</title>",
-      "<meta charset='UTF-8'>",
-      "<meta name='viewport' content='width=device-width, initial-scale=1.0'>",
-      "<style>",
-      "#flexbox {",
-      "  display: flex;",
-      "  flex-flow: row wrap;",
-      "  justify-content: space-around;",
-      "  align-items: stretch;",
-      "}",
-      "#flexbox > div {",
-      paste0("  flex: 1 1 ", width, ";"),
-      "  margin: 20px 5px;",
-      "  border: 1px gray solid;",
-      "  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 15px 0 rgba(0, 0, 0, 0.19);",
-      "}",
-      "#flexbox > div:hover{",
-      "  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.4), 0 6px 15px 0 rgba(0, 0, 0, 0.3);",
-      "}",
-      "#flexbox img {",
-      "  width: 100%;",
-      "}",
-      "</style>",
-      "</head>",
-      "<body>",
-      "<div id='flexbox'> </div>",
-      "<script>",
-      paste0("var plotList = ['", plotFiles_concat, "'];"),
-      paste0("var audioList = ['", audioFiles_concat, "'];"),
-      "var flex = document.getElementById('flexbox');",
-      "for (var i = 0; i < plotList.length; i++) {",
-      "  let newDiv = document.createElement('div');",
-      "  newDiv.innerHTML = '<img src=\"' + plotList[i] + '\">';",
-      "  flex.appendChild(newDiv);",
-      "  var mysound = audioList[i];",
-      "  newDiv.onclick = (function(mysound) {",
-      "    return function() {",
-      "      var audioElement = document.createElement('audio');",
-      "      audioElement.setAttribute('src', mysound);",
-      "      audioElement.play();",
-      "    };",
-      "  })(mysound);",
-      "}",
-      "</script>",
-      "</body>",
-      "</html>"),
-    out_html)
-  close(out_html)
-}
-
-
 #' Find zero crossing
 #'
 #' Internal soundgen function.
@@ -718,8 +500,12 @@ wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
   idx = round(idx)
   idx = idx[idx <= nGC]
   idx = unique(idx)  # pitch for these gc will be wiggled
-  dep_idx = getSmoothContour(dep, len = length(idx))
-
+  len_dep = length(dep)
+  if (len_dep == 1) {
+    dep_idx = rep(dep, length(idx))
+  } else {
+    dep_idx = approx(dep, n = length(idx))$y
+  }
   effect = 2 ^ (rnorm(
     n = length(idx),
     mean = 0,
@@ -838,17 +624,19 @@ silenceSegments = function(
         # fade out at idx_start
         fade_from = max(1, idx_start - l[2])
         fade_idx = fade_from:idx_start
-        x[fade_idx] = fade(x[fade_idx],
-                           fadeIn = 0,
-                           fadeOut = l[2])
+        x[fade_idx] = .fade(
+          list(sound = x[fade_idx], samplingRate = samplingRate),
+          fadeIn_points = 0,
+          fadeOut_points = l[2])
       }
       if (na_seg$prop_end[r] < 1) {
         # fade out the start of the next syl
         fade_to = min(ls, idx_end + l[1])
         fade_idx = idx_end:fade_to
-        x[fade_idx] = fade(x[fade_idx],
-                           fadeIn = l[1],
-                           fadeOut = 0)
+        x[fade_idx] = .fade(
+          list(sound = x[fade_idx], samplingRate = samplingRate),
+          fadeIn_points = l[1],
+          fadeOut_points = 0)
       }
     }
     # spectrogram(x, samplingRate)

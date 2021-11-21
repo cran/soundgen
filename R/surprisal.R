@@ -90,6 +90,7 @@ getSurprisal = function(
   maxFreq = samplingRate / 2,
   summaryFun = 'mean',
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   osc = c('none', 'linear', 'dB')[2],
@@ -118,7 +119,7 @@ getSurprisal = function(
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'scale', 'from', 'to',
-    'reportEvery', 'summaryFun', 'savePlots')]
+    'reportEvery', 'cores', 'summaryFun', 'savePlots')]
 
   # call .getSurprisal
   pa = processAudio(
@@ -130,16 +131,14 @@ getSurprisal = function(
     funToCall = '.getSurprisal',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_surprisal.html'),
-      plotFiles = paste0(pa$input$filenames_noExt, "_surprisal.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "surprisal", width = paste0(width, units)))
   }
 
   # prepare output

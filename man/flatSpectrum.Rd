@@ -16,7 +16,8 @@ flatSpectrum(
   zp = 0,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -54,6 +55,8 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 }
 \value{
 Returns a numeric vector with the same sampling rate as the input.
@@ -80,10 +83,10 @@ seewave::meanspec(sound_flat, f = 16000, dB = 'max0')
 \dontrun{
 # Now let's make a sheep say "aii"
 data(sheep, package = 'seewave')  # import a recording from seewave
-# playme(sheep)
+playme(sheep)
 sheep_flat = flatSpectrum(sheep)
-# playme(sheep_flat, sheep@samp.rate)
-# seewave::spec(sheep_flat, f = sheep@samp.rate, dB = 'max0')
+playme(sheep_flat, sheep@samp.rate)
+seewave::spec(sheep_flat, f = sheep@samp.rate, dB = 'max0')
 
 # So far we have a sheep bleating with a flat spectrum;
 # now let's add new formants
@@ -91,9 +94,9 @@ sheep_aii = addFormants(sheep_flat,
   samplingRate = sheep@samp.rate,
   formants = 'aii',
   lipRad = -3)  # negative lipRad to counter unnatural flat source
-# playme(sheep_aii, sheep@samp.rate)
-# spectrogram(sheep_aii, sheep@samp.rate)
-# seewave::spec(sheep_aii, f = sheep@samp.rate, dB = 'max0')
+playme(sheep_aii, sheep@samp.rate)
+spectrogram(sheep_aii, sheep@samp.rate)
+seewave::spec(sheep_aii, f = sheep@samp.rate, dB = 'max0')
 }
 }
 \seealso{

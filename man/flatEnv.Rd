@@ -16,6 +16,7 @@ flatEnv(
   killDC = FALSE,
   dynamicRange = 40,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL,
   plot = FALSE,
   savePlots = NULL,
@@ -38,6 +39,7 @@ compressor(
   killDC = FALSE,
   dynamicRange = 40,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL,
   plot = FALSE,
   savePlots = NULL,
@@ -78,6 +80,8 @@ not be amplified}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{saveAudio}{full path to the folder in which to save the compressed
 sound(s)}

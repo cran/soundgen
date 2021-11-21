@@ -19,6 +19,7 @@ reverb(
   output = c("audio", "detailed")[1],
   play = FALSE,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL
 )
 }
@@ -58,6 +59,8 @@ returns a list with reverb window, the added reverb/echo, etc.}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
 = don't save, '' = same as input folder (NB: overwrites the originals!)}

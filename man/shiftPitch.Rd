@@ -20,10 +20,11 @@ shiftPitch(
   propagation = c("time", "adaptive")[1],
   preserveEnv = NULL,
   transplantEnv_pars = list(windowLength = 10),
-  normalize = TRUE,
+  normalize = c("max", "orig", "none")[2],
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -75,7 +76,8 @@ to TRUE if no time stretching is performed and FALSE otherwise}
 \item{transplantEnv_pars}{a list of parameters passed on to
 \code{\link{transplantEnv}} if \code{preserveEnv = TRUE}}
 
-\item{normalize}{if TRUE, scales input prior to FFT}
+\item{normalize}{"orig" = same as input (default), "max" = maximum possible
+peak amplitude, "none" = no normalization}
 
 \item{play}{if TRUE, plays the synthesized sound using the default player on
 your system. If character, passed to \code{\link[tuneR]{play}} as the name
@@ -87,6 +89,8 @@ per detected syllable)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 }
 \description{
 Raises or lowers pitch with or without also shifting the formants (resonance

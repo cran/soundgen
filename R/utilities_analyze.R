@@ -136,8 +136,9 @@ analyzeFrame = function(frame, bin, freqs,
                                     nCands = nCands,
                                     pitchFloor = pitchFloor,
                                     pitchCeiling = pitchCeiling)))
-    if(!is.null(pitchCep_array))
+    if(!is.null(pitchCep_array)) {
       pitchCands_frame = rbind(pitchCands_frame, pitchCep_array)
+    }
   }
 
   # spectral: ratios of harmonics (BaNa)
@@ -354,7 +355,10 @@ summarizeAnalyze = function(
   if (is.character(var_noSummary)) {
     # called from analyze()
     temp = result[1, c('duration', 'duration_noSilence')]
-    temp$voiced = mean(!is.na(result$pitch))
+    len_voiced = length(which(!is.na(result$pitch)))
+    temp$voiced = len_voiced / nrow(result)
+    temp$voiced_noSilence = len_voiced / sum(!is.na(result$peakFreq))
+    # could use sum(result$ampl > silence), but silence is re-set dynamically in analyze
     out = c(temp, out)
   }
 
@@ -405,8 +409,10 @@ updateAnalyze = function(
 
   # Calculate how far harmonics reach in the spectrum and how strong they are
   # relative to f0
-  result[, c('harmEnergy', 'harmHeight', 'subRatio', 'subDep')] = NA
-  if (any(result$voiced)) {
+  result[, c('harmEnergy', 'harmHeight', 'subRatio', 'subDep', 'CPP')] = NA
+  voiced_frames = which(result$voiced)
+  len_voiced = length(voiced_frames)
+  if (len_voiced > 0) {
     if (is.null(freqs)) freqs = as.numeric(rownames(spectrogram)) * 1000
     if (is.null(bin)) bin = freqs[2] - freqs[1]
 
@@ -416,7 +422,7 @@ updateAnalyze = function(
       s = spectrogram,
       freqs = freqs))
     # Calculate how high harmonics reach in the spectrum
-    for (f in which(result$voiced)) {
+    for (f in voiced_frames) {
       temp = try(do.call('harmHeight', c(
         harmHeight_pars,
         list(frame = spectrogram[, f],
@@ -428,8 +434,9 @@ updateAnalyze = function(
         result$harmHeight[f] = temp
       }
     }
+
     # Calculate subharmonics-to-harmonics ratio
-    for (f in which(result$voiced)) {
+    for (f in voiced_frames) {
       temp = try(do.call('subhToHarm', c(
         subh_pars,
         list(frame = spectrogram[, f],
@@ -450,6 +457,16 @@ updateAnalyze = function(
         result[, 'harmHeight', drop = FALSE],
         smoothing_ww = smoothing_ww,
         smoothingThres = smoothingThres)[, 1]
+    }
+
+    # Calculate Cepstral Peak Prominence for the final pitch contour
+    for (f in voiced_frames) {
+      result$CPP[f] = getCPP(
+        frame = spectrogram[, f],
+        samplingRate = samplingRate,
+        pitch = pitch_true[f],
+        bin = bin
+      )
     }
   }
 

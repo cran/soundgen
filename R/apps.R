@@ -112,7 +112,19 @@ soundgen_app = function() {
 #' acoustic descriptives together
 #' }
 pitch_app = function() {
-    appDir = system.file("shiny", "pitch_app", package = "soundgen")
+  # throw a warning on Macs
+  os = Sys.info()[['sysname']]
+  if (os == 'Darwin' | os == 'darwin') {
+    wrn = paste(
+      "Sorry, pitch_app() currently doesn't work on Macs. You can install",
+      "an older soundgen version 1.7.0 from",
+      "https://cran.r-project.org/src/contrib/Archive/soundgen",
+      "or run pitch_app() online at https://cogsci.shinyapps.io/pitch_app"
+    )
+    warning(wrn)
+  }
+
+  appDir = system.file("shiny", "pitch_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",
          call. = FALSE)
@@ -158,6 +170,18 @@ pitch_app = function() {
 #' formant_app()  # runs in Firefox
 #' }
 formant_app = function() {
+  # throw a warning on Macs
+  os = Sys.info()[['sysname']]
+  if (os == 'Darwin' | os == 'darwin') {
+    wrn = paste(
+      "Sorry, formant_app() currently doesn't work on Macs. You can install",
+      "an older soundgen version 1.7.0 from",
+      "https://cran.r-project.org/src/contrib/Archive/soundgen",
+      "or run pitch_app() online at https://cogsci.shinyapps.io/formant_app"
+    )
+    warning(wrn)
+  }
+
   appDir = system.file("shiny", "formant_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",

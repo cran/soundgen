@@ -203,23 +203,22 @@ getPitchAutocor = function(autoCorrelation,
 #' @inheritParams analyzeFrame
 #' @inheritParams analyze
 #' @param cepThres voicing threshold (unitless, ~0 to 1)
-#' @param cepSmooth the width of smoothing interval (Hz) for finding peaks in
-#'   the cepstrum
 #' @param cepZp zero-padding of the spectrum used for cepstral pitch detection
 #'   (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)
-#' @return Returns either NULL or a dataframe of pitch candidates.
+#' @param tol tolerance when removing false subharmonics
+#' @param specMerge tolerance when removing similar candidates, oct
+#' @return Returns either NULL or a dataframe of pitch candidates and CPP.
 #' @keywords internal
 getPitchCep = function(frame,
                        samplingRate,
                        bin,
                        nCands,
                        cepThres,
-                       cepSmooth,
                        cepZp,
                        pitchFloor,
                        pitchCeiling,
-                       cepPenalty = 1,
-                       logSpec = FALSE) {
+                       tol = .05,
+                       specMerge = 2/12) {
   pitchCep_array = NULL
 
   if (cepZp < length(frame)) {
@@ -227,42 +226,51 @@ getPitchCep = function(frame,
   } else {
     zp = rep(0, (cepZp - length(frame)) / 2)
     frameZP = c(zp, frame, zp)
-    cepSmooth = cepSmooth * round(cepZp / length(frame))
   }
-  # plot(frameZP, type = 'l')
-  if (!is.null(logSpec) && !is.na(logSpec) && logSpec)
-    frameZP = log(frameZP + 1e-6) # 1e-6 is -120 dB
+  # if (!is.null(logSpec) && !is.na(logSpec) && logSpec)
+  frameZP = log(frameZP + 1e-6) # 1e-6 is -120 dB
+  # plot(frameZP, type = 'l', log = 'x')
+  # plot(as.numeric(names(frameZP)), frameZP, type = 'l', log = 'x')
 
-  # fft of fft, whatever you call it - cepstrum or smth else
-  cepstrum = abs(fft(as.numeric(frameZP)))
-  # normalize to make cert more comparable to other methods
-  cepstrum = cepstrum / max(cepstrum)
-  # plot(cepstrum, type = 'l')
+  # ifft of log-fft = cepstrum
+  cepstrum = abs(fft(as.numeric(frameZP), inverse = TRUE))
+  # cepstrum = Re(fft(as.numeric(frameZP)))  # basically the same
   l = length(cepstrum) %/% 2
+
+  # calculate quefrencies
   zp_corr = (length(frameZP) / length(frame))
-  cep_freqs = samplingRate / (1:l) / 2 * zp_corr
+  # bin = diff(as.numeric(names(frameZP)[1:2])) * 1000
+  bin_q = 1 / bin / length(cepstrum) * zp_corr
+  q = (0:(l - 1)) * bin_q
+  f = 1 / q
+  cepstrum = cepstrum[1:l]
+  # plot(q[-1], cepstrum[-1], type = 'l')
+  # plot(f[-1], cepstrum[-1], type = 'l', log = 'x')
+
+  # focus on the range of frequencies from pitchFloor to pitchCeiling
+  idx_keep = which(f >= pitchFloor & f <= pitchCeiling)
   b = data.frame(
-    # NB: divide by 2 because it's another fft, not inverse fft (cf. pitchAutocor)
-    idx = 1:l,
-    freq = cep_freqs,
-    cep = cepstrum[1:l]
+    idx = idx_keep,
+    q = q[idx_keep],
+    freq = f[idx_keep], # samplingRate / idx_keep * zp_corr,  # smth fishy here...
+    cep = cepstrum[idx_keep]
   )
-  bin_width_Hz = samplingRate / 2 / l
-  cepSmooth_bins = max(1, 2 * ceiling(cepSmooth / bin_width_Hz / 2) - 1)
-  b = b[b$freq > pitchFloor & b$freq < pitchCeiling, ]
   # plot(b$freq, b$cep, type = 'l', log = 'x')
 
-  # find peaks
-  a_zoo = zoo::as.zoo(b$cep)
-  temp = zoo::rollapply(a_zoo,
-                        width = 3, # cepSmooth_bins,
-                        align = 'center',
-                        function(x)
-                          isCentral.localMax(x, threshold = cepThres))
-  idx = zoo::index(temp)[zoo::coredata(temp)]
+  # find local maxima
+  idx = which(diff(diff(b$cep) > 0) == -1) + 1
 
+  # if some peaks are found...
   if (length(idx) > 0) {
-    # if some peaks are found...
+    # fit a regression line to cepstrum in the target range of pitch freqs
+    regr = lm(cep ~ freq, b[-idx, ])  # remove peaks when fitting regression
+    pred = predict(regr, newdata = b)
+    pred[pred < 0] = min(b$cep)  # otherwise log(negative number) = error for CPP
+    # plot(b$freq, b$cep, type = 'l', log = 'x')
+    # points(b$freq, pred, type = 'l', col = 'blue')
+    # plot(b$q, b$cep, type = 'l')
+    # points(b$q, pred, type = 'l', col = 'blue')
+
     cepPeaks = b[idx, ]
 
     # parabolic interpolation to improve resolution
@@ -272,37 +280,151 @@ getPitchCep = function(frame,
       if (applyCorrecton) {
         threePoints = b$cep[(idx_peak - 1) : (idx_peak + 1)]
         parabCor = parabPeakInterpol(threePoints)
-        # actually on inverted scale (1/x), but just a liner correction for now
-        cepPeaks$freq[i] = samplingRate / 2 / (cepPeaks$idx[i] + parabCor$p) * zp_corr
+        cepPeaks$q[i] = (cepPeaks$idx[i] - 1 + parabCor$p) * bin_q * zp_corr
         cepPeaks$cep[i] = parabCor$ampl_p
       }
     }
-    pitchCep_array = data.frame(
-      'pitchCand' = cepPeaks$freq,
-      'pitchCert' = cepPeaks$cep,
-      'pitchSource' = 'cep',
-      stringsAsFactors = FALSE,
-      row.names = NULL
-    )
-    # because cepstrum really stinks for frequencies above ~1 kHz, mostly
-    # picking up formants or just plain noise, we discount confidence in
-    # high-pitch cepstral estimates
-    corFactor = 1 + cepPenalty / (1 + exp(-.005 * (pitchCep_array$pitchCand - 100 * bin)))
-    pitchCep_array$pitchCert = pitchCep_array$pitchCert / corFactor
-    # visualization: a = seq(pitchFloor, pitchCeiling, length.out = 100)
-    # b = 1 + cepPenalty / (1 + exp(-.005 * (a - 100 * bin)))
-    # plot(a, b, type = 'l')
-    ord = order(pitchCep_array$pitchCert, decreasing = TRUE)
-    pitchCep_array = pitchCep_array[ord, ]
-    pitchCep_array = pitchCep_array[1:nCands, ]
+    cepPeaks$freq = 1 / cepPeaks$q  # need to recalculate from adjusted q
 
-    # to avoid false subharmonics:
-    # absCepPeak = idx[which.max(b$cep[idx])]
-    # idx = idx[b$freq[idx] > b$freq[absCepPeak] / 1.8]
-    # plot(b$freq, b$cep, type = 'l', log = 'x')
-    # points(b$freq[idx], b$cep[idx], log = 'x')
+    # calculate Cepstral Peak Prominence
+    cepPeaks$CPP = 20 * log10(cepPeaks$cep / pred[idx])
+
+    # remap CPP in dB to pitchCert on a [0, 1] scale
+    # a = seq(0, 50, length.out = 500)
+    # b = 1 / (1 + exp(-log2(a / 6)))
+    # plot(a, b)  # 0.5 at 6 dB, doubles for every 6 dB
+    CPP_non_neg = cepPeaks$CPP
+    CPP_non_neg[CPP_non_neg <= 1e-6] = 1e-6
+    cepPeaks$pitchCert = 1 / (1 + exp(-log2(CPP_non_neg / 6)))
+    cepPeaks = cepPeaks[which(cepPeaks$pitchCert > cepThres), ]
+    nr = nrow(cepPeaks)
+
+    if (nr > 0) {
+      # remove harmonic quefrencies, keeping only the highest (rather hacky;
+      # improves accuracy for high f0 at some cost for low f0)
+      if (is.finite(tol)) {
+        idx_remove = numeric(0)
+        for (p in 1:min(nr, 5)) {  # if more than 5 first peaks, risk removing everything in low freqs
+          ratios = cepPeaks$freq[p] / cepPeaks$freq[(p + 1):nr]
+          ratios_int = round(ratios)
+          idx_remove = c(idx_remove, p + which(
+            ratios < 4 &   # again, otherwise removes too much in low freqs
+              abs(ratios - ratios_int) < tol))
+        }
+        if (length(idx_remove) > 0)
+          cepPeaks = cepPeaks[-unique(idx_remove), ]
+      }
+
+      # remove similar pitch candidates (double peaks)
+      c = 1
+      while (c + 1 <= nrow(cepPeaks)) {
+        if (abs(log2(cepPeaks$freq[c] /
+                     cepPeaks$freq[c + 1])) < specMerge) {
+          if (cepPeaks$CPP[c] > cepPeaks$CPP[c + 1]) {
+            cepPeaks = cepPeaks[-(c + 1), ]
+          } else {
+            cepPeaks = cepPeaks[-c, ]
+          }
+        } else {
+          c = c + 1
+        }
+      }
+
+      # save nCands best candidates
+      ord = order(cepPeaks$CPP, decreasing = TRUE)
+      cepPeaks = cepPeaks[ord[1:nCands], ]
+
+      pitchCep_array = data.frame(
+        'pitchCand' = cepPeaks$freq,
+        'pitchCert' = cepPeaks$pitchCert,
+        'pitchSource' = 'cep',
+        stringsAsFactors = FALSE,
+        row.names = NULL
+      )
+    }
   }
   return(pitchCep_array)
+}
+
+#' Get Cepstral Peak Prominence
+#'
+#' Internal soundgen function.
+#'
+#' Calculates Cepstral Peak Prominence from the spectrum of an STFT frame.
+#' @inheritParams analyzeFrame
+#' @inheritParams analyze
+#' @param pitch pitch of this frame, Hz
+#' @param bin spectral frequency bin width, Hz
+#' @return Returns either NA or CPP in dB.
+#' @keywords internal
+getCPP = function(frame,
+                  samplingRate,
+                  pitch,
+                  bin,
+                  prox_semitones = 3) {
+  CPP = NA
+  log_spectrum = log(frame + 1e-6) # 1e-6 is -120 dB
+  # plot(log_spectrum, type = 'l', log = 'x')
+  # plot(as.numeric(names(log_spectrum)), log_spectrum, type = 'l', log = 'x')
+
+  # cepstrum is ifft of log-spectrum
+  cepstrum = abs(fft(as.numeric(log_spectrum), inverse = TRUE))
+  # cepstrum = Re(fft(as.numeric(frame)))  # basically the same
+  l = length(cepstrum) %/% 2
+
+  # calculate quefrencies
+  # bin = diff(as.numeric(names(log_spectrum)[1:2])) * 1000
+  bin_q = 1 / bin / length(cepstrum)
+  q = (0:(l - 1)) * bin_q
+  f = 1 / q
+  cepstrum = cepstrum[1:l]
+  # plot(q[-1], cepstrum[-1], type = 'l')
+  # plot(f[-1], cepstrum[-1], type = 'l', log = 'x')
+
+  b = data.frame(
+    idx = 2:l,  # discard the lowest freq (first q value)
+    q = q[-1],
+    freq = f[-1], # samplingRate / idx_keep * zp_corr,  # smth fishy here...
+    cep = cepstrum[-1]
+  )
+  # plot(b$freq, b$cep, type = 'l', log = 'x')
+
+  # find local maxima
+  mult = 2 ^ (prox_semitones / 12)
+  idx_target = which(b$freq > (pitch / mult) &
+                       b$freq < (pitch * mult))
+  local_peaks = which(diff(diff(b$cep[idx_target]) > 0) == -1) + idx_target[1]
+
+  # if some peaks are found...
+  if (length(local_peaks) > 0) {
+    # fit a regression line to the entire cepstrum
+    all_peaks = which(diff(diff(b$cep[idx_target]) > 0) == -1) + 1
+    regr = lm(cep ~ freq, b[-all_peaks, ])  # remove peaks when fitting regression
+    pred = predict(regr, newdata = b)
+    pred[pred < 0] = min(b$cep)  # otherwise log(negative number) = error for CPP
+    # plot(b$freq, b$cep, type = 'l', log = 'x')
+    # points(b$freq, pred, type = 'l', col = 'blue')
+    # plot(b$q, b$cep, type = 'l')
+    # points(b$q, pred, type = 'l', col = 'blue')
+
+    cepPeaks = b[local_peaks, ]
+
+    # parabolic interpolation to improve resolution
+    for (i in 1:nrow(cepPeaks)) {
+      idx_peak = which(b$idx == cepPeaks$idx[i])
+      applyCorrecton = idx_peak > 1 & idx_peak < l
+      if (applyCorrecton) {
+        threePoints = b$cep[(idx_peak - 1) : (idx_peak + 1)]
+        parabCor = parabPeakInterpol(threePoints)
+        cepPeaks$q[i] = (cepPeaks$idx[i] - 1 + parabCor$p) * bin_q
+        cepPeaks$cep[i] = parabCor$ampl_p
+      }
+    }
+    cepPeaks$freq = 1 / cepPeaks$q  # need to recalculate from adjusted q
+    cepPeaks$CPP = 20 * log10(cepPeaks$cep / pred[cepPeaks$idx])
+    CPP = max(cepPeaks$CPP)
+  }
+  return(CPP)
 }
 
 

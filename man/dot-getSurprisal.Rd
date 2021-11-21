@@ -44,7 +44,8 @@ downsampling at all (ncol of output = length of input audio)}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-'mel' = mel with \code{\link[tuneR]{hz2mel}}}
+'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
+Rectangular Bandwidths with \code{\link{HzToERB}}}
 
 \item{nFilters}{the number of filters (determines frequency resolution)}
 
@@ -65,7 +66,7 @@ in decibels}
 spectrogram and the oscillogram (including time axes labels)}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark or mel}
+frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{contrast}{spectrum is exponentiated by contrast (any real number,
 recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases

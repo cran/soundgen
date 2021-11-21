@@ -94,7 +94,8 @@ matchPars = function(target,
   parDefault[['samplingRate']] = samplingRate
 
   # analyse the target and update the default pars
-  aa = analyze(target, samplingRate = samplingRate, plot = FALSE)
+  aa = analyze(target, samplingRate = samplingRate, plot = FALSE,
+               nFormants = 0, roughness = NULL, novelty = NULL, loudness = NULL)
   af = phonTools::findformants(tgt_audio$sound,
                                fs = tgt_audio$samplingRate, verify = FALSE)
   if (FALSE) {

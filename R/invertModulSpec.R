@@ -147,6 +147,7 @@ filterSoundByMS = function(
   initialPhase = c('zero', 'random', 'spsi')[3],
   nIter = 50,
   reportEvery = NULL,
+  cores = 1,
   play = FALSE,
   saveAudio = NULL,
   plot = TRUE,
@@ -159,7 +160,8 @@ filterSoundByMS = function(
   myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'from', 'to', 'savePlots', 'saveAudio', 'reportEvery')]
+    'x', 'samplingRate', 'from', 'to', 'savePlots',
+    'saveAudio', 'reportEvery', 'cores')]
   # exclude ...
   myPars = myPars[1:(length(myPars)-1)]
 
@@ -172,17 +174,15 @@ filterSoundByMS = function(
     funToCall = '.filterSoundByMS',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots,
     saveAudio = saveAudio
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_filterByMS.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_filterByMS.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = TRUE,
+                  suffix = "filterByMS", width = paste0(width, units)))
   }
 
   if (pa$input$n == 1) pa$result = pa$result[[1]]
@@ -271,10 +271,8 @@ filterSoundByMS = function(
 
   # save audio
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      s_new, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '_filterByMS.wav')
-    )
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(s_new * audio$scale, audio, filename)
   }
 
   if (plot) {

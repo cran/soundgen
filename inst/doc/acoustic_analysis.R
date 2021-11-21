@@ -104,7 +104,8 @@ par(mfrow = c(1, 1))
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'autocor',
             pitchAutocor = list(autocorThres = .45, 
                                 # + plot pars if needed
@@ -113,33 +114,38 @@ a = analyze(s1, samplingRate = 16000,
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1,  samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'dom',
             pitchDom = list(domThres = .1, domSmooth = 500, cex = 1.5))
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'cep',
-            pitchCep = list(cepThres = .3),
-            nCands = 2)
+            pitchCep = list(cepThres = .6),
+            nCands = 3)
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'spec',
-            pitchSpec = list(specPeak = .025, specSmooth = 400, cex = 2))
+            pitchSpec = list())
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'hps',
             pitchHps = list(hpsNum = 2, # try 8 or so to measure subharmonics
                             hpsThres = .2))
 
 ## ----fig.show = "hold", fig.height = 4, fig.width = 7-------------------------
 a = analyze(s1, samplingRate = 16000, 
-            plot = TRUE, ylim = c(0, 2), priorMean = NA, osc = FALSE,
+            plot = TRUE, ylim = c(0, 2), osc = FALSE,
+            priorMean = NA, priorAdapt = FALSE,
             pitchMethods = 'zc',
             pitchCeiling = 600,  # higher pitch values blend with F1
             pitchZc = list(zcWin = 3, zcThres = 0))
@@ -169,16 +175,16 @@ a = analyze(
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .25),
+             pitchMethods = 'cep', pitchCep = list(cepThres = .8),
              interpol = NULL,   # disable interpolation
              pathfinding = 'none',  
              snakeStep = 0, smooth = 0, plot = FALSE)
 a2 = analyze(s1, samplingRate = 16000, step = 10, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .25),
+             pitchMethods = 'cep', pitchCep = list(cepThres = .8),
              interpol = list(win = 100, tol = .1),
              pathfinding = 'none', 
              snakeStep = 0, smooth = 0, plot = FALSE)  
-plot(a1$detailed$time, a1$detailed$pitch, type = 'l', 
+plot(a1$detailed$time, a1$detailed$pitch, type = 'l', main = 'Interpolation', 
      xlab = 'Time, ms', ylab = 'Pitch, Hz')
 points(a2$detailed$time, a2$detailed$pitch, type = 'l', 
        col = 'red', lty = 3)
@@ -186,15 +192,17 @@ points(a2$detailed$time, a2$detailed$pitch, type = 'l',
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
 a1 = analyze(s1, samplingRate = 16000, priorMean = NA,
-             pitchMethods = 'cep', pitchCep = list(cepThres = .1), nCands = 3,
+             pitchMethods = 'cep', pitchCep = list(cepThres = .7), nCands = 3,
              pathfinding = 'none', snakeStep = 0, interpolTol = Inf,
              smooth = 0,  # no smoothing
              summaryFun = NULL, plot = FALSE)
 a1$detailed$medianSmooth = soundgen:::medianSmoother(
   data.frame(pitch = a1$detailed$pitch), smoothing_ww = 3, smoothingThres = 1
 )$pitch
-plot(pitch ~ time, data = a1$detailed, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
-points(medianSmooth ~ time, data = a1$detailed, type = 'l', col = 'red', lty = 3, lwd = 2)
+plot(pitch ~ time, data = a1$detailed, type = 'l', main = 'Median smoothing',
+     xlab = 'Time, ms', ylab = 'Pitch, Hz')
+points(medianSmooth ~ time, data = a1$detailed, type = 'l', 
+       col = 'red', lty = 3, lwd = 2)
 # dotted line = with median smoothing
 
 ## ----fig.show = "hold", fig.height = 3, fig.width = 7-------------------------
@@ -202,7 +210,8 @@ a1$detailed$ps = pitchSmoothPraat(
   a1$detailed$pitch, 
   bandwidth = 5, # cutoff above 5 Hz (5 pitch values per s)
   samplingRate = 1000/25)  # 1/step = number of pitch values per s
-plot(pitch ~ time, data = a1$detailed, type = 'l', xlab = 'Time, ms', ylab = 'Pitch, Hz')
+plot(pitch ~ time, data = a1$detailed, type = 'l', main = 'Low-pass smoothing',
+     xlab = 'Time, ms', ylab = 'Pitch, Hz')
 points(ps ~ time, data = a1$detailed, type = 'l', col = 'red', lty = 3, lwd = 2)
 # dotted line = after low-pass smoothing
 

@@ -14,6 +14,7 @@ osc(
   dB = FALSE,
   returnWave = FALSE,
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   main = NULL,
@@ -56,6 +57,8 @@ under maximum are treated as zero}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plots the oscillogram}
 

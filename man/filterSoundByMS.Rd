@@ -22,6 +22,7 @@ filterSoundByMS(
   initialPhase = c("zero", "random", "spsi")[3],
   nIter = 50,
   reportEvery = NULL,
+  cores = 1,
   play = FALSE,
   saveAudio = NULL,
   plot = TRUE,
@@ -84,6 +85,8 @@ inversion (Beauregard et al., 2015)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{play}{if TRUE, plays back the reconstructed audio}
 

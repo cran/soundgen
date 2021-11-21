@@ -406,12 +406,12 @@ server = function(input, output, session) {
         }
         soundgen:::filled.contour.mod(
           x = as.numeric(colnames(myPars$spec_trimmed)),
-          y = as.numeric(rownames(myPars$spec_trimmed)), # if (input$spec_yScale == 'linear')  as.numeric(rownames(myPars$spec_trimmed))  else as.numeric(rownames(myPars$spec_trimmed)) * 1000,
+          y = as.numeric(rownames(myPars$spec_trimmed)),
           z = t(myPars$spec_trimmed),
           levels = seq(0, 1, length = 30),
           color.palette = color.palette,
           log = if (input$spec_yScale == 'log') 'y' else '',
-          yScale = if (input$spec_yScale %in% c('bark', 'mel')) input$spec_yScale else 'orig',
+          yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB')) input$spec_yScale else 'orig',
           xlim = myPars$spec_xlim,
           xaxt = 'n',
           xaxs = 'i', xlab = '',
@@ -427,6 +427,9 @@ server = function(input, output, session) {
         } else if (input$spec_yScale == 'mel') {
           spec_ylim = tuneR::hz2mel(input$spec_ylim * 1000)
           nyquist = tuneR::hz2mel(myPars$samplingRate / 2)
+        } else if (input$spec_yScale == 'ERB') {
+          spec_ylim = HzToERB(input$spec_ylim * 1000)
+          nyquist = HzToERB(myPars$samplingRate / 2)
         } else {
           spec_ylim = input$spec_ylim
           nyquist = myPars$samplingRate / 2000

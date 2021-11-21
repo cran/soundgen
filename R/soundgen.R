@@ -1,11 +1,12 @@
-# TODO: prosody - a function that makes f0 contours more pronounced or flatter (requires accurate pitch tracking, so include pitchManual);
+# TODO:
 
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: formant_app - drag annotation borders to change duration; mel/bark show freq in Hz; argument "cores" to run analyze() in parallel; think about how best to normalize amDep; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; some smart rbind_fill in all ...Folder functions() in case of missing columns; soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO maybe: formant_app - drag annotation borders to change duration; think about how best to normalize amDep; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; some smart rbind_fill in all ...Folder functions() in case of missing columns; soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
+#' @importFrom foreach %dopar%
 #' @import stats graphics utils grDevices shinyBS
 #' @encoding UTF-8
 NULL
@@ -1134,11 +1135,12 @@ soundgen = function(
             formantPars,
             list(audio = list(
               sound = sound,
-              samplingRate = samplingRate
+              samplingRate = samplingRate,
+              scale = 1
             ),
             formants = formants,
             formantDepStoch = formantDepStoch,
-            normalize = FALSE)
+            normalize = 'none')
           ))
         } else {
           soundFiltered = sound
@@ -1151,11 +1153,12 @@ soundgen = function(
             formantPars,
             list(audio = list(
               sound = voiced,
-              samplingRate = samplingRate
+              samplingRate = samplingRate,
+              scale = 1
             ),
             formants = formants,
             formantDepStoch = formantDepStoch,
-            normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
+            normalize = ifelse(noiseAmpRef == 'filtered', 'max', 'none'))
           ))
         } else {
           voicedFiltered = voiced
@@ -1166,11 +1169,12 @@ soundgen = function(
             formantPars,
             list(audio = list(
               sound = sound_unvoiced,
-              samplingRate = samplingRate
+              samplingRate = samplingRate,
+              scale = 1
             ),
             formants = formantsNoise,
             formantDepStoch = formantDepStoch_noise,
-            normalize = ifelse(noiseAmpRef == 'filtered', TRUE, FALSE))
+            normalize = ifelse(noiseAmpRef == 'filtered', 'max', 'none'))
           ))
         } else {
           unvoicedFiltered = sound_unvoiced
@@ -1194,11 +1198,12 @@ soundgen = function(
           formantPars,
           list(audio = list(
             sound = voiced,
-            samplingRate = samplingRate
+            samplingRate = samplingRate,
+            scale = 1
           ),
           formants = formants,
           formantDepStoch = formantDepStoch,
-          normalize = FALSE)
+          normalize = 'none')
         ))
       } else {
         soundFiltered = voiced
@@ -1258,7 +1263,10 @@ soundgen = function(
     playme(bout, samplingRate = samplingRate, player = play)
   }
   if (!is.na(saveAudio)) {
-    seewave::savewav(bout, filename = saveAudio, f = samplingRate)
+    audio = list(samplingRate = samplingRate, bit = 16, scale = 1,
+                 scale_used = max(abs(range(bout))))
+    writeAudio(bout, audio, filename = saveAudio)
+    # seewave::savewav(bout, filename = saveAudio, f = samplingRate)
   }
   if (plot) {
     spectrogram(bout, samplingRate = samplingRate,

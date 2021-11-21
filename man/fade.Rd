@@ -6,21 +6,42 @@
 \usage{
 fade(
   x,
-  fadeIn = 1000,
-  fadeOut = 1000,
+  fadeIn = 50,
+  fadeOut = 50,
+  fadeIn_points = NULL,
+  fadeOut_points = NULL,
   samplingRate = NULL,
+  scale = NULL,
   shape = c("lin", "exp", "log", "cos", "logistic", "gaussian")[1],
   steepness = 1,
-  plot = FALSE
+  reportEvery = NULL,
+  cores = 1,
+  saveAudio = NULL,
+  plot = FALSE,
+  savePlots = NULL,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA,
+  ...
 )
 }
 \arguments{
-\item{x}{zero-centered (!) numeric vector such as a waveform}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
-\item{fadeIn, fadeOut}{length of segments for fading in and out, interpreted
-as points if \code{samplingRate = NULL} and as ms otherwise (0 = no fade)}
+\item{fadeIn, fadeOut}{length of segments for fading in and out, ms (0 = no
+fade)}
 
-\item{samplingRate}{sampling rate of the input vector, Hz}
+\item{fadeIn_points, fadeOut_points}{length of segments for fading in and out,
+points (if specified, override \code{fadeIn/fadeOut})}
+
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
+
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
 
 \item{shape}{controls the type of fade function: 'lin' = linear, 'exp' =
 exponential, 'log' = logarithmic, 'cos' = cosine, 'logistic' = logistic
@@ -29,7 +50,32 @@ S-curve}
 \item{steepness}{scaling factor regulating the steepness of fading curves
 (except for shapes 'lin' and 'cos'): 0 = linear, >1 = steeper than default}
 
+\item{reportEvery}{when processing multiple inputs, report estimated time
+left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
+
+\item{saveAudio}{full path to the folder in which to save audio files (one
+per detected syllable)}
+
 \item{plot}{if TRUE, produces an oscillogram of the waveform after fading}
+
+\item{savePlots}{full path to the folder in which to save the plots (NULL =
+don't save, '' = same folder as audio)}
+
+\item{width}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{height}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{units}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{res}{graphical parameters for saving plots passed to
+\code{\link[grDevices]{png}}}
+
+\item{...}{other graphical parameters}
 }
 \value{
 Returns a numeric vector of the same length as input
@@ -50,21 +96,25 @@ s1 = fade(s, fadeIn = 40, fadeOut = 350,
 # Illustration of fade shapes
 x = runif(5000, min = -1, max = 1)  # make sure to zero-center input!!!
 # plot(x, type = 'l')
-y = fade(x, fadeIn = 1000, fadeOut = 0, plot = TRUE)
-y = fade(x, fadeIn = 1000, fadeOut = 1500,
+y = fade(x, fadeIn_points = 1000, fadeOut_points = 0, plot = TRUE)
+y = fade(x, fadeIn_points = 1000, fadeOut_points = 1500,
          shape = 'exp', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
          shape = 'log', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
          shape = 'log', steepness = 3, plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 1500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
          shape = 'cos', plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 1500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
          shape = 'logistic', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 1500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
          shape = 'logistic', steepness = 3, plot = TRUE)
-y = fade(x, fadeIn = 1500, fadeOut = 1500,
+y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
          shape = 'gaussian', steepness = 1.5, plot = TRUE)
+
+\dontrun{
+  fade('~/Downloads/temp', fadeIn = 500, fadeOut = 500, savePlots = '')
+}
 }
 \seealso{
 \code{\link{crossFade}}

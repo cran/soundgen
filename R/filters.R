@@ -1,4 +1,3 @@
-
 #' Bandpass/stop filters
 #'
 #' Filtering in the frequency domain with FFT-iFFT: low-pass, high-pass,
@@ -19,8 +18,8 @@
 #' NAs back in.
 #' @inheritParams spectrogram
 #' @inheritParams segment
-#' @param lwr,upr cutoff frequencies, Hz. Specifying just lwr gives a low-pass
-#'   filter, just upr high-pass filter with action = 'pass' (or vice versa with
+#' @param lwr,upr cutoff frequencies, Hz. Specifying just lwr gives a high-pass
+#'   filter, just upr low-pass filter with action = 'pass' (or vice versa with
 #'   action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
 #'   depending on 'action'
 #' @param action "pass" = preserve the selected frequency range (bandpass),
@@ -31,10 +30,11 @@
 #'   the output
 #' @param normalize if TRUE, resets the output to the original scale (otherwise
 #'   filtering often reduces the amplitude)
+#' @param saveAudio full path to the folder in which to save the processed audio
 #' @export
 #' @examples
 #' # Filter white noise
-#' s1 = fade(c(runif(2000, -1, 1)))
+#' s1 = fade(c(runif(2000, -1, 1)), samplingRate = 16000)
 #' bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
 #' bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE)  # high-pass by 40 dB
 #' bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
@@ -77,6 +77,7 @@ bandpass = function(
   to = NULL,
   normalize = FALSE,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL,
   plot = FALSE,
   savePlots = NULL,
@@ -98,7 +99,7 @@ bandpass = function(
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'savePlots', 'saveAudio',
+    'x', 'samplingRate', 'reportEvery', 'cores', 'savePlots', 'saveAudio',
     'width', 'height', 'units')]
 
   pa = processAudio(x = x,
@@ -107,21 +108,13 @@ bandpass = function(
                     savePlots = savePlots,
                     funToCall = '.bandpass',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
 
   # htmlPlots
   if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
-    if (is.null(pa$input$saveAudio)) {
-      audioFiles = pa$input$filenames
-    } else {
-      audioFiles = paste0(pa$input$saveAudio, pa$input$filenames_noExt, '.wav')
-    }
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_bandpass.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_bandpass.png"),
-      audioFiles = audioFiles,
-      width = paste0(width, units))
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = TRUE,
+                  suffix = "bandpass", width = paste0(width, units)))
   }
 
   # prepare output
@@ -224,9 +217,11 @@ bandpass = function(
 
   # trim extra zeros and fade-out (10 ms)
   if (n_zeros > 0) {
-    x_new = fade(x_new[1:(len - n_zeros)],
-                 fadeIn = 0,
-                 fadeOut = min(half_len, audio$samplingRate * .01))
+    x_new = .fade(
+      list(sound = x_new[1:(len - n_zeros)],
+           samplingRate = audio$samplingRate),
+      fadeIn_points = 0,
+      fadeOut_points = min(half_len, audio$samplingRate * .01))
   }
 
   # PLOTTING
@@ -255,14 +250,13 @@ bandpass = function(
   }
 
   # back to original scale
-  if (normalize) x_new = x_new * diff(ran_x) / diff(range(x_new))
+  if (normalize) x_new = x_new / max(abs(x_new)) * audio$scale_used
   x_new = x_new + mean_x
 
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
-    seewave::savewav(
-      x_new, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(x_new, audio, filename)
   }
 
   # put NAs back in

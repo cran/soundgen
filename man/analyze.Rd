@@ -55,6 +55,7 @@ analyze(
   summaryFun = c("mean", "median", "sd"),
   invalidArgAction = c("adjust", "abort", "ignore")[1],
   reportEvery = NULL,
+  cores = 1,
   plot = FALSE,
   osc = "linear",
   showLegend = TRUE,
@@ -112,11 +113,12 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{cutFreq}{if specified, spectral descriptives (peakFreq, specCentroid,
 specSlope, and quartiles) are calculated only between \code{cutFreq[1]} and
-\code{cutFreq[2]}. If a single number is given, analyzes frequencies from 0
-to \code{cutFreq}. For ex., when analyzing recordings with varying sampling
-rates, set to half the lowest sampling rate to make the spectra more
-comparable. Note that "entropyThres" applies only to this frequency range,
-which also affects which frames will not be analyzed with pitchAutocor.}
+\code{cutFreq[2]}, Hz. If a single number is given, analyzes frequencies
+from 0 to \code{cutFreq}. For ex., when analyzing recordings with varying
+sampling rates, set to half the lowest sampling rate to make the spectra
+more comparable. Note that "entropyThres" applies only to this frequency
+range, which also affects which frames will not be analyzed with
+pitchAutocor.}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
 formant analysis, NULL = as many as possible)}
@@ -251,6 +253,8 @@ crash)}
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
+\item{cores}{number of cores for parallel processing}
+
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}
 
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
@@ -264,13 +268,13 @@ don't save, '' = same folder as audio)}
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{list(type = 'n')} to suppress}
 
-\item{extraContour}{name of an output variable to overlapy on the pitch
+\item{extraContour}{name of an output variable to overlap on the pitch
 contour plot, eg 'peakFreq' or 'loudness'; can also be a list with extra
 graphical parameters, eg \code{extraContour = list(x = 'harmHeight', col =
 'red')}}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark or mel}
+frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{xlab, ylab, main}{plotting parameters}
 
@@ -291,31 +295,33 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   amplitude modulation, dB (see \code{\link{modulationSpectrum}})}
   \item{amFreq}{frequency of amplitude modulation, Hz (see
   \code{\link{modulationSpectrum}})} \item{ampl}{root mean square of
-  amplitude per frame, calculated as sqrt(mean(frame ^ 2))} \item{dom}{lowest
-  dominant frequency band (Hz) (see "Pitch tracking methods / Dominant
-  frequency" in the vignette)} \item{entropy}{Weiner entropy of the spectrum
-  of the current frame. Close to 0: pure tone or tonal sound with nearly all
-  energy in harmonics; close to 1: white noise} \item{f1_freq, f1_width,
-  ...}{the frequency and bandwidth of the first nFormants formants per STFT
-  frame, as calculated by phonTools::findformants} \item{flux}{feature-based
-  flux, the rate of change in acoustic features such as pitch, HNR, etc. (0 =
-  none, 1 = max); "epoch" is an audio segment between two peaks of flux that
-  exceed a threshold of \code{flux = list(thres = ...)} (listed in
-  output$detailed only)} \item{harmEnergy}{the amount of energy in upper
-  harmonics, namely the ratio of total spectral mass above 1.25 x F0 to the
-  total spectral mass below 1.25 x F0 (dB)} \item{harmHeight}{how high
-  harmonics reach in the spectrum, based on the best guess at pitch (or the
-  manually provided pitch values)} \item{HNR}{harmonics-to-noise ratio (dB),
-  a measure of harmonicity returned by soundgen:::getPitchAutocor (see "Pitch
-  tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much
-  energy in harmonics as in noise} \item{loudness}{subjective loudness, in
-  sone, corresponding to the chosen SPL_measured - see
-  \code{\link{getLoudness}}} \item{novelty}{spectral novelty - a measure of
-  how variable the spectrum is on a particular time scale, as estimated by
-  \code{\link{ssm}}} \item{peakFreq}{the frequency with maximum spectral
-  power (Hz)} \item{pitch}{post-processed pitch contour based on all F0
-  estimates} \item{quartile25, quartile50, quartile75}{the 25th, 50th, and
-  75th quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
+  amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
+  \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch tracking methods /
+  Cepstrum" in the vignette)} \item{dom}{lowest dominant frequency band (Hz)
+  (see "Pitch tracking methods / Dominant frequency" in the vignette)}
+  \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
+  to 0: pure tone or tonal sound with nearly all energy in harmonics; close
+  to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
+  bandwidth of the first nFormants formants per STFT frame, as calculated by
+  phonTools::findformants} \item{flux}{feature-based flux, the rate of change
+  in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
+  is an audio segment between two peaks of flux that exceed a threshold of
+  \code{flux = list(thres = ...)} (listed in output$detailed only)}
+  \item{harmEnergy}{the amount of energy in upper harmonics, namely the ratio
+  of total spectral mass above 1.25 x F0 to the total spectral mass below
+  1.25 x F0 (dB)} \item{harmHeight}{how high harmonics reach in the spectrum,
+  based on the best guess at pitch (or the manually provided pitch values)}
+  \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
+  by soundgen:::getPitchAutocor (see "Pitch tracking methods /
+  Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as
+  in noise} \item{loudness}{subjective loudness, in sone, corresponding to
+  the chosen SPL_measured - see \code{\link{getLoudness}}}
+  \item{novelty}{spectral novelty - a measure of how variable the spectrum is
+  on a particular time scale, as estimated by \code{\link{ssm}}}
+  \item{peakFreq}{the frequency with maximum spectral power (Hz)}
+  \item{pitch}{post-processed pitch contour based on all F0 estimates}
+  \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
+  quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
   amount of amplitude modulation, see modulationSpectrum}
   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
@@ -354,33 +360,32 @@ rate 44100 and smaller odd numbers for lower values of sampling rate \item
 accuracy in high frequencies \item \code{autocorBestPeak} amplitude of the
 lowest best candidate relative to the absolute max of the acf }}
 \item{\code{pitchCep} (cepstrum)}{\itemize{\item \code{cepThres} voicing
-threshold (unitless, ~0 to 1) \item \code{cepSmooth} the width of smoothing
-interval (Hz) for finding peaks in the cepstrum \item \code{cepZp}
-zero-padding of the spectrum used for cepstral pitch detection (final length
-of spectrum after zero-padding in points, e.g. 2 ^ 13)}} \item{
-\code{pitchSpec} (ratio of harmonics - BaNa algorithm)}{\itemize{ \item
-\code{specThres} voicing threshold (unitless, ~0 to 1) \item
-\code{specPeak,specHNRslope} when looking for putative harmonics in the
-spectrum, the threshold for peak detection is calculated as \code{specPeak *
-(1 - HNR * specHNRslope)} \item specSmooth the width of window for detecting
-peaks in the spectrum, Hz \item \code{specMerge} pitch candidates within
-\code{specMerge} semitones are merged with boosted certainty \item
-\code{specSinglePeakCert} (0 to 1) if F0 is calculated based on a single
-harmonic ratio (as opposed to several ratios converging on the same
-candidate), its certainty is taken to be \code{specSinglePeakCert}}} \item{
-pitchHps (harmonic product spectrum)}{\itemize{\item \code{hpsNum} the number
-of times to downsample the spectrum \item \code{hpsThres} voicing threshold
-(unitless, ~0 to 1) \item \code{hpsNorm} the amount of inflation of hps pitch
-certainty (0 = none) \item \code{hpsPenalty} the amount of penalizing hps
-candidates in low frequencies (0 = none) }} }  Each of these lists also
-accepts graphical parameters that affect how pitch candidates are plotted, eg
-\code{pitchDom = list(domThres = .5, col = 'yellow')}. Other arguments that
-are lists of subroutine-specific settings include: \describe{
-\item{\code{harmonicHeight} (finding how high harmonics reach in the
-spectrum)}{\itemize{\item \code{harmThres} minimum height of spectral peak,
-dB \item \code{harmPerSel} the number of harmonics per sliding selection
-\item \code{harmTol} maximum tolerated deviation of peak frequency from
-multiples of f0, proportion of f0 }} }
+threshold (unitless, ~0 to 1) \item \code{cepZp} zero-padding of the spectrum
+used for cepstral pitch detection (final length of spectrum after
+zero-padding in points, e.g. 2 ^ 13)}} \item{ \code{pitchSpec} (ratio of
+harmonics - BaNa algorithm)}{\itemize{ \item \code{specThres} voicing
+threshold (unitless, ~0 to 1) \item \code{specPeak,specHNRslope} when looking
+for putative harmonics in the spectrum, the threshold for peak detection is
+calculated as \code{specPeak * (1 - HNR * specHNRslope)} \item specSmooth the
+width of window for detecting peaks in the spectrum, Hz \item
+\code{specMerge} pitch candidates within \code{specMerge} semitones are
+merged with boosted certainty \item \code{specSinglePeakCert} (0 to 1) if F0
+is calculated based on a single harmonic ratio (as opposed to several ratios
+converging on the same candidate), its certainty is taken to be
+\code{specSinglePeakCert}}} \item{ pitchHps (harmonic product
+spectrum)}{\itemize{\item \code{hpsNum} the number of times to downsample the
+spectrum \item \code{hpsThres} voicing threshold (unitless, ~0 to 1) \item
+\code{hpsNorm} the amount of inflation of hps pitch certainty (0 = none)
+\item \code{hpsPenalty} the amount of penalizing hps candidates in low
+frequencies (0 = none) }} }  Each of these lists also accepts graphical
+parameters that affect how pitch candidates are plotted, eg \code{pitchDom =
+list(domThres = .5, col = 'yellow')}. Other arguments that are lists of
+subroutine-specific settings include: \describe{ \item{\code{harmonicHeight}
+(finding how high harmonics reach in the spectrum)}{\itemize{\item
+\code{harmThres} minimum height of spectral peak, dB \item \code{harmPerSel}
+the number of harmonics per sliding selection \item \code{harmTol} maximum
+tolerated deviation of peak frequency from multiples of f0, proportion of f0
+}} }
 }
 \examples{
 sound = soundgen(sylLen = 300, pitch = c(500, 400, 600),
@@ -452,11 +457,11 @@ a = analyze(sound2, samplingRate = 16000,
 colnames(a$summary)
 
 # Analyze a selection rather than the whole sound
-a = analyze(sound1, samplingRate = 16000, from = .4, to = .8, plot = TRUE)
+a = analyze(sound, samplingRate = 16000, from = .1, to = .3, plot = TRUE)
 
 # Use only a range of frequencies when calculating spectral descriptives
 # (ignore everything below 100 Hz and above 8000 Hz as irrelevant noise)
-a = analyze(sound1, samplingRate = 16000, cutFreq = c(100, 8000))
+a = analyze(sound, samplingRate = 16000, cutFreq = c(100, 8000))
 
 ## Amplitude and loudness: analyze() should give the same results as
 # dedicated functions getRMS() / getLoudness()

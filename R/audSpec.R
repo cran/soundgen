@@ -36,7 +36,7 @@
 #' \dontrun{
 #' # add bells and whistles
 #' audSpectrogram(sound, samplingRate = 16000,
-#'   yScale = 'log',
+#'   yScale = 'ERB',
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
 #'   brightness = -.1,  # reduce brightness
@@ -56,7 +56,8 @@
 #' audSpectrogram(sound, samplingRate = 16000, osc = 'none')
 #'
 #' # save auditory spectrograms of all audio files in a folder
-#' audSpectrogram('~/Downloads/temp', savePlots = '~/Downloads/temp/audSpec')
+#' audSpectrogram('~/Downloads/temp',
+#'   savePlots = '~/Downloads/temp/audSpec', cores = 4)
 #' }
 audSpectrogram = function(
   x,
@@ -71,12 +72,13 @@ audSpectrogram = function(
   maxFreq = samplingRate / 2,
   minBandwidth = 10,
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('bark', 'mel', 'log')[1],
+  yScale = c('bark', 'mel', 'ERB', 'log')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -100,7 +102,8 @@ audSpectrogram = function(
   # myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'from', 'to', 'reportEvery', 'savePlots')]
+    'x', 'samplingRate', 'scale', 'from', 'to',
+    'reportEvery', 'cores', 'savePlots')]
 
   # call .audSpectrogram
   pa = processAudio(
@@ -112,16 +115,14 @@ audSpectrogram = function(
     funToCall = '.audSpectrogram',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_audSpectrogram.html'),
-      plotFiles = paste0(pa$input$filenames_noExt, "_audSpectrogram.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "audSpectrogram", width = paste0(width, units)))
   }
   if (pa$input$n == 1) pa$result = pa$result[[1]]
   invisible(pa$result)
@@ -146,7 +147,7 @@ audSpectrogram = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('log', 'bark')[2],
+  yScale = 'bark',
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -214,6 +215,19 @@ audSpectrogram = function(
       cf = tuneR::mel2hz(cf_mel),
       from = tuneR::mel2hz(cf_mel - halfFW),
       to = tuneR::mel2hz(cf_mel + halfFW)
+    )
+  } else if (yScale == 'ERB') {
+    filter_width = (HzToERB(maxFreq) - HzToERB(minFreq)) / nFilters
+    halfFW = filter_width / 2
+    cf_erb = seq(
+      HzToERB(minFreq + ERBToHz(halfFW)),
+      HzToERB(min(maxFreq, nyquist)) - 1,
+      length.out = nFilters
+    )
+    filters = data.frame(
+      cf = ERBToHz(cf_erb),
+      from = ERBToHz(cf_erb - halfFW),
+      to = ERBToHz(cf_erb + halfFW)
     )
   }
 

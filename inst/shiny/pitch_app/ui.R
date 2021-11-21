@@ -246,13 +246,6 @@ ui = fluidPage(
               max = defaults_analyze['cepThres', 'high'],
               step = defaults_analyze['cepThres', 'step']),
             sliderInput(
-              'cepSmooth',
-              'Width of smoothing interval, Hz ("cepSmooth")',
-              value = defaults_analyze['cepSmooth', 'default'],
-              min = defaults_analyze['cepSmooth', 'low'],
-              max = defaults_analyze['cepSmooth', 'high'],
-              step = defaults_analyze['cepSmooth', 'step']),
-            sliderInput(
               'cepZp',
               'Cepstral zero padding, 2 ^ n ("cepZp")',
               value = defaults_analyze['cepZp', 'default'],

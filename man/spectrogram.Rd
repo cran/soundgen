@@ -25,12 +25,13 @@ spectrogram(
   method = c("spectrum", "spectralDerivative")[1],
   output = c("original", "processed", "complex")[1],
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c("linear", "log", "bark", "mel")[1],
+  yScale = c("linear", "log", "bark", "mel", "ERB")[1],
   contrast = 0.2,
   brightness = 0,
   maxPoints = c(1e+05, 5e+05),
@@ -110,6 +111,8 @@ phase ('complex')}
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
+\item{cores}{number of cores for parallel processing}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
@@ -122,11 +125,12 @@ in decibels}
 spectrogram and the oscillogram (including time axes labels)}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark or mel}
+frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-'mel' = mel with \code{\link[tuneR]{hz2mel}}}
+'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
+Rectangular Bandwidths with \code{\link{HzToERB}}}
 
 \item{contrast}{spectrum is exponentiated by contrast (any real number,
 recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
@@ -204,6 +208,9 @@ spectrogram(sound, samplingRate = 16000,
   # + axis labels, etc
 )
 \dontrun{
+# save spectrograms of all sounds in a folder
+spectrogram('~/Downloads/temp', savePlots = '', cores = 2)
+
 # change dynamic range
 spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 spectrogram(sound, samplingRate = 16000, dynamicRange = 120)

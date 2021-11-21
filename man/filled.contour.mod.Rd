@@ -19,7 +19,7 @@ filled.contour.mod(
   xaxs = "i",
   yaxs = "i",
   log = "",
-  yScale = c("orig", "bark", "mel")[1],
+  yScale = c("orig", "bark", "mel", "ERB")[1],
   axisX = TRUE,
   axisY = TRUE,
   maxPoints = 5e+05,

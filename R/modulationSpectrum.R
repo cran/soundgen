@@ -1,16 +1,5 @@
 ### MODULATION SPECTRUM
 
-#' Modulation spectrum folder
-#'
-#' Deprecated; use \code{\link{modulationSpectrum}} instead
-#' @param ... any input parameters
-#' @keywords internal
-modulationSpectrumFolder = function(...) {
-  message('modulationSpectrumFolder() is deprecated;',
-          'please use modulationSpectrum(averageMS = FALSE) instead')
-}
-
-
 #' Modulation spectrum
 #'
 #' Produces a modulation spectrum of waveform(s) or audio file(s), with temporal
@@ -253,6 +242,7 @@ modulationSpectrum = function(
   summaryFun = c('mean', 'median', 'sd'),
   averageMS = FALSE,
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   logWarp = NA,
@@ -276,7 +266,7 @@ modulationSpectrum = function(
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'scale', 'from', 'to', 'savePlots',
-    'reportEvery', 'summaryFun', 'averageMS')]
+    'reportEvery', 'cores', 'summaryFun', 'averageMS')]
 
   # analyze
   pa = processAudio(
@@ -288,16 +278,14 @@ modulationSpectrum = function(
     funToCall = '.modulationSpectrum',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_MS.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_MS.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "MS", width = paste0(width, units)))
   }
 
   # prepare output

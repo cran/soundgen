@@ -25,6 +25,7 @@ ssm(
   padWith = 0,
   summaryFun = c("mean", "sd"),
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   main = NULL,
@@ -100,6 +101,8 @@ take care of NAs yourself}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plots the SSM}
 

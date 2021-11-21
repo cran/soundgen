@@ -1,3 +1,23 @@
+          CHANGES IN SOUNDGEN VERSION 2.5.0 [21-November-2021]
+NEW FUNCTIONS:
+  * prosody(): exaggerates or flattens the intonation
+  * HzToNotes(): converts Hz to musical notation (notes)
+  * HzToERB(), ERBToHz(): converts from Hz to ERB rate and back (Equivalent Rectangular Bandwidth)
+
+MAJOR:
+  * most functions that accept multiple audio files as input (analyze, segment, spectrogram, etc.) take a new argument "cores" for parallel processing
+  * all functions that save audio preserve the original scale or offer normalization options
+  * all functions that produce htmlPlots use relative paths if audio and plots are in the same folder (so can be copied without breaking hyperlinks), aboslute paths otherwise
+  * removed all deprecated functions
+
+MINOR:
+  * analyze(): updated cepstral pitch tracking method
+  * analyze(): a new output "CPP" (Cepstral Peak Prominence) measures breathiness
+  * analyze(): a new output "voiced_noSilence" measures the proportion of voiced non-silent frames
+  * fade() accepts files, folders etc as input, new arguments fadeIn_points/fadeOut_points to distinguish from fadeIn/fadeOut (in ms)
+  * spectrogram() and related functions accept yScale = "ERB"
+
+
           CHANGES IN SOUNDGEN VERSION 2.4.0 [16-October-2021]
 NEW FUNCTIONS:
   * getDuration(): returns the duration of one or more audio files, with and without leading/trailing silences

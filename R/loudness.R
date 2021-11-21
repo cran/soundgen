@@ -1,15 +1,5 @@
 ### Functions for analyzing subjective loudness
 
-#' Get loudness folder
-#'
-#' Deprecated; use \code{\link{getLoudness}} instead
-#' @param ... any input parameters
-#' @keywords internal
-getLoudnessFolder = function(...) {
-  message('getLoudnessFolder() is deprecated; please use getLoudness() instead')
-}
-
-
 #' Get loudness
 #'
 #' Estimates subjective loudness per frame, in sone. Based on EMBSD speech
@@ -33,8 +23,7 @@ getLoudnessFolder = function(...) {
 #' correction coefficient to standardize output. Calibrated so as to return a
 #' loudness of 1 sone for a 1 kHz pure tone with SPL of 40 dB.
 #'
-#' @seealso \code{\link{getLoudnessFolder}} \code{\link{getRMS}}
-#'   \code{\link{analyze}}
+#' @seealso \code{\link{getRMS}} \code{\link{analyze}}
 #'
 #' @inheritParams spectrogram
 #' @inheritParams analyze
@@ -117,6 +106,7 @@ getLoudness = function(x,
                        spreadSpectrum = TRUE,
                        summaryFun = c('mean', 'median', 'sd'),
                        reportEvery = NULL,
+                       cores = 1,
                        plot = TRUE,
                        savePlots = NULL,
                        main = NULL,
@@ -131,7 +121,7 @@ getLoudness = function(x,
   myPars = c(as.list(environment()), list(...))
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'savePlots', 'reportEvery', 'summaryFun')]
+    'x', 'samplingRate', 'scale', 'savePlots', 'reportEvery', 'cores', 'summaryFun')]
 
   # analyze
   pa = processAudio(
@@ -143,16 +133,14 @@ getLoudness = function(x,
     funToCall = '.getLoudness',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_loudness.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_loudness.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "loudness", width = paste0(width, units)))
   }
 
   # prepare output

@@ -25,7 +25,7 @@
   smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
-  normalize = TRUE,
+  normalize = c("max", "orig", "none")[1],
   play = FALSE,
   ...
 )
@@ -104,7 +104,8 @@ jumpThres}
 \item{overlap}{FFT window overlap, \%. For allowed values, see
 \code{\link[seewave]{istft}}}
 
-\item{normalize}{if TRUE, normalizes the output to range from -1 to +1}
+\item{normalize}{"orig" = same as input (default), "max" = maximum possible
+peak amplitude, "none" = no normalization}
 
 \item{play}{if TRUE, plays the synthesized sound using the default player on
 your system. If character, passed to \code{\link[tuneR]{play}} as the name

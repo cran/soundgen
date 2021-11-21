@@ -18,6 +18,7 @@ getRMS(
   windowDC = 200,
   summaryFun = "mean",
   reportEvery = NULL,
+  cores = 1,
   plot = FALSE,
   savePlots = NULL,
   main = NULL,
@@ -71,6 +72,8 @@ see \code{\link{analyze}}}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plot a contour of RMS amplitude}
 
@@ -130,7 +133,7 @@ r = getRMS(s, samplingRate = 16000,
   windowLength = 5, overlap = 0, killDC = TRUE,
   plot = TRUE, col = 'blue', pch = 13, main = 'RMS envelope')
 \dontrun{
-r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
+r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp260/plots')
 r$summary
 
 # Compare:

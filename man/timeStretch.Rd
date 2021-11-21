@@ -11,7 +11,8 @@ timeStretch(
   precision = 1000,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -38,6 +39,8 @@ per detected syllable)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 }
 \description{
 Dynamically time-stretches a sound without preserving its pitch or formants,

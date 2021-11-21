@@ -1,15 +1,5 @@
 ## FINDING SYLLABLES AND VOCAL BURSTS ##
 
-#' Segment folder
-#'
-#' Deprecated; use \code{\link{segment}} instead
-#' @param ... any input parameters
-#' @keywords internal
-segmentFolder = function(...) {
-  message('segmentFolder() is deprecated; please use segment() instead')
-}
-
-
 #' Segment a sound
 #'
 #' Finds syllables and bursts separated by background noise in long recordings
@@ -170,6 +160,7 @@ segment = function(
   summaryFun = c('median', 'sd'),
   maxDur = 30,
   reportEvery = NULL,
+  cores = 1,
   plot = FALSE,
   savePlots = NULL,
   saveAudio = NULL,
@@ -219,7 +210,7 @@ segment = function(
   myPars = c(as.list(environment()), list(...))
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'from', 'to', 'reportEvery', 'summaryFun',
+    'x', 'samplingRate', 'from', 'to', 'reportEvery', 'cores', 'summaryFun',
     'reverbPars', 'sylPlot', 'burstPlot', 'specPlot')]  # otherwise flattens lists
   # add back arguments that are lists
   myPars$sylPlot = sylPlot
@@ -237,17 +228,15 @@ segment = function(
     funToCall = '.segment',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots,
     saveAudio = saveAudio
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_segment.html'),
-      plotFiles = paste0(pa$input$filenames_noExt, "_segment.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "segment", width = paste0(width, units)))
   }
 
   # prepare output
@@ -295,6 +284,10 @@ segment = function(
     syllables = pa$result[[1]]$syllables
     bursts = pa$result[[1]]$bursts
   } else {
+    for (i in 1:pa$input$n) {
+      if (length(pa$result[[i]]) == 0)
+        pa$result[[i]] = list(syllables = NA, bursts = NA)
+    }
     syllables = lapply(pa$result, function(x) x[['syllables']])
     bursts = lapply(pa$result, function(x) x[['bursts']])
   }
@@ -732,6 +725,7 @@ segment = function(
   ## save all extracted syllables as separate audio files for easy examination
   if (is.character(audio$saveAudio) && !is.na(syllables$sylLen[1])) {
     addSil = rep(0, addSilence * audio$samplingRate / 1000)
+    audio$sound = audio$sound * audio$scale_used  # back to original scale from [-1, 1]
     for (i in 1:nrow(syllables)) {
       from = max(1, audio$samplingRate * ((syllables$start[i]) / 1000))  #  - windowLength / 2
       to = min(length(audio$sound), audio$samplingRate * ((syllables$end[i]) / 1000))
@@ -739,7 +733,7 @@ segment = function(
       filename_i = paste0(
         audio$saveAudio, audio$filename_base, '_', round(syllables$start[i], 0),
         '-', round(syllables$end[i], 0), '.wav')
-      seewave::savewav(temp, f = audio$samplingRate, filename = filename_i)
+      writeAudio(temp, audio, filename_i)
     }
   }
 

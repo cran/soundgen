@@ -354,10 +354,10 @@ generateNoise = function(
       if (any(attackLen > 0)) {
         l = floor(attackLen * samplingRate / 1000)
         if (length(l) == 1) l = c(l, l)
-        breathing = fade(
-          breathing,
-          fadeIn = l[1],
-          fadeOut = l[2]
+        breathing = .fade(
+          list(sound = breathing, samplingRate = samplingRate),
+          fadeIn_points = l[1],
+          fadeOut_points = l[2]
         )
       }
     }
@@ -784,9 +784,9 @@ generateHarmonics = function(pitch,
     if (any(attackLen > 0)) {
       l = floor(attackLen * samplingRate / 1000)
       if (length(l) == 1) l = c(l, l)
-      waveform = fade(waveform,
-                      fadeIn = l[1],
-                      fadeOut = l[2])
+      waveform = .fade(list(sound = waveform, samplingRate = samplingRate),
+                       fadeIn_points = l[1],
+                       fadeOut_points = l[2])
       # plot(waveform, type = 'l')
     }
   }
@@ -1177,7 +1177,9 @@ beat = function(nSyl = 10,
   int = cumsum(pitchContour)
   beat = sin(2 * pi * int / samplingRate)
   if (fadeOut) {
-    beat = fade(beat, fadeOut = length(beat))
+    beat = .fade(list(sound = beat, samplingRate = samplingRate),
+                 fadeIn_points = 0,
+                 fadeOut_points = length(beat))
   }
   # plot(beat, type = 'l')
   # spectrogram(beat, samplingRate, ylim = c(0, 1))

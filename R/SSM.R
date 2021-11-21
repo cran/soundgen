@@ -92,6 +92,7 @@ ssm = function(
   padWith = 0,
   summaryFun = c('mean', 'sd'),
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   main = NULL,
@@ -122,7 +123,7 @@ ssm = function(
   myPars = as.list(environment())
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'from', 'to', 'savePlots', 'reportEvery',
+    'x', 'samplingRate', 'from', 'to', 'savePlots', 'reportEvery', 'cores',
     'summaryFun', 'specPars', 'ssmPars', 'noveltyPars', 'ssmWin')]
   myPars$specPars = specPars
   myPars$ssmPars = ssmPars
@@ -142,16 +143,14 @@ ssm = function(
     funToCall = '.ssm',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_ssm.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_ssm.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "ssm", width = paste0(width, units)))
   }
 
   # prepare output

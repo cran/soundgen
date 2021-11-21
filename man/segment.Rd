@@ -26,6 +26,7 @@ segment(
   summaryFun = c("median", "sd"),
   maxDur = 30,
   reportEvery = NULL,
+  cores = 1,
   plot = FALSE,
   savePlots = NULL,
   saveAudio = NULL,
@@ -117,6 +118,8 @@ chunk separately, so set it low if the background noise is highly variable}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, produces a segmentation plot}
 

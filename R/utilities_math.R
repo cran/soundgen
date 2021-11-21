@@ -1,14 +1,153 @@
 ### UTILITIES FOR LOW-LEVEL MATH ###
 
+#' Report time
+#'
+#' Provides a nicely formatted "estimated time left" in loops plus a summary
+#' upon completion.
+#' @param i current iteration
+#' @param time_start time when the loop started running
+#' @param nIter total number of iterations
+#' @param reportEvery report progress every n iterations
+#' @param jobs vector of length \code{nIter} specifying the relative difficulty
+#'   of each iteration. If not NULL, estimated time left takes into account
+#'   whether the jobs ahead will take more or less time than the jobs already
+#'   completed
+#' @param prefix a string to print before "Done...", eg "Chain 1: "
+#' @export
+#' @examples
+#' time_start = proc.time()
+#' for (i in 1:100) {
+#'   Sys.sleep(i ^ 1.02 / 10000)
+#'   reportTime(i = i, time_start = time_start, nIter = 100,
+#'     jobs = (1:100) ^ 1.02, prefix = 'Chain 1: ')
+#' }
+#' \dontrun{
+#' # Unknown number of iterations:
+#' time_start = proc.time()
+#' for (i in 1:20) {
+#'   Sys.sleep(i ^ 2 / 10000)
+#'   reportTime(i = i, time_start = time_start,
+#'   jobs = (1:20) ^ 2, reportEvery = 5)
+#' }
+#'
+#' # when analyzing a bunch of audio files, their size is a good estimate
+#' # of how long each will take to process
+#' time_start = proc.time()
+#' filenames = list.files('~/Downloads/temp', pattern = "*.wav|.mp3",
+#'   full.names = TRUE)
+#' filesizes = file.info(filenames)$size
+#' for (i in 1:length(filenames)) {
+#'   # ...do what you have to do with each file...
+#'   reportTime(i = i, nIter = length(filenames),
+#'              time_start = time_start, jobs = filesizes)
+#' }
+#' }
+reportTime = function(
+  i,
+  time_start,
+  nIter = NULL,
+  reportEvery = NULL,
+  jobs = NULL,
+  prefix = ''
+) {
+  time_diff = as.numeric((proc.time() - time_start)[3])
+  if (is.null(reportEvery))
+    reportEvery = ifelse(is.null(nIter),
+                         1,
+                         max(1, 10 ^ (floor(log10(nIter)) - 1)))
+  if (is.null(nIter)) {
+    # number of iter unknown, so we just report time elapsed
+    if (i %% reportEvery == 0) {
+      print(paste0(prefix, 'Completed ', i, ' iterations in ',
+                   convert_sec_to_hms(time_diff)))
+    }
+  } else {
+    # we know how many iter, so we also report time left
+    if (i == nIter) {
+      time_total = convert_sec_to_hms(time_diff)
+      print(paste0(prefix, 'Completed ', i, ' iterations in ', time_total, '.'))
+    } else {
+      if (i %% reportEvery == 0 || i == 1) {
+        if (is.null(jobs)) {
+          # simply count iterations
+          time_left = time_diff / i * (nIter - i)
+        } else {
+          # take into account the expected time for each iteration
+          speed = time_diff / sum(jobs[1:i])
+          time_left = speed * sum(jobs[min((i + 1), nIter):nIter])
+        }
+        time_left_hms = convert_sec_to_hms(time_left)
+        print(paste0(prefix, 'Done ', i, ' / ', nIter, '; Estimated time left: ', time_left_hms))
+      }
+    }
+  }
+}
+
+
+#' Print time
+#'
+#' Internal soundgen function.
+#'
+#' Converts time in seconds to time in y m d h min s for pretty printing.
+#' @param time_s time (s)
+#' @param digits number of digits to preserve for s (1-60 s)
+#' @return Returns a character string like "1 h 20 min 3 s"
+#' @keywords internal
+#' @examples
+#' time_s = c(.0001, .01, .33, .8, 2.135, 5.4, 12, 250, 3721, 10000,
+#'            150000, 365 * 24 * 3600 + 35 * 24 * 3600 + 3721)
+#' soundgen:::convert_sec_to_hms(time_s)
+#' soundgen:::convert_sec_to_hms(time_s, 2)
+convert_sec_to_hms = function(time_s, digits = 0) {
+  if (!any(time_s > 1)) {
+    output = paste(round(time_s * 1000), 'ms')
+  } else {
+    len = length(time_s)
+    output = vector('character', len)
+    for (i in 1:len) {
+      # years = time_s %/% 31536000
+      # years_string = ifelse(years > 0, paste(years, 'y '), '')
+      #
+      # months = time_s %/% 2592000 - years * 12
+      # months_string = ifelse(months > 0, paste(months, 'm '), '')
+      days_string = hours_string = minutes_string = seconds_string = ms_string = ''
+      days = time_s[i] %/% 86400
+      if (days > 0) days_string = paste(days, 'd ')
+
+      hours = time_s[i] %/% 3600 - days * 24
+      if (hours > 0) hours_string = paste(hours, 'h ')
+
+      if (days == 0) {
+        minutes = time_s[i] %/% 60 - days * 1440 - hours * 60
+        if (minutes > 0) minutes_string = paste(minutes, 'min ')
+
+        if (hours == 0) {
+          seconds = time_s[i] - days * 86400 - hours * 3600 - minutes * 60
+          seconds_floor = floor(seconds)
+          if (seconds_floor > 0) seconds_string = paste(round(seconds, digits), 's ')
+
+          if (minutes == 0 & seconds_floor == 0) {
+            ms = (time_s[i] %% 1) * 1000
+            if (ms > 0) ms_string = paste(ms, 'ms')
+          }
+        }
+      }
+      output[i] = paste0(days_string, hours_string,
+                         minutes_string, seconds_string, ms_string)
+    }
+  }
+  output = trimws(output)
+  return(output)
+}
+
+
 #' Convert Hz to semitones
 #'
 #' Converts from Hz to semitones above C-5 (~0.5109875 Hz) or another reference
 #' frequency. This may not seem very useful, but note that this gives us a nice
-#' logarithmic scale for generating natural pitch transitions with the added
-#' benefit of getting musical notation for free from \code{notesDict} (see
-#' examples).
+#' logarithmic scale for generating natural pitch transitions.
 #'
-#' @seealso \code{\link{semitonesToHz}}
+#' @seealso \code{\link{semitonesToHz}} \code{\link{HzToNotes}}
 #'
 #' @param h vector or matrix of frequencies (Hz)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
@@ -38,6 +177,143 @@ HzToSemitones = function(h, ref = 0.5109875) {
 #' @export
 semitonesToHz = function(s, ref = 0.5109875) {
   return(ref * 2 ^ (s / 12))
+}
+
+
+#' Convert Hz to notes
+#'
+#' Converts from Hz to musical notation like A4 - note A of the fourth octave
+#' above C0 (16.35 Hz).
+#'
+#' @seealso \code{\link{HzToSemitones}}
+#'
+#' @param h vector or matrix of frequencies (Hz)
+#' @param showCents if TRUE, show cents to the nearest notes (cent = 1/100 of a
+#'   semitone)
+#' @param A4 frequency of note A in the fourth octave (modern standard ISO 16 or
+#'   concert pitch = 440 Hz)
+#' @export
+#' @examples
+#' HzToNotes(c(440, 293, 115, 16.35, 4))
+#'
+#' HzToNotes(c(440, 415, 80, 81), showCents = TRUE)
+#' # 80 Hz is almost exactly midway (+49 cents) between D#2 and E2
+#'
+#' # Baroque tuning A415, half a semitone flat relative to concert pitch A440
+#' HzToNotes(c(440, 415, 16.35), A4 = 415)
+HzToNotes = function(h, showCents = FALSE, A4 = 440) {
+  ref = A4 / 861.0779
+  # C4 is 9 semitones below A4 (2^(9/12) * 512 = 861.0779), then another 9 octaves
+  # down to C-5 in notesDict
+  sem = log2(h / ref) * 12
+  round_sem = round(sem)
+  nearest_note = soundgen::notesDict$note[1 + round_sem]
+  if (showCents) {
+    cents = paste0(' ', as.character(round((sem - round_sem) * 100)))
+    cents[cents == ' 0'] = ''
+    nearest_note = paste0(nearest_note, cents)
+  }
+  return(nearest_note)
+}
+
+
+#' Convert Hz to ERB rate
+#'
+#' Converts from Hz to the number of Equivalent Rectangular Bandwidths (ERBs)
+#' below input frequency. See https://www2.ling.su.se/staff/hartmut/bark.htm and
+#' https://en.wikipedia.org/wiki/Equivalent_rectangular_bandwidth
+#'
+#' @seealso \code{\link{ERBToHz}} \code{\link{HzToSemitones}}
+#'   \code{\link{HzToNotes}}
+#'
+#' @param h vector or matrix of frequencies (Hz)
+#' @param method approximation to use
+#' @export
+#' @examples
+#' HzToERB(c(-20, 20, 100, 440, 1000, NA))
+#'
+#' f = 20:20000
+#' erb_lin = HzToERB(f, 'linear')
+#' erb_quadratic = HzToERB(f, 'quadratic')
+#' plot(f, erb_lin, log = 'x', type = 'l')
+#' points(f, erb_quadratic, col = 'blue', type = 'l')
+#'
+#' # compare with the bark scale:
+#' barks = tuneR::hz2bark(f)
+#' points(f, barks / max(barks) * max(erb_lin),
+#'   col = 'red', type = 'l', lty = 2)
+HzToERB = function(h,
+                   method = c('linear', 'quadratic')[1]) {
+  if (method == 'linear') {
+    erb = 21.4 * log10(1 + .00437 * h)
+  } else if (method == 'quadratic') {
+    # erb = 11.17 * log( (h + 312) / (h + 14675)) + 43
+    erb = 11.17268 * log(1 + (46.06538 * h) / (h + 14678.49))
+  }
+  return(erb)
+}
+
+
+#' Convert Hz to ERB rate
+#'
+#' Converts from Hz to the number of Equivalent Rectangular Bandwidths (ERBs)
+#' below input frequency. See https://www2.ling.su.se/staff/hartmut/bark.htm and
+#' https://en.wikipedia.org/wiki/Equivalent_rectangular_bandwidth
+#'
+#' @seealso \code{\link{HzToERB}} \code{\link{HzToSemitones}}
+#'   \code{\link{HzToNotes}}
+#'
+#' @param e vector or matrix of frequencies in ERB rate
+#' @param method approximation to use
+#' @export
+#' @examples
+#' freqs_Hz = c(-20, 20, 100, 440, 1000, 20000, NA)
+#' e_lin = HzToERB(freqs_Hz, 'linear')
+#' ERBToHz(e_lin, 'linear')
+#'
+#' e_quad = HzToERB(freqs_Hz, 'quadratic')
+#' ERBToHz(e_quad, 'quadratic')
+ERBToHz = function(e,
+                   method = c('linear', 'quadratic')[1]) {
+  if (method == 'linear') {
+    h = (10 ^ (e / 21.4) - 1) / .00437
+  } else if (method == 'quadratic') {
+    h = 676170.4 / (47.06538 - exp(e * 0.08950404)) - 14678.49
+  }
+  return(h)
+}
+
+
+#' Hz to mel
+#'
+#' Internal soundgen function: a temporary fix needed because tuneR::hz2mel
+#' doesn't accept NAs.
+#' @param f frequency, Hz
+#' @param htk algrithm
+#' @keywords internal
+#' @examples
+#' soundgen:::hz2mel(c(440, NA))
+hz2mel = function(f, htk = FALSE) {
+  # if (!is.numeric(f) || f < 0)
+  #     stop("frequencies have to be non-negative")
+  idx_nonFinite = which(!is.finite(f))
+  f[idx_nonFinite] = 0
+  if (htk) {
+    z <- 2595 * log10(1 + f/700)
+  }
+  else {
+    f_0 <- 0
+    f_sp <- 200/3
+    brkfrq <- 1000
+    brkpt <- (brkfrq - f_0)/f_sp
+    logstep <- exp(log(6.4)/27)
+    linpts <- (f < brkfrq)
+    z <- 0 * f
+    z[linpts] <- (f[linpts] - f_0)/f_sp
+    z[!linpts] <- brkpt + (log(f[!linpts]/brkfrq))/log(logstep)
+  }
+  z[idx_nonFinite] = NA
+  return(z)
 }
 
 
@@ -1270,34 +1546,26 @@ warpMatrix = function(m, scaleFactor, interpol = c('approx', 'spline')[1]) {
 princarg = function(x) (x + pi) %% (2 * pi) - pi
 
 
-#' Hz to mel
+#' Split vector into chunks
 #'
-#' Internal soundgen function: a temporary fix needed because tuneR::hz2mel
-#' doesn't accept NAs.
-#' @param f frequency, Hz
-#' @param htk algrithm
+#' Internal soundgen function.
+#'
+#' Takes a numeric vector x and splits it into n chunks. This is the fastest
+#' splitting algorithm from
+#' https://stackoverflow.com/questions/3318333/split-a-vector-into-chunks
+#' @param x numeric vector to split
+#' @param n number of chunks
+#' @return Returns a list of length \code{n} containing the chunks
 #' @keywords internal
 #' @examples
-#' soundgen:::hz2mel(c(440, NA))
-hz2mel = function(f, htk = FALSE) {
-  # if (!is.numeric(f) || f < 0)
-  #     stop("frequencies have to be non-negative")
-  idx_nonFinite = which(!is.finite(f))
-  f[idx_nonFinite] = 0
-  if (htk) {
-    z <- 2595 * log10(1 + f/700)
-  }
-  else {
-    f_0 <- 0
-    f_sp <- 200/3
-    brkfrq <- 1000
-    brkpt <- (brkfrq - f_0)/f_sp
-    logstep <- exp(log(6.4)/27)
-    linpts <- (f < brkfrq)
-    z <- 0 * f
-    z[linpts] <- (f[linpts] - f_0)/f_sp
-    z[!linpts] <- brkpt + (log(f[!linpts]/brkfrq))/log(logstep)
-  }
-  z[idx_nonFinite] = NA
-  return(z)
+#' # prepare chunks of iterator to run in parallel on several cores
+#' chunks = soundgen:::splitIntoChunks(1:21, 4)
+#' chunks
+splitIntoChunks = function(x, n) {
+  len = length(x)
+  len_chunk = ceiling(len / n)
+  mapply(function(a, b) (x[a:b]),
+         seq.int(from = 1, to = len, by = len_chunk),
+         pmin(seq.int(from = 1, to = len, by = len_chunk) + (len_chunk - 1), len),
+         SIMPLIFY = FALSE)
 }

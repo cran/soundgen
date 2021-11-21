@@ -37,6 +37,8 @@
 #'   to TRUE if no time stretching is performed and FALSE otherwise
 #' @param transplantEnv_pars a list of parameters passed on to
 #'   \code{\link{transplantEnv}} if \code{preserveEnv = TRUE}
+#' @param normalize "orig" = same as input (default), "max" = maximum possible
+#'   peak amplitude, "none" = no normalization
 #' @export
 #' @examples
 #' s = soundgen(sylLen = 200, ampl = c(0,-10),
@@ -96,10 +98,11 @@ shiftPitch = function(
   propagation = c('time', 'adaptive')[1],
   preserveEnv = NULL,
   transplantEnv_pars = list(windowLength = 10),
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[2],
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL) {
+  reportEvery = NULL,
+  cores = 1) {
   multPitch = reformatAnchors(multPitch)
   multFormants = reformatAnchors(multFormants)
   timeStretch = reformatAnchors(timeStretch)
@@ -108,15 +111,18 @@ shiftPitch = function(
   myPars = as.list(environment())
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores',
+    'saveAudio', 'transplantEnv_pars')]
+  myPars$transplantEnv_pars = transplantEnv_pars
 
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.shiftPitch',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
+
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -148,7 +154,7 @@ shiftPitch = function(
   propagation = c('time', 'adaptive')[1],
   preserveEnv = NULL,
   transplantEnv_pars = list(),
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[2],
   play = FALSE) {
   if (!(any(multPitch$value != 1) |
         any(multFormants$value != 1) |
@@ -273,7 +279,7 @@ shiftPitch = function(
       interpol = interpol,
       dynamicRange = dynamicRange,
       play = FALSE,
-      normalize = normalize
+      normalize = 'none'
     )
     # spectrogram(audio$sound, audio$samplingRate)
     # spectrogram(soundFiltered, audio$samplingRate)
@@ -298,6 +304,14 @@ shiftPitch = function(
     ))
   }
 
+  # normalize
+  if (normalize == 'max' | normalize == TRUE) {
+    # soundFiltered = soundFiltered - mean(soundFiltered)
+    soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale
+  } else if (normalize == 'orig') {
+    soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
+  }
+
   # Play, save, return
   if (play == TRUE) {
     playme(soundFiltered, samplingRate = audio$samplingRate)
@@ -306,9 +320,8 @@ shiftPitch = function(
     playme(soundFiltered, samplingRate = audio$samplingRate, player = play)
   }
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      soundFiltered, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(soundFiltered, audio, filename)
   }
   return(soundFiltered)
 }

@@ -1,113 +1,3 @@
-#' Play audio
-#'
-#' Plays one or more sounds: wav/mp3 file(s), Wave objects, or numeric vectors.
-#' This is a simple wrapper for the functionality provided by
-#' \code{\link[tuneR]{play}}. Recommended players on Linux: "play" from the
-#' "vox" library (default), "aplay".
-#' @inheritParams spectrogram
-#' @param player the name of player to use, eg "aplay", "play", "vlc", etc.
-#'   Defaults to "play" on Linux, "afplay" on MacOS, and tuneR default on
-#'   Windows. In case of errors, try setting another default player for
-#'   \code{\link[tuneR]{play}}
-#' @param from,to play a selected time range (s)
-#' @export
-#' @examples
-#' \dontrun{
-#' # Play an audio file:
-#' playme('pathToMyAudio/audio.wav')
-#'
-#' # Create and play a numeric vector:
-#' f0_Hz = 440
-#' sound = sin(2 * pi * f0_Hz * (1:16000) / 16000)
-#' playme(sound, 16000)
-#' playme(sound, 16000, from = .1, to = .5)  # play from 100 to 500 ms
-#'
-#' # In case of errors, look into tuneR::play(). For ex., you might need to
-#' # specify which player to use:
-#' playme(sound, 16000, player = 'aplay')
-#'
-#' # To avoid doing it all the time, set the default player:
-#' tuneR::setWavPlayer('aplay')
-#' playme(sound, 16000)  # should now work without specifying the player
-#' }
-playme = function(x,
-                  samplingRate = 16000,
-                  player = NULL,
-                  from = NULL,
-                  to = NULL) {
-  if (is.null(player)) {
-    if (!is.null(tuneR::getWavPlayer())) {
-      player = tuneR::getWavPlayer()
-    } else {
-      # try to guess what player to use
-      os = Sys.info()[['sysname']]
-      if (os == 'Linux' | os == 'linux') {
-        player = 'play'
-      } else if (os == 'Darwin' | os == 'darwin') {
-        player = 'afplay'
-      } else {
-        # a good default on windows?
-      }
-    }
-  }
-
-  # check input type
-  input = checkInputType(x)
-  if (input$type[1] == 'file') x = rep(list(NULL), input$n)
-  if (!is.list(x)) x = list(x)
-
-  # play each input
-  for (i in 1:length(x)) {
-    # make input i into a Wave object
-    if (input$type[i] == 'file') {
-      fi = input$filenames[i]
-      ext_i = substr(fi, nchar(fi) - 3, nchar(fi))
-      if (ext_i %in% c('.wav', '.WAV')) {
-        sound_wave = try(tuneR::readWave(fi))
-      } else if (ext_i %in% c('mp3', 'MP3')) {
-        sound_wave = try(tuneR::readMP3(fi))
-      } else {
-        warning(paste('Input', fi, 'not recognized: expected a wav/mp3 file'))
-      }
-    } else if (input$type[i] == 'vector') {
-      sound_wave = tuneR::Wave(
-        left = x[[i]],
-        samp.rate = samplingRate,
-        bit = 16,
-        pcm = TRUE
-      )
-      sound_wave = tuneR::normalize(sound_wave, unit = '32') # / 2
-    } else if (input$type[i] == 'Wave') {
-      sound_wave = x[[i]]
-    }
-
-    if (class(sound_wave) != 'try-error') {
-      # select time range
-      if (!is.null(from) | !is.null(to)) {
-        if (is.null(from)) from = 0
-        if (is.null(to)) to = length(sound_wave@left) / sound_wave@samp.rate
-        sound_wave = tuneR::extractWave(object = sound_wave,
-                                        from = from,
-                                        to = to,
-                                        interact = FALSE,
-                                        xunit = 'time')
-      }
-      # if shorter than 100 ms, pad with 100 ms of silence (otherwise doesn't play)
-      if (length(sound_wave@left) / sound_wave@samp.rate < .1)
-        sound_wave@left = c(sound_wave@left, rep(0, .1 * sound_wave@samp.rate))
-      p = tuneR::play(sound_wave, player = player)
-      if (p > 0) {  # error in sh
-        warning(paste0(
-          "Error in tuneR::play. Try setting the default audio player,",
-          "eg tuneR::setWavPlayer('aplay'). See http://music.informatics.",
-          "indiana.edu/courses/I546/tuneR_play.pdf"))
-      }
-    }
-  }
-  # can't get rid of printed output! sink(), capture.output, invisible don't work!!!
-}
-
-
 #' Fade
 #'
 #' Applies fade-in and/or fade-out of variable length, shape, and steepness. The
@@ -115,10 +5,12 @@ playme = function(x,
 #'
 #' @seealso \code{\link{crossFade}}
 #'
-#' @param x zero-centered (!) numeric vector such as a waveform
-#' @param fadeIn,fadeOut length of segments for fading in and out, interpreted
-#'   as points if \code{samplingRate = NULL} and as ms otherwise (0 = no fade)
-#' @param samplingRate sampling rate of the input vector, Hz
+#' @inheritParams spectrogram
+#' @inheritParams segment
+#' @param fadeIn,fadeOut length of segments for fading in and out, ms (0 = no
+#'   fade)
+#' @param fadeIn_points,fadeOut_points length of segments for fading in and out,
+#'   points (if specified, override \code{fadeIn/fadeOut})
 #' @param shape controls the type of fade function: 'lin' = linear, 'exp' =
 #'   exponential, 'log' = logarithmic, 'cos' = cosine, 'logistic' = logistic
 #'   S-curve
@@ -139,32 +31,105 @@ playme = function(x,
 #' # Illustration of fade shapes
 #' x = runif(5000, min = -1, max = 1)  # make sure to zero-center input!!!
 #' # plot(x, type = 'l')
-#' y = fade(x, fadeIn = 1000, fadeOut = 0, plot = TRUE)
-#' y = fade(x, fadeIn = 1000, fadeOut = 1500,
+#' y = fade(x, fadeIn_points = 1000, fadeOut_points = 0, plot = TRUE)
+#' y = fade(x, fadeIn_points = 1000, fadeOut_points = 1500,
 #'          shape = 'exp', steepness = 1, plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
 #'          shape = 'log', steepness = 1, plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
 #'          shape = 'log', steepness = 3, plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 1500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
 #'          shape = 'cos', plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 1500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
 #'          shape = 'logistic', steepness = 1, plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 1500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
 #'          shape = 'logistic', steepness = 3, plot = TRUE)
-#' y = fade(x, fadeIn = 1500, fadeOut = 1500,
+#' y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
 #'          shape = 'gaussian', steepness = 1.5, plot = TRUE)
+#'
+#' \dontrun{
+#'   fade('~/Downloads/temp', fadeIn = 500, fadeOut = 500, savePlots = '')
+#' }
 fade = function(
   x,
+  fadeIn = 50,
+  fadeOut = 50,
+  fadeIn_points = NULL,
+  fadeOut_points = NULL,
+  samplingRate = NULL,
+  scale = NULL,
+  shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
+  steepness = 1,
+  reportEvery = NULL,
+  cores = 1,
+  saveAudio = NULL,
+  plot = FALSE,
+  savePlots = NULL,
+  width = 900,
+  height = 500,
+  units = 'px',
+  res = NA,
+  ...
+) {
+  # match args
+  myPars = c(as.list(environment()), list(...))
+  # exclude some args
+  myPars = myPars[!names(myPars) %in% c(
+    'x', 'samplingRate', 'scale', 'reportEvery', 'cores',
+    'savePlots', 'saveAudio')]
+
+  pa = processAudio(x = x,
+                    samplingRate = samplingRate,
+                    scale = scale,
+                    saveAudio = saveAudio,
+                    savePlots = savePlots,
+                    funToCall = '.fade',
+                    myPars = myPars,
+                    reportEvery = reportEvery,
+                    cores = cores)
+
+  # htmlPlots
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = TRUE,
+                  suffix = "fade", width = paste0(width, units)))
+  }
+
+  # prepare output
+  if (pa$input$n == 1) {
+    result = pa$result[[1]]
+  } else {
+    result = pa$result
+  }
+  invisible(result)
+}
+
+
+#' Fade per sound
+#'
+#' Internal soundgen function
+#'
+#' @param audio a list returned by \code{readAudio}
+#' @inheritParams fade
+#' @inheritParams segment
+#' @keywords internal
+.fade = function(
+  audio,
   fadeIn = 1000,
   fadeOut = 1000,
+  fadeIn_points = NULL,
+  fadeOut_points = NULL,
   samplingRate = NULL,
   shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
   steepness = 1,
-  plot = FALSE) {
+  plot = FALSE,
+  width = 900,
+  height = 500,
+  units = 'px',
+  res = NA,
+  ...) {
   if ((!is.numeric(fadeIn) | fadeIn < 1) &
       (!is.numeric(fadeOut) | fadeOut < 1)) {
-    return(x)
+    return(audio$sound)
   }
 
   valid_shapes = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')
@@ -183,18 +148,20 @@ fade = function(
     shape = 'lin'
   }
 
-  if (is.numeric(samplingRate)) {
-    fadeIn = round(fadeIn * samplingRate / 1000)
-    fadeOut = round(fadeOut * samplingRate / 1000)
-  }
+  # convert fade from ms to points
+  len = length(audio$sound)
+  if (is.null(fadeIn_points))
+    fadeIn_points = round(fadeIn * audio$samplingRate / 1000)
+  if (is.null(fadeOut_points))
+    fadeOut_points = round(fadeOut * audio$samplingRate / 1000)
 
-  # round fading window just in case of non-integers, shorten if needed
-  fadeIn = min(length(x), round(fadeIn))
-  fadeOut = min(length(x), round(fadeOut))
+  # make sure fadeIn/Out region is no longer than the entire sound
+  fadeIn_points = min(len, fadeIn_points)
+  fadeOut_points = min(len, fadeOut_points)
 
-  time_in = seq(0, 1, length.out = fadeIn)
-  time_out = seq(1, 0, length.out = fadeOut)
-
+  # prepare a fade-in/out curve of requisite length
+  time_in = seq(0, 1, length.out = fadeIn_points)
+  time_out = seq(1, 0, length.out = fadeOut_points)
   if (shape == 'lin') {
     fi = time_in
     fo = time_out
@@ -227,20 +194,30 @@ fade = function(
   # plot(fi, type = 'l', xlim = c(1, max(fadeIn, fadeOut)))
   # points(fo, type = 'l', col = 'red')
 
-  if (fadeIn > 0) {
-    x[1:fadeIn] = x[1:fadeIn] * fi
+  # apply the fade
+  if (fadeIn_points > 1) {
+    idx_in = 1:fadeIn_points
+    audio$sound[idx_in] = audio$sound[idx_in] * fi
   }
-  if (fadeOut > 0) {
-    x[(length(x) - fadeOut + 1):length(x)] =
-      x[(length(x) - fadeOut + 1):length(x)] * fo
+  if (fadeOut_points > 0) {
+    idx_out = (len - fadeOut_points + 1):len
+    audio$sound[idx_out] = audio$sound[idx_out] * fo
   }
 
-  if (plot) {
-    plot(x, type = 'l', xlab = '', ylab = '')
-    abline(v = fadeIn, col = 'blue')
-    abline(v = length(x) - fadeOut, col = 'blue')
+  # PLOTTING
+  if (is.character(audio$savePlots)) {
+    plot = TRUE
+    png(filename = paste0(audio$savePlots, audio$filename_noExt, "_fade.png"),
+        width = width, height = height, units = units, res = res)
   }
-  invisible(x)
+  if (plot) {
+    .osc(audio[!names(audio) %in% c('savePlots')], maxPoints = Inf)
+    # plot(audio$sound, type = 'l', xlab = '', ylab = '')
+    abline(v = fadeIn_points / audio$samplingRate * 1000, col = 'blue')
+    abline(v = (len - fadeOut_points)  / audio$samplingRate * 1000, col = 'blue')
+    if (is.character(audio$savePlots)) dev.off()
+  }
+  invisible(audio$sound)
 }
 
 
@@ -338,11 +315,11 @@ crossFade = function(
   } else {
     # for segments that are long enough, cross-fade properly
     # multipl = seq(0, 1, length.out = crossLenPoints)
-    multipl = fade(rep(1, crossLenPoints),
-                   fadeIn = crossLenPoints,
-                   fadeOut = 0,
-                   shape = shape,
-                   steepness = steepness)
+    multipl = .fade(list(sound = rep(1, crossLenPoints), samplingRate = samplingRate),
+                    fadeIn_points = crossLenPoints,
+                    fadeOut_points = 0,
+                    shape = shape,
+                    steepness = steepness)
     idx1 = length(ampl1) - crossLenPoints
     cross = rev(multipl) * ampl1[(idx1 + 1):length(ampl1)] +
       multipl * ampl2[1:crossLenPoints]
@@ -385,10 +362,10 @@ crossFade = function(
 #' \dontrun{
 #' # Now let's make a sheep say "aii"
 #' data(sheep, package = 'seewave')  # import a recording from seewave
-#' # playme(sheep)
+#' playme(sheep)
 #' sheep_flat = flatSpectrum(sheep)
-#' # playme(sheep_flat, sheep@samp.rate)
-#' # seewave::spec(sheep_flat, f = sheep@samp.rate, dB = 'max0')
+#' playme(sheep_flat, sheep@samp.rate)
+#' seewave::spec(sheep_flat, f = sheep@samp.rate, dB = 'max0')
 #'
 #' # So far we have a sheep bleating with a flat spectrum;
 #' # now let's add new formants
@@ -396,9 +373,9 @@ crossFade = function(
 #'   samplingRate = sheep@samp.rate,
 #'   formants = 'aii',
 #'   lipRad = -3)  # negative lipRad to counter unnatural flat source
-#' # playme(sheep_aii, sheep@samp.rate)
-#' # spectrogram(sheep_aii, sheep@samp.rate)
-#' # seewave::spec(sheep_aii, f = sheep@samp.rate, dB = 'max0')
+#' playme(sheep_aii, sheep@samp.rate)
+#' spectrogram(sheep_aii, sheep@samp.rate)
+#' seewave::spec(sheep_aii, f = sheep@samp.rate, dB = 'max0')
 #' }
 flatSpectrum = function(x,
                         samplingRate = NULL,
@@ -411,19 +388,21 @@ flatSpectrum = function(x,
                         zp = 0,
                         play = FALSE,
                         saveAudio = NULL,
-                        reportEvery = NULL) {
+                        reportEvery = NULL,
+                        cores = 1) {
   # match args
   myPars = c(as.list(environment()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio')]
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.flatSpectrum',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
+
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -488,7 +467,7 @@ flatSpectrum = function(x,
                        method = 'peak',
                        dynamicRange = dynamicRange,
                        windowLength_points = freqWindow_bins) / abs_s
-    plot(cor_coef, type = 'b')
+    # plot(cor_coef, type = 'b')
     # spec[, i] = complex(real = Re(spec[, i]) * cor_coef,
     #                     imaginary = Im(spec[, i]))
     spec[, i] = spec[, i] * cor_coef
@@ -506,11 +485,11 @@ flatSpectrum = function(x,
       output = "matrix"
     )
   )
+  sound_new = sound_new / max(abs(range(sound_new))) * audio$scale_used
   if (play) playme(sound_new, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      sound_new, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(sound_new, audio, filename)
   }
   # spectrogram(sound_new, audio$samplingRate)
   invisible(sound_new)
@@ -599,19 +578,21 @@ reverb = function(x,
                   output = c('audio', 'detailed')[1],
                   play = FALSE,
                   reportEvery = NULL,
+                  cores = 1,
                   saveAudio = NULL) {
   # match args
   myPars = c(as.list(environment()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio')]
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.reverb',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
+
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -746,22 +727,21 @@ reverb = function(x,
         sound = effect,
         samplingRate = audio$samplingRate
       ),
-      normalize = TRUE),
+      normalize = 'orig'),
       filter)
     ) * scale
     # playme(effect, audio$samplingRate)
     # spectrogram(effect, audio$samplingRate, ylim = c(0, 4), osc = TRUE)
   }
 
-  out = addVectors(audio$sound, effect)
+  out = addVectors(audio$sound, effect) * audio$scale_used
   # playme(out, audio$samplingRate)
   # spectrogram(out, audio$samplingRate, ylim = c(0, 4), osc = TRUE)
 
   if (play) playme(out, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      out, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(out, audio, filename)
   }
 
   invisible(list(

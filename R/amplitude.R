@@ -1,13 +1,3 @@
-#' Get RMS folder
-#'
-#' Deprecated; use \code{\link{getRMS}} instead
-#' @param ... any input parameters
-#' @keywords internal
-getRMSFolder = function(...) {
-  message('getRMSFolder() is deprecated; please use getRMS() instead')
-}
-
-
 #' RMS amplitude
 #'
 #' Calculates root mean square (RMS) amplitude in overlapping windows, providing
@@ -54,7 +44,7 @@ getRMSFolder = function(...) {
 #'   windowLength = 5, overlap = 0, killDC = TRUE,
 #'   plot = TRUE, col = 'blue', pch = 13, main = 'RMS envelope')
 #' \dontrun{
-#' r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
+#' r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp260/plots')
 #' r$summary
 #'
 #' # Compare:
@@ -82,6 +72,7 @@ getRMS = function(x,
                   windowDC = 200,
                   summaryFun = 'mean',
                   reportEvery = NULL,
+                  cores = 1,
                   plot = FALSE,
                   savePlots = NULL,
                   main = NULL,
@@ -100,7 +91,7 @@ getRMS = function(x,
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'scale', 'from', 'to',
-    'savePlots', 'reportEvery', 'summaryFun')]
+    'savePlots', 'reportEvery', 'cores', 'summaryFun')]
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     scale = scale,
@@ -109,16 +100,14 @@ getRMS = function(x,
                     funToCall = '.getRMS',
                     savePlots = savePlots,
                     myPars = myPars,
-                    reportEvery = reportEvery
+                    reportEvery = reportEvery,
+                    cores = cores
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_rms.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_rms.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "rms", width = paste0(width, units)))
   }
 
   # prepare output
@@ -462,6 +451,7 @@ flatEnv = function(x,
                    killDC = FALSE,
                    dynamicRange = 40,
                    reportEvery = NULL,
+                   cores = 1,
                    saveAudio = NULL,
                    plot = FALSE,
                    savePlots = NULL,
@@ -475,7 +465,7 @@ flatEnv = function(x,
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'reportEvery', 'savePlots', 'saveAudio')]
+    'x', 'samplingRate', 'scale', 'reportEvery', 'cores', 'savePlots', 'saveAudio')]
 
   pa = processAudio(x = x,
                     samplingRate = samplingRate,
@@ -484,21 +474,13 @@ flatEnv = function(x,
                     savePlots = savePlots,
                     funToCall = '.flatEnv',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
 
   # htmlPlots
   if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
-    if (is.null(pa$input$saveAudio)) {
-      audioFiles = pa$input$filenames
-    } else {
-      audioFiles = paste0(pa$input$saveAudio, pa$input$filenames_noExt, '.wav')
-    }
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_compressor.html'),
-      plotFiles = paste0(pa$input$savePlots, pa$input$filenames_noExt, "_compressor.png"),
-      audioFiles = audioFiles,
-      width = paste0(width, units))
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = TRUE,
+                  suffix = "compressor", width = paste0(width, units)))
   }
 
   # prepare output
@@ -522,7 +504,6 @@ compressor = flatEnv
 #'
 #' @param audio a list returned by \code{readAudio}
 #' @inheritParams flatEnv
-#' @inheritParams segment
 #' @keywords internal
 .flatEnv = function(audio,
                     compression = 1,
@@ -575,7 +556,7 @@ compressor = flatEnv
   soundFlat[idx] = soundFlat[idx] * (1 - compression) +
     soundFlat[idx] / env[idx] * audio$scale * compression
   # re-normalize to original scale
-  soundFlat = soundFlat / max(abs(soundFlat)) * audio$scale
+  soundFlat = soundFlat / max(abs(soundFlat)) * audio$scale_used
 
   # PLOTTING
   if (is.character(audio$savePlots)) {
@@ -601,9 +582,8 @@ compressor = flatEnv
 
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
-    seewave::savewav(
-      soundFlat, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(soundFlat, audio, filename)
   }
 
   return(soundFlat)
@@ -808,7 +788,8 @@ addAM = function(x,
                  plot = FALSE,
                  play = FALSE,
                  saveAudio = NULL,
-                 reportEvery = NULL) {
+                 reportEvery = NULL,
+                 cores = 1) {
   # check the format of AM pars
   anchors = c('amDep', 'amFreq', 'amShape')
   for (anchor in anchors) {
@@ -820,14 +801,14 @@ addAM = function(x,
   myPars = c(as.list(environment()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio')]
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.addAM',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -912,9 +893,8 @@ addAM = function(x,
   }
   if (play) playme(sound_am, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      sound_am, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(sound_am, audio, filename)
   }
   invisible(sound_am)
 }

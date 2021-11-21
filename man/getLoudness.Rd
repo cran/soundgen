@@ -18,6 +18,7 @@ getLoudness(
   spreadSpectrum = TRUE,
   summaryFun = c("mean", "median", "sd"),
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   main = NULL,
@@ -71,6 +72,8 @@ take care of NAs yourself}
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
+\item{cores}{number of cores for parallel processing}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
@@ -79,7 +82,7 @@ don't save, '' = same folder as audio)}
 \item{main}{graphical parameters for plotting}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark or mel}
+frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{width}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
@@ -185,6 +188,5 @@ getLoudness('~/Downloads/temp2', plot = FALSE,
   Audible Distortion and Cognitive Model. Temple University. }
 }
 \seealso{
-\code{\link{getLoudnessFolder}} \code{\link{getRMS}}
-  \code{\link{analyze}}
+\code{\link{getRMS}} \code{\link{analyze}}
 }

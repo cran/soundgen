@@ -26,6 +26,7 @@ modulationSpectrum(
   summaryFun = c("mean", "median", "sd"),
   averageMS = FALSE,
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   logWarp = NA,
@@ -114,6 +115,8 @@ into a single output; if FALSE, a separate MS is returned for each input}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plots the modulation spectrum of each sound}
 

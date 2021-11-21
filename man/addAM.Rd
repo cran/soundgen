@@ -15,7 +15,8 @@ addAM(
   plot = FALSE,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 }
 \description{
 Adds sinusoidal or logistic amplitude modulation to a sound. This produces

@@ -39,7 +39,8 @@ getDuration = function(
   samplingRate = NULL,
   silence = .01,
   rms = list(windowLength = 20, step = 5),
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 ) {
   # match args
   myPars = list(silence = silence)
@@ -48,7 +49,8 @@ getDuration = function(
                     samplingRate = samplingRate,
                     funToCall = '.getDuration',
                     myPars = myPars,
-                    reportEvery = reportEvery)
+                    reportEvery = reportEvery,
+                    cores = cores)
 
   # prepare output
   if (pa$input$n > 1) {

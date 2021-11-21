@@ -101,7 +101,8 @@ ui = fluidPage(
                 choices = c("Linear" = "linear",
                             "Musical (log)" = "log",
                             "Bark" = "bark",
-                            "Mel" = "mel"),
+                            "Mel" = "mel",
+                            "ERB" = "ERB"),
                 selected = 'linear', inline = TRUE, width = NULL),
               sliderInput(
                 'specContrast',

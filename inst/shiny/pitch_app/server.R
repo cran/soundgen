@@ -598,7 +598,6 @@ server = function(input, output, session) {
           ),
           pitchCep = list(
             cepThres = input$cepThres,
-            cepSmooth = input$cepSmooth,
             cepZp = input$cepZp
           ),
           pitchSpec = list(
@@ -639,7 +638,7 @@ server = function(input, output, session) {
         myPars$pitchCands = temp_anal$pitchCands
         myPars$spec_from_anal = temp_anal$spectrogram
         myPars$X = as.numeric(colnames(myPars$spec_from_anal))
-        # add: update defaults that depend on samplingRate, eg cepSmooth
+        # add: update defaults that depend on samplingRate
 
         # if rerunning analyze() for the same audio, preserve the old manual values
         # (if any) and paste them back in
@@ -1125,7 +1124,7 @@ server = function(input, output, session) {
     if (!is.null(input$spectrogram_hover) & !is.null(myPars$spec)) {
       myPars$spectrogram_hover = input$spectrogram_hover
       cursor_hz = myPars$spectrogram_hover$y * 1000
-      cursor_notes = soundgen::notesDict$note[round(HzToSemitones(cursor_hz)) + 1]
+      cursor_notes = soundgen::HzToNotes(cursor_hz)
       myPars$spectrogram_hover$freq = paste0(
         round(myPars$spectrogram_hover$y * 1000), ' Hz (',
         cursor_notes, ')')
@@ -1321,7 +1320,7 @@ server = function(input, output, session) {
       )
       summary_new = soundgen:::summarizeAnalyze(
         result_new,
-        summaryFun = isolate(myPars$summaryFun),)
+        summaryFun = isolate(myPars$summaryFun))
       new = cbind(new$file,
                   summary_new,
                   new[, c('time', 'pitch')])
@@ -1437,7 +1436,6 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='autocorUpsample', title = 'Upsamples acf to this resolution (Hz) to improve accuracy in high frequencies', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='autocorBestPeak', title = 'Amplitude of the lowest best candidate relative to the absolute max of the acf', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='cepThres', title = 'Voicing threshold for cepstral algorithm', placement="right", trigger="hover", options = tooltip_options)
-  shinyBS::addTooltip(session, id='cepSmooth', title = 'Width of smoothing interval for finding peaks in the cepstrum', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='cepZp', title = 'Length of cepstral window after zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specMethod', title = '"commonFactor" = greatest common factor of putative harmonics, "BaNa" = ratio of putative harmonics', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specThres', title = 'Voicing threshold for Ba-Na algorithm', placement="right", trigger="hover", options = tooltip_options)

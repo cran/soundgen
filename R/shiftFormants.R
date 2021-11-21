@@ -31,6 +31,8 @@
 #'   \code{\link{soundgen}})
 #' @param freqWindow the width of spectral smoothing window, Hz. Defaults to
 #'   detected f0
+#' @param normalize "orig" = same as input (default), "max" = maximum possible
+#'   peak amplitude, "none" = no normalization
 #' @param interpol the method for interpolating scaled spectra
 #' @export
 #' @examples
@@ -74,24 +76,26 @@ shiftFormants = function(
   overlap = 75,
   wn = 'gaussian',
   interpol = c('approx', 'spline')[1],
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[2],
   play = FALSE,
   saveAudio = NULL,
   reportEvery = NULL,
+  cores = 1,
   ...) {
   # match args
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio')]
 
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.shiftFormants',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
+
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -120,7 +124,7 @@ shiftFormants = function(
   overlap = 75,
   wn = 'gaussian',
   interpol = c('approx', 'spline')[1],
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[2],
   play = FALSE) {
   if (!is.null(step)) {
     overlap = (1 - step / windowLength) * 100  # for istft
@@ -211,9 +215,11 @@ shiftFormants = function(
   # spectrogram(soundFiltered, audio$samplingRate)
 
   # postprocessing
-  if (normalize) {
-    soundFiltered = soundFiltered - mean(soundFiltered)
-    soundFiltered = soundFiltered / max(abs(soundFiltered))
+  if (normalize == 'max' | normalize == TRUE) {
+    # soundFiltered = soundFiltered - mean(soundFiltered)
+    soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale
+  } else if (normalize == 'orig') {
+    soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
   }
   if (play == TRUE) {
     playme(soundFiltered, samplingRate = audio$samplingRate)
@@ -222,9 +228,8 @@ shiftFormants = function(
     playme(soundFiltered, samplingRate = audio$samplingRate, player = play)
   }
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      soundFiltered, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(soundFiltered, audio, filename)
   }
 
   return(soundFiltered)

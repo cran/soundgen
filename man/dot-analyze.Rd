@@ -97,11 +97,12 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{cutFreq}{if specified, spectral descriptives (peakFreq, specCentroid,
 specSlope, and quartiles) are calculated only between \code{cutFreq[1]} and
-\code{cutFreq[2]}. If a single number is given, analyzes frequencies from 0
-to \code{cutFreq}. For ex., when analyzing recordings with varying sampling
-rates, set to half the lowest sampling rate to make the spectra more
-comparable. Note that "entropyThres" applies only to this frequency range,
-which also affects which frames will not be analyzed with pitchAutocor.}
+\code{cutFreq[2]}, Hz. If a single number is given, analyzes frequencies
+from 0 to \code{cutFreq}. For ex., when analyzing recordings with varying
+sampling rates, set to half the lowest sampling rate to make the spectra
+more comparable. Note that "entropyThres" applies only to this frequency
+range, which also affects which frames will not be analyzed with
+pitchAutocor.}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
 formant analysis, NULL = as many as possible)}
@@ -239,13 +240,13 @@ in decibels}
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{list(type = 'n')} to suppress}
 
-\item{extraContour}{name of an output variable to overlapy on the pitch
+\item{extraContour}{name of an output variable to overlap on the pitch
 contour plot, eg 'peakFreq' or 'loudness'; can also be a list with extra
 graphical parameters, eg \code{extraContour = list(x = 'harmHeight', col =
 'red')}}
 
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark or mel}
+frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{xlab}{plotting parameters}
 

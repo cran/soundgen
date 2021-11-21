@@ -10,12 +10,11 @@ getPitchCep(
   bin,
   nCands,
   cepThres,
-  cepSmooth,
   cepZp,
   pitchFloor,
   pitchCeiling,
-  cepPenalty = 1,
-  logSpec = FALSE
+  tol = 0.05,
+  specMerge = 2/12
 )
 }
 \arguments{
@@ -31,18 +30,19 @@ getPitchCep(
 
 \item{cepThres}{voicing threshold (unitless, ~0 to 1)}
 
-\item{cepSmooth}{the width of smoothing interval (Hz) for finding peaks in
-the cepstrum}
-
 \item{cepZp}{zero-padding of the spectrum used for cepstral pitch detection
 (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)}
 
 \item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
 
 \item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+
+\item{tol}{tolerance when removing false subharmonics}
+
+\item{specMerge}{tolerance when removing similar candidates, oct}
 }
 \value{
-Returns either NULL or a dataframe of pitch candidates.
+Returns either NULL or a dataframe of pitch candidates and CPP.
 }
 \description{
 Internal soundgen function.

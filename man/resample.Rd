@@ -13,6 +13,7 @@ resample(
   lowPass = TRUE,
   na.rm = FALSE,
   reportEvery = NULL,
+  cores = 1,
   saveAudio = NULL,
   plot = FALSE,
   savePlots = NULL,
@@ -48,6 +49,8 @@ the output}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 
 \item{saveAudio}{full path to the folder in which to save audio files (one
 per detected syllable)}

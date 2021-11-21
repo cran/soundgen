@@ -23,13 +23,13 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{lwr}{cutoff frequencies, Hz. Specifying just lwr gives a low-pass
-filter, just upr high-pass filter with action = 'pass' (or vice versa with
+\item{lwr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
+filter, just upr low-pass filter with action = 'pass' (or vice versa with
 action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
 depending on 'action'}
 
-\item{upr}{cutoff frequencies, Hz. Specifying just lwr gives a low-pass
-filter, just upr high-pass filter with action = 'pass' (or vice versa with
+\item{upr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
+filter, just upr low-pass filter with action = 'pass' (or vice versa with
 action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
 depending on 'action'}
 

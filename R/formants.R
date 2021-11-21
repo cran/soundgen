@@ -612,7 +612,8 @@ getSpectralEnvelope = function(
 #' @param formDrift,formDisp scaling factors for the effect of temperature on
 #'   formant drift and dispersal, respectively
 #' @param windowLength_points length of FFT window, points
-#' @param normalize if TRUE, normalizes the output to range from -1 to +1
+#' @param normalize "orig" = same as input (default), "max" = maximum possible
+#'   peak amplitude, "none" = no normalization
 #' @export
 #' @examples
 #' sound = c(rep(0, 1000), runif(8000) * 2 - 1, rep(0, 1000))  # white noise
@@ -734,10 +735,11 @@ addFormants = function(
   smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[1],
   play = FALSE,
   saveAudio = NULL,
   reportEvery = NULL,
+  cores = 1,
   ...
 ) {
   formants = reformatFormants(formants)
@@ -747,7 +749,7 @@ addFormants = function(
   myPars = c(as.list(environment()), list(...))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio',
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio',
     'formants', 'mouth')]
   myPars$formants = formants
   myPars$mouth = mouth
@@ -757,8 +759,8 @@ addFormants = function(
                     saveAudio = saveAudio,
                     funToCall = '.addFormants',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]
@@ -796,12 +798,12 @@ addFormants = function(
   smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
-  normalize = TRUE,
+  normalize = c('max', 'orig', 'none')[1],
   play = FALSE,
   ...
 ) {
   # prepare vocal tract filter (formants + some spectral noise + lip radiation)
-  if (sum(audio$sound) == 0) {
+  if (!any(audio$sound != 0)) {
     # otherwise fft glitches
     soundFiltered = audio$sound
   } else {
@@ -925,12 +927,14 @@ addFormants = function(
         output = "matrix"
       )
     )
-    # osc(soundFiltered, samplingRate = samplingRate)
+    # spectrogram(soundFiltered, audio$samplingRate)
 
     # normalize
-    if (normalize) {
-      soundFiltered = soundFiltered - mean(soundFiltered)
-      soundFiltered = soundFiltered / max(abs(soundFiltered))
+    if (normalize == 'max' | normalize == TRUE) {
+      # soundFiltered = soundFiltered - mean(soundFiltered)
+      soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale
+    } else if (normalize == 'orig') {
+      soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
     }
   }
 
@@ -942,17 +946,16 @@ addFormants = function(
   idx = l - windowLength_points + tailIdx
   if(!is.finite(idx)) idx = l # l - windowLength_points
   soundFiltered = soundFiltered[(windowLength_points + 1):idx]
-  # osc(soundFiltered, samplingRate = samplingRate)
+  # osc(soundFiltered, audio$samplingRate)
 
   if (play) playme(soundFiltered, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
-    seewave::savewav(
-      soundFiltered, f = audio$samplingRate,
-      filename = paste0(audio$saveAudio, audio$filename_noExt, '.wav'))
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(soundFiltered, audio, filename)
   }
 
-  # spectrogram(soundFiltered, samplingRate = samplingRate, ylim = c(0, 4))
-  # playme(soundFiltered, samplingRate = samplingRate)
+  # spectrogram(soundFiltered, audio$samplingRate, ylim = c(0, 4))
+  # playme(soundFiltered, audio$samplingRate)
   return(soundFiltered)
 }
 
@@ -1121,6 +1124,10 @@ transplantFormants = function(donor,
       anal_donor = analyze(donor$sound, samplingRate, plot = FALSE)
       freqWindow = median(anal_donor$detailed$pitch, na.rm = TRUE)
     }
+  }
+  if (!is.finite(freqWindow)) {
+    freqWindow = 400
+    message('Failed to determine freqWindow based on pitch; defaulting to 400 Hz')
   }
   freqRange_kHz = diff(range(as.numeric(rownames(spec_recipient))))
   freqBin_Hz = freqRange_kHz * 1000 / nrow(spec_recipient)

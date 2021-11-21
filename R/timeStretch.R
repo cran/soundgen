@@ -43,22 +43,24 @@ timeStretch = function(
   precision = 1000,
   play = FALSE,
   saveAudio = NULL,
-  reportEvery = NULL) {
+  reportEvery = NULL,
+  cores = 1) {
   stretch = reformatAnchors(stretch)
 
   # match args
   myPars = as.list(environment())
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'reportEvery', 'saveAudio')]
+    'x', 'samplingRate', 'reportEvery', 'cores', 'saveAudio')]
 
   pa = processAudio(x,
                     samplingRate = samplingRate,
                     saveAudio = saveAudio,
                     funToCall = '.timeStretch',
                     myPars = myPars,
-                    reportEvery = reportEvery
-  )
+                    reportEvery = reportEvery,
+                    cores = cores)
+
   # prepare output
   if (pa$input$n == 1) {
     result = pa$result[[1]]

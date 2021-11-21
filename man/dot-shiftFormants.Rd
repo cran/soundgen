@@ -15,7 +15,7 @@
   overlap = 75,
   wn = "gaussian",
   interpol = c("approx", "spline")[1],
-  normalize = TRUE,
+  normalize = c("max", "orig", "none")[2],
   play = FALSE
 )
 }
@@ -48,7 +48,8 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{interpol}{the method for interpolating scaled spectra}
 
-\item{normalize}{if TRUE, scales input prior to FFT}
+\item{normalize}{"orig" = same as input (default), "max" = maximum possible
+peak amplitude, "none" = no normalization}
 
 \item{play}{if TRUE, plays the synthesized sound using the default player on
 your system. If character, passed to \code{\link[tuneR]{play}} as the name

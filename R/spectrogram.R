@@ -1,15 +1,5 @@
 ### FUNCTIONS FOR PREPARING AND PLOTTING A SPECTROGRAM ###
 
-#' Spectrogram folder
-#'
-#' Deprecated; use \code{\link{spectrogram}} instead
-#' @param ... any input parameters
-#' @keywords internal
-spectrogramFolder = function(...) {
-  message('spectrogramFolder() is deprecated; please use spectrogram() instead')
-}
-
-
 #' Spectrogram
 #'
 #' Produces the spectrogram of a sound using short-time Fourier transform.
@@ -74,16 +64,18 @@ spectrogramFolder = function(...) {
 #'   phase ('complex')
 #' @param reportEvery when processing multiple inputs, report estimated time
 #'   left every ... iterations (NULL = default, NA = don't report)
+#' @param cores number of cores for parallel processing
 #' @param plot should a spectrogram be plotted? TRUE / FALSE
 #' @param savePlots full path to the folder in which to save the plots (NULL =
 #'   don't save, '' = same folder as audio)
 #' @param osc "none" = no oscillogram; "linear" = on the original scale; "dB" =
 #'   in decibels
 #' @param ylim frequency range to plot, kHz (defaults to 0 to Nyquist
-#'   frequency). NB: still in kHz, even if yScale = bark or mel
+#'   frequency). NB: still in kHz, even if yScale = bark, mel, or ERB
 #' @param yScale scale of the frequency axis: 'linear' = linear, 'log' =
 #'   logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-#'   'mel' = mel with \code{\link[tuneR]{hz2mel}}
+#'   'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
+#'   Rectangular Bandwidths with \code{\link{HzToERB}}
 #' @param heights a vector of length two specifying the relative height of the
 #'   spectrogram and the oscillogram (including time axes labels)
 #' @param padWithSilence if TRUE, pads the sound with just enough silence to
@@ -130,6 +122,9 @@ spectrogramFolder = function(...) {
 #'   # + axis labels, etc
 #' )
 #' \dontrun{
+#' # save spectrograms of all sounds in a folder
+#' spectrogram('~/Downloads/temp', savePlots = '', cores = 2)
+#'
 #' # change dynamic range
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 40)
 #' spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
@@ -202,12 +197,13 @@ spectrogram = function(
   method = c('spectrum', 'spectralDerivative')[1],
   output = c('original', 'processed', 'complex')[1],
   reportEvery = NULL,
+  cores = 1,
   plot = TRUE,
   savePlots = NULL,
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log', 'bark', 'mel')[1],
+  yScale = c('linear', 'log', 'bark', 'mel', 'ERB')[1],
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -231,7 +227,7 @@ spectrogram = function(
   # myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'from', 'to', 'reportEvery', 'savePlots')]
+    'x', 'samplingRate', 'scale', 'from', 'to', 'reportEvery', 'cores', 'savePlots')]
 
   # call .spectrogram
   pa = processAudio(
@@ -243,17 +239,16 @@ spectrogram = function(
     funToCall = '.spectrogram',
     myPars = myPars,
     reportEvery = reportEvery,
+    cores = cores,
     savePlots = savePlots
   )
 
   # htmlPlots
-  if (!is.null(pa$input$savePlots)) {
-    htmlPlots(
-      htmlFile = paste0(pa$input$savePlots, '00_clickablePlots_spectrogram.html'),
-      plotFiles = paste0(pa$input$filenames_noExt, "_spectrogram.png"),
-      audioFiles = if (savePlots == '') pa$input$filenames_base else pa$input$filenames,
-      width = paste0(width, units))
+  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
+    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
+                  suffix = "spectrogram", width = paste0(width, units)))
   }
+
   if (pa$input$n == 1) pa$result = pa$result[[1]]
   invisible(pa$result)
 }
@@ -288,7 +283,7 @@ spectrogram = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log', 'bark', 'mel')[1],
+  yScale = 'linear',
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -321,6 +316,13 @@ spectrogram = function(
   }
   if (windowLength_points == 0) {
     stop('The sound and/or windowLength are too short for plotting a spectrogram')
+  }
+  rec_scales = c('linear', 'log', 'bark', 'mel', 'ERB')
+  if (!yScale %in% rec_scales) {
+    yScale = 'linear'
+    warning(paste0("Implemented yScale: ",
+                  paste(rec_scales, collapse = ', '),
+                  ". Defaulting to linear"))
   }
 
   # Get a bank of windowed frames
@@ -635,7 +637,7 @@ plotSpec = function(
   osc = c('none', 'linear', 'dB')[2],
   heights = c(3, 1),
   ylim = NULL,
-  yScale = c('linear', 'log', 'bark', 'mel')[1],
+  yScale = 'linear',
   contrast = .2,
   brightness = 0,
   maxPoints = c(1e5, 5e5),
@@ -829,7 +831,7 @@ filled.contour.mod = function(
   xaxs = "i",
   yaxs = "i",
   log = '',
-  yScale = c('orig', 'bark', 'mel')[1],
+  yScale = c('orig', 'bark', 'mel', 'ERB')[1],
   axisX = TRUE,
   axisY = TRUE,
   maxPoints = 5e5,
@@ -843,6 +845,9 @@ filled.contour.mod = function(
   } else if (yScale == 'mel') {
     y = hz2mel(y * 1000)
     ylim = hz2mel(ylim * 1000)
+  } else if (yScale == 'ERB') {
+    y = HzToERB(y * 1000)
+    ylim = HzToERB(ylim * 1000)
   } else {
     if (y_Hz) {
       y = y * 1000
@@ -879,7 +884,7 @@ filled.contour.mod = function(
     # could label frequency axis in Hz, but maybe it's a bit strange, and hard
     # to make sure ylab is correct (Hz or kHz, etc.)
     if (axisY) {
-      if (!yScale %in% c('bark', 'mel')) {
+      if (!yScale %in% c('bark', 'mel', 'ERB')) {
         axis(2, ...)
       } else {
         y_at = seq(y[1], tail(y, 1), length.out = 5) # pretty(c(y[1], tail(y, 1)))
@@ -897,11 +902,21 @@ filled.contour.mod = function(
           # round to pretty labels in Hz or kHz
           if (y_Hz) {
             y_lab = round(tuneR::mel2hz(y_at))
-            # and back to bark for precise position
+            # and back to mel for precise position
             y_at = tuneR::hz2mel(y_lab)
           } else {
             y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
             y_at = tuneR::hz2mel(y_lab * 1000)
+          }
+        } else if (yScale == 'ERB') {
+          # round to pretty labels in Hz or kHz
+          if (y_Hz) {
+            y_lab = round(ERBToHz(y_at))
+            # and back to bark for precise position
+            y_at = HzToERB(y_lab)
+          } else {
+            y_lab = round(ERBToHz(y_at) / 1000, 1)
+            y_at = HzToERB(y_lab * 1000)
           }
         }
         axis(2, at = y_at, labels = y_lab, ...)

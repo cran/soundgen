@@ -9,7 +9,8 @@ getDuration(
   samplingRate = NULL,
   silence = 0.01,
   rms = list(windowLength = 20, step = 5),
-  reportEvery = NULL
+  reportEvery = NULL,
+  cores = 1
 )
 }
 \arguments{
@@ -29,6 +30,8 @@ to save time)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
+
+\item{cores}{number of cores for parallel processing}
 }
 \value{
 Returns \code{duration} (s) and \code{duration_noSilence} (duration
