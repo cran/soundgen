@@ -7,9 +7,9 @@
 pitchDescriptives(
   x,
   step = NULL,
+  timeUnit,
   smoothBW = c(NA, 10, 1),
   inflThres = 0.2,
-  timeUnit = c("s", "ms")[1],
   extraSummaryFun = c(),
   ref = 16.35,
   plot = FALSE
@@ -23,6 +23,8 @@ the output of \code{\link{pitch_app}} or \code{\link{analyze}}}
 
 \item{step}{distance between values in s (only needed if input is a vector)}
 
+\item{timeUnit}{specify whether the time stamps (if any) are in ms or s}
+
 \item{smoothBW}{a vector of bandwidths (Hz) for consecutive smoothing of
 input using \code{\link{pitchSmoothPraat}}; NA = no smoothing}
 
@@ -30,8 +32,6 @@ input using \code{\link{pitchSmoothPraat}}; NA = no smoothing}
 extrema to consider them inflections; to apply a different threshold at
 each smoothing level, provide \code{inflThres} as a vector of the same
 length as \code{smoothBW}; NA = no threshold}
-
-\item{timeUnit}{specify whether the time stamps (if any) are in ms or s}
 
 \item{extraSummaryFun}{additional summary function(s) that take a numeric
 vector with some NAs and return a single number, eg c('myFun1', 'myFun2')}
@@ -83,7 +83,7 @@ NA, NA)
 plot(x, type = 'b')
 ci95 = function(x) diff(quantile(na.omit(x), probs = c(.025, .975)))
 pd = pitchDescriptives(
-  x, step = .025,
+  x, step = .025, timeUnit = 's',
   smoothBW = c(NA, 10, 1),   # original + smoothed at 10 Hz and 1 Hz
   inflThres = c(NA, .2, .2), # different for each level of smoothing
   extraSummaryFun = 'ci95',  # user-defined, here 95\% coverage interval

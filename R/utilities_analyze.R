@@ -352,6 +352,7 @@ summarizeAnalyze = function(
     }
   }
 
+  ## global measures that are not summarized per frame
   if (is.character(var_noSummary)) {
     # called from analyze()
     temp = result[1, c('duration', 'duration_noSilence')]
@@ -393,6 +394,7 @@ updateAnalyze = function(
   harmHeight_pars = list(),
   subh_pars = list(),
   flux_pars = list(),
+  fmRange = NULL,
   smooth,
   smoothing_ww,
   smoothingThres,
@@ -404,8 +406,8 @@ updateAnalyze = function(
 
   # Finalize voicing (some measures are only reported for voiced frames)
   result$voiced = !is.na(pitch_true)
-  unvoiced_idx = which(!result$voiced)
-  result[unvoiced_idx, varsToUnv] = NA
+  unvoiced_frames = which(!result$voiced)
+  result[unvoiced_frames, varsToUnv] = NA
 
   # Calculate how far harmonics reach in the spectrum and how strong they are
   # relative to f0
@@ -479,6 +481,48 @@ updateAnalyze = function(
   flux_pars$smoothWin = NULL
   flux = do.call(getFeatureFlux, c(flux_pars, list(an = result)))
   result[, c('flux', 'epoch')] = flux[, c('flux', 'epoch')]
+
+  # calculate FM
+  result[, c('fmFreq', 'fmPurity', 'fmDep')] = NA
+  if (length(voiced_frames) > 1) {
+    step = result$time[2] - result$time[1]
+    if (is.null(fmRange)) {
+      # calculate reasonable defaults for FM frequency range
+      fmRange = c(5, 1000 / step / 2)
+    }
+    nr = nrow(result)
+
+    # interpolate NAs in pitch contour
+    env = intplNA(pitch_true)
+    # sp = spectrogram(env, samplingRate = 1000 / step, windowLength = 1000 / fmRange[1] * 4)
+
+    # get peak frequency (in this case the most pronounced FM)
+    fm = getPeakFreq(env,
+                     samplingRate = 1000 / step,
+                     freqRange = fmRange,
+                     plot = FALSE)
+
+    if (any(!is.na(fm$freq))) {
+      # get FM from inflections to evaluate fmDep in semitones
+      ps = bandpass(env, samplingRate = 1000/step,
+                    lwr = min(fm$freq), upr = max(fm$freq),
+                    action = 'pass', plot = FALSE)
+      infl = findInflections(ps, thres = 0, plot = FALSE)
+      # amFreq = 1000 / (step * diff(infl) * 2)
+      # too noisy w/o bandpass, therefore need FFT first
+      fmDep = abs(diff(HzToSemitones(ps[infl]))) / 2
+
+      # fm should be the same length as pitch
+      result$fmFreq = resample(fm$freq, len = nr, lowPass = FALSE, plot = FALSE)
+      result$fmPurity = resample(fm$purity, len = nr, lowPass = FALSE, plot = FALSE)
+      result$fmDep = resample(fmDep, len = nr, lowPass = FALSE, plot = FALSE)
+      result[unvoiced_frames, c('fmFreq', 'fmPurity', 'fmDep')] = NA
+    }
+  } else {
+
+  }
+  # plot(result$time, result$fmFreq, type = 'b', cex = result$fmPurity * 10)
+  # plot(result$time, result$fmDep, type = 'b', cex = result$fmPurity * 10)
 
   # Arrange columns in alphabetical order (except the first three)
   result = result[, c(1:3, 3 + order(colnames(result)[4:ncol(result)]))]

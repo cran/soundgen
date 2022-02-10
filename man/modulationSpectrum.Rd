@@ -69,7 +69,7 @@ the entire sound is analyzed at once, resulting in a single roughness value
 chunks \code{maxDur} s long). If \code{amRes} is set, roughness is
 calculated for windows \code{~1000/amRes} ms long (but at least 3 STFT
 frames). \code{amRes} also affects the amount of smoothing when calculating
-\code{amFreq} and \code{amDep}}
+\code{amMsFreq} and \code{amMsPurity}}
 
 \item{maxDur}{sounds longer than \code{maxDur} s are split into fragments,
 and the modulation spectra of all fragments are averaged}
@@ -161,16 +161,16 @@ only if returnComplex = TRUE)
 spectrum within \code{roughRange} of temporal modulation frequencies, \% - a
 vector if amRes is numeric and the sound is long enough, a single number
 otherwise
-\item \code{$amFreq} frequency of the highest peak, within \code{amRange}, of
+\item \code{$amMsFreq} frequency of the highest peak, within \code{amRange}, of
 the folded AM function (average AM across all FM bins for both negative and
 positive AM frequencies), where a peak is a local maximum over \code{amRes}
-Hz. Like \code{roughness}, \code{amFreq} and \code{amDep} can be single
+Hz. Like \code{roughness}, \code{amMsFreq} and \code{amMsPurity} can be single
 numbers or vectors, depending on whether the sound is analyzed as a whole or
 in chunks
-\item \code{$amDep} ratio of the peak at amFreq to the median AM over
+\item \code{$amMsPurity} ratio of the peak at amMsFreq to the median AM over
 \code{amRange}, dB
-\item \code{$summary} dataframe with summaries of roughness, amFreq, and
-amDep
+\item \code{$summary} dataframe with summaries of roughness, amMsFreq, and
+amMsPurity
 }
 }
 \description{
@@ -180,12 +180,12 @@ axis. A good visual analogy is decomposing the spectrogram into a sum of
 ripples of various frequencies and directions. Roughness is calculated as the
 proportion of energy / amplitude of the modulation spectrum within
 \code{roughRange} of temporal modulation frequencies. The frequency of
-amplitude modulation (amFreq, Hz) is calculated as the highest peak in the
-smoothed AM function, and its depth (amDep, dB) as the ratio of this peak to
-the median AM over \code{amRange}. For relatively short and steady sounds,
-set \code{amRes = NULL} and analyze the entire sound. For longer sounds and
-when roughness or AM vary over time, set \code{amRes} to get multiple
-measurements over time (see examples).
+amplitude modulation (amMsFreq, Hz) is calculated as the highest peak in the
+smoothed AM function, and its purity (amMsPurity, dB) as the ratio of this
+peak to the median AM over \code{amRange}. For relatively short and steady
+sounds, set \code{amRes = NULL} and analyze the entire sound. For longer
+sounds and when roughness or AM vary over time, set \code{amRes} to get
+multiple measurements over time (see examples).
 }
 \details{
 Algorithm: prepare a spectrogram, take its logarithm (if \code{logSpec =
@@ -209,11 +209,11 @@ ms = modulationSpectrum(runif(16000), samplingRate = 16000,
 str(ms)
 
 # Harmonic sound
-s = soundgen(amFreq = 25, amDep = 50)
+s = soundgen(amMsFreq = 25, amMsPurity = 50)
 ms = modulationSpectrum(s, samplingRate = 16000, amRes = NULL)
-ms[c('roughness', 'amFreq', 'amDep')]  # a single value for each
+ms[c('roughness', 'amMsFreq', 'amMsPurity')]  # a single value for each
 ms1 = modulationSpectrum(s, samplingRate = 16000, amRes = 5)
-ms1[c('roughness', 'amFreq', 'amDep')]
+ms1[c('roughness', 'amMsFreq', 'amMsPurity')]
 # measured over time (low values of amRes mean more precision, so we analyze
 # longer segments and get fewer values per sound)
 
@@ -225,19 +225,19 @@ ms = modulationSpectrum(s, samplingRate = 16000,
 \dontrun{
 # A long sound with varying AM and a bit of chaos at the end
 s_long = soundgen(sylLen = 1500, pitch = c(250, 320, 280),
-                  amFreq = c(30, 55), amDep = c(20, 60, 40),
+                  amMsFreq = c(30, 55), amMsPurity = c(20, 60, 40),
                   jitterDep = c(0, 0, 2))
 playme(s_long)
 ms = modulationSpectrum(s_long, 16000)
 # plot AM over time
-plot(x = seq(1, 1500, length.out = length(ms$amFreq)), y = ms$amFreq,
-     cex = ms$amDep / 5, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
+plot(x = seq(1, 1500, length.out = length(ms$amMsFreq)), y = ms$amMsFreq,
+     cex = 10^(ms$amMsPurity/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
 # plot roughness over time
 spectrogram(s_long, 16000, ylim = c(0, 4),
   extraContour = list(ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
 
 # As with spectrograms, there is a tradeoff in time-frequency resolution
-s = soundgen(pitch = 500, amFreq = 50, amDep = 100, samplingRate = 44100)
+s = soundgen(pitch = 500, amMsFreq = 50, amMsPurity = 100, samplingRate = 44100)
 # playme(s, samplingRate = 44100)
 ms = modulationSpectrum(s, samplingRate = 44100,
   windowLength = 50, step = 50, amRes = NULL)  # poor temporal resolution
@@ -255,7 +255,7 @@ ms = modulationSpectrum(s, samplingRate = 44100,
   colorTheme = 'heat.colors',  # alternative palette
   power = 2)                   # ^2
 # Note the peaks at FM = 2/KHz (from "pitch = 500") and AM = 50 Hz (from
-# "amFreq = 50")
+# "amMsFreq = 50")
 
 # Input can be a wav/mp3 file
 ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')

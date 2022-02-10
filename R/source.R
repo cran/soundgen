@@ -474,16 +474,17 @@ generateHarmonics = function(pitch,
           new = do.call(getSmoothContour, c(smoothing, list(
             anchors = old,
             len = lp,
+            method = 'approx',
             valueFloor = permittedValues[p, 'low'],
             valueCeiling = Inf  # permittedValues[p, 'high'],
           )))
           assign(p, new)
         }
       }
-      vibrato = 2 ^ (sin(2 * pi * (1:length(pitch)) * vibratoFreq /
+      vibrato = 2 ^ (sin(2 * pi * cumsum(vibratoFreq) /
                            pitchSamplingRate) * vibratoDep / 12)
-      # plot(vibrato[], type = 'l')
-      pitch = pitch * vibrato  # plot (pitch, type = 'l')
+      # plot(vibrato, type = 'l')
+      pitch = pitch * vibrato  # plot(pitch, type = 'l')
     }
   }
 

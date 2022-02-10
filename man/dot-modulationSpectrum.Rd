@@ -47,7 +47,7 @@ the entire sound is analyzed at once, resulting in a single roughness value
 chunks \code{maxDur} s long). If \code{amRes} is set, roughness is
 calculated for windows \code{~1000/amRes} ms long (but at least 3 STFT
 frames). \code{amRes} also affects the amount of smoothing when calculating
-\code{amFreq} and \code{amDep}}
+\code{amMsFreq} and \code{amMsPurity}}
 
 \item{maxDur}{sounds longer than \code{maxDur} s are split into fragments,
 and the modulation spectra of all fragments are averaged}

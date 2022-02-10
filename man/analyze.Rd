@@ -13,7 +13,7 @@ analyze(
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = NULL,
+  step = 25,
   overlap = 50,
   wn = "gaussian",
   zp = 0,
@@ -42,6 +42,8 @@ analyze(
   harmHeight = list(),
   subh = list(method = "cep", nSubh = 5),
   flux = list(thres = 0.15, smoothWin = 100),
+  amRange = c(10, 200),
+  fmRange = c(5, 1000/step/2),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = list(win = 75, tol = 0.3, cert = 0.3),
@@ -205,6 +207,12 @@ see \code{?soundgen:::subhToHarm}}
 \item{flux}{a list of control parameters for calculating feature-based flux
 (not spectral flux) passed to \code{\link{getFeatureFlux}}}
 
+\item{amRange}{target range of frequencies for amplitude modulation, Hz: a
+vector of length 2 (affects both \code{amMsFreq} and \code{amEnvFreq})}
+
+\item{fmRange}{target range of frequencies for analyzing frequency
+modulation, Hz (\code{fmFreq}): a vector of length 2}
+
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
 if unvoiced)}
@@ -291,22 +299,27 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   s} \item{duration_noSilence}{duration from the beginning of the first
   non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
   depends strongly on \code{windowLength} and \code{silence} settings)}
-  \item{time}{time of the middle of each frame (ms)} \item{amDep}{depth of
-  amplitude modulation, dB (see \code{\link{modulationSpectrum}})}
-  \item{amFreq}{frequency of amplitude modulation, Hz (see
-  \code{\link{modulationSpectrum}})} \item{ampl}{root mean square of
-  amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
-  \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch tracking methods /
-  Cepstrum" in the vignette)} \item{dom}{lowest dominant frequency band (Hz)
-  (see "Pitch tracking methods / Dominant frequency" in the vignette)}
-  \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
-  to 0: pure tone or tonal sound with nearly all energy in harmonics; close
-  to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
-  bandwidth of the first nFormants formants per STFT frame, as calculated by
-  phonTools::findformants} \item{flux}{feature-based flux, the rate of change
-  in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
-  is an audio segment between two peaks of flux that exceed a threshold of
-  \code{flux = list(thres = ...)} (listed in output$detailed only)}
+  \item{time}{time of the middle of each frame (ms)}
+  \item{amEnvFreq,amEnvPurity,amEnvDep}{frequency (Hz), purity (dB), and
+  depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude
+  envelope} \item{amMsFreq,amMsPurity}{the same as \code{amEnvFreq} and
+  \code{amEnvPurity}, but estimated via \code{\link{modulationSpectrum}}}
+  \item{ampl}{root mean square of amplitude per frame, calculated as
+  sqrt(mean(frame ^ 2))} \item{ampl_noSilence}{same as \code{ampl}, but
+  ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch
+  tracking methods / Cepstrum" in the vignette)} \item{dom}{lowest dominant
+  frequency band (Hz) (see "Pitch tracking methods / Dominant frequency" in
+  the vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
+  frame. Close to 0: pure tone or tonal sound with nearly all energy in
+  harmonics; close to 1: white noise} \item{f1_freq, f1_width, ...}{the
+  frequency and bandwidth of the first nFormants formants per STFT frame, as
+  calculated by phonTools::findformants} \item{flux}{feature-based flux, the
+  rate of change in acoustic features such as pitch, HNR, etc. (0 = none, 1 =
+  max); "epoch" is an audio segment between two peaks of flux that exceed a
+  threshold of \code{flux = list(thres = ...)} (listed in output$detailed
+  only)} \item{fmFreq}{frequency of frequency modulation (FM) such as vibrato
+  or jitter, Hz} \item{fmDep}{depth of FM, semitones} \item{fmPurity}{purity
+  or dominance of the main FM frequency (fmFreq), 0 to 1}
   \item{harmEnergy}{the amount of energy in upper harmonics, namely the ratio
   of total spectral mass above 1.25 x F0 to the total spectral mass below
   1.25 x F0 (dB)} \item{harmHeight}{how high harmonics reach in the spectrum,

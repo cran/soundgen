@@ -4,10 +4,13 @@
 \alias{writeAudio}
 \title{Write audio}
 \usage{
-writeAudio(x, audio, filename)
+writeAudio(x, scale_used = NULL, audio, filename)
 }
 \arguments{
 \item{x}{numeric vector}
+
+\item{scale_used}{actually used scale (max(abs(x))) - overrides
+audio$scale_used}
 
 \item{audio}{list returned by \code{\link{readAudio}} containing
 samplingRate, bit, scale, scale_used}

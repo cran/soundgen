@@ -362,7 +362,7 @@ spectrogram = function(
   bin_width = audio$samplingRate / windowLength_points
   Y = (0:(n1 - 1)) * bin_width / 1000
   if (length(Y) < 2) {
-    message('The sound and/or the windowLength is too short for plotting a spectrogram')
+    message('The sound and/or the windowLength is too short for obtaining a spectrogram')
     return(NA)
   }
 
@@ -435,7 +435,8 @@ spectrogram = function(
   if (contrast_exp != 1) {
     Z1 = Z1 ^ contrast_exp
   }
-  if (any(Z1 != 0)) Z1 = Z1 / max(Z1)
+  tr = try(if (any(Z1 != 0)) Z1 = Z1 / max(Z1))
+  if (class(tr)[1] == 'try-error') browser()
   if (brightness_exp != 1) {
     Z1 = Z1 / brightness_exp
   }

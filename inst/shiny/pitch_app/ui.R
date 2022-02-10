@@ -52,10 +52,6 @@ ui = fluidPage(
             actionButton(
               'reset_to_def',
               label = 'Reset ALL to defaults'),
-            checkboxInput(
-              'normalizeInput',
-              'Normalize for peak amplitude',
-              value = TRUE),
             numericInput(
               'windowLength',
               'Window length, ms ("windowLength")',
@@ -501,13 +497,6 @@ ui = fluidPage(
               choices = c('linear', 'dB'),
               selected = 'linear', multiple = FALSE),
             sliderInput(
-              'osc_height',
-              'Oscillogram height, px ("heights")',
-              value = defaults_analyze['osc_height', 'default'],
-              min = defaults_analyze['osc_height', 'low'],
-              max = defaults_analyze['osc_height', 'high'],
-              step = defaults_analyze['osc_height', 'step']),
-            sliderInput(
               'osc_maxPoints',
               'Max number of pixels, 10^',
               value = defaults_analyze['osc_maxPoints', 'default'],
@@ -674,7 +663,15 @@ ui = fluidPage(
             )
           ),
 
-          plotOutput('oscillogram', height = '100px')  # default size
+          tags$div(
+            id = 'oscDiv',
+            plotOutput('oscillogram'),
+            plotOutput(
+              'oscOver',
+              click = "osc_click"
+            )
+          ),
+          # plotOutput('oscillogram', height = '100px')  # default size
         )
       )
 

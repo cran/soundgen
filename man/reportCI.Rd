@@ -4,7 +4,7 @@
 \alias{reportCI}
 \title{Report CI}
 \usage{
-reportCI(n, digits = 2)
+reportCI(n, digits = 2, suffix = NULL)
 }
 \arguments{
 \item{n}{numeric vector or matrix}
@@ -27,5 +27,7 @@ a = data.frame(fit = c(3, 5, 7),
                lwr = c(1, 4, 6.5),
                upr = c(5, 6, 7.1))
 soundgen:::reportCI(a, 1)
+soundgen:::reportCI(a, 1, ' cm')
+soundgen:::reportCI(a, 1, '\%, 95\% CI')
 }
 \keyword{internal}

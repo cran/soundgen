@@ -652,8 +652,9 @@ server = function(input, output, session) {
     # hr()
 
     # save a backup in case the app crashes before done() fires
-    write.csv(soundgen:::rbind_fill(myPars$out, myPars$ann),
-              'www/temp.csv', row.names = FALSE)
+    temp = soundgen:::rbind_fill(myPars$out, myPars$ann)
+    temp = temp[order(temp$file), ]
+    write.csv(temp, 'www/temp.csv', row.names = FALSE)
   }
 
   observeEvent(input$ok_new, {

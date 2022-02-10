@@ -87,9 +87,9 @@ bandpass = function(
   res = NA,
   ...
 ) {
-  if (is.null(lwr) & is.null(upr))
+  if ((is.null(lwr) & is.null(upr)) | (!is.numeric(lwr) & !is.numeric(upr)))
     stop('Nothing to do: specify lwr and/or upr')
-  if ((is.numeric(lwr) & is.numeric(upr)) && lwr >= upr) {
+  if ((is.numeric(lwr) & is.numeric(upr)) && lwr > upr) {
     lwr = upr
     upr = lwr
     warning('Found lwr >= upr; swapping them')

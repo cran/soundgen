@@ -29,5 +29,5 @@ HzToNotes(c(440, 415, 80, 81), showCents = TRUE)
 HzToNotes(c(440, 415, 16.35), A4 = 415)
 }
 \seealso{
-\code{\link{HzToSemitones}}
+\code{\link{notesToHz}} \code{\link{HzToSemitones}}
 }

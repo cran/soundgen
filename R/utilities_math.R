@@ -185,7 +185,7 @@ semitonesToHz = function(s, ref = 0.5109875) {
 #' Converts from Hz to musical notation like A4 - note A of the fourth octave
 #' above C0 (16.35 Hz).
 #'
-#' @seealso \code{\link{HzToSemitones}}
+#' @seealso \code{\link{notesToHz}} \code{\link{HzToSemitones}}
 #'
 #' @param h vector or matrix of frequencies (Hz)
 #' @param showCents if TRUE, show cents to the nearest notes (cent = 1/100 of a
@@ -214,6 +214,27 @@ HzToNotes = function(h, showCents = FALSE, A4 = 440) {
     nearest_note = paste0(nearest_note, cents)
   }
   return(nearest_note)
+}
+
+
+#' Convert notes to Hz
+#'
+#' Converts to Hz from musical notation like A4 - note A of the fourth octave
+#' above C0 (16.35 Hz).
+#'
+#' @seealso \code{\link{HzToNotes}} \code{\link{HzToSemitones}}
+#'
+#' @param n vector or matrix of notes
+#' @param A4 frequency of note A in the fourth octave (modern standard ISO 16 or
+#'   concert pitch = 440 Hz)
+#' @export
+#' @examples
+#' notesToHz(c("A4", "D4", "A#2", "C0", "C-2"))
+#'
+#' # Baroque tuning A415, half a semitone flat relative to concert pitch A440
+#' notesToHz(c("A4", "D4", "A#2", "C0", "C-2"), A4 = 415)
+notesToHz = function(n, A4 = 440) {
+  soundgen::notesDict$freq[match(n, soundgen::notesDict$note)] * A4 / 440
 }
 
 
@@ -1045,20 +1066,20 @@ getSigmoid = function(len,
 #'                lwr = c(1, 4, 6.5),
 #'                upr = c(5, 6, 7.1))
 #' soundgen:::reportCI(a, 1)
-reportCI = function(n, digits = 2) {
-  if (class(n)[1] == 'data.frame') {
-    n = as.matrix(n)
-  }
+#' soundgen:::reportCI(a, 1, ' cm')
+#' soundgen:::reportCI(a, 1, '%, 95% CI')
+reportCI = function(n, digits = 2, suffix = NULL) {
+  if (class(n)[1] == 'data.frame') n = as.matrix(n)
   n = round(n, digits)
   if (class(n)[1] == 'matrix') {
     out = matrix(NA, nrow = nrow(n))
     rownames(out) = rownames(n)
     for (i in 1:nrow(n)) {
-      out[i, ] = reportCI(n[i, ])
+      out[i, ] = reportCI(n[i, ], digits = digits, suffix = suffix)
     }
-    return(out)
+    out
   } else {
-    paste0(n[1], ' [', n[2], ', ', n[3], ']')
+    paste0(n[1], suffix, ' [', n[2], ', ', n[3], ']')
   }
 }
 
@@ -1401,23 +1422,6 @@ parabPeakInterpol = function(threePoints, plot = FALSE) {
   return(list(p = p, ampl_p = ampl_p))
 }
 
-#' rbind_fill
-#'
-#' Internal soundgen function
-#'
-#' Fills missing columns with NAs, then rbinds - handy in case one has extra
-#' columns. Used in formant_app(), pitch_app()
-#' @param df1,df2 two dataframes with partly matching columns
-#' @keywords internal
-rbind_fill = function(df1, df2) {
-  if (!is.list(df1) || nrow(df1) == 0) return(df2)
-  if (!is.list(df2) || nrow(df2) == 0) return(df1)
-  df1[setdiff(names(df2), names(df1))] = NA
-  df2[setdiff(names(df1), names(df2))] = NA
-  return(rbind(df1, df2))
-}
-
-
 #' Identify and play
 #'
 #' Internal soundgen function
@@ -1568,4 +1572,21 @@ splitIntoChunks = function(x, n) {
          seq.int(from = 1, to = len, by = len_chunk),
          pmin(seq.int(from = 1, to = len, by = len_chunk) + (len_chunk - 1), len),
          SIMPLIFY = FALSE)
+}
+
+
+#' rbind_fill
+#'
+#' Internal soundgen function
+#'
+#' Fills missing columns with NAs, then rbinds - handy in case one has extra
+#' columns. Used in formant_app(), pitch_app()
+#' @param df1,df2 two dataframes with partly matching columns
+#' @keywords internal
+rbind_fill = function(df1, df2) {
+  if (!is.list(df1) || nrow(df1) == 0) return(df2)
+  if (!is.list(df2) || nrow(df2) == 0) return(df1)
+  df1[setdiff(names(df2), names(df1))] = NA
+  df2[setdiff(names(df1), names(df2))] = NA
+  return(rbind(df1, df2))
 }

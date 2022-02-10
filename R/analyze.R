@@ -134,6 +134,10 @@
 #'   see \code{?soundgen:::subhToHarm}
 #' @param flux a list of control parameters for calculating feature-based flux
 #'   (not spectral flux) passed to \code{\link{getFeatureFlux}}
+#' @param amRange target range of frequencies for amplitude modulation, Hz: a
+#'   vector of length 2 (affects both \code{amMsFreq} and \code{amEnvFreq})
+#' @param fmRange target range of frequencies for analyzing frequency
+#'   modulation, Hz (\code{fmFreq}): a vector of length 2
 #' @param shortestSyl the smallest length of a voiced segment (ms) that
 #'   constitutes a voiced syllable (shorter segments will be replaced by NA, as
 #'   if unvoiced)
@@ -189,22 +193,27 @@
 #'   s} \item{duration_noSilence}{duration from the beginning of the first
 #'   non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
 #'   depends strongly on \code{windowLength} and \code{silence} settings)}
-#'   \item{time}{time of the middle of each frame (ms)} \item{amDep}{depth of
-#'   amplitude modulation, dB (see \code{\link{modulationSpectrum}})}
-#'   \item{amFreq}{frequency of amplitude modulation, Hz (see
-#'   \code{\link{modulationSpectrum}})} \item{ampl}{root mean square of
-#'   amplitude per frame, calculated as sqrt(mean(frame ^ 2))}
-#'   \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch tracking methods /
-#'   Cepstrum" in the vignette)} \item{dom}{lowest dominant frequency band (Hz)
-#'   (see "Pitch tracking methods / Dominant frequency" in the vignette)}
-#'   \item{entropy}{Weiner entropy of the spectrum of the current frame. Close
-#'   to 0: pure tone or tonal sound with nearly all energy in harmonics; close
-#'   to 1: white noise} \item{f1_freq, f1_width, ...}{the frequency and
-#'   bandwidth of the first nFormants formants per STFT frame, as calculated by
-#'   phonTools::findformants} \item{flux}{feature-based flux, the rate of change
-#'   in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
-#'   is an audio segment between two peaks of flux that exceed a threshold of
-#'   \code{flux = list(thres = ...)} (listed in output$detailed only)}
+#'   \item{time}{time of the middle of each frame (ms)}
+#'   \item{amEnvFreq,amEnvPurity,amEnvDep}{frequency (Hz), purity (dB), and
+#'   depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude
+#'   envelope} \item{amMsFreq,amMsPurity}{the same as \code{amEnvFreq} and
+#'   \code{amEnvPurity}, but estimated via \code{\link{modulationSpectrum}}}
+#'   \item{ampl}{root mean square of amplitude per frame, calculated as
+#'   sqrt(mean(frame ^ 2))} \item{ampl_noSilence}{same as \code{ampl}, but
+#'   ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch
+#'   tracking methods / Cepstrum" in the vignette)} \item{dom}{lowest dominant
+#'   frequency band (Hz) (see "Pitch tracking methods / Dominant frequency" in
+#'   the vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
+#'   frame. Close to 0: pure tone or tonal sound with nearly all energy in
+#'   harmonics; close to 1: white noise} \item{f1_freq, f1_width, ...}{the
+#'   frequency and bandwidth of the first nFormants formants per STFT frame, as
+#'   calculated by phonTools::findformants} \item{flux}{feature-based flux, the
+#'   rate of change in acoustic features such as pitch, HNR, etc. (0 = none, 1 =
+#'   max); "epoch" is an audio segment between two peaks of flux that exceed a
+#'   threshold of \code{flux = list(thres = ...)} (listed in output$detailed
+#'   only)} \item{fmFreq}{frequency of frequency modulation (FM) such as vibrato
+#'   or jitter, Hz} \item{fmDep}{depth of FM, semitones} \item{fmPurity}{purity
+#'   or dominance of the main FM frequency (fmFreq), 0 to 1}
 #'   \item{harmEnergy}{the amount of energy in upper harmonics, namely the ratio
 #'   of total spectral mass above 1.25 x F0 to the total spectral mass below
 #'   1.25 x F0 (dB)} \item{harmHeight}{how high harmonics reach in the spectrum,
@@ -380,7 +389,7 @@ analyze = function(
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = NULL,
+  step = 25,
   overlap = 50,
   wn = 'gaussian',
   zp = 0,
@@ -409,6 +418,8 @@ analyze = function(
   harmHeight = list(),
   subh = list(method = 'cep', nSubh = 5),
   flux = list(thres = 0.15, smoothWin = 100),
+  amRange = c(10, 200),
+  fmRange = c(5, 1000 / step / 2),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = list(win = 75, tol = 0.3, cert = 0.3),
@@ -664,7 +675,7 @@ analyze = function(
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = NULL,
+  step = 25,
   overlap = 50,
   wn = 'gaussian',
   zp = 0,
@@ -693,6 +704,8 @@ analyze = function(
   harmHeight = list(),
   subh = list(),
   flux = list(),
+  amRange = c(10, 200),
+  fmRange = c(5, 1000 / step / 2),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = NULL,
@@ -895,11 +908,6 @@ analyze = function(
   ## fft and acf per frame
   if (is.character(audio$savePlots)) {
     plot = TRUE
-    # if (xfun::file_ext(basename(audio$savePlots)) == 'png') {
-    #   filename = substr(audio$savePlots, 1, nchar(audio$savePlots) - 1)  # remove /
-    # } else {
-    #   filename = paste0(audio$savePlots, audio$filename_noExt, "_analyze.png")
-    # }
     png(filename = paste0(audio$savePlots, audio$filename_noExt, "_analyze.png"),
         width = width, height = height, units = units, res = res)
   }
@@ -1107,12 +1115,17 @@ analyze = function(
   colnames(result) = names(frameInfo[[1]]$summaries)
   if (!is.null(fmts)) result = cbind(result, fmts)
   result$entropy = entropy
-  result$ampl = ampl
+  result$ampl = result$ampl_noSilence = ampl
+  result$ampl_noSilence[-framesToAnalyze] = NA
   result$time = as.numeric(colnames(frameBank))
   result$duration_noSilence = duration_noSilence
   result$duration = audio$duration
   nc = ncol(result); nr = nrow(result)
-  result = result[, c(rev((nc-4):nc), 1:(nc-5))]  # change the order of columns
+
+  # change the order of columns
+  first_three = c('duration', 'duration_noSilence', 'time')
+  rest = colnames(result)[!colnames(result) %in% first_three]
+  result = result[, c(first_three, sort(rest))]
 
   ## Pitch tracking based on zero crossing rate
   if ('zc' %in% pitchMethods) {
@@ -1323,7 +1336,7 @@ analyze = function(
       # up/downsample pitchManual to the right length
       pitch_true = resample(
         x = pitch_raw,
-        mult = nr / length(pitch_raw),
+        len = nr,
         lowPass = FALSE,
         plot = FALSE)
     } else {
@@ -1337,20 +1350,19 @@ analyze = function(
   if (is.null(roughness) ||
       (!is.null(roughness$amRes) && roughness$amRes == 0)) {
     # don't analyze the modulation spectrum
-    result[, c('roughness', 'amFreq', 'amDep')] = NA
+    result[, c('roughness', 'amMsFreq', 'amMsPurity')] = NA
   } else {
     ms = do.call(.modulationSpectrum, c(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
-           returnMS = FALSE, plot = FALSE),
+           returnMS = FALSE, plot = FALSE, amRange = amRange),
       roughness))
-    mult = nr / length(ms$roughness)
-    result$roughness = resample(ms$roughness, mult = mult,
+    result$roughness = resample(ms$roughness, len = nr,
                                 lowPass = FALSE, plot = FALSE)
-    result$amFreq = resample(ms$amFreq, mult = mult,
-                             lowPass = FALSE, plot = FALSE)
-    result$amDep = resample(ms$amDep, mult = mult,
-                            lowPass = FALSE, plot = FALSE)
-    result[!cond_silence, c('roughness', 'amFreq', 'amDep')] = NA
+    result$amMsFreq = resample(ms$amMsFreq, len = nr,
+                               lowPass = FALSE, plot = FALSE)
+    result$amMsPurity = resample(ms$amMsPurity, len = nr,
+                                 lowPass = FALSE, plot = FALSE)
+    result[!cond_silence, c('roughness', 'amMsFreq', 'amMsPurity')] = NA
   }
 
   ## Novelty calculation
@@ -1361,15 +1373,34 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            sparse = TRUE, plot = FALSE),
       novelty))$novelty
-    result$novelty = resample(novel, mult = nr / length(novel),
+    result$novelty = resample(novel, len = nr,
                               lowPass = FALSE, plot = FALSE)
     result$novelty[!cond_silence] = NA
   }
 
+  # AM from envelope
+  result[, c('amEnvFreq', 'amEnvDep', 'amEnvPurity')] = NA
+  if (!is.null(amRange)) {
+    am = getAM_env(audio = audio,
+                   amRange = amRange,
+                   overlap = overlap,
+                   plot = FALSE)
+    result$amEnvFreq = resample(am$freq, len = nr,
+                                lowPass = FALSE, plot = FALSE)
+    result$amEnvDep = resample(am$dep, len = nr,
+                               lowPass = FALSE, plot = FALSE)
+    result$amEnvPurity = resample(am$purity, len = nr,
+                                  lowPass = FALSE, plot = FALSE)
+    result[!cond_silence, c('amEnvFreq', 'amEnvDep', 'amEnvPurity')] = NA
+  }
+
   # save spectral descriptives separately for voiced and unvoiced frames
-  varsToUnv = c('ampl', 'roughness', 'amFreq', 'amDep', 'novelty', 'entropy',
-                'dom', 'HNR', 'loudness', 'peakFreq', 'quartile25',
-                'quartile50', 'quartile75', 'specCentroid', 'specSlope')
+  varsToUnv = c(
+    'ampl', 'roughness', 'amMsFreq', 'amMsPurity',
+    'amEnvFreq', 'amEnvDep', 'amEnvPurity',
+    'novelty', 'entropy', 'dom', 'HNR', 'loudness', 'peakFreq',
+    'quartile25', 'quartile50', 'quartile75', 'specCentroid', 'specSlope'
+  )
   for (v in varsToUnv) {
     result[, paste0(v, 'Voiced')] = result[, v]
   }
@@ -1387,6 +1418,7 @@ analyze = function(
     harmHeight_pars = harmHeight,
     subh_pars = subh,
     flux_pars = flux,
+    fmRange = fmRange,
     smooth = smooth,
     smoothing_ww = smoothing_ww,
     smoothingThres = smoothingThres,
@@ -1411,7 +1443,7 @@ analyze = function(
         cnt = result[, cnt_name]
         col_non_Hz = c(
           'amDep', 'ampl, amplVoiced', 'entropy', 'entropyVoiced',
-          paste0('f', 1:10, '_width'), 'flux', 'harmEnergy', 'HNR',
+          paste0('f', 1:10, '_width'), 'flux', 'fmDep', 'harmEnergy', 'HNR',
           'HNR_voiced', 'CPP', 'loudness', 'loudnessVoiced',
           'roughness', 'roughnessVoiced',
           'novelty', 'noveltyVoiced',

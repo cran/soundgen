@@ -26,14 +26,26 @@
 
 
 /* oscillogram */
-#oscillogram {
+#oscDiv {
+  position: relative;
   resize: vertical;
   overflow: hidden;
+  height: 100px;
 }
 
-#oscillogram img {
+#oscDiv div {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
   width: 100%;
-  height: 100%;
+  height: inherit;
+}
+
+#oscDiv img {
+  width: 100%;
+  height: inherit;
 }
 
 

@@ -331,7 +331,7 @@ ms = modulationSpectrum(
   quantiles = c(.5, .8, .95, .99),  # customize contour lines
   colorTheme = 'terrain.colors'  # alternative palette
 )
-ms[c('roughness', 'amFreq', 'amDep')]
+ms[c('roughness', 'amMsFreq', 'amMsPurity')]
 
 ## ----fig.show = "hold", fig.height = 6, fig.width = 7-------------------------
 s3 = c(soundgen(), soundgen(nSyl = 4, sylLen = 50, pauseLen = 70, 

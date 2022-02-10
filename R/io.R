@@ -140,16 +140,14 @@ checkInputType = function(x) {
     }
     n = length(filenames)
     type = rep('file', n)
-    filenames_base = filenames_noExt = basename(filenames)
-
-    for (f in 1:n) {
-      # strip extension
-      filenames_noExt[f] = substr(filenames_base[f], 1, nchar(filenames_base[f]) - 4)
-      filesizes = file.info(filenames)$size
-      # expand from relative to full path (useful for functions that save audio
-      # separately from plots)
-      filenames[f] = normalizePath(filenames[f])
-    }
+    filesizes = file.info(filenames)$size
+    filenames_base = basename(filenames)
+    # avoid dependency with xfun::sans_ext(filenames_base)
+    filenames_noExt = sub("^(.*?)([.](([[:alnum:]]+|tar[.](gz|bz2|xz)|nb[.]html)[~#]?))$",
+                          "\\1", filenames_base)
+    # expand from relative to full path (useful for functions that save audio
+    # separately from plots)
+    filenames = normalizePath(filenames)
   } else {
     # not file(s), but one or more objects (Wave / numeric)
     if (!is.list(x)) x = list(x)
@@ -233,7 +231,7 @@ readAudio = function(x,
       message('samplingRate not specified; defaulting to 16000')
     }
     sound = x
-    m = max(abs(sound))
+    m = suppressWarnings(max(abs(sound), na.rm = TRUE))
     bit = 1
     if (is.null(scale)) {
       scale = max(m, 1)
@@ -300,16 +298,19 @@ readAudio = function(x,
 #' soundgen-specific way. Unlike seewave::savewav, writeAudio does NOT normalize
 #' or rescale the input.
 #' @param x numeric vector
+#' @param scale_used actually used scale (max(abs(x))) - overrides
+#'   audio$scale_used
 #' @param audio list returned by \code{\link{readAudio}} containing
 #'   samplingRate, bit, scale, scale_used
 #' @param filename full path and filename including .wav
 #' @keywords internal
-writeAudio = function(x, audio, filename) {
+writeAudio = function(x, scale_used = NULL, audio, filename) {
   x_wave = tuneR::Wave(left = x, samp.rate = audio$samplingRate, bit = 16)
+  if (is.null(scale_used)) scale_used = audio$scale_used
   x_wave_norm = tuneR::normalize(
     x_wave,
     unit = if (audio$bit == 1) '16' else as.character(audio$bit),
-    level = audio$scale_used / audio$scale,
+    level = scale_used / audio$scale,
     center = FALSE,
     rescale = TRUE
   )
@@ -467,7 +468,7 @@ processAudio = function(x,
           "Consider using multiple cores to speed up processing with",
           "'cores = ...'. Your machine has", nCores, "cores"
         )
-         message(msg)
+        message(msg)
       }
     }
 
@@ -565,9 +566,9 @@ htmlPlots = function(x,
                            '_', suffix, '.', extension)
       } else {
         # absolute paths for both audio and plots
-        audioFiles = x$filenames
-        plotFiles = paste0(x$savePlots, '/', x$filenames_noExt,
-                           '_', suffix, '.', extension)
+        audioFiles = normalizePath(x$filenames)
+        plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+                                         '_', suffix, '.', extension))
       }
     } else {
       # audio also saved - refer to new audio
@@ -578,27 +579,26 @@ htmlPlots = function(x,
                            '_', suffix, '.', extension)
       } else {
         # absolute paths for both audio and plots (different folders)
-        audioFiles = paste0(x$saveAudio, x$filenames_noExt, '.wav')
-        plotFiles = paste0(x$savePlots, '/', x$filenames_noExt,
-                           '_', suffix, '.', extension)
+        audioFiles = normalizePath(paste0(x$saveAudio, x$filenames_noExt, '.wav'))
+        plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+                                         '_', suffix, '.', extension))
       }
     }
   } else {
     # functions that only analyze audio and save plots can write into ''
-    if (savePlots == '' |
-        dirname(file.path(x$savePlots, 'smth')) == dirname(x$filenames[1])) {
-      # relative paths for plots ('smth' is a trick
-      # because there may or may not be a / at the end)
+    x$savePlots = dirname(file.path(x$savePlots, 'smth'))
+    # relative paths for plots ('smth' is a trick
+    # because there may or may not be a / at the end)
+    if (savePlots == '' | x$savePlots == dirname(x$filenames[1])) {
       plotFiles = paste0(x$filenames_noExt, '_', suffix, '.', extension)
       audioFiles = x$filenames_base
     } else {
       # absolute paths for plots
-      plotFiles = paste0(x$savePlots, '/', x$filenames_noExt,
-                         '_', suffix, '.', extension)
-      audioFiles = x$filenames
+      plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+                                       '_', suffix, '.', extension))
+      audioFiles = normalizePath(x$filenames)
     }
   }
-
   plotFiles_concat = paste0(plotFiles, collapse = "', '")
   audioFiles_concat = paste0(audioFiles, collapse = "', '")
 

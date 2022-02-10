@@ -140,8 +140,9 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `time`: time of the middle of each frame (ms)
 * `duration`: total duration (s)
 * `duration_noSilence`: duration from the beginning of the first non-silent STFT frame to the end of the last non-silent STFT frame, s (NB: depends strongly on `windowLength` and `silence` settings)
-* `amDep`: depth of amplitude modulation, dB (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
-* `amFreq`: frequency of amplitude modulation, Hz (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
+* `amEnvFreq`, `amEnvPurity`, `amEnvDep`: frequency (Hz), purity (dB), and depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude envelope
+* `amMsFreq`, `amMsPurity`: the same as `amEnvFreq` and `amEnvPurity`, but estimated via `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
+* `amMsFreq`: frequency of amplitude modulation, Hz (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
 * `ampl`: root mean square of amplitude per frame, calculated as `sqrt(mean(frame ^ 2))`
 * `dom`: lowest dominant frequency band (Hz) (see "Pitch tracking methods / Dominant frequency")
 * `entropy`: Weiner entropy of the spectrum of the current frame. Close to 0: pure tone or tonal sound with nearly all energy in harmonics; close to 1: white noise
@@ -679,7 +680,7 @@ ms = modulationSpectrum(
   quantiles = c(.5, .8, .95, .99),  # customize contour lines
   colorTheme = 'terrain.colors'  # alternative palette
 )
-ms[c('roughness', 'amFreq', 'amDep')]
+ms[c('roughness', 'amMsFreq', 'amMsPurity')]
 ```
 
 *TIP Roughness and amplitude modulation can be calculated for the entire sound (set `amRes = NULL`) or for as many frames as possible given the duration of audio and the desired resolution for the analysis of temporal modulation (one frame for the analysis of roughness comprises several STFT frames, so we measure about `amRes` values per second)*

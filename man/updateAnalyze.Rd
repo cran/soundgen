@@ -16,6 +16,7 @@ updateAnalyze(
   harmHeight_pars = list(),
   subh_pars = list(),
   flux_pars = list(),
+  fmRange = NULL,
   smooth,
   smoothing_ww,
   smoothingThres,

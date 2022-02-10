@@ -9,7 +9,7 @@
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = NULL,
+  step = 25,
   overlap = 50,
   wn = "gaussian",
   zp = 0,
@@ -38,6 +38,8 @@
   harmHeight = list(),
   subh = list(),
   flux = list(),
+  amRange = c(10, 200),
+  fmRange = c(5, 1000/step/2),
   shortestSyl = 20,
   shortestPause = 60,
   interpol = NULL,
@@ -189,6 +191,12 @@ see \code{?soundgen:::subhToHarm}}
 
 \item{flux}{a list of control parameters for calculating feature-based flux
 (not spectral flux) passed to \code{\link{getFeatureFlux}}}
+
+\item{amRange}{target range of frequencies for amplitude modulation, Hz: a
+vector of length 2 (affects both \code{amMsFreq} and \code{amEnvFreq})}
+
+\item{fmRange}{target range of frequencies for analyzing frequency
+modulation, Hz (\code{fmFreq}): a vector of length 2}
 
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as

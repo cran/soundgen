@@ -741,8 +741,6 @@ server = function(input, output, session) {
   } )
 
   observeEvent(input$spectrogram_click, {
-    # myPars$spectrogram_brush = NULL
-    # shinyjs::js$clearBrush(s = '_brush')
     myPars$cursor = input$spectrogram_click$x
     if (!is.null(myPars$currentAnn)) {
       inside_sel = (myPars$ann$from[myPars$currentAnn] < input$spectrogram_click$x) &
@@ -754,7 +752,13 @@ server = function(input, output, session) {
           session, paste0(myPars$selectedF, '_text'),
           value = as.character(myPars$ann[myPars$currentAnn, myPars$selectedF]))
         updateVTL()
+      } else {
+        myPars$spectrogram_brush = NULL
+        shinyjs::js$clearBrush(s = '_brush')
       }
+    } else {
+      myPars$spectrogram_brush = NULL
+      shinyjs::js$clearBrush(s = '_brush')
     }
   })
 
@@ -1179,8 +1183,9 @@ server = function(input, output, session) {
     # hr()
 
     # save a backup in case the app crashes before done() fires
-    write.csv(soundgen:::rbind_fill(myPars$out, myPars$ann),
-              'www/temp.csv', row.names = FALSE)
+    temp = soundgen:::rbind_fill(myPars$out, myPars$ann)
+    temp = temp[order(temp$file), ]
+    write.csv(temp, 'www/temp.csv', row.names = FALSE)
   }
 
   observeEvent(input$ok_new, {
@@ -1287,8 +1292,7 @@ server = function(input, output, session) {
             if (length(idx) > 0) {
               myPars$formantTracks = myPars$formantTracks[-idx, ]
             }
-            myPars$formantTracks = soundgen:::rbind_fill(
-              myPars$formantTracks, myPars$temp_anal)
+            myPars$formantTracks = soundgen:::rbind_fill(myPars$formantTracks, myPars$temp_anal)
             # myPars$formantTracks = myPars$formantTracks[order(myPars$formantTracks$time), ]
           }
         })
@@ -1759,8 +1763,14 @@ server = function(input, output, session) {
     if (!is.null(myPars$ann[myPars$currentAnn, ]) &&
         any(!is.na(myPars$ann[myPars$currentAnn, myPars$ff]))) {
       if (myPars$print) print('Calling soundgen()...')
+      pitch = list(time = c(0, .1, .9, 1),
+                   value = c(input$pitch / 1.5, input$pitch,
+                             input$pitch / 1.11, input$pitch / 1.5))
+      if (input$adaptivePitch)
+        pitch$value = pitch$value * 17 / myPars$ann$vtl[myPars$currentAnn]
       temp_s = soundgen(
         sylLen = 300 * myPars$samplingRate_idx,
+        pitch = pitch,
         formants = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff]),
         temperature = .001, tempEffects = list(formDisp = 0, formDrift = 0))
       if (input$audioMethod == 'Browser') {

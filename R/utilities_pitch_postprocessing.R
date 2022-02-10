@@ -315,14 +315,19 @@ pathfinding_fast = function(pitchCands,
   seed_step = max(2, round(nc / (nSeeds + 1)))
   seed_half_step = floor(seed_step / 2)
   seed_approx_pos = round(seed_step * (1:nSeeds))
+  seed_approx_pos = unique(seed_approx_pos[seed_approx_pos <= nc])
+  nSeeds = length(seed_approx_pos)
 
   # Repeat pathfinding at each seed to explore possible paths without getting stuck
   paths = costs = vector('list', nSeeds)
   for (seed in 1:nSeeds) {
     # Find the frame with the greatest number of candidates (to explore as many paths as possible)
-    seed_win = max(1, (seed_approx_pos[seed] - seed_half_step)) :
-      min(nc, (seed_approx_pos[seed] + seed_half_step))
-    idx_max = which.max(apply(pitchCands[, seed_win], 2, function(x) sum(!is.na(x))))
+    seed_win = (seed_approx_pos[seed] - seed_half_step) :
+       (seed_approx_pos[seed] + seed_half_step)
+    seed_win = seed_win[which(seed_win >= 1 & seed_win <= nc)]
+    idx_max = which.max(apply(
+      pitchCands[, seed_win, drop = FALSE], 2, function(x) sum(!is.na(x))
+    ))
     start = seed_win[1] - 1 + idx_max
     start_cands_idx = which(!is.na(pitchCands[, start]))
     start_cands = pitchCands[start_cands_idx, start]

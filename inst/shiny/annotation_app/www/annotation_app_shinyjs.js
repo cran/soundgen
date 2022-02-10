@@ -8,11 +8,13 @@
     a.currentTime = params.from;
     var dur_ms = (params.to - params.from) * 1000;
     a.play();
-    setTimeout(function() {
-      a.pause();
-      a.currentTime = params.from;
-    }, dur_ms);
-    // console.log('from = ' + params.from + '; to = ', params.to)
+    a.onplay = function() {
+      setTimeout(function() {
+        a.pause();
+        a.currentTime = params.from;
+      }, dur_ms);
+      // console.log('from = ' + params.from + '; to = ', params.to)
+    };
   };
 
   shinyjs.stopAudio_js = function(params) {

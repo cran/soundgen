@@ -1,3 +1,24 @@
+          CHANGES IN SOUNDGEN VERSION 2.5.1 [10-February-2022]
+NEW FUNCTIONS:
+  * notesToHz(): convert musical notation to Hz
+
+MINOR:
+  * analyze(): new measures of frequency modulation (fmFreq, fmDep, fmPurity)
+  * analyze(): alternative measure of amplitude modulation based on amplitude envelope (amEnvFreq, amEnvDep, amEnvPurity)
+  * analyze(), modulationSpectrum(): amFreq renamed to amMsFreq and amDep to amMsPurity
+  * analyze(): new measure of RMS amplitude of only non-silent frames "ampl_noSilence"" (same as "ampl"", but NA for frames below silence threshold)
+  * pitchDescriptives(): timeUnit must always be explicitly specified (to avoid mistakes with s/ms)
+  * pitch_app(): oscillogram doubles as voicing bar (click to voice/unvoice a frame)
+  * formant_app(): variable playback pitch
+
+BUGS FIXED:
+  * soundgen(): variable vibratoFreq interpolated correctly
+  * formant_app(), pitch_app(), annotation_app(): more precise timing of playback with javascript
+  * segment(): syllables saved without normalizing their amplitude to that of the loudest syllable
+  * all functions that create an html file with clickable plots: correct handling of relative paths
+  * all functions that process multiple inputs (eg analyze, segment, ...): much faster preprocessing of long file cues due to a fixed bug with checking file sizes
+
+
           CHANGES IN SOUNDGEN VERSION 2.5.0 [21-November-2021]
 NEW FUNCTIONS:
   * prosody(): exaggerates or flattens the intonation

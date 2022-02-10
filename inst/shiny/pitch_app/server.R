@@ -12,6 +12,7 @@
 server = function(input, output, session) {
   # make overlaid plots resizable (js fix)
   shinyjs::js$inheritSize(parentDiv = 'specDiv')
+  shinyjs::js$inheritSize(parentDiv = 'oscDiv')
 
   myPars = reactiveValues(
     zoomFactor = 2,     # zoom buttons change time zoom by this factor
@@ -29,7 +30,7 @@ server = function(input, output, session) {
     initDur = 1500,            # initial duration to plot (ms)
     spec_xlim = c(0, 1500),
     play = list(on = FALSE),
-    debugQn = FALSE            # for debugging - click "?" to step into the code
+    debugQn = TRUE            # for debugging - click "?" to step into the code
   )
   tooltip_options = list(delay = list(show = 1000, hide = 0))
 
@@ -127,6 +128,9 @@ server = function(input, output, session) {
         if (is.null(myPars$out)) {
           myPars$out = user_ann[, oblig_cols]
         } else {
+          # Note: rbind_fill ~ merge(all = TRUE), except that merge removes
+          # duplicates, which is highly undesirable in this case because it
+          # removes a row from the output when goes back and forth between files
           myPars$out = soundgen:::rbind_fill(myPars$out, user_ann[, oblig_cols])
           # remove duplicate rows
           myPars$out = unique(myPars$out)
@@ -525,31 +529,65 @@ server = function(input, output, session) {
     }
   })
 
+
+  # oscillogram
   observe({
-    output$oscillogram = renderPlot({
-      if (!is.null(myPars$myAudio_trimmed)) {
-        if (myPars$print) print('Drawing osc...')
-        par(mar = c(2, 2, 0, 2))
-        # plot(myPars$myAudio_trimmed, type = 'l')
-        plot(myPars$time_trimmed,
-             myPars$myAudio_trimmed,
-             type = 'l',
-             xlim = myPars$spec_xlim,
-             ylim = myPars$ylim_osc,
-             axes = FALSE, xaxs = "i", yaxs = "i", bty = 'o',
-             xlab = 'Time, ms',
-             ylab = '')
-        box()
-        time_location = axTicks(1)
-        time_labels = soundgen:::convert_sec_to_hms(time_location / 1000, 3)
-        axis(side = 1, at = time_location, labels = time_labels)
-        if (input$osc == 'dB') {
-          axis(side = 4, at = seq(0, input$dynamicRange, by = 10))
-          mtext("dB", side = 2, line = 3)
-        }
-        abline(h = 0, lty = 2)
+    myPars$oscOver_opts = list(
+      xlim = myPars$spec_xlim,
+      ylim = myPars$ylim_osc,
+      xaxs = "i", yaxs = "i",
+      bty = 'n', xaxt = 'n', yaxt = 'n',
+      xlab = '', ylab = '')
+  })
+
+  output$oscillogram = renderPlot({
+    if (!is.null(myPars$myAudio_trimmed)) {
+      if (myPars$print) print('Drawing osc...')
+      par(mar = c(2, 2, 0, 2))
+      # plot(myPars$myAudio_trimmed, type = 'l')
+      plot(myPars$time_trimmed,
+           myPars$myAudio_trimmed,
+           type = 'l',
+           xlim = myPars$spec_xlim,
+           ylim = myPars$ylim_osc,
+           axes = FALSE, xaxs = "i", yaxs = "i", bty = 'o',
+           xlab = 'Time, ms',
+           ylab = '')
+      box()
+      time_location = axTicks(1)
+      time_labels = soundgen:::convert_sec_to_hms(time_location / 1000, 3)
+      axis(side = 1, at = time_location, labels = time_labels)
+      if (input$osc == 'dB') {
+        axis(side = 4, at = seq(0, input$dynamicRange, by = 10))
+        mtext("dB", side = 2, line = 3)
       }
-    }, height = input$osc_height)
+      abline(h = 0, lty = 2)
+    }
+  })
+
+  output$oscOver = renderPlot({
+    par(mar = c(2, 2, 0, 2), bg = 'transparent')
+    # bg=NA makes the image transparent
+
+    # empty plot to enable hover/click events for the spectrogram underneath
+    do.call(plot, c(list(
+      x = myPars$spec_xlim,
+      y = myPars$ylim_osc,
+      type = 'n'),
+      myPars$oscOver_opts))
+
+    # highlight voiced frames
+    visible_frames = which(myPars$result$time >= myPars$spec_xlim[1] &
+                             myPars$result$time <= myPars$spec_xlim[2])
+    for (f in visible_frames) {
+      rect(
+        xleft = myPars$result$time[f] - input$step / 2,
+        xright = myPars$result$time[f] + input$step / 2,
+        ybottom = myPars$ylim_osc[1], ytop = myPars$ylim_osc[2],
+        col = ifelse(f %in% myPars$voiced_frames, rgb(0, 0, 1, .25), NA),
+        lty = 2, lwd = .5
+      )
+    }
   })
 
   observe({
@@ -734,8 +772,8 @@ server = function(input, output, session) {
       if (is.null(myPars$pitch) || nrow(myPars$voicedSegments) == 0) {
         myPars$pitch = rep(NA, ncol(myPars$pitchCands$freq))
       } else if (nrow(myPars$voicedSegments) > 0) {
-        voiced_frames = unlist(apply(myPars$voicedSegments, 1, function(x) x[1]:x[2]))
-        unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-voiced_frames]
+        myPars$voiced_frames = unlist(apply(myPars$voicedSegments, 1, function(x) x[1]:x[2]))
+        myPars$unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-myPars$voiced_frames]
         # make sure myPars$pitch is the same length as ncol(pitchCands$freq)
         if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) {
           myPars$pitch = resample(
@@ -744,7 +782,7 @@ server = function(input, output, session) {
             lowPass = FALSE,
             plot = FALSE)
         }
-        myPars$pitch[unvoiced_frames] = NA
+        myPars$pitch[myPars$unvoiced_frames] = NA
       }
       if (nrow(sylToUpdate) > 0) {
         # if we have found at least one putatively voiced syllable
@@ -789,6 +827,9 @@ server = function(input, output, session) {
           inviolable = myPars$manual$frame
         )[, 1]
       }
+
+      myPars$voiced_frames = which(!is.na(myPars$pitch))
+      myPars$unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-myPars$voiced_frames]
     }
   }
   observeEvent(
@@ -874,6 +915,17 @@ server = function(input, output, session) {
         obs_pitch(updateAll = FALSE)
       } else {
         myPars$pitch[myPars$closest_frame] = NA
+      }
+    }
+  })
+
+  observeEvent(input$osc_click, {
+    if (!is.null(myPars$pitchCands$freq)) {
+      clicked_frame = which.min(abs(myPars$result$time - input$osc_click$x))
+      if (clicked_frame %in% myPars$voiced_frames) {
+        unvoiceSel(clicked_frame, bp = TRUE)
+      } else {
+        voiceSel(clicked_frame, bp = TRUE)
       }
     }
   })
@@ -978,12 +1030,12 @@ server = function(input, output, session) {
   observeEvent(input$selection_unvoice, {
     unvoiceSel()
   })
-  unvoiceSel = function() {
+  unvoiceSel = function(frames = myPars$brush_sel_x, bp = myPars$bp) {
     if (myPars$print) print('Unvoicing selection...')
-    if (!is.null(myPars$bp) & length(myPars$brush_sel_x) > 0) {
+    if (!is.null(bp) & length(frames) > 0) {
       # NB: play forgets the previous selection, but other buttons do not,
       # hence myPars$bp instead of input$spectrogram_brush
-      myPars$manualUnv = sort(unique(c(myPars$manualUnv, myPars$brush_sel_x)))
+      myPars$manualUnv = sort(unique(c(myPars$manualUnv, frames)))
       # (ie all points within selected time range, regardless of frequency - or
       # could use myPars$brush_sel_xy)
       # remove manual anchors within selection, if any
@@ -994,15 +1046,14 @@ server = function(input, output, session) {
   }
 
   # VOICE
-  voiceSel = function() {
+  voiceSel = function(frames = myPars$brush_sel_x, bp = myPars$bp) {
     if (myPars$print) print('Voicing selection...')
-    if (!is.null(myPars$bp) &
-        length(myPars$brush_sel_x) > 0) {
+    if (!is.null(bp) & length(frames) > 0) {
       # manually voice the selected frames
-      myPars$manualTryToV = c(myPars$manualTryToV, myPars$brush_sel_x)
+      myPars$manualTryToV = c(myPars$manualTryToV, frames)
       # remove them from the list of manually unvoiced frames
       if (length(myPars$manualUnv) > 0) {
-        idx_rem = which(myPars$manualUnv %in% myPars$brush_sel_x)
+        idx_rem = which(myPars$manualUnv %in% frames)
         if (length(idx_rem) > 0) {
           myPars$manualUnv = myPars$manualUnv[-idx_rem]
         }
@@ -1357,7 +1408,7 @@ server = function(input, output, session) {
 
   nextFile = function() {
     if (!is.null(myPars$myAudio_path)) {
-      done()
+      # done()
       if (myPars$n < myPars$nFiles) {
         myPars$n = myPars$n + 1
         updateSelectInput(session, 'fileList',
@@ -1371,7 +1422,7 @@ server = function(input, output, session) {
 
   lastFile = function() {
     if (!is.null(myPars$myAudio_path)) {
-      done()
+      # done()
       if (myPars$n > 1) {
         myPars$n = myPars$n - 1
         updateSelectInput(session, 'fileList',

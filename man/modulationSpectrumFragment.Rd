@@ -45,7 +45,7 @@ FFT}
 Internal soundgen function.
 }
 \examples{
-s = soundgen(amFreq = 25, amDep = 100)
+s = soundgen(amMsFreq = 25, amMsPurity = 100)
 ms = soundgen:::modulationSpectrumFragment(s, 16000,
   windowLength = 50, windowLength_points = .05 * 16000,
   step = 5, step_points = .005 * 16000)

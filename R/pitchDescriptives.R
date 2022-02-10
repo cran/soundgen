@@ -10,13 +10,13 @@
 #'   (as exported by \code{\link{pitch_app}}), or path to csv file containing
 #'   the output of \code{\link{pitch_app}} or \code{\link{analyze}}
 #' @param step distance between values in s (only needed if input is a vector)
+#' @param timeUnit specify whether the time stamps (if any) are in ms or s
 #' @param smoothBW a vector of bandwidths (Hz) for consecutive smoothing of
 #'   input using \code{\link{pitchSmoothPraat}}; NA = no smoothing
 #' @param inflThres minimum difference (in semitones) between consecutive
 #'   extrema to consider them inflections; to apply a different threshold at
 #'   each smoothing level, provide \code{inflThres} as a vector of the same
 #'   length as \code{smoothBW}; NA = no threshold
-#' @param timeUnit specify whether the time stamps (if any) are in ms or s
 #' @param ref reference value for transforming Hz to semitones, defaults to
 #'   C0 (16.35 Hz)
 #' @param extraSummaryFun additional summary function(s) that take a numeric
@@ -56,7 +56,7 @@
 #' plot(x, type = 'b')
 #' ci95 = function(x) diff(quantile(na.omit(x), probs = c(.025, .975)))
 #' pd = pitchDescriptives(
-#'   x, step = .025,
+#'   x, step = .025, timeUnit = 's',
 #'   smoothBW = c(NA, 10, 1),   # original + smoothed at 10 Hz and 1 Hz
 #'   inflThres = c(NA, .2, .2), # different for each level of smoothing
 #'   extraSummaryFun = 'ci95',  # user-defined, here 95% coverage interval
@@ -87,9 +87,9 @@
 #' }
 pitchDescriptives = function(x,
                              step = NULL,
+                             timeUnit,
                              smoothBW = c(NA, 10, 1),
                              inflThres = .2,
-                             timeUnit = c('s', 'ms')[1],
                              extraSummaryFun = c(),
                              ref = 16.35,
                              plot = FALSE) {

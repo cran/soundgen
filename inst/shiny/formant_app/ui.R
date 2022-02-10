@@ -49,6 +49,18 @@ ui = fluidPage(
                   selected = 'Browser', inline = TRUE, width = NULL
                 ),
                 sliderInput(
+                  'pitch',
+                  'Playback pitch, Hz',
+                  value = 150,
+                  min = 20,
+                  max = 500,
+                  step = 5
+                ),
+                checkboxInput(
+                  'adaptivePitch',
+                  'Adapt playback pitch by imflied VTL',
+                  value = TRUE),
+                sliderInput(
                   'samplingRate_mult',
                   'Playback speed, 2 ^',
                   value = def_form['samplingRate_mult', 'default'],
