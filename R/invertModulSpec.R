@@ -272,7 +272,7 @@ filterSoundByMS = function(
   # save audio
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(s_new * audio$scale, audio, filename)
+    writeAudio(s_new * audio$scale, audio = audio, filename = filename)
   }
 
   if (plot) {
@@ -390,7 +390,7 @@ filterMS = function(ms,
     if (is.character(amCond)) {
       am_cond = paste0('which(', amCond, ')')
       idx_col = try(eval(parse(text = am_cond)), silent = TRUE)
-      if (class(idx_col)[1] == 'try-error') {
+      if (inherits(idx_col, 'try-error')) {
         stop('amCond must be a valid expression to pass to which() - see examples')
       }
     } else {
@@ -400,7 +400,7 @@ filterMS = function(ms,
     if (is.character(fmCond)) {
       fm_cond = paste0('which(', fmCond, ')')
       idx_row = try(eval(parse(text = fm_cond)), silent = TRUE)
-      if (class(idx_row)[1] == 'try-error') {
+      if (inherits(idx_row, 'try-error')) {
         stop('fmCond must be a valid expression to pass to which() - see examples')
       }
     } else {

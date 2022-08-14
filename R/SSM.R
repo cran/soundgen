@@ -40,6 +40,7 @@
 #'   before and after the recording as unknown, 0 = treat it as silence
 #' @param plot if TRUE, plots the SSM
 #' @param heights relative sizes of the SSM and spectrogram/novelty plot
+#' @param main plot title
 #' @param specPars graphical parameters passed to \code{filled.contour.mod} and
 #'   affecting the \code{\link{spectrogram}}
 #' @param ssmPars graphical parameters passed to \code{filled.contour.mod} and
@@ -533,16 +534,17 @@ getCheckerboardKernel = function(size,
     kernel_long$dd = mvtnorm::dmvnorm(x = kernel_long,
                                       mean = c(kernel_mean, kernel_mean),
                                       sigma = sigma)
-    kernel = reshape2::acast(data = kernel_long, formula = x2 ~ x1, value.var = 'dd')
+    kernel = matrix(kernel_long$dd, nrow = length(x))
+    kernel[1:5, 1:5]
   }
 
   if (checker) {
+    fl = floor(size / 2)
+    cl = ceiling(size / 2)
     # quadrant 0 to 3 o'clock
-    kernel[1:(floor(size / 2)), (ceiling(size / 2) + 1):size] =
-      -kernel[1:(floor(size / 2)), (ceiling(size / 2) + 1):size]
+    kernel[1:fl, (cl + 1):size] = -kernel[1:fl, (cl + 1):size]
     # quadrant 6 to 9 o'clock
-    kernel[(ceiling(size / 2) + 1):size, 1:(ceiling(size / 2))] =
-      -kernel[(ceiling(size / 2) + 1):size, 1:(ceiling(size / 2))]
+    kernel[(cl + 1):size, 1:cl] = -kernel[(cl + 1):size, 1:cl]
   }
 
   kernel = kernel / max(kernel)

@@ -113,34 +113,34 @@
 #' points(as.numeric(rownames(e4)), 20 * log10(e4[, ncol(e4)]),
 #'        type = 'l', col = 'red', lty = 2)
 getSpectralEnvelope = function(
-  nr,
-  nc,
-  formants = NA,
-  formantDep = 1,
-  formantWidth = 1,
-  lipRad = 6,
-  noseRad = 4,
-  mouth = NA,
-  mouthOpenThres = 0.2,
-  openMouthBoost = 0,
-  vocalTract = NULL,
-  temperature = 0.05,
-  formDrift = .3,
-  formDisp = .2,
-  formantDepStoch = 1,
-  smoothLinearFactor = 1,
-  formantCeiling = 2,
-  samplingRate = 16000,
-  speedSound = 35400,
-  smoothing = list(),
-  output = c('simple', 'detailed')[1],
-  plot = FALSE,
-  duration = NULL,
-  colorTheme = c('bw', 'seewave', '...')[1],
-  nCols = 100,
-  xlab = 'Time',
-  ylab = 'Frequency, kHz',
-  ...
+    nr,
+    nc,
+    formants = NA,
+    formantDep = 1,
+    formantWidth = 1,
+    lipRad = 6,
+    noseRad = 4,
+    mouth = NA,
+    mouthOpenThres = 0.2,
+    openMouthBoost = 0,
+    vocalTract = NULL,
+    temperature = 0.05,
+    formDrift = .3,
+    formDisp = .2,
+    formantDepStoch = 1,
+    smoothLinearFactor = 1,
+    formantCeiling = 2,
+    samplingRate = 16000,
+    speedSound = 35400,
+    smoothing = list(),
+    output = c('simple', 'detailed')[1],
+    plot = FALSE,
+    duration = NULL,
+    colorTheme = c('bw', 'seewave', '...')[1],
+    nCols = 100,
+    xlab = 'Time',
+    ylab = 'Frequency, kHz',
+    ...
 ) {
   # standard formatting
   formants = reformatFormants(formants)
@@ -714,33 +714,33 @@ getSpectralEnvelope = function(
 #' # harmonics and noise, while the new sound is purely tonal
 #' }
 addFormants = function(
-  x,
-  samplingRate = NULL,
-  formants = NULL,
-  spectralEnvelope = NULL,
-  zFun = NULL,
-  action = c('add', 'remove')[1],
-  vocalTract = NA,
-  formantDep = 1,
-  formantDepStoch = 1,
-  formantWidth = 1,
-  formantCeiling = 2,
-  lipRad = 6,
-  noseRad = 4,
-  mouthOpenThres = 0,
-  mouth = NA,
-  temperature = 0.025,
-  formDrift = 0.3,
-  formDisp = 0.2,
-  smoothing = list(),
-  windowLength_points = 800,
-  overlap = 75,
-  normalize = c('max', 'orig', 'none')[1],
-  play = FALSE,
-  saveAudio = NULL,
-  reportEvery = NULL,
-  cores = 1,
-  ...
+    x,
+    samplingRate = NULL,
+    formants = NULL,
+    spectralEnvelope = NULL,
+    zFun = NULL,
+    action = c('add', 'remove')[1],
+    vocalTract = NA,
+    formantDep = 1,
+    formantDepStoch = 1,
+    formantWidth = 1,
+    formantCeiling = 2,
+    lipRad = 6,
+    noseRad = 4,
+    mouthOpenThres = 0,
+    mouth = NA,
+    temperature = 0.025,
+    formDrift = 0.3,
+    formDisp = 0.2,
+    smoothing = list(),
+    windowLength_points = 800,
+    overlap = 75,
+    normalize = c('max', 'orig', 'none')[1],
+    play = FALSE,
+    saveAudio = NULL,
+    reportEvery = NULL,
+    cores = 1,
+    ...
 ) {
   formants = reformatFormants(formants)
   mouth = reformatFormants(mouth)
@@ -778,29 +778,29 @@ addFormants = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .addFormants = function(
-  audio,
-  formants,
-  spectralEnvelope = NULL,
-  zFun = NULL,
-  action = c('add', 'remove')[1],
-  vocalTract = NA,
-  formantDep = 1,
-  formantDepStoch = 1,
-  formantWidth = 1,
-  formantCeiling = 2,
-  lipRad = 6,
-  noseRad = 4,
-  mouthOpenThres = 0,
-  mouth = NA,
-  temperature = 0.025,
-  formDrift = 0.3,
-  formDisp = 0.2,
-  smoothing = list(),
-  windowLength_points = 800,
-  overlap = 75,
-  normalize = c('max', 'orig', 'none')[1],
-  play = FALSE,
-  ...
+    audio,
+    formants,
+    spectralEnvelope = NULL,
+    zFun = NULL,
+    action = c('add', 'remove')[1],
+    vocalTract = NA,
+    formantDep = 1,
+    formantDepStoch = 1,
+    formantWidth = 1,
+    formantCeiling = 2,
+    lipRad = 6,
+    noseRad = 4,
+    mouthOpenThres = 0,
+    mouth = NA,
+    temperature = 0.025,
+    formDrift = 0.3,
+    formDisp = 0.2,
+    smoothing = list(),
+    windowLength_points = 800,
+    overlap = 75,
+    normalize = c('max', 'orig', 'none')[1],
+    play = FALSE,
+    ...
 ) {
   # prepare vocal tract filter (formants + some spectral noise + lip radiation)
   if (!any(audio$sound != 0)) {
@@ -914,7 +914,7 @@ addFormants = function(
     }
 
     # apply some arbitrary function to the spectrogram before iSTFT
-    if (!is.null(zFun) && class(zFun) == 'function')
+    if (!is.null(zFun) && is.function(zFun))
       z = do.call(zFun, list(z = z, ...))
 
     # inverse fft
@@ -951,7 +951,7 @@ addFormants = function(
   if (play) playme(soundFiltered, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(soundFiltered, audio, filename)
+    writeAudio(soundFiltered, audio = audio, filename = filename)
   }
 
   # spectrogram(soundFiltered, audio$samplingRate, ylim = c(0, 4))
@@ -1140,8 +1140,13 @@ transplantFormants = function(donor,
   for (i in 1:ncol(spec_recipient)) {
     abs_s = abs(spec_recipient[, i])
     # plot(log(abs_s), type = 'l')
-    cor_coef = flatEnv(
-      abs_s, samplingRate = 1, method = 'peak',
+    sc = max(abs_s)
+    cor_coef = .flatEnv(
+      list(sound = abs_s,
+           samplingRate = 1,  # sr not really needed
+           scale = sc,
+           scale_used = sc),
+      method = 'peak',
       dynamicRange = dynamicRange,
       windowLength_points = freqWindow_bins) / abs_s
     # plot(Re(spec_recipient[, i]) * cor_coef, type = 'l')

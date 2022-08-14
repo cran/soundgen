@@ -18,12 +18,15 @@
 #'
 #' @inheritParams spectrogram
 #' @inheritParams segment
+#' @param stereo 'left' = only left channel, 'right' = only right channel,
+#'   'average' = take the mean of the two channels, 'both' = return RMS for both
+#'   channels separately
 #' @param killDC if TRUE, removed DC offset (see also \code{\link{flatEnv}})
 #' @param normalize if TRUE, the RMS amplitude is returned as proportion of
 #'   the maximum possible amplitude as given by \code{scale}
 #' @param windowDC the window for calculating DC offset, ms
 #' @param plot if TRUE, plot a contour of RMS amplitude
-#' @param xlab,ylab general graphical parameters
+#' @param xlab,ylab,main general graphical parameters
 #' @param type,col,lwd graphical parameters pertaining to the RMS envelope
 #' @param ... other graphical parameters
 #'
@@ -35,7 +38,7 @@
 #' @export
 #' @examples
 #' s = soundgen() + .25  # with added DC offset
-#' osc(s)
+#' # osc(s)
 #' r = getRMS(s, samplingRate = 16000,
 #'   windowLength = 40, overlap = 50, killDC = TRUE,
 #'   plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
@@ -43,8 +46,19 @@
 #' r = getRMS(s, samplingRate = 16000,
 #'   windowLength = 5, overlap = 0, killDC = TRUE,
 #'   plot = TRUE, col = 'blue', pch = 13, main = 'RMS envelope')
+#'
+#'  # stereo
+#'  wave_stereo = tuneR::Wave(
+#'    left = runif(1000, -1, 1) * 16000,
+#'    right = runif(1000, -1, 1) / 3 * 16000,
+#'    bit = 16, samp.rate = 4000)
+#'  getRMS(wave_stereo)$summary
+#'  getRMS(wave_stereo, stereo = 'right')$summary
+#'  getRMS(wave_stereo, stereo = 'average')$summary
+#'  getRMS(wave_stereo, stereo = 'both', plot = TRUE)$summary
+#'
 #' \dontrun{
-#' r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp260/plots')
+#' r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
 #' r$summary
 #'
 #' # Compare:
@@ -67,6 +81,7 @@ getRMS = function(x,
                   windowLength = 50,
                   step = NULL,
                   overlap = 70,
+                  stereo = c('left', 'right', 'average', 'both')[1],
                   killDC = FALSE,
                   normalize = TRUE,
                   windowDC = 200,
@@ -142,6 +157,7 @@ getRMS = function(x,
                    windowLength = 50,
                    step = NULL,
                    overlap = 75,
+                   stereo = c('left', 'right', 'average', 'both')[1],
                    killDC = FALSE,
                    normalize = TRUE,
                    windowDC = 200,
@@ -173,11 +189,15 @@ getRMS = function(x,
   step = step_points / audio$samplingRate * 1000
   windowLength = windowLength_points / audio$samplingRate * 1000
   # step_points can only be an integer, introducing small timing errors in long sounds
+  if (stereo == 'right') audio$sound = audio$right
 
   # DC offset
   if (killDC) {
     audio$sound = killDC(audio$sound, windowLength = windowDC,
                          samplingRate = audio$samplingRate)
+    if (!is.null(audio$right) & stereo %in% c('average', 'both'))
+      audio$right = killDC(audio$right, windowLength = windowDC,
+                           samplingRate = audio$samplingRate)
   }
 
   # calculate RMS per frame
@@ -186,6 +206,19 @@ getRMS = function(x,
     sqrt(mean(audio$sound[x:(windowLength_points + x - 1)] ^ 2))
   })
   names(r) = myseq / audio$samplingRate * 1000 + windowLength / 2
+  if (normalize) r = r / audio$scale
+
+  # same for the right channel
+  if (!is.null(audio$right) & stereo %in% c('average', 'both')) {
+    r2 = apply(as.matrix(myseq), 1, function(x) {
+      sqrt(mean(audio$right[x:(windowLength_points + x - 1)] ^ 2))
+    })
+    names(r2) = names(r)
+    if (normalize) r2 = r2 / audio$scale
+  }
+
+  if (stereo == 'average') r = (r + r2) / 2
+  if (stereo == 'both') r = list(left = r, right = r2)
 
   # plotting
   if (is.character(audio$savePlots)) {
@@ -202,17 +235,44 @@ getRMS = function(x,
       }
     }
     time = 1:audio$ls / audio$samplingRate * 1000
-    plot(time, audio$sound, type = 'n', main = main, xlab = xlab, ylab = ylab,
-         xaxt = 'n', ylim = c(-audio$scale, audio$scale), ...)
-    time_location = axTicks(1)
-    time_labels = convert_sec_to_hms(time_location / 1000, 3)
-    axis(side = 1, at = time_location, labels = time_labels)
-    points(time, audio$sound, type = 'l')
-    points(as.numeric(names(r)), r, type = type, col = col, lwd = lwd, ...)
+    if (stereo != 'both') {
+      plot(time, audio$sound, type = 'n', main = main, xlab = xlab, ylab = ylab,
+           xaxt = 'n', ylim = c(-audio$scale, audio$scale), ...)
+      time_location = axTicks(1)
+      time_labels = convert_sec_to_hms(time_location / 1000, 3)
+      axis(side = 1, at = time_location, labels = time_labels)
+      points(time, audio$sound, type = 'l')
+      points(as.numeric(names(r)), r * audio$scale, type = type,
+             col = col, lwd = lwd, ...)
+    } else if (stereo == 'both' & !is.null(audio$right)) {
+      op = par(c('mar', 'mfrow')) # save user's original pars
+      layout(matrix(c(2, 1), nrow = 2, byrow = TRUE))
+      par(mfrow = c(2, 1), mar = c(0, par()$mar[2:4]))
+      plot(time, audio$sound, type = 'n', main = main, xlab = xlab, ylab = ylab,
+           xaxt = 'n', ylim = c(-audio$scale, audio$scale), ...)
+      time_location = axTicks(1)
+      time_labels = convert_sec_to_hms(time_location / 1000, 3)
+      # axis(side = 1, at = time_location, labels = time_labels)
+      points(time, audio$sound, type = 'l')
+      points(as.numeric(names(r$left)), r$left * audio$scale, type = type,
+             col = col, lwd = lwd, ...)
+      text(0, audio$scale, adj = c(1, 1), labels = 'L', col = 'blue', cex = 1.5)
+
+      par(mar = c(op$mar[1:2], 0, op$mar[4]))
+      plot(time, audio$right, type = 'n', main = main, xlab = xlab, ylab = ylab,
+           xaxt = 'n', ylim = c(-audio$scale, audio$scale), ...)
+      time_location = axTicks(1)
+      time_labels = convert_sec_to_hms(time_location / 1000, 3)
+      axis(side = 1, at = time_location, labels = time_labels)
+      points(time, audio$right, type = 'l')
+      points(as.numeric(names(r$right)), r$right * audio$scale, type = type,
+             col = col, lwd = lwd, ...)
+      text(0, audio$scale, adj = c(1, 1), labels = 'R', col = 'blue', cex = 1.5)
+      # restore original pars
+      par('mar' = op$mar, 'mfrow' = op$mfrow)
+    }
     if (is.character(audio$savePlots)) dev.off()
   }
-
-  if (normalize) r = r / audio$scale
   return(r)
 }
 
@@ -262,17 +322,17 @@ getRMS = function(x,
 #' # try reconverting with ffmpeg (saving is handled by tuneR::writeWave)
 #' }
 normalizeFolder = function(
-  myfolder,
-  type = c('peak', 'rms', 'loudness')[1],
-  maxAmp = 0,
-  summaryFun = 'mean',
-  windowLength = 50,
-  step = NULL,
-  overlap = 70,
-  killDC = FALSE,
-  windowDC = 200,
-  saveAudio = NULL,
-  reportEvery = NULL
+    myfolder,
+    type = c('peak', 'rms', 'loudness')[1],
+    maxAmp = 0,
+    summaryFun = 'mean',
+    windowLength = 50,
+    step = NULL,
+    overlap = 70,
+    killDC = FALSE,
+    windowDC = 200,
+    saveAudio = NULL,
+    reportEvery = NULL
 ) {
   time_start = proc.time()  # timing
   filenames = list.files(myfolder, pattern = "*.wav|.mp3|.WAV|.MP3",
@@ -583,7 +643,7 @@ compressor = flatEnv
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(soundFlat, audio, filename)
+    writeAudio(soundFlat, audio = audio, filename = filename)
   }
 
   return(soundFlat)
@@ -827,14 +887,14 @@ addAM = function(x,
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .addAM = function(
-  audio,
-  amDep = 25,
-  amFreq = 30,
-  amType = c('logistic', 'sine')[1],
-  amShape = 0,
-  invalidArgAction = c('adjust', 'abort', 'ignore')[1],
-  plot = FALSE,
-  play = FALSE
+    audio,
+    amDep = 25,
+    amFreq = 30,
+    amType = c('logistic', 'sine')[1],
+    amShape = 0,
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1],
+    plot = FALSE,
+    play = FALSE
 ) {
   # vectorize
   amPar_vect = c('amDep', 'amFreq', 'amShape')
@@ -883,18 +943,19 @@ addAM = function(x,
   sound_am = audio$sound * am
 
   if (plot) {
-    osc(x = am,
-        samplingRate = audio$samplingRate,
-        main = 'Amplitude modulation',
-        xlab = 'Time, ms',
-        ylab = '',
-        ylim = c(0, 1),
-        midline = FALSE)
+    .osc(list(sound = am,
+              samplingRate = audio$samplingRate,
+              ls = length(am)),
+         main = 'Amplitude modulation',
+         xlab = 'Time, ms',
+         ylab = '',
+         ylim = c(0, 1),
+         midline = FALSE)
   }
   if (play) playme(sound_am, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(sound_am, audio, filename)
+    writeAudio(sound_am, audio = audio, filename = filename)
   }
   invisible(sound_am)
 }
@@ -927,9 +988,9 @@ addAM = function(x,
 #' points(soundgen:::getEnv(a, windowLength_points, 'mean'),
 #'        type = 'l', lty = 3, lwd = 3)
 getEnv = function(
-  sound,
-  windowLength_points,
-  method = c('rms', 'hil', 'peak', 'raw', 'mean')[1]
+    sound,
+    windowLength_points,
+    method = c('rms', 'hil', 'peak', 'raw', 'mean')[1]
 ) {
   windowLength_points = round(windowLength_points)
   sound = c(rep(0, windowLength_points),

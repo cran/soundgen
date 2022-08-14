@@ -6,7 +6,7 @@
 #' likely to involuntarily attract the listeners' attention. The functions
 #' returns surprisal proper (`$surprisal`) and its product with increases in
 #' loudness (`$surprisalLoudness`). Because getSurprisal() is slow and
-#' experimental, it is not called by analyzed().
+#' experimental, it is not called by analyze().
 #'
 #' Algorithm: we start with an auditory spectrogram produced by applying a bank
 #' of bandpass filters to the signal, by default with central frequencies
@@ -253,7 +253,7 @@ getSurprisal = function(
   len_surp = length(surprisal)
   loud[is.na(loud)] = 0
   if (length(loud) != len_surp) {
-    loud = resample(loud, len = len_surp, lowPass = FALSE)
+    loud = .resample(list(sound = loud), len = len_surp, lowPass = FALSE)
   }
 
   # multiply surprisal by time derivative of loudness

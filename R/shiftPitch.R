@@ -83,26 +83,26 @@
 #' spectrogram(sheep2, sheep@samp.rate)
 #' }
 shiftPitch = function(
-  x,
-  multPitch = 1,
-  multFormants = multPitch,
-  timeStretch = 1,
-  samplingRate = NULL,
-  freqWindow = NULL,
-  dynamicRange = 80,
-  windowLength = 40,
-  step = 2,
-  overlap = NULL,
-  wn = 'gaussian',
-  interpol = c('approx', 'spline')[1],
-  propagation = c('time', 'adaptive')[1],
-  preserveEnv = NULL,
-  transplantEnv_pars = list(windowLength = 10),
-  normalize = c('max', 'orig', 'none')[2],
-  play = FALSE,
-  saveAudio = NULL,
-  reportEvery = NULL,
-  cores = 1) {
+    x,
+    multPitch = 1,
+    multFormants = multPitch,
+    timeStretch = 1,
+    samplingRate = NULL,
+    freqWindow = NULL,
+    dynamicRange = 80,
+    windowLength = 40,
+    step = 2,
+    overlap = NULL,
+    wn = 'gaussian',
+    interpol = c('approx', 'spline')[1],
+    propagation = c('time', 'adaptive')[1],
+    preserveEnv = NULL,
+    transplantEnv_pars = list(windowLength = 10),
+    normalize = c('max', 'orig', 'none')[2],
+    play = FALSE,
+    saveAudio = NULL,
+    reportEvery = NULL,
+    cores = 1) {
   multPitch = reformatAnchors(multPitch)
   multFormants = reformatAnchors(multFormants)
   timeStretch = reformatAnchors(timeStretch)
@@ -140,22 +140,22 @@ shiftPitch = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .shiftPitch = function(
-  audio,
-  multPitch,
-  multFormants,
-  timeStretch,
-  freqWindow = NULL,
-  dynamicRange = 80,
-  windowLength = 50,
-  step = NULL,
-  overlap = 75,
-  wn = 'gaussian',
-  interpol = c('approx', 'spline')[1],
-  propagation = c('time', 'adaptive')[1],
-  preserveEnv = NULL,
-  transplantEnv_pars = list(),
-  normalize = c('max', 'orig', 'none')[2],
-  play = FALSE) {
+    audio,
+    multPitch,
+    multFormants,
+    timeStretch,
+    freqWindow = NULL,
+    dynamicRange = 80,
+    windowLength = 50,
+    step = NULL,
+    overlap = 75,
+    wn = 'gaussian',
+    interpol = c('approx', 'spline')[1],
+    propagation = c('time', 'adaptive')[1],
+    preserveEnv = NULL,
+    transplantEnv_pars = list(),
+    normalize = c('max', 'orig', 'none')[2],
+    play = FALSE) {
   if (!(any(multPitch$value != 1) |
         any(multFormants$value != 1) |
         any(timeStretch$value != 1))) {
@@ -252,7 +252,8 @@ shiftPitch = function(
       )
       # Resample
       if (multPitch_vector[1] != 1)
-        soundFiltered = resample(soundFiltered, mult = 1 / multPitch_vector[1])
+        soundFiltered = .resample(list(sound = soundFiltered),
+                                  mult = 1 / multPitch_vector[1])
     }
 
     # normalize, otherwise glitches with shifting formats
@@ -321,7 +322,7 @@ shiftPitch = function(
   }
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(soundFiltered, audio, filename)
+    writeAudio(soundFiltered, audio = audio, filename = filename)
   }
   return(soundFiltered)
 }
@@ -480,10 +481,13 @@ istft_mod = function (stft, f, wl, ovlp = 75, wn = "hanning",
     X = stft[, i]
     mirror = rev(X[-1])
     mirror = complex(real = Re(mirror), imaginary = -Im(mirror))
-    X = c(X, complex(real = Re(X[length(X)]), imaginary = 0), mirror)
-    xprim = Re(fft(X, inverse = TRUE)/length(X))
-    if (any(mult_long != 1))
-      xprim = resample(xprim, mult = 1 / mult_long[i])
+    n = length(X)
+    X = c(X, complex(real = Re(X[n]), imaginary = 0), mirror)
+    xprim = Re(fft(X, inverse = TRUE)/n)
+    if (mult_long[i] != 1) {
+      # xprim = approx(xprim, n = n / mult_long[i])$y
+      xprim = .resample(list(sound = xprim), mult = 1 / mult_long[i], lowPass = FALSE)
+    }
     len_xprim = length(xprim)
     win = seewave::ftwindow(wl = len_xprim, wn = wn)
     idx = (b + 1) : (b + len_xprim )

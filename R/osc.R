@@ -13,6 +13,7 @@
 #' @param returnWave if TRUE, returns a log-transformed waveform as a numeric vector
 #' @param plot if TRUE, plots the oscillogram
 #' @param xlab,ylab axis labels
+#' @param main plot title
 #' @param ylim override default amplitude scale for non-centered sounds
 #' @param bty box type (see `?par`)
 #' @param midline if TRUE, draws a line at 0 dB

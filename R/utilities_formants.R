@@ -36,7 +36,7 @@ reformatFormants = function(formants,
                             keepNonInteger = TRUE) {
   if (is.null(formants)) {
     formants = NA
-  } else if (class(formants)[1] == 'character') {
+  } else if (is.character(formants)) {
     # "aui" etc - read off values from presets$M1
     formants = convertStringToFormants(formants)
   } else if (is.numeric(formants)) {

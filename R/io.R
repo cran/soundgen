@@ -81,7 +81,7 @@ playme = function(x,
       sound_wave = x[[i]]
     }
 
-    if (class(sound_wave) != 'try-error') {
+    if (!inherits(sound_wave, 'try-error')) {
       # select time range
       if (!is.null(from) | !is.null(to)) {
         if (is.null(from)) from = 0
@@ -163,7 +163,7 @@ checkInputType = function(x) {
     for (i in 1:n) {
       if (is.numeric(x[[i]]) | is.logical(x[[i]])) {
         type[i] = 'vector'  # logical means all NAs
-      } else if (class(x[[i]]) == 'Wave') {
+      } else if (inherits(x[[i]], 'Wave')) {
         # input is a Wave object
         type[i] = 'Wave'
       } else {
@@ -206,6 +206,7 @@ readAudio = function(x,
                      from = NULL,
                      to = NULL) {
   failed = FALSE
+  right = NULL
   if (input$type[i] == 'file') {
     fi = input$filenames[i]
     ext_i = substr(fi, nchar(fi) - 3, nchar(fi))
@@ -216,11 +217,12 @@ readAudio = function(x,
     } else {
       warning(paste('Input', fi, 'not recognized: expected a wav/mp3 file'))
     }
-    if (class(sound_wave) == 'try-error') {
+    if (inherits(sound_wave, 'try-error')) {
       failed = TRUE
       sound = samplingRate = bit = scale = NULL
     } else {
       sound = as.numeric(sound_wave@left)
+      right = as.numeric(sound_wave@right)
       samplingRate = sound_wave@samp.rate
       bit = sound_wave@bit
       scale = 2 ^ (sound_wave@bit - 1)
@@ -245,6 +247,7 @@ readAudio = function(x,
     }
   } else if (input$type[i] == 'Wave') {
     sound = x@left
+    right = x@right
     samplingRate = x@samp.rate
     bit = x@bit
     scale = 2 ^ (x@bit - 1)
@@ -258,6 +261,7 @@ readAudio = function(x,
       from_points = 1
     } else {
       from_points = max(1, round(from * samplingRate))
+      if (from_points > ls) stop('Invalid from - greater than sound duration')
     }
     if (!is.numeric(to)) {
       to_points = ls
@@ -265,6 +269,7 @@ readAudio = function(x,
       to_points = min(ls, round(to * samplingRate))
     }
     sound = sound[from_points:to_points]
+    right = right[from_points:to_points]
     timeShift = from_points / samplingRate
     ls = length(sound)
   } else {
@@ -274,6 +279,7 @@ readAudio = function(x,
 
   return(list(
     sound = sound,
+    right = right,
     samplingRate = samplingRate,
     bit = bit,
     scale = scale,
@@ -287,6 +293,7 @@ readAudio = function(x,
     filename_noExt = input$filenames_noExt[i]
   ))
 }
+
 
 #' Write audio
 #'
@@ -304,7 +311,7 @@ readAudio = function(x,
 #'   samplingRate, bit, scale, scale_used
 #' @param filename full path and filename including .wav
 #' @keywords internal
-writeAudio = function(x, scale_used = NULL, audio, filename) {
+writeAudio = function(x, audio, filename, scale_used = NULL) {
   x_wave = tuneR::Wave(left = x, samp.rate = audio$samplingRate, bit = 16)
   if (is.null(scale_used)) scale_used = audio$scale_used
   x_wave_norm = tuneR::normalize(
@@ -432,7 +439,7 @@ processAudio = function(x,
         # process file
         if (!audio$failed) {
           an_t = try(do.call(funToCall, c(list(audio = audio), myPars)))
-          if (class(an_t)[1] == 'try-error') audio$failed = TRUE
+          if (inherits(an_t, 'try-error')) audio$failed = TRUE
         }
         if (audio$failed) {
           if (input$n > 1) {
@@ -463,7 +470,7 @@ processAudio = function(x,
     # single core
     if (input$n > 5) {
       nCores = try(parallel::detectCores(), silent = TRUE)
-      if (class(nCores) != 'try-error' && is.numeric(nCores) && nCores > 1) {
+      if (!inherits(nCores, 'try-error') && is.numeric(nCores) && nCores > 1) {
         msg = paste(
           "Consider using multiple cores to speed up processing with",
           "'cores = ...'. Your machine has", nCores, "cores"
@@ -488,7 +495,7 @@ processAudio = function(x,
       # process file
       if (!audio$failed) {
         an_i = try(do.call(funToCall, c(list(audio = audio), myPars)))
-        if (class(an_i)[1] == 'try-error') audio$failed = TRUE
+        if (inherits(an_i, 'try-error')) audio$failed = TRUE
       }
       if (audio$failed) {
         if (input$n > 1) {
@@ -500,6 +507,9 @@ processAudio = function(x,
         input$failed[i] = TRUE
       }
       result[[i]] = an_i
+
+      # garbage collection to free RAM (doesn't really work, though, session still bloated)
+      gc()
 
       # report time
       if ((is.null(reportEvery) || is.finite(reportEvery)) & input$n > 1) {

@@ -55,10 +55,7 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{shortestSyl}{minimum acceptable length of syllables, ms}

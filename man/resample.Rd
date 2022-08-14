@@ -60,16 +60,7 @@ per detected syllable)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
@@ -80,22 +71,28 @@ Algorithm: to downsample, applies a low-pass filter, then decimates with
 \code{approx}; to upsample, performs linear interpolation with \code{approx},
 then applies a low-pass filter. NAs can be interpolated or preserved in the
 output. The length of output is determined, in order of precedence, by
-\code{len / mult / samplingRate_new}.
+\code{len / mult / samplingRate_new}. For simple vector operations, this is
+very similar to approx, but the leading and trailing NAs are also preserved
+(see examples).
 }
 \examples{
 ## Example 1: a short vector with NAs
 x = c(NA, 1, 2, 3, NA, NA, 6, 7, 8, NA)
 
 # upsample
-soundgen::resample(x, mult = 3.5, lowPass = FALSE, plot = TRUE)  # just approx
-soundgen::resample(x, mult = 3.5, lowPass = TRUE, plot = TRUE) # low-pass + approx
-soundgen::resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
+resample(x, mult = 3.5, lowPass = FALSE, plot = TRUE)  # just approx
+resample(x, mult = 3.5, lowPass = TRUE, plot = TRUE) # low-pass + approx
+resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
 
 # downsample
-soundgen::resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
-soundgen::resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
-soundgen::resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
+resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
+resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
+resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
 
+# The most important TIP: use resample() for audio files and the internal
+# soundgen:::.resample(list(sound = ...)) for simple vector operations because
+# it's >1000 times faster. For example:
+soundgen:::.resample(list(sound = x), mult = 3.5, lowPass = FALSE)
 
 ## Example 2: a sound
 silence = rep(0, 10)
@@ -105,17 +102,17 @@ x = c(silence, sin(cumsum(fr) * 2 * pi / samplingRate), silence)
 spectrogram(x, samplingRate)
 
 # downsample
-x1 = soundgen:::resample(x, mult = 1 / 2.5)
+x1 = resample(x, mult = 1 / 2.5)
 spectrogram(x1, samplingRate / 2.5)  # no aliasing
 # cf:
-x1bad = soundgen:::resample(x, mult = 1 / 2.5, lowPass = FALSE)
+x1bad = resample(x, mult = 1 / 2.5, lowPass = FALSE)
 spectrogram(x1bad, samplingRate / 2.5)  # aliasing
 
 # upsample
-x2 = soundgen:::resample(x, mult = 3)
+x2 = resample(x, mult = 3)
 spectrogram(x2, samplingRate * 3)  # nothing above the old Nyquist
 # cf:
-x2bad = soundgen:::resample(x, mult = 3, lowPass = FALSE)
+x2bad = resample(x, mult = 3, lowPass = FALSE)
 spectrogram(x2bad, samplingRate * 3)  # high-frequency artefacts
 
 \dontrun{

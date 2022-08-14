@@ -7,14 +7,14 @@
 annotation_app()
 }
 \description{
-Starts a shiny app for annotating audio. This is a simplified version of
-\code{\link{formant_app}} that also works on Macs.
+Starts a shiny app for annotating audio. This is a simplified and faster
+version of \code{\link{formant_app}} intended only for making annotations.
 }
 \examples{
 \dontrun{
-# Set up Firefox as default browser either system-wide or just in R.
-# For ex., on Linux, run:
-options('browser' = '/usr/bin/firefox')  # path to the executable
-annotation_app()  # runs in Firefox
+annotation_app()  # runs in default browser such as Firefox or Chrome
+
+# To change system default browser, run something like:
+options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 }
 }

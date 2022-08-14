@@ -44,15 +44,12 @@ depending on 'action'}
 "stop" = remove the selected frequency range (bandstop)}
 
 \item{dB}{a positive number giving the strength of effect in dB (defaults to
-Int - complete removal of selected frequencies)}
+Inf - complete removal of selected frequencies)}
 
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{normalize}{if TRUE, resets the output to the original scale (otherwise
@@ -70,16 +67,7 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

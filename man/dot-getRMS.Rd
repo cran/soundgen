@@ -9,6 +9,7 @@
   windowLength = 50,
   step = NULL,
   overlap = 75,
+  stereo = c("left", "right", "average", "both")[1],
   killDC = FALSE,
   normalize = TRUE,
   windowDC = 200,
@@ -38,6 +39,10 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
+\item{stereo}{'left' = only left channel, 'right' = only right channel,
+'average' = take the mean of the two channels, 'both' = return RMS for both
+channels separately}
+
 \item{killDC}{if TRUE, removed DC offset (see also \code{\link{flatEnv}})}
 
 \item{normalize}{if TRUE, the RMS amplitude is returned as proportion of
@@ -47,28 +52,11 @@ the maximum possible amplitude as given by \code{scale}}
 
 \item{plot}{if TRUE, plot a contour of RMS amplitude}
 
-\item{main}{graphical parameters for plotting}
+\item{xlab, ylab, main}{general graphical parameters}
 
-\item{xlab}{general graphical parameters}
+\item{type, col, lwd}{graphical parameters pertaining to the RMS envelope}
 
-\item{ylab}{general graphical parameters}
-
-\item{type}{graphical parameters pertaining to the RMS envelope}
-
-\item{col}{graphical parameters pertaining to the RMS envelope}
-
-\item{lwd}{graphical parameters pertaining to the RMS envelope}
-
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

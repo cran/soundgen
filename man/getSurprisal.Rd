@@ -55,10 +55,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{step}{step, ms (determines time resolution). step = NULL means no
@@ -76,9 +73,7 @@ Rectangular Bandwidths with \code{\link{HzToERB}}}
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
-\item{minFreq}{the range of frequencies to analyze}
-
-\item{maxFreq}{the range of frequencies to analyze}
+\item{minFreq, maxFreq}{the range of frequencies to analyze}
 
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
 eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
@@ -128,28 +123,11 @@ yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
 examples)}
 
-\item{xlab}{graphical parameters for plotting}
-
-\item{ylab}{graphical parameters for plotting}
-
-\item{xaxp}{graphical parameters for plotting}
-
-\item{mar}{graphical parameters for plotting}
-
-\item{main}{graphical parameters for plotting}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
@@ -170,7 +148,7 @@ auditory salience over time - that is, to identify parts of a sound that are
 likely to involuntarily attract the listeners' attention. The functions
 returns surprisal proper (`$surprisal`) and its product with increases in
 loudness (`$surprisalLoudness`). Because getSurprisal() is slow and
-experimental, it is not called by analyzed().
+experimental, it is not called by analyze().
 }
 \details{
 Algorithm: we start with an auditory spectrogram produced by applying a bank

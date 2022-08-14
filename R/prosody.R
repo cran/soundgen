@@ -29,11 +29,11 @@
 #'   returns a list of processed waveforms, one for each file.
 #' @export
 #' @examples
-#' s = soundgen(sylLen = 200, pitch = c(150, 220), addSilence = 20,
+#' s = soundgen(sylLen = 200, pitch = c(150, 220), addSilence = 50,
 #'              plot = TRUE, yScale = 'log')
 #' # playme(s)
 #' s1 = prosody(s, 16000, multProsody = 2,
-#'   analyze_pars = list(windowLength = 25, step = 5),
+#'   analyze_pars = list(windowLength = 30, step = 15),
 #'   shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
 #'   plot = TRUE)
 #' # playme(s1)
@@ -42,7 +42,7 @@
 #' \dontrun{
 #' # Flat intonation - remove all frequency modulation
 #' s2 = prosody(s, 16000, multProsody = 0,
-#'   analyze_pars = list(windowLength = 25, step = 5),
+#'   analyze_pars = list(windowLength = 30, step = 15),
 #'   shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
 #'   plot = TRUE)
 #' playme(s2)
@@ -56,8 +56,9 @@
 #' spectrogram(target, yScale = 'log')
 #' playme(target)
 #'
-#' s3 = prosody(target, multProsody = 1.5, shiftPitch_pars = list(
-#'   freqWindow = 400, propagation = 'adaptive'))
+#' s3 = prosody(target, multProsody = 1.5,
+#'   analyze_pars = list(windowLength = 30, step = 15),
+#'   shiftPitch_pars = list(freqWindow = 400, propagation = 'adaptive'))
 #' spectrogram(s3, tuneR::readWave(target)@samp.rate, yScale = 'log')
 #' playme(s3)
 #'
@@ -207,7 +208,7 @@ prosody = function(
   }
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(out, audio, filename)
+    writeAudio(out, audio = audio, filename = filename)
   }
 
   return(out)

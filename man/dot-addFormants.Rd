@@ -88,10 +88,7 @@ modification) (anchor format)}
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
 in sound generation}
 
-\item{formDrift}{scaling factors for the effect of temperature on
-formant drift and dispersal, respectively}
-
-\item{formDisp}{scaling factors for the effect of temperature on
+\item{formDrift, formDisp}{scaling factors for the effect of temperature on
 formant drift and dispersal, respectively}
 
 \item{smoothing}{a list of parameters passed to

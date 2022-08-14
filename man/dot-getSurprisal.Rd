@@ -52,9 +52,7 @@ Rectangular Bandwidths with \code{\link{HzToERB}}}
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
-\item{minFreq}{the range of frequencies to analyze}
-
-\item{maxFreq}{the range of frequencies to analyze}
+\item{minFreq, maxFreq}{the range of frequencies to analyze}
 
 \item{plot}{if TRUE, plots the auditory spectrogram and the
 \code{suprisalLoudness} contour}
@@ -91,28 +89,11 @@ yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
 examples)}
 
-\item{xlab}{graphical parameters for plotting}
-
-\item{ylab}{graphical parameters for plotting}
-
-\item{xaxp}{graphical parameters for plotting}
-
-\item{mar}{graphical parameters for plotting}
-
-\item{main}{graphical parameters for plotting}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

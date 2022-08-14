@@ -38,20 +38,20 @@
 
 #' Formants in American vowels
 #'
-#' Relative frequencies of F1 and F2 (semitones above or below schwa based on
-#' estimated VTL) in American English, from Hillenbrand (1995), who measured
-#' F1-F4 in ~1.5K recordings (139 speakers, 12 vowels from each). Audio and
-#' formant measurements are freely available online:
+#' Typical relative frequencies of the first four formants measured in dF units
+#' (average spacing between formants, or formant dispersion) above or below
+#' schwa based on estimated VTL in American English, from Hillenbrand (1995),
+#' who measured F1-F4 in ~1.5K recordings (139 speakers, 12 vowels from each).
+#' Audio and formant measurements are freely available online:
 #' https://homepages.wmich.edu/~hillenbr/voweldata.html. The dataset below is
 #' the result of modeling Hillenbrand's data with brms: mvbind(F1rel, F2rel) ~
-#' vowel. It shows the most credible location of each vowel centroid in the
-#' F1Rel-F2Rel space.
+#' vowel + (vowel|speaker). It shows the most credible location of each vowel
+#' centroid in the F1Rel-F2Rel space.
 #'
-#' A dataframe of 12 observations and 3 columns: "vowel" = vowel (American
-#' English), "F1Rel" and "F2Rel" = formant frequencies in semitones relative to
-#' their neutral, equidistant positions in a perfectly cylindrical vocal tract.
-#' See \code{\link{schwa}} - this is what schwa() returns as
-#' $ff_relative_semitones
+#' A dataframe of 12 observations and 5 columns: "vowel" = vowel (American
+#' English), "F1Rel" to "F4Rel" = formant frequencies in dF relative to their
+#' neutral, equidistant positions in a perfectly cylindrical vocal tract. See
+#' \code{\link{schwa}} - this is what schwa() returns as $ff_relative_dF
 #'
 #' @references Hillenbrand, J., Getty, L. A., Clark, M. J., & Wheeler, K.
 #'   (1995). Acoustic characteristics of American English vowels. The Journal of

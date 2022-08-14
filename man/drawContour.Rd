@@ -29,8 +29,6 @@ with \code{\link{approx}}, "spline" = cubic splines with
 \code{\link{spline}}, "loess" = local polynomial regression with
 \code{\link{loess}}}
 
-\item{valueFloor}{lowser/upper bounds for the contour}
-
 \item{duration_ms}{contour duration, ms}
 
 \item{loessSpan}{controls the amount of smoothing when interpolating between

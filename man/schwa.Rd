@@ -10,6 +10,7 @@ schwa(
   formants_relative = NULL,
   nForm = 8,
   interceptZero = TRUE,
+  tube = c("closed-open", "open-open")[1],
   speedSound = 35400,
   plot = FALSE
 )
@@ -26,7 +27,12 @@ frequencies, \% deviation from schwa (see examples)}
 \item{nForm}{the number of formants to estimate (integer)}
 
 \item{interceptZero}{if TRUE, forces the regression curve to pass through the
-origin, which corresponds to a closed-open tube (method = "regression" only)}
+origin. This reduces the influence of highly variable lower formants, but
+we have to commit to a particular model of the vocal tract: closed-open or
+open-open/closed-closed (method = "regression" only)}
+
+\item{tube}{the vocal tract is assumed to be a cylindrical tube that is
+either "closed-open" or "open-open" (same as closed-closed)}
 
 \item{speedSound}{speed of sound in warm air, cm/s. Stevens (2000) "Acoustic
 phonetics", p. 138}
@@ -49,44 +55,59 @@ Returns a list with the following components: \itemize{
   a schwa, \% (e.g. if the first ff_relative is -25, it means that F1 is 25\%
   lower than expected for a schwa in this vocal tract)}
   \item{ff_relative_semitones}{deviation of formant frequencies from those
-  expected for a schwa, semitones}
+  expected for a schwa, semitones. Like \code{ff_relative}, this metric is
+  invariant to vocal tract length, but the variance tends to be greater for
+  lower vs. higher formants}
+  \item{ff_relative_dF}{deviation of formant frequencies from those expected
+  for a schwa, proportion of formant spacing (dF). Unlike \code{ff_relative}
+  and \code{ff_relative_semitones}, this metric has similar variance for
+  lower and higher formants}
 }
 }
 \description{
 This function performs several conceptually related types of conversion of
 formant frequencies in relation to the neutral schwa sound based on the
-one-tube model of the vocal tract. Case 1: if we know vocal tract length
-(VTL) but not formant frequencies, \code{schwa()} estimates formants
-corresponding to a neutral schwa sound in this vocal tract, assuming that it
-is perfectly cylindrical. Case 2: if we know the frequencies of a few lower
-formants, \code{schwa()} estimates the deviation of observed formant
-frequencies from the neutral values expected in a perfectly cylindrical vocal
-tract (based on the VTL as specified or as estimated from formant
-dispersion). Case 3: if we want to geneate a sound with particular relative
-formant frequencies (e.g. high F1 and low F2 relative to the schwa for this
-vocal tract), \code{schwa()} calculates the corresponding formant frequencies
-in Hz. See examples below for an illustration of these three suggested uses.
+one-tube model of the vocal tract. This is useful for speaker normalization
+because absolute formant frequencies measured in Hz depend strongly on
+overall vocal tract length (VTL). For example, adult men vs. children or
+grizzly bears vs. dog puppies have very different formant spaces in Hz, but
+it is possible to define a VTL-normalized formant space that is applicable to
+all species and sizes. Case 1: if we know vocal tract length (VTL) but not
+formant frequencies, \code{schwa()} estimates formants corresponding to a
+neutral schwa sound in this vocal tract, assuming that it is perfectly
+cylindrical. Case 2: if we know the frequencies of a few lower formants,
+\code{schwa()} estimates the deviation of observed formant frequencies from
+the neutral values expected in a perfectly cylindrical vocal tract (based on
+the VTL as specified or as estimated from formant dispersion). Case 3: if we
+want to generate a sound with particular relative formant frequencies (e.g.
+high F1 and low F2 relative to the schwa for this vocal tract),
+\code{schwa()} calculates the corresponding formant frequencies in Hz. See
+examples below for an illustration of these three suggested uses.
 }
 \details{
-Algorithm: the expected formant dispersion is given by \eqn{speedSound / (2 *
-vocalTract)}, and F1 is expected at half the value of formant dispersion. See
-e.g. Stevens (2000) "Acoustic phonetics", p. 139. Basically, we estimate
-vocal tract length and see if each formant is higher or lower than expected
-for this vocal tract. For this to work, we have to know either the
-frequencies of enough formants (not just the first two) or the true length of
-the vocal tract. See also \code{\link{estimateVTL}} on the algorithm for
-estimating formant dispersion if VTL is not known (note that \code{schwa}
-calls \code{\link{estimateVTL}} with the option \code{method = 'regression'}).
+Algorithm: the expected formant dispersion is given by \eqn{(2 *
+formant_number - 1) * speedSound / (4 * formant_frequency)} for a closed-open
+tube (mouth open) and \eqn{formant_number * speedSound / (2 *
+formant_frequency)} for an open-open or closed-closed tube. F1 is schwa is
+expected at half the value of formant dispersion. See e.g. Stevens (2000)
+"Acoustic phonetics", p. 139. Basically, we estimate vocal tract length and
+see if each formant is higher or lower than expected for this vocal tract.
+For this to work, we have to know either the frequencies of enough formants
+(not just the first two) or the true length of the vocal tract. See also
+\code{\link{estimateVTL}} on the algorithm for estimating formant dispersion
+if VTL is not known (note that \code{schwa} calls \code{\link{estimateVTL}}
+with the option \code{method = 'regression'}).
 }
 \examples{
 ## CASE 1: known VTL
 # If vocal tract length is known, we calculate expected formant frequencies
 schwa(vocalTract = 17.5)
 schwa(vocalTract = 13, nForm = 5)
+schwa(vocalTract = 13, nForm = 5, tube = 'open-open')
 
 ## CASE 2: known (observed) formant frequencies
-# Let's take formant frequencies in three vocalizations, namely
-# (/a/, /i/, /roar/) by the same male speaker:
+# Let's take formant frequencies in four vocalizations, namely
+# (/a/, /i/, /mmm/, /roar/) by the same male speaker:
 formants_a = c(860, 1430, 2900, NA, 5200)  # NAs are OK - here F4 is unknown
 s_a = schwa(formants = formants_a, plot = TRUE)
 s_a
@@ -102,6 +123,10 @@ s_i = schwa(formants = formants_i, plot = TRUE)
 s_i
 # The apparent VTL is slightly smaller (14.5 cm)
 # [i]: very low F1, very high F2
+
+formants_mmm = c(1200, 2000, 2800, 3800, 5400, 6400)
+schwa(formants_mmm, tube = 'closed-closed', plot = TRUE)
+# ~schwa, but with a closed mouth
 
 formants_roar = c(550, 1000, 1460, 2280, 3350,
                   4300, 4900, 5800, 6900, 7900)

@@ -226,7 +226,7 @@ evaluatePars = function(
   names(params) = pars
   s = suppressMessages(try(do.call(myfun, c(
     list(x = myfolder, reportEvery = NA), params, otherPars))))
-  if (class(s)[1] == 'try-error') {
+  if (inherits(s, 'try-error')) {
     stop('Error in myfun')
   } else {
     trial = as.numeric(s$summary[, fitnessPar])

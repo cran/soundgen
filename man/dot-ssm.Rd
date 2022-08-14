@@ -75,20 +75,11 @@ before and after the recording as unknown, 0 = treat it as silence}
 
 \item{plot}{if TRUE, plots the SSM}
 
-\item{main}{graphical parameters for plotting}
+\item{main}{plot title}
 
 \item{heights}{relative sizes of the SSM and spectrogram/novelty plot}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{specPars}{graphical parameters passed to \code{filled.contour.mod} and

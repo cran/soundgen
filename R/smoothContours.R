@@ -183,7 +183,8 @@ getSmoothContour = function(
     smoothContour = anchors$value
   } else if (nr > len) {
     # downsample
-    smoothContour = suppressWarnings(resample(anchors$value, mult = len / nr))
+    smoothContour = suppressWarnings(.resample(list(sound = anchors$value),
+                                               mult = len / nr))
   } else if (discontThres <= 0 | nr < 3) {
     # upsample in one go
     smoothContour = drawContour(len = len,
@@ -407,7 +408,7 @@ drawContour = function(len,
 
       # for long duration etc, larger span may be needed to avoid error in loess
       if (is.null(loessSpan)) {
-        while(class(smoothContour)[1] == 'try-error') {
+        while(inherits(smoothContour, 'try-error')) {
           span = span + 0.1
           l = suppressWarnings(loess(anchors_long ~ time, span = span))
           smoothContour = try(predict(l, time), silent = TRUE)
@@ -557,8 +558,10 @@ reformatAnchors = function(anchors, normalizeTime = TRUE) {
     )
   } else if (is.list(anchors)) {
     # for dataframes or lists, reformat if necessary
-    if (class(anchors)[1] != 'dataframe') {
+    if (!is.data.frame(anchors)) {
       anchors_df = as.data.frame(anchors)
+    } else {
+      anchors_df = anchors
     }
     if (ncol(anchors_df) == 1) {
       # if there is only one vector, again assume these are values

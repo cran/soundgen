@@ -733,7 +733,8 @@ segment = function(
       filename_i = paste0(
         audio$saveAudio, audio$filename_base, '_', round(syllables$start[i], 0),
         '-', round(syllables$end[i], 0), '.wav')
-      writeAudio(temp, scale_used = max(abs(temp)), audio, filename_i)
+      writeAudio(temp, audio = audio, filename = filename_i,
+                 scale_used = max(abs(temp)))
     }
   }
 

@@ -34,11 +34,9 @@ under maximum are treated as zero}
 
 \item{plot}{if TRUE, plots the oscillogram}
 
-\item{main}{graphical parameters for plotting}
+\item{main}{plot title}
 
-\item{xlab}{axis labels}
-
-\item{ylab}{axis labels}
+\item{xlab, ylab}{axis labels}
 
 \item{ylim}{override default amplitude scale for non-centered sounds}
 
@@ -49,16 +47,7 @@ under maximum are treated as zero}
 \item{maxPoints}{the maximum number of points to plot (speeds up the plotting
 of long audio files, but beware of antialiasing)}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{Other graphical parameters passed on to `plot()`}

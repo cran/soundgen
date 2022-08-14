@@ -67,10 +67,7 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{normalize}{if TRUE, scales input prior to FFT}
 
-\item{smoothFreq}{length of the window for median smoothing in
-frequency and time domains, respectively, points}
-
-\item{smoothTime}{length of the window for median smoothing in
+\item{smoothFreq, smoothTime}{length of the window for median smoothing in
 frequency and time domains, respectively, points}
 
 \item{qTime}{the quantile to be subtracted for each frequency bin. For ex.,
@@ -133,28 +130,11 @@ yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
 examples)}
 
-\item{xlab}{graphical parameters for plotting}
-
-\item{ylab}{graphical parameters for plotting}
-
-\item{xaxp}{graphical parameters for plotting}
-
-\item{mar}{graphical parameters for plotting}
-
-\item{main}{graphical parameters for plotting}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{internal}{a long list of stuff for plotting pitch contours passed by

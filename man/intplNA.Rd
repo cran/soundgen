@@ -4,12 +4,16 @@
 \alias{intplNA}
 \title{Interpolate NAs}
 \usage{
-intplNA(x, idx_na = NULL)
+intplNA(x, idx_na = NULL, nPoints = 1)
 }
 \arguments{
 \item{x}{numeric vector}
 
 \item{idx_na}{which(is.na(x))}
+
+\item{nPoints}{the number of points to use for interpolating leading and
+trailing NAs: 1 = constant interpolation, 2 = use the first two non-NAs at
+the beginning and the last two non-NAs at the end, etc.}
 }
 \value{
 Returns the same numeric vector with NAs filled in by interpolation.
@@ -19,9 +23,10 @@ Internal soundgen function
 }
 \details{
 Takes a numeric vector and fills in the NAs by linear
-interpolation in the middle and constant interpolation at the ends.
+interpolation in the middle and constant or linear interpolation at the ends.
 }
 \examples{
 soundgen:::intplNA(c(NA, 405, 441, 460, NA, NA, NA, 480, 490, NA, NA))
+soundgen:::intplNA(c(NA, 405, 441, 460, NA, NA, NA, 480, 490, NA, NA), nPoints = 3)
 }
 \keyword{internal}

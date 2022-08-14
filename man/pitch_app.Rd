@@ -59,40 +59,36 @@ wank to append the old data to the new one. Path to backup file:
 "/home/allgoodguys/R/x86_64-pc-linux-gnu-library/3.6/soundgen/shiny/pitch_app/www/temp.csv"
 }
 \description{
-Starts a shiny app for manually editing pitch contours. IMPORTANT: please use
-Firefox on a Linux or Windows PC. A bug in Chrome interferes with correct
-audio playback; Mac OS is not supported due to an unresolved issue with png
-transparency. The settings in the panels on the left correspond to arguments
-to \code{\link{analyze}} - see `?analyze` and the vignette on acoustic
-analysis for help and examples. You can verify the pitch contours first, and
-then feed them back into \code{analyze} (see examples).
+Starts a shiny app for manually editing pitch contours. The settings in the
+panels on the left correspond to arguments to \code{\link{analyze}} - see
+`?analyze` and the vignette on acoustic analysis for help and examples. You
+can verify the pitch contours first, and then feed them back into
+\code{analyze} (see examples).
 }
 \examples{
 \dontrun{
 # Recommended workflow for analyzing a lot of short audio files
 path_to_audio = '~/Downloads/temp'  # our audio lives here
 
-# STEP 0: set up Firefox as default browser either system-wide or just in R.
-# For ex., on Linux, run:
-options('browser' = '/usr/bin/firefox')  # path to the executable
-
 # STEP 1: extract manually corrected pitch contours
-pitch_app()  # runs in Firefox
+pitch_app()  # runs in default browser such as Firefox or Chrome
+# To change system default browser, run something like:
+options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
+
 df1 = read.csv('~/Downloads/output.csv')  # saved output from pitch_app()
 
-# STEP 2: run analyzeFolder() with manually corrected pitch contours to
-obtain accurate descriptives like the proportion of energy in harmonics above
-f0, etc. This also gives you formants and loudness estimates (disabled in
+# STEP 2: run analyze() with manually corrected pitch contours to obtain
+accurate descriptives like the proportion of energy in harmonics above f0,
+etc. This also gives you formants and loudness estimates (disabled in
 pitch_app to speed things up)
-df2 = analyzeFolder(path_to_audio,
-  pitchMethods = NULL,  # don't need to re-analyze pitch
+df2 = analyze(path_to_audio,
+  pitchMethods = 'autocor',  # only needed for HNR
   nFormants = 5,        # now we can measure formants as well
   pitchManual = df1     # df1 contains our manually corrected contours
 )
 
 # STEP 3: add other acoustic descriptors, for ex.
-df3 = segmentFolder(path_to_audio)
-df4 = modulationSpectrumFolder(path_to_audio)
+df3 = segment(path_to_audio)
 
 # STEP 4: merge df2, df3, df4, ... in R or a spreadsheet editor to have all
 acoustic descriptives together

@@ -65,7 +65,7 @@ analyze(
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3, showPrior = TRUE),
   extraContour = NULL,
   ylim = NULL,
-  xlab = "Time, ms",
+  xlab = "Time",
   ylab = NULL,
   main = NULL,
   width = 900,
@@ -86,10 +86,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange

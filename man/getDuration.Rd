@@ -44,7 +44,7 @@ and trailing silences or near-silences, thus returning the duration of
 relatively loud central fragments of each sound. Silences are located based
 on the amplitude of root mean square (RMS) amplitude with
 \code{\link{getRMS}}. Note that the threshold is set relative to the observed
-maximum RMS, just as is \code{\link{analyze}}. This means that even very
+maximum RMS, just as in \code{\link{analyze}}. This means that even very
 quiet sounds are not treated as nothing but silence.
 }
 \examples{

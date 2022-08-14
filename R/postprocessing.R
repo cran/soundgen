@@ -462,8 +462,11 @@ flatSpectrum = function(x,
   # modify the spectrogram
   for (i in 1:ncol(spec)) {
     abs_s = abs(spec[, i])
-    cor_coef = flatEnv(abs_s,
-                       samplingRate = 1,  # not used, but can't be left NULL
+    sc = max(abs_s)
+    cor_coef = .flatEnv(list(sound = abs_s,
+                             samplingRate = 1,  # sr not really needed
+                             scale = sc,
+                             scale_used = sc),
                        method = 'peak',
                        dynamicRange = dynamicRange,
                        windowLength_points = freqWindow_bins) / abs_s
@@ -489,7 +492,7 @@ flatSpectrum = function(x,
   if (play) playme(sound_new, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(sound_new, audio, filename)
+    writeAudio(sound_new, audio = audio, filename = filename)
   }
   # spectrogram(sound_new, audio$samplingRate)
   invisible(sound_new)
@@ -741,7 +744,7 @@ reverb = function(x,
   if (play) playme(out, audio$samplingRate)
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(out, audio, filename)
+    writeAudio(out, audio = audio, filename = filename)
   }
 
   invisible(list(

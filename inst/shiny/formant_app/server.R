@@ -22,9 +22,10 @@ server = function(input, output, session) {
   options(shiny.maxRequestSize = 30 * 1024 ^ 2)
 
   myPars = reactiveValues(
+    print = FALSE,          # if TRUE, some functions print a meassage to the console when called
+    debugQn = FALSE,            # for debugging - click "?" to step into the code
     zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
-    print = FALSE,          # if TRUE, some functions print a meassage to the console when called
     drawSpec = TRUE,
     shinyTip_show = 1000,      # delay until showing a tip (ms)
     shinyTip_hide = 0,         # delay until hiding a tip (ms)
@@ -42,8 +43,7 @@ server = function(input, output, session) {
     listen_enter_edit = FALSE, # ENTER to edit an existing annotation
     cursor = 0,
     listenToFbtn = FALSE,      # buggy
-    play = list(on = FALSE),
-    debugQn = FALSE            # for debugging - click "?" to step into the code
+    play = list(on = FALSE)
   )
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
@@ -110,6 +110,7 @@ server = function(input, output, session) {
       updateSliderInput(session, 'speedSound', value = '35400')
       updateTextInput(session, 'coeffs', value = '')
       updateCheckboxInput(session, 'interceptZero', value = TRUE)
+      updateCheckboxInput(session, 'tube', value = 'closed-open')
     }
   }
   observeEvent(input$reset_to_def, resetSliders())
@@ -289,7 +290,7 @@ server = function(input, output, session) {
         output = 'processed',
         plot = FALSE
       ))
-      if (class(temp_spec) != 'try-error' &&
+      if (!inherits(temp_spec, 'try-error') &&
           length(temp_spec) > 0 &&
           is.matrix(temp_spec))
         myPars$spec = temp_spec
@@ -615,7 +616,7 @@ server = function(input, output, session) {
 
   output$specOver = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
+      par(mar = c(0.2, 2, 0.5, 2))
       # bg=NA makes the image transparent
 
       # empty plot to enable hover/click events for the spectrogram underneath
@@ -699,11 +700,11 @@ server = function(input, output, session) {
       }
 
     }
-  })
+  }, bg = 'transparent')
 
   output$specSlider = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
+      par(mar = c(0.2, 2, 0.5, 2))
       # bg=NA makes the image transparent
 
       if (myPars$cursor == 0) {
@@ -720,7 +721,7 @@ server = function(input, output, session) {
           myPars$specOver_opts))
       }
     }
-  })
+  }, bg = 'transparent')
 
   observeEvent(input$spectrogram_hover, {
     if (!is.null(input$spectrogram_hover) & !is.null(myPars$spec)) {
@@ -889,7 +890,7 @@ server = function(input, output, session) {
         )))
         # note: len is corrected to ensure constant resolution no matter how
         # much we zoom in on a particular frequency region
-        # if (class(myPars$spectrum) == 'try-error') browser()
+        # if (inherits(myPars$spectrum, 'try-error')) browser()
         # myPars$spectrum = list(
         #     freq = as.numeric(rownames(myPars$spec)),
         #     ampl = rowMeans(myPars$spec_trimmed)
@@ -917,7 +918,7 @@ server = function(input, output, session) {
       isolate({
         # myPars$spectrum_freq_range = try(range(myPars$spectrum$freq))
         idx = try(which(myPars$spectrum$freq < input$spec_ylim[2]))
-        if (class(idx) != 'try-error') {
+        if (!inherits(idx, 'try-error')) {
           myPars$spectrum_ampl_range = range(myPars$spectrum$ampl[idx])
         }
       })
@@ -992,16 +993,33 @@ server = function(input, output, session) {
         (is.finite(myPars$ann[myPars$currentAnn, ]$F1) &
          is.finite(myPars$ann[myPars$currentAnn, ]$F2))) {
       if (myPars$print) print('Drawing formant space')
-      caf = myPars$ann[myPars$currentAnn, myPars$ff]
-      cafr = schwa(formants = as.numeric(caf))$ff_relative_semitones
-      xlim = range(c(hillenbrand$F1Rel, cafr[1]))
-      ylim = range(c(hillenbrand$F2Rel, cafr[2]))
-      par(mar = c(0, 0, 0, 0))
-      plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n', xlab = '', ylab = '',
-           xlim = xlim, ylim = ylim, bty = 'n', xaxt = 'n', yaxt = 'n')
-      text(hillenbrand$F1Rel, hillenbrand$F2Rel,
-           labels = hillenbrand$vowel, cex = 1.5, col = 'blue')
-      points(cafr[1], cafr[2], pch = 4, cex = 2.5, col = 'red')
+      caf = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff])
+      if (input$fmtSpacePlot == 'vowelSpace') {
+        cafr = schwa(formants = caf)$ff_relative_dF
+        xlim = range(c(hillenbrand$F1Rel, cafr[1]))
+        ylim = range(c(hillenbrand$F2Rel, cafr[2]))
+        par(mar = c(0, 0, 0, 0))
+        plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n', xlab = '', ylab = '',
+             xlim = xlim, ylim = ylim, bty = 'n', xaxt = 'n', yaxt = 'n')
+        text(hillenbrand$F1Rel, hillenbrand$F2Rel,
+             labels = hillenbrand$vowel, cex = 1.5, col = 'blue')
+        points(cafr[1], cafr[2], pch = 4, cex = 2.5, col = 'red')
+      } else if (input$fmtSpacePlot == 'regression') {
+        if (input$vtl_method == 'regression') {
+          soundgen:::getFormantDispersion(
+            formants = caf,
+            method = 'regression',
+            interceptZero = input$interceptZero,
+            tube = input$tube,
+            speedSound = input$speedSound,
+            plot = TRUE
+          )
+        } else {
+          plot(1:10, type='n', bty='n', xlab='', ylab='', xaxt='n', yaxt='n')
+          text(5, 9, label = 'Only VTL estimation with regression can be plotted here')
+        }
+
+      }
     } else {
       par(mar = c(0, 0, 0, 0))
       plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n', xlab = '', ylab = '',
@@ -1267,7 +1285,7 @@ server = function(input, output, session) {
         plot = FALSE,
         returnPitchCands = FALSE
       ))
-      if (class(temp_anal) != 'try-error' &&
+      if (!inherits(temp_anal, 'try-error') &&
           length(temp_anal) > 0 &&
           is.list(temp_anal)) {
         myPars$temp_anal = temp_anal
@@ -1376,6 +1394,7 @@ server = function(input, output, session) {
             method = input$vtl_method,
             speedSound = input$speedSound,
             interceptZero = input$interceptZero,
+            tube = input$tube,
             output = 'detailed'
           )
           try({
@@ -1390,7 +1409,7 @@ server = function(input, output, session) {
       }
     }
   }
-  observeEvent(c(input$vtl_method, input$speedSound, input$interceptZero), {
+  observeEvent(c(input$vtl_method, input$speedSound, input$interceptZero, input$tube), {
     if (!is.null(myPars$ann) && nrow(myPars$ann) > 0) {
       updateVTL(rows = 1:nrow(myPars$ann))
     }
@@ -1516,6 +1535,8 @@ server = function(input, output, session) {
       } else {
         edit_annotation()
       }
+    } else if (button_key == 'p') {
+      synthAndPlay()
     }
   })
 
@@ -1759,7 +1780,7 @@ server = function(input, output, session) {
     }
   })
 
-  observeEvent(input$synthBtn, {
+  synthAndPlay = function() {
     if (!is.null(myPars$ann[myPars$currentAnn, ]) &&
         any(!is.na(myPars$ann[myPars$currentAnn, myPars$ff]))) {
       if (myPars$print) print('Calling soundgen()...')
@@ -1784,7 +1805,8 @@ server = function(input, output, session) {
         playme(temp_s, samplingRate = 16000 * myPars$samplingRate_idx)
       }
     }
-  })
+  }
+  observeEvent(input$synthBtn, synthAndPlay())
 
   ### TOOLTIPS - have to be here instead of UI b/c otherwise problems with regulating delay
   # (see https://stackoverflow.com/questions/47477237/delaying-and-expiring-a-shinybsbstooltip)
@@ -1812,7 +1834,8 @@ server = function(input, output, session) {
   # Vocal tract
   shinyBS::addTooltip(session, id='vtl_method', title = 'Method of calculating vocal tract length (VTL). See ?estimateVTL', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='speedSound', title = 'VTL estimate depends on the assumed speed of sound inside the vocal tract', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='interceptZero', title = 'Set the regression intercept to zero (i.e., assume a closed-open vocal tube model)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='interceptZero', title = 'Set the regression intercept to zero to reduce the influence of lower formants (careful with whether you are using closed-open or open-open tube approximation) ', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='tube', title = 'The vocal tract can be modeled as a uniform tube either closed at one end and open at the other, or else as having both ends either closed or open', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 
   ## Plotting
   # spectrogram

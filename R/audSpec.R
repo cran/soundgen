@@ -3,7 +3,7 @@
 #' Produces an auditory spectrogram by extracting a bank of bandpass filters
 #' (work in progress). While tuneR::audspec is based on FFT, here we convolve
 #' the sound with a bank of filters. The main difference is that we don't window
-#' the signal and de factor get variable temporal resolution in different
+#' the signal and de facto get variable temporal resolution in different
 #' frequency channels, as with a wavelet transform. The filters are currently
 #' third-order Butterworth bandpass filters implemented in
 #' \code{\link[signal]{butter}}.
@@ -259,7 +259,7 @@ audSpectrogram = function(
     # plot(fb_env, type = 'l')
     if (!is.null(len)) {
       # downsample
-      fb_env = resample(fb_env, len = len, lowPass = FALSE)
+      fb_env = .resample(list(sound = fb_env), len = len, lowPass = FALSE)
     }
     sp[[i]] = matrix(fb_env, nrow = 1)
   }

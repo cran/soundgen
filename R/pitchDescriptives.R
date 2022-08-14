@@ -71,7 +71,12 @@
 #' pd1 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
 #'                         timeUnit = 'ms', inflThres = NA, plot = TRUE)
 #' pd2 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
-#'                         timeUnit = 'ms', inflThres = c(0.1, .5), plot = TRUE)
+#'                         timeUnit = 'ms', inflThres = c(0.1, 0.1, .5), plot = TRUE)
+#'
+#' # multiple files returned by analyze()
+#' an = analyze('~/Downloads/temp')
+#' pd = pitchDescriptives(an$detailed, timeUnit = 'ms')
+#' pd
 #'
 #' # multiple files returned by pitch_app()
 #' pd = pitchDescriptives(
@@ -99,7 +104,7 @@ pitchDescriptives = function(x,
     orig = x
     if (file.exists(x)) {
       x = try(read.csv(x), silent = TRUE)
-      if (class(x) == 'try-error')
+      if (inherits(x, 'try-error'))
         stop('Input not recognized')
     }
   }
@@ -118,18 +123,31 @@ pitchDescriptives = function(x,
           time = suppressWarnings(as.numeric(unlist(strsplit(x$time[i], ',')))),
           pitch = suppressWarnings(as.numeric(unlist(strsplit(x$pitch[i], ','))))
         ), silent = TRUE)
-        if (class(data[[i]]) == 'try-error')
+        if (inherits(data[[i]], 'try-error'))
           stop('Input not recognized')
       }
     }
-  } else if (is.vector(x)) {
+  } else if (is.list(x)) {
+    # a list such as the output of analyze('folder')
+    n = length(x)
+    data = vector('list', n)
+    for (i in 1:n) {
+      data[[i]] = try(list(
+        file = names(x)[i],
+        time = x[[i]]$time,
+        pitch = x[[i]]$pitch
+      ), silent = TRUE)
+      if (inherits(data[[i]], 'try-error'))
+        data[[i]] = list(file = '', time = NA, pitch = NA)
+    }
+  } else if (is.numeric(x)) {
     if (length(x) < 2) return(NA)
     if (is.null(step))
-      stop('If x is a vector, step must be provided')
+      stop('If x is a numeric vector, step must be provided')
     data = list(list(
       file = '',
-      pitch = x,
-      time = step * (1:length(x) - .5)
+      time = step * (1:length(x) - .5),
+      pitch = x
     ))
   } else {
     stop('Input not recognized')
@@ -153,12 +171,12 @@ pitchDescriptives = function(x,
            plot = plot,
            main = data_i$file)
     )
-    if (!is.null(data_i$file)) res$file = data_i$file
     if (is.null(out)) {
       out = res
     } else {
       out = rbind(out, res)
     }
+    if (!is.null(data_i$file)) out$file[nrow(out)] = data_i$file
     reportTime(i = i, nIter = len_data, time_start = time_start)
     if (plot && i < len_data)
       invisible(readline(prompt="Press [enter] to continue"))
@@ -263,7 +281,7 @@ timeSeriesSummary = function(x,
 
   # transform to semitones, drop NAs
   x_noNA = as.numeric(na.omit(x))
-  x_sem = soundgen::HzToSemitones(x, ref = ref)
+  x_sem = HzToSemitones(x, ref = ref)
   x_sem_noNA = as.numeric(na.omit(x_sem))
   ran_not_NA = range(which(!is.na(x)))
   if (length(x_noNA) < 1) return(out)
@@ -274,7 +292,7 @@ timeSeriesSummary = function(x,
     out[, extraSummaryFun] = NA
     for (f in 1:lu) {
       temp = try(do.call(extraSummaryFun[f], list(x)))
-      if (class(temp) != 'try-error') out[extraSummaryFun[f]] = temp
+      if (!inherits(temp, 'try-error')) out[extraSummaryFun[f]] = temp
     }
   }
 

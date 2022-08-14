@@ -42,10 +42,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
@@ -65,7 +62,7 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{main}{graphical parameters for plotting}
+\item{main}{plot title}
 
 \item{xlab, ylab}{axis labels}
 
@@ -78,16 +75,7 @@ don't save, '' = same folder as audio)}
 \item{maxPoints}{the maximum number of points to plot (speeds up the plotting
 of long audio files, but beware of antialiasing)}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{Other graphical parameters passed on to `plot()`}

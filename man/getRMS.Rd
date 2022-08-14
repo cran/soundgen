@@ -13,6 +13,7 @@ getRMS(
   windowLength = 50,
   step = NULL,
   overlap = 70,
+  stereo = c("left", "right", "average", "both")[1],
   killDC = FALSE,
   normalize = TRUE,
   windowDC = 200,
@@ -45,10 +46,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{windowLength}{length of FFT window, ms}
@@ -59,6 +57,10 @@ because digital audio is sampled at discrete time intervals of
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
+
+\item{stereo}{'left' = only left channel, 'right' = only right channel,
+'average' = take the mean of the two channels, 'both' = return RMS for both
+channels separately}
 
 \item{killDC}{if TRUE, removed DC offset (see also \code{\link{flatEnv}})}
 
@@ -80,22 +82,11 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{main}{graphical parameters for plotting}
-
-\item{xlab, ylab}{general graphical parameters}
+\item{xlab, ylab, main}{general graphical parameters}
 
 \item{type, col, lwd}{graphical parameters pertaining to the RMS envelope}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
@@ -124,7 +115,7 @@ calculated as the mean / median / max of RMS values per frame.
 }
 \examples{
 s = soundgen() + .25  # with added DC offset
-osc(s)
+# osc(s)
 r = getRMS(s, samplingRate = 16000,
   windowLength = 40, overlap = 50, killDC = TRUE,
   plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
@@ -132,8 +123,19 @@ r = getRMS(s, samplingRate = 16000,
 r = getRMS(s, samplingRate = 16000,
   windowLength = 5, overlap = 0, killDC = TRUE,
   plot = TRUE, col = 'blue', pch = 13, main = 'RMS envelope')
+
+ # stereo
+ wave_stereo = tuneR::Wave(
+   left = runif(1000, -1, 1) * 16000,
+   right = runif(1000, -1, 1) / 3 * 16000,
+   bit = 16, samp.rate = 4000)
+ getRMS(wave_stereo)$summary
+ getRMS(wave_stereo, stereo = 'right')$summary
+ getRMS(wave_stereo, stereo = 'average')$summary
+ getRMS(wave_stereo, stereo = 'both', plot = TRUE)$summary
+
 \dontrun{
-r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp260/plots')
+r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
 r$summary
 
 # Compare:

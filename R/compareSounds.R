@@ -165,7 +165,7 @@ compareSounds = function(
   # extract spectrograms
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
   throwaway01 = 2 ^ (-dynamicRange / 20)
-  if (class(x)[1] == 'matrix') {
+  if (is.matrix(x)) {
     spec1 = x
   } else {
     x_audio = readAudio(x, input = checkInputType(x), samplingRate = samplingRate[1])
@@ -190,7 +190,7 @@ compareSounds = function(
                          specPars = specPars)
     }
   }
-  if (class(y)[1] == 'matrix') {
+  if (is.matrix(y)) {
     spec2 = y
   } else {
     y_audio = readAudio(y, input = checkInputType(y), samplingRate = samplingRate[2])
@@ -299,7 +299,7 @@ compareSounds = function(
       distance.only = TRUE),
       dtwPars)),
       silent = TRUE)
-    if (class(d)[1] == 'try-error') {
+    if (inherits(d, 'try-error')) {
       dist_dtw = NA
     } else {
       dist_dtw = d$normalizedDistance
@@ -342,7 +342,7 @@ getMelSpec = function(s,
       stop ('Please specify samplingRate, eg 44100')
     }
     sWave = tuneR::Wave(s, samp.rate = samplingRate, bit = 16)
-  } else if (class(s)[1] == 'Wave') {
+  } else if (inherits(s, 'Wave')) {
     sWave = s
     samplingRate = sWave@samp.rate
   }

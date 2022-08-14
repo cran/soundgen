@@ -32,6 +32,7 @@
 #' @param spreadSpectrum if TRUE, applies a spreading function to account for
 #'   frequency masking
 #' @param mar margins of the spectrogram
+#' @param main plot title
 #' @param ... other plotting parameters passed to \code{\link{spectrogram}}
 #' @return Returns a list: \describe{ \item{specSone}{spectrum in bark-sone (one
 #'   per file): a matrix of loudness values in sone, with frequency on the bark
@@ -251,7 +252,7 @@ getLoudness = function(x,
     powerSpec_scaled,
     sr = audio$samplingRate,
     fbtype = 'bark')$aspectrum, silent = TRUE)
-  if ('try-error' %in% class(audSpec))
+  if (inherits(audSpec, 'try-error'))
     return(list(specSone = NA, loudness = NA))
   # image(t(audSpec))
   # range(log10(audSpec) * 10)

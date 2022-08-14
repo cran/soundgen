@@ -37,9 +37,7 @@ accuracy in high frequencies}
 \item{autocorBestPeak}{amplitude of the lowest best candidate relative to the
 absolute max of the acf}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 }
 \value{
 Returns a list of $HNR (NA or numeric) and $pitchAutocor_array

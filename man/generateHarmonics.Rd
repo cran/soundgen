@@ -186,9 +186,7 @@ jumpThres}
 
 \item{samplingRate}{sampling frequency, Hz}
 
-\item{pitchFloor}{lower & upper bounds of f0}
-
-\item{pitchCeiling}{lower & upper bounds of f0}
+\item{pitchFloor, pitchCeiling}{lower & upper bounds of f0}
 
 \item{pitchSamplingRate}{sampling frequency of the pitch contour only, Hz.
 Low values reduce processing time. Set to \code{pitchCeiling} for optimal

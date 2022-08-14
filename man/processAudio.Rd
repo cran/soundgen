@@ -30,10 +30,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{funToCall}{function to call (specify what to do with each audio input)}

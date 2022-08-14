@@ -54,10 +54,7 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{step}{step, ms (determines time resolution). step = NULL means no
@@ -120,28 +117,11 @@ yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
 examples)}
 
-\item{xlab}{graphical parameters for plotting}
-
-\item{ylab}{graphical parameters for plotting}
-
-\item{xaxp}{graphical parameters for plotting}
-
-\item{mar}{graphical parameters for plotting}
-
-\item{main}{graphical parameters for plotting}
+\item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
 \item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
@@ -150,7 +130,7 @@ examples)}
 Produces an auditory spectrogram by extracting a bank of bandpass filters
 (work in progress). While tuneR::audspec is based on FFT, here we convolve
 the sound with a bank of filters. The main difference is that we don't window
-the signal and de factor get variable temporal resolution in different
+the signal and de facto get variable temporal resolution in different
 frequency channels, as with a wavelet transform. The filters are currently
 third-order Butterworth bandpass filters implemented in
 \code{\link[signal]{butter}}.

@@ -432,7 +432,7 @@ updateAnalyze = function(
              freqs = freqs,
              pitch = result$pitch[f]
         )))$harmHeight, silent = TRUE)
-      if (class(temp) != 'try-error') {
+      if (!inherits(temp, 'try-error')) {
         result$harmHeight[f] = temp
       }
     }
@@ -449,7 +449,7 @@ updateAnalyze = function(
              pitchCands = data.frame(freq = pitchCands_list$freq[, f],
                                      cert = pitchCands_list$cert[, f])
         ))), silent = TRUE)
-      if (class(temp) != 'class-error') {
+      if (!inherits(temp, 'try-error')) {
         result[f, c('subRatio', 'subDep')] = temp[c('subRatio', 'subDep')]
       }
     }
@@ -504,7 +504,7 @@ updateAnalyze = function(
 
     if (any(!is.na(fm$freq))) {
       # get FM from inflections to evaluate fmDep in semitones
-      ps = bandpass(env, samplingRate = 1000/step,
+      ps = .bandpass(list(sound = env, samplingRate = 1000/step),
                     lwr = min(fm$freq), upr = max(fm$freq),
                     action = 'pass', plot = FALSE)
       infl = findInflections(ps, thres = 0, plot = FALSE)
@@ -513,9 +513,12 @@ updateAnalyze = function(
       fmDep = abs(diff(HzToSemitones(ps[infl]))) / 2
 
       # fm should be the same length as pitch
-      result$fmFreq = resample(fm$freq, len = nr, lowPass = FALSE, plot = FALSE)
-      result$fmPurity = resample(fm$purity, len = nr, lowPass = FALSE, plot = FALSE)
-      result$fmDep = resample(fmDep, len = nr, lowPass = FALSE, plot = FALSE)
+      result$fmFreq = .resample(list(sound = fm$freq), len = nr,
+                                lowPass = FALSE, plot = FALSE)
+      result$fmPurity = .resample(list(sound = fm$purity), len = nr,
+                                  lowPass = FALSE, plot = FALSE)
+      result$fmDep = .resample(list(sound = fmDep), len = nr,
+                               lowPass = FALSE, plot = FALSE)
       result[unvoiced_frames, c('fmFreq', 'fmPurity', 'fmDep')] = NA
     }
   } else {
@@ -553,7 +556,7 @@ formatPitchManual = function(pitchManual) {
     if (file.exists(pitchManual)) {
       # path to csv
       pitchManual_df = try(read.csv(pitchManual)[, c('file', 'pitch')])
-      if (class(pitchManual_df) == 'type-error') {
+      if (inherits(pitchManual_df, 'type-error')) {
         # problem opening file
         failed = TRUE
       } else {
@@ -569,7 +572,7 @@ formatPitchManual = function(pitchManual) {
       # just a string - try to convert to numeric
       temp = try(suppressWarnings(as.numeric(unlist(strsplit(
         as.character(pitchManual), ',')))))
-      if (class(temp) == 'try-error' || !any(!is.na(temp))) {
+      if (inherits(temp, 'try-error') || !any(!is.na(temp))) {
         failed = TRUE
         pitchManual_list = NULL
       } else {

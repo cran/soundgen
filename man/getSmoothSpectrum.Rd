@@ -36,10 +36,6 @@ minimal smoothing, 1 = strong smoothing)}
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{xlab}{graphical parameters for plotting}
-
-\item{ylab}{graphical parameters for plotting}
-
 \item{...}{other graphical parameters}
 
 \item{a}{pre-extracted spectrum in dB with columns "freq" and "ampl"}

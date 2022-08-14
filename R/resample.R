@@ -5,7 +5,9 @@
 #' \code{approx}; to upsample, performs linear interpolation with \code{approx},
 #' then applies a low-pass filter. NAs can be interpolated or preserved in the
 #' output. The length of output is determined, in order of precedence, by
-#' \code{len / mult / samplingRate_new}.
+#' \code{len / mult / samplingRate_new}. For simple vector operations, this is
+#' very similar to approx, but the leading and trailing NAs are also preserved
+#' (see examples).
 #' @inheritParams spectrogram
 #' @inheritParams segment
 #' @param mult multiplier of sampling rate: new sampling rate = old sampling
@@ -24,15 +26,19 @@
 #' x = c(NA, 1, 2, 3, NA, NA, 6, 7, 8, NA)
 #'
 #' # upsample
-#' soundgen::resample(x, mult = 3.5, lowPass = FALSE, plot = TRUE)  # just approx
-#' soundgen::resample(x, mult = 3.5, lowPass = TRUE, plot = TRUE) # low-pass + approx
-#' soundgen::resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
+#' resample(x, mult = 3.5, lowPass = FALSE, plot = TRUE)  # just approx
+#' resample(x, mult = 3.5, lowPass = TRUE, plot = TRUE) # low-pass + approx
+#' resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
 #'
 #' # downsample
-#' soundgen::resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
-#' soundgen::resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
-#' soundgen::resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
+#' resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
+#' resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
+#' resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
 #'
+#' # The most important TIP: use resample() for audio files and the internal
+#' # soundgen:::.resample(list(sound = ...)) for simple vector operations because
+#' # it's >1000 times faster. For example:
+#' soundgen:::.resample(list(sound = x), mult = 3.5, lowPass = FALSE)
 #'
 #' ## Example 2: a sound
 #' silence = rep(0, 10)
@@ -42,17 +48,17 @@
 #' spectrogram(x, samplingRate)
 #'
 #' # downsample
-#' x1 = soundgen:::resample(x, mult = 1 / 2.5)
+#' x1 = resample(x, mult = 1 / 2.5)
 #' spectrogram(x1, samplingRate / 2.5)  # no aliasing
 #' # cf:
-#' x1bad = soundgen:::resample(x, mult = 1 / 2.5, lowPass = FALSE)
+#' x1bad = resample(x, mult = 1 / 2.5, lowPass = FALSE)
 #' spectrogram(x1bad, samplingRate / 2.5)  # aliasing
 #'
 #' # upsample
-#' x2 = soundgen:::resample(x, mult = 3)
+#' x2 = resample(x, mult = 3)
 #' spectrogram(x2, samplingRate * 3)  # nothing above the old Nyquist
 #' # cf:
-#' x2bad = soundgen:::resample(x, mult = 3, lowPass = FALSE)
+#' x2bad = resample(x, mult = 3, lowPass = FALSE)
 #' spectrogram(x2bad, samplingRate * 3)  # high-frequency artefacts
 #'
 #' \dontrun{
@@ -121,6 +127,7 @@ resample = function(x,
 #' Internal soundgen function
 #'
 #' @param audio a list returned by \code{readAudio}
+#' @inheritParams intplNA
 #' @inheritParams resample
 #' @inheritParams segment
 #' @keywords internal
@@ -130,6 +137,7 @@ resample = function(x,
                      samplingRate_new = NULL,
                      lowPass = TRUE,
                      na.rm = FALSE,
+                     nPoints = 1,
                      plot = FALSE,
                      width = 900,
                      height = 500,
@@ -153,26 +161,32 @@ resample = function(x,
   any_na = n_na > 0
   if (any_na) {
     if (n_na == n1) return(rep(NA, n2))
-    x_noNA = intplNA(x, idx_na = idx_na)
+    x_noNA = intplNA(x, idx_na = idx_na, nPoints = nPoints)
   } else {
     x_noNA = x
   }
-  if (!any(diff(x_noNA) != 0)) return(rep(x[1], n2))
-
-  # up- or downsample
-  if (!is.finite(mult) | mult < 0) {
-    stop('mult must be a real positive number')
-  } else if (mult == 1 | length(idx_na) == n1) {
-    # nothing to do
-    out = x
-  } else if (mult < 1) {
-    # downsample
-    if (lowPass) x_noNA = bandpass(x_noNA, samplingRate = 1000, upr = 1000 / 2 * mult)
-    out = approx(x_noNA, n = n2)$y
-  } else if (mult > 1) {
-    # upsample
-    out = approx(x_noNA, n = n2)$y
-    if (lowPass) out = bandpass(out, samplingRate = 1000, upr = 1000 / 2 / mult)
+  if (!any(diff(x_noNA) != 0)) {
+    out = rep(x_noNA[1], n2)
+  } else {
+    # up- or downsample
+    if (!is.finite(mult) | mult < 0) {
+      stop('mult must be a real positive number')
+    } else if (mult == 1 | length(idx_na) == n1) {
+      # nothing to do
+      out = x
+    } else if (mult < 1) {
+      # downsample
+      if (lowPass) x_noNA = .bandpass(
+        list(sound = x_noNA, samplingRate = 1000),
+        upr = 1000 / 2 * mult)
+      out = approx(x_noNA, n = n2)$y
+    } else if (mult > 1) {
+      # upsample
+      out = approx(x_noNA, n = n2)$y
+      if (lowPass) out = .bandpass(
+        list(sound = out, samplingRate = 1000),
+        upr = 1000 / 2 / mult)
+    }
   }
 
   # put NAs back in
@@ -205,7 +219,7 @@ resample = function(x,
     } else {
       main = audio$filename_noExt
     }
-    plot(time_stamps, x, type = 'p',
+    plot(time_stamps, x, type = 'p', ylim = range(c(x, out), na.rm = TRUE),
          xlab = 'Relative position', ylab = '', main = main)
     points(x = seq(0, 1, length.out = n2), y = out,
            type = 'b', col = 'red', pch = 3)
@@ -216,7 +230,7 @@ resample = function(x,
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
     audio$samplingRate = audio$samplingRate * mult
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(out, audio, filename)
+    writeAudio(out, audio = audio, filename = filename)
   }
 
   return(out)

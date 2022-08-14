@@ -33,9 +33,7 @@ getPitchHps(
 \item{hpsPenalty}{the amount of penalizing hps candidates in low frequencies
 (0 = none)}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 }
 \value{
 Returns either NULL or a dataframe of pitch candidates.

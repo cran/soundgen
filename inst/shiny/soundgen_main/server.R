@@ -85,8 +85,8 @@ server = function(input, output, session) {
       preset_text = paste0('list', preset_text)  # start with 'list('
       preset = try(eval(parse(text = preset_text)), silent = TRUE)
     }
-    if (class(preset) == 'list') {
-      if(class(preset$formants) == 'character') {
+    if (is.list(preset)) {
+      if(is.character(preset$formants)) {
         preset$vowelString = preset$formants  # in case formants = 'aui' etc
       }
 
@@ -97,7 +97,7 @@ server = function(input, output, session) {
         } else if (is.list(preset[[v]])) {
           if (!names(preset)[v] %in% c('formants', 'formantsNoise')) {
             v1 = try(preset[[v]]$value[1])
-            if (class(v1) == 'try-error') {
+            if (inherits(v1, 'try-error')) {
               print(preset[[v]])
             } else {
               new_value = v1  # the first value if a df of anchors
@@ -272,7 +272,7 @@ server = function(input, output, session) {
       try({
         converted = soundgen:::convertStringToFormants(input$vowelString,
                                                        speaker = input$speaker)
-        if (!class(converted) == 'logical') {  # not NA
+        if (!is.logical(converted)) {  # not NA
           if (sum(unlist(converted)) > 0) {  # if the converted formant list is not empty
             myPars$formants = converted
             # (...otherwise don't change myPars$formants to prevent crashing)
@@ -1234,7 +1234,7 @@ server = function(input, output, session) {
       temp = all.equal(arg_list[[x]],
                        defaults[[names(arg_list)[x]]],
                        check.attributes = FALSE)
-      if (class(temp) == 'character') temp = FALSE
+      if (is.character(temp)) temp = FALSE
       temp
     })
     not_defaults = which(idx_same != TRUE)

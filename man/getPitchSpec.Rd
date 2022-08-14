@@ -53,9 +53,7 @@ the spectrum, the threshold for peak detection is calculated as
 harmonic ratio (as opposed to several ratios converging on the same
 candidate), its certainty is taken to be \code{specSinglePeakCert}}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
 \item{nCands}{number of pitch candidates pre frame (specMethod =
 "commonFactor" always returns a single candidate)}

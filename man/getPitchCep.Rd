@@ -33,9 +33,7 @@ getPitchCep(
 \item{cepZp}{zero-padding of the spectrum used for cepstral pitch detection
 (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
 \item{tol}{tolerance when removing false subharmonics}
 

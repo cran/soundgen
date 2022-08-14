@@ -8,6 +8,7 @@ estimateVTL(
   formants,
   method = c("regression", "meanDispersion", "meanFormant")[1],
   interceptZero = TRUE,
+  tube = c("closed-open", "open-open")[1],
   speedSound = 35400,
   checkFormat = TRUE,
   output = c("simple", "detailed")[1],
@@ -16,15 +17,20 @@ estimateVTL(
 }
 \arguments{
 \item{formants}{formant frequencies in any format recognized by
-\code{\link{soundgen}}: a character string like \code{aaui} referring to
-default presets for speaker "M1"; a vector of formant frequencies like
-\code{c(550, 1600, 3200)}; or a list with multiple values per formant like
-\code{list(f1 = c(500, 550), f2 = 1200))}}
+\code{\link{soundgen}}: a vector of formant frequencies like \code{c(550,
+1600, 3200)}; a list with multiple values per formant like \code{list(f1 =
+c(500, 550), f2 = 1200))}; or a character string like \code{aaui} referring
+to default presets for speaker "M1" in soundgen presets}
 
 \item{method}{the method of estimating vocal tract length (see details)}
 
 \item{interceptZero}{if TRUE, forces the regression curve to pass through the
-origin, which corresponds to a closed-open tube (method = "regression" only)}
+origin. This reduces the influence of highly variable lower formants, but
+we have to commit to a particular model of the vocal tract: closed-open or
+open-open/closed-closed (method = "regression" only)}
+
+\item{tube}{the vocal tract is assumed to be a cylindrical tube that is
+either "closed-open" or "open-open" (same as closed-closed)}
 
 \item{speedSound}{speed of sound in warm air, by default 35400 cm/s. Stevens
 (2000) "Acoustic phonetics", p. 138}
@@ -36,9 +42,11 @@ frequencies is accepted}
 additional stats (see Value below)}
 
 \item{plot}{if TRUE, plots the regression line whose slope gives formant
-dispersion (method = "regression" only) and Label size shows the influence
-of each observation; the second plot shows how VTL varies depending on the
-number of formants used}
+dispersion (method = "regression" only). Label sizes show the influence of
+each formant, and the blue line corresponds to each formant being an
+integer multiple of F1 (as when harmonics are misidentified as formants);
+the second plot shows how VTL varies depending on the number of formants
+used}
 }
 \value{
 If \code{output = 'simple'} (default), returns the estimated vocal
@@ -53,24 +61,31 @@ If \code{output = 'simple'} (default), returns the estimated vocal
 \description{
 Estimates the length of vocal tract based on formant frequencies. If
 \code{method = 'meanFormant'}, vocal tract length (VTL) is calculated
-separately for each formant as \eqn{(2 * formant_number - 1) * speedSound /
-(4 * formant_frequency)}, and then the resulting VTLs are averaged. If
-\code{method = 'meanDispersion'}, formant dispersion is calculated as the
-mean distance between formants, and then VTL is calculated as \eqn{speed of
-sound / 2 / formant dispersion}. If \code{method = 'regression'}, formant
-dispersion is estimated using the regression method described in Reby et al.
-(2005) "Red deer stags use formants as assessment cues during intrasexual
-agonistic interactions". For a review of these and other VTL-related summary
-measures of formant frequencies, refer to Pisanski et al. (2014) "Vocal
-indicators of body size in men and women: a meta-analysis". See also
-\code{\link{schwa}} for VTL estimation with additional information on formant
-frequencies.
+separately for each formant, and then the resulting VTLs are averaged. The
+equation used is \eqn{(2 * formant_number - 1) * speedSound / (4 *
+formant_frequency)} for a closed-open tube (mouth open) and
+\eqn{formant_number * speedSound / (2 * formant_frequency)} for an open-open
+or closed-closed tube (eg closed mouth in mmm or open mouth and open glottis
+in whispering). If \code{method = 'meanDispersion'}, formant dispersion is
+calculated as the mean distance between formants, and then VTL is calculated
+as \eqn{speed of sound / 2 / formant dispersion}. If \code{method =
+'regression'}, formant dispersion is estimated using the regression method
+described in Reby et al. (2005) "Red deer stags use formants as assessment
+cues during intrasexual agonistic interactions". For a review of these and
+other VTL-related summary measures of formant frequencies, refer to Pisanski
+et al. (2014) "Vocal indicators of body size in men and women: a
+meta-analysis". See also \code{\link{schwa}} for VTL estimation with
+additional information on formant frequencies.
 }
 \examples{
 estimateVTL(NA)
 estimateVTL(500)
 estimateVTL(c(600, 1850, 2800, 3600, 5000), plot = TRUE)
 estimateVTL(c(600, 1850, 2800, 3600, 5000), plot = TRUE, output = 'detailed')
+estimateVTL(c(1200, 2000, 2800, 3800, 5400, 6400),
+  tube = 'open-open', interceptZero = FALSE, plot = TRUE)
+estimateVTL(c(1200, 2000, 2800, 3800, 5400, 6400),
+  tube = 'open-open', interceptZero = TRUE, plot = TRUE)
 
 # Multiple measurements are OK
 estimateVTL(
@@ -87,12 +102,8 @@ estimateVTL(
 estimateVTL(c(600, 1850, 3100, NA, 5000), plot = TRUE)
 estimateVTL(list(f1 = 500, f2 = c(1650, NA, 1400), f3 = 2700), plot = TRUE)
 
-# Normally it makes sense to assume that the vocal tract is a closed-open
-# tube, forcing the intercept to be zero. To relax this assumption:
-estimateVTL(c(600, 1850, 3100, NA, 5000), interceptZero = FALSE, plot = TRUE)
-
 # Note that VTL estimates based on the commonly reported 'meanDispersion'
-# depend only on the first and last formant
+# depend only on the first and last formants
 estimateVTL(c(500, 1400, 2800, 4100), method = 'meanDispersion')
 estimateVTL(c(500, 1100, 2300, 4100), method = 'meanDispersion') # identical
 # ...but this is not the case for 'meanFormant' and 'regression' methods

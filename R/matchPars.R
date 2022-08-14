@@ -137,7 +137,7 @@ matchPars = function(target,
   output = list(list(pars = parDefault, sim = NA))
   parLoop = parDefault
   cand = try(do.call(soundgen, parLoop), silent = FALSE)
-  if (class(cand)[1] == 'try-error') {
+  if (inherits(cand, 'try-error')) {
     stop ('Invalid initial pars')
   }
   output[[1]]$sim = mean(do.call(compareSounds, c(list(
@@ -161,7 +161,7 @@ matchPars = function(target,
                         stepVariance = stepVariance)
     # generate a sound based on mutated pars
     cand = try(do.call(soundgen, parMut), silent = FALSE)
-    if (class(cand)[1] == 'try-error') {
+    if (inherits(cand, 'try-error')) {
       sim_new = -Inf
       delta = -Inf
       warning(paste('soundgen crashed with settings',

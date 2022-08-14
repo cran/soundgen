@@ -25,7 +25,7 @@
 #' @param action "pass" = preserve the selected frequency range (bandpass),
 #'   "stop" = remove the selected frequency range (bandstop)
 #' @param dB a positive number giving the strength of effect in dB (defaults to
-#'   Int - complete removal of selected frequencies)
+#'   Inf - complete removal of selected frequencies)
 #' @param na.rm if TRUE, NAs are interpolated, otherwise they are preserved in
 #'   the output
 #' @param normalize if TRUE, resets the output to the original scale (otherwise
@@ -66,35 +66,27 @@
 #'          lwr = 2000, savePlots = '~/Downloads/temp/hp2000/')
 #' }
 bandpass = function(
-  x,
-  samplingRate = NULL,
-  lwr = NULL,
-  upr = NULL,
-  action = c('pass', 'stop')[1],
-  dB = Inf,
-  na.rm = TRUE,
-  from = NULL,
-  to = NULL,
-  normalize = FALSE,
-  reportEvery = NULL,
-  cores = 1,
-  saveAudio = NULL,
-  plot = FALSE,
-  savePlots = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...
+    x,
+    samplingRate = NULL,
+    lwr = NULL,
+    upr = NULL,
+    action = c('pass', 'stop')[1],
+    dB = Inf,
+    na.rm = TRUE,
+    from = NULL,
+    to = NULL,
+    normalize = FALSE,
+    reportEvery = NULL,
+    cores = 1,
+    saveAudio = NULL,
+    plot = FALSE,
+    savePlots = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...
 ) {
-  if ((is.null(lwr) & is.null(upr)) | (!is.numeric(lwr) & !is.numeric(upr)))
-    stop('Nothing to do: specify lwr and/or upr')
-  if ((is.numeric(lwr) & is.numeric(upr)) && lwr > upr) {
-    lwr = upr
-    upr = lwr
-    warning('Found lwr >= upr; swapping them')
-  }
-
   # match args
   myPars = c(as.list(environment()), list(...))
   # exclude some args
@@ -136,8 +128,8 @@ bandpass = function(
 #' @inheritParams segment
 #' @keywords internal
 .bandpass = function(audio,
-                     lwr,
-                     upr,
+                     lwr = NULL,
+                     upr = NULL,
                      action = c('pass', 'stop')[1],
                      dB = Inf,
                      na.rm = TRUE,
@@ -148,6 +140,13 @@ bandpass = function(
                      units = 'px',
                      res = NA,
                      ...) {
+  if ((is.null(lwr) & is.null(upr)) | (!is.numeric(lwr) & !is.numeric(upr)))
+    stop('Nothing to do: specify lwr and/or upr')
+  if ((is.numeric(lwr) & is.numeric(upr)) && lwr > upr) {
+    lwr = upr
+    upr = lwr
+    warning('Found lwr >= upr; swapping them')
+  }
   x = audio$sound
   if (!any(is.finite(x))) return(x)
   len = length(x)
@@ -256,7 +255,7 @@ bandpass = function(
   if (!is.null(audio$saveAudio)) {
     if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(x_new, audio, filename)
+    writeAudio(x_new, audio = audio, filename = filename)
   }
 
   # put NAs back in

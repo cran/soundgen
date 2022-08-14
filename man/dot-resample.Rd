@@ -11,6 +11,7 @@
   samplingRate_new = NULL,
   lowPass = TRUE,
   na.rm = FALSE,
+  nPoints = 1,
   plot = FALSE,
   width = 900,
   height = 500,
@@ -37,18 +38,13 @@ upsampling to avoid aliasing}
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}
 
+\item{nPoints}{the number of points to use for interpolating leading and
+trailing NAs: 1 = constant interpolation, 2 = use the first two non-NAs at
+the beginning and the last two non-NAs at the end, etc.}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

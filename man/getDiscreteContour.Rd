@@ -31,9 +31,7 @@ with \code{\link{approx}}, "spline" = cubic splines with
 \code{\link{spline}}, "loess" = local polynomial regression with
 \code{\link{loess}}}
 
-\item{valueFloor}{lowser/upper bounds for the contour}
-
-\item{valueCeiling}{lowser/upper bounds for the contour}
+\item{valueFloor, valueCeiling}{lowser/upper bounds for the contour}
 
 \item{ylim}{ylim for plotting}
 

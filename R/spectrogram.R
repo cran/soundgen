@@ -436,7 +436,7 @@ spectrogram = function(
     Z1 = Z1 ^ contrast_exp
   }
   tr = try(if (any(Z1 != 0)) Z1 = Z1 / max(Z1))
-  if (class(tr)[1] == 'try-error') browser()
+  # if (inherits(tr, 'try-error')) browser()
   if (brightness_exp != 1) {
     Z1 = Z1 / brightness_exp
   }

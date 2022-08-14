@@ -305,7 +305,7 @@ morph = function(formula1,
   sounds = list()
   for (p in 1:length(f1)) {
     # morph each element of the formula list according to its type
-    if (class(f1[[p]])[1] == 'numeric') {
+    if (is.numeric(f1[[p]])) {
       m[[p]] = seq(f1[[p]], f2[[p]], length.out = nMorphs)
     } else if (names(f1[p]) %in% c('formants', 'formantsNoise')) {
       m[[p]] = morphList(f1[[p]], f2[[p]], nMorphs = nMorphs)

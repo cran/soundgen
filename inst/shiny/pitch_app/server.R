@@ -15,9 +15,10 @@ server = function(input, output, session) {
   shinyjs::js$inheritSize(parentDiv = 'oscDiv')
 
   myPars = reactiveValues(
+    print = FALSE,       # if TRUE, some functions print a message to the console when called
+    debugQn = FALSE,     # for debugging - click "?" to step into the code
     zoomFactor = 2,     # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
-    print = FALSE,       # if TRUE, some functions print a message to the console when called
     out = NULL,          # for storing the output
     drawSpec = TRUE,
     shinyTip_show = 1000,      # delay until showing a tip (ms)
@@ -29,8 +30,7 @@ server = function(input, output, session) {
     pitchCert_mult = NULL,     # old pitch prior
     initDur = 1500,            # initial duration to plot (ms)
     spec_xlim = c(0, 1500),
-    play = list(on = FALSE),
-    debugQn = TRUE            # for debugging - click "?" to step into the code
+    play = list(on = FALSE)
   )
   tooltip_options = list(delay = list(show = 1000, hide = 0))
 
@@ -102,17 +102,19 @@ server = function(input, output, session) {
     reset()  # also triggers done()
 
     # work only with audio files
-    idx_audio = apply(matrix(input$loadAudio$type), 1, function(x) {
+    idx_audio = which(apply(matrix(input$loadAudio$type), 1, function(x) {
       grepl('audio', x, fixed = TRUE)
-    })
-    myPars$fileList = input$loadAudio[idx_audio, ]
-    myPars$n = 1   # file number in queue
-    myPars$nFiles = nrow(myPars$fileList)  # number of uploaded files in queue
-    # set up a list for storing manual anchors for each of uploaded files
-    myPars$history = vector('list', length = myPars$nFiles)
-    names(myPars$history) = myPars$fileList$name
-    for (i in 1:length(myPars$history)) {
-      myPars$history[[i]] = list(manual = NULL, manualUnv = NULL)
+    }))
+    if (length(idx_audio) > 0) {
+      myPars$fileList = input$loadAudio[idx_audio, ]
+      myPars$n = 1   # file number in queue
+      myPars$nFiles = nrow(myPars$fileList)  # number of uploaded files in queue
+      # set up a list for storing manual anchors for each of uploaded files
+      myPars$history = vector('list', length = myPars$nFiles)
+      names(myPars$history) = myPars$fileList$name
+      for (i in 1:length(myPars$history)) {
+        myPars$history[[i]] = list(manual = NULL, manualUnv = NULL)
+      }
     }
 
     # if there is a csv among the uploaded files, use the annotations in it
@@ -130,7 +132,7 @@ server = function(input, output, session) {
         } else {
           # Note: rbind_fill ~ merge(all = TRUE), except that merge removes
           # duplicates, which is highly undesirable in this case because it
-          # removes a row from the output when goes back and forth between files
+          # removes a row from the output when we go back and forth between files
           myPars$out = soundgen:::rbind_fill(myPars$out, user_ann[, oblig_cols])
           # remove duplicate rows
           myPars$out = unique(myPars$out)
@@ -414,7 +416,7 @@ server = function(input, output, session) {
 
   output$specOver = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
+      par(mar = c(0.2, 2, 0.5, 2))
       # bg=NA makes the image transparent
 
       # empty plot to enable hover/click events for the spectrogram underneath
@@ -506,11 +508,11 @@ server = function(input, output, session) {
         pitchPlot = list(cex = input$spec_cex)
       )
     }
-  })
+  }, bg = 'transparent')
 
   output$specSlider = renderPlot({
     if (!is.null(myPars$spec)) {
-      par(mar = c(0.2, 2, 0.5, 2), bg = 'transparent')
+      par(mar = c(0.2, 2, 0.5, 2))
       # bg=NA or "transparent" makes the image transparent
 
       if (myPars$cursor == 0) {
@@ -527,7 +529,7 @@ server = function(input, output, session) {
           myPars$specOver_opts))
       }
     }
-  })
+  }, bg = 'transparent')
 
 
   # oscillogram
@@ -566,7 +568,7 @@ server = function(input, output, session) {
   })
 
   output$oscOver = renderPlot({
-    par(mar = c(2, 2, 0, 2), bg = 'transparent')
+    par(mar = c(2, 2, 0, 2))  # bg = 'transparent'
     # bg=NA makes the image transparent
 
     # empty plot to enable hover/click events for the spectrogram underneath
@@ -579,16 +581,21 @@ server = function(input, output, session) {
     # highlight voiced frames
     visible_frames = which(myPars$result$time >= myPars$spec_xlim[1] &
                              myPars$result$time <= myPars$spec_xlim[2])
+    abline(v = myPars$result$time[visible_frames[1]] - input$step / 2, lty = 2, lwd = .5)
     for (f in visible_frames) {
+      abline(v = myPars$result$time[f] + input$step / 2, lty = 2, lwd = .5)
       rect(
         xleft = myPars$result$time[f] - input$step / 2,
         xright = myPars$result$time[f] + input$step / 2,
-        ybottom = myPars$ylim_osc[1], ytop = myPars$ylim_osc[2],
+        # ybottom = myPars$ylim_osc[1],
+        # overlaps the osc -> problems with transparency on some platform
+        ybottom = myPars$ylim_osc[2] - (myPars$ylim_osc[2] - myPars$ylim_osc[1]) / 4,
+        ytop = myPars$ylim_osc[2],
         col = ifelse(f %in% myPars$voiced_frames, rgb(0, 0, 1, .25), NA),
-        lty = 2, lwd = .5
+        lwd = 0
       )
     }
-  })
+  }, bg = 'transparent')
 
   observe({
     if (input$summaryFun_text != '') {
@@ -776,8 +783,8 @@ server = function(input, output, session) {
         myPars$unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-myPars$voiced_frames]
         # make sure myPars$pitch is the same length as ncol(pitchCands$freq)
         if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) {
-          myPars$pitch = resample(
-            x = myPars$pitch,
+          myPars$pitch = .resample(
+            list(sound = myPars$pitch),
             mult = ncol(myPars$pitchCands$freq) / length(myPars$pitch),
             lowPass = FALSE,
             plot = FALSE)

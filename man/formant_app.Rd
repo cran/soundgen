@@ -7,11 +7,8 @@
 formant_app()
 }
 \description{
-Starts a shiny app for manually correcting formant measurements. IMPORTANT:
-please use Firefox on a Linux or Windows PC. A bug in Chrome interferes with
-correct audio playback; Mac OS is not supported due to an unresolved issue
-with png transparency. For more tips, see \code{\link{pitch_app}} and
-http://cogsci.se/soundgen.html.
+Starts a shiny app for manually correcting formant measurements. For more
+tips, see \code{\link{pitch_app}} and http://cogsci.se/soundgen.html.
 }
 \details{
 Suggested workflow: load one or several audio files (wav/mp3), preferably not
@@ -33,10 +30,10 @@ very large files.
 }
 \examples{
 \dontrun{
-# Set up Firefox as default browser either system-wide or just in R.
-# For ex., on Linux, run:
-options('browser' = '/usr/bin/firefox')  # path to the executable
-formant_app()  # runs in Firefox
+formant_app()  # runs in default browser such as Firefox or Chrome
+
+# To change system default browser, run something like:
+options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 }
 }
 \seealso{

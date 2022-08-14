@@ -133,17 +133,9 @@ harmonic product spectrum, NULL = no pitch analysis}
 entropy below \code{entropyThres}, but other spectral descriptives are
 still calculated (NULL = analyze everything)}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
-
-\item{priorMean}{specifies the mean (Hz) and standard deviation
-(semitones) of gamma distribution describing our prior knowledge about the
-most likely pitch values for this file. For ex., \code{priorMean = 300,
-priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-an octave)}
-
-\item{priorSD}{specifies the mean (Hz) and standard deviation
+\item{priorMean, priorSD}{specifies the mean (Hz) and standard deviation
 (semitones) of gamma distribution describing our prior knowledge about the
 most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
@@ -228,12 +220,7 @@ disable, set \code{snakeStep = 0}}
 
 \item{snakePlot}{if TRUE, plots the snake}
 
-\item{smooth}{if \code{smooth} is a positive number, outliers of
-the variables in \code{smoothVars} are adjusted with median smoothing.
-\code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
-deviation of ~4 semitones. To disable, set \code{smooth = 0}}
-
-\item{smoothVars}{if \code{smooth} is a positive number, outliers of
+\item{smooth, smoothVars}{if \code{smooth} is a positive number, outliers of
 the variables in \code{smoothVars} are adjusted with median smoothing.
 \code{smooth} of 1 corresponds to a window of ~100 ms and tolerated
 deviation of ~4 semitones. To disable, set \code{smooth = 0}}
@@ -256,22 +243,9 @@ graphical parameters, eg \code{extraContour = list(x = 'harmHeight', col =
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
-\item{xlab}{plotting parameters}
+\item{xlab, ylab, main}{plotting parameters}
 
-\item{ylab}{plotting parameters}
-
-\item{main}{plotting parameters}
-
-\item{width}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{height}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{units}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{res}{parameters passed to
+\item{width, height, units, res}{parameters passed to
 \code{\link[grDevices]{png}} if the plot is saved}
 
 \item{...}{other graphical parameters passed to \code{\link{spectrogram}}}

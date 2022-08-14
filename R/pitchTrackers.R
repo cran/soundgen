@@ -169,7 +169,7 @@ getPitchAutocor = function(autoCorrelation,
       autocorPeaks = try(autocorPeaks[order(autocorPeaks$amp, decreasing = TRUE),
                                       , drop = FALSE], silent = TRUE)
     }
-    if (class(autocorPeaks)[1] != 'try-error') {
+    if (!inherits(autocorPeaks, 'try-error')) {
       if (nrow(autocorPeaks) > 0) {
         # if some peaks satisfy all criteria, return them:
         pitchAutocor_array = data.frame (
@@ -923,7 +923,7 @@ getPitchZc = function(x,
   ## Amplitude envelope - needed to unvoice very quiet sections
   if (!is.null(silence)) {
     if (is.null(env)) env = .getRMS(audio, windowLength = envWin, plot = FALSE)
-    env = resample(env, mult = len_pitch / length(env))
+    env = .resample(list(sound = env), mult = len_pitch / length(env))
     # plot(env, type = 'l')
     cond_silence = env < silence
   } else {

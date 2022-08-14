@@ -63,7 +63,7 @@ osc(s1, samplingRate = 16000, dB = TRUE)
 # Or just plain base R: plot(s1, type = 'l')
 ```
 
-1. Frequency domain. We can use a Fast Fourier Transform (FFT) to obtain the *spectrum* showing which frequencies are present in the signal. Functions: `seewave::spec()`, `seewave::meanspec()`. If we want to see how this frequency composition varies over time, we produce a *spectrogram* such as the plot above. The most common method for doing this is Short-Time Fourier Transform (STFT, function `spectrogram()`), but it is also possible to use a bank of bandpass filters (function `audSpectrogram()`) or the wavelet transform (e.g., function `wavelets::dwt()`).  
+2. Frequency domain. We can use a Fast Fourier Transform (FFT) to obtain the *spectrum* showing which frequencies are present in the signal. Functions: `seewave::spec()`, `seewave::meanspec()`. If we want to see how this frequency composition varies over time, we produce a *spectrogram* such as the plot above. The most common method for doing this is Short-Time Fourier Transform (STFT, function `spectrogram()`), but it is also possible to use a bank of bandpass filters (function `audSpectrogram()`) or the wavelet transform (e.g., function `wavelets::dwt()`).  
 
 Long-time average spectrum:
 ```{r fig.width = 5, fig.height = 3}
@@ -96,14 +96,14 @@ audSpectrogram(s1, samplingRate = 16000,
                main = 'Auditory spectrogram')
 ```
 
-1. Cepstral domain: taking a Fourier-flavored transformation one step further, we can also analyze what frequencies are present in the spectrum (used for pitch tracking in `analyze()`) or spectrogram (function `modulationSpectrum()` - more detail in section 7). 
+3. Cepstral domain: taking a Fourier-flavored transformation one step further, we can also analyze what frequencies are present in the spectrum (used for pitch tracking in `analyze()`) or spectrogram (function `modulationSpectrum()` - more detail in section 7). 
 
 ```{r fig.width = 5, fig.height = 5}
 modulationSpectrum(s1, samplingRate = 16000, colorTheme = 'seewave',
                    plot = TRUE, main = 'Modulation spectrum')
 ```
 
-1. Other. Less common visual representations of audio include neurologically inspired spectro-temporal receptive fields, gammatones, etc. For example, soundgen can plot self-similarity matrices that represent spectral changes over time (more detail in section 8):
+4. Other. Less common visual representations of audio include neurologically inspired spectro-temporal receptive fields, gammatones, etc. For example, soundgen can plot self-similarity matrices that represent spectral changes over time (more detail in section 8):
 
 ```{r fig.width = 5, fig.height = 5}
 ssm(s1, samplingRate = 16000, main = 'Self-similarity matrix')
@@ -142,7 +142,6 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `duration_noSilence`: duration from the beginning of the first non-silent STFT frame to the end of the last non-silent STFT frame, s (NB: depends strongly on `windowLength` and `silence` settings)
 * `amEnvFreq`, `amEnvPurity`, `amEnvDep`: frequency (Hz), purity (dB), and depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude envelope
 * `amMsFreq`, `amMsPurity`: the same as `amEnvFreq` and `amEnvPurity`, but estimated via `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
-* `amMsFreq`: frequency of amplitude modulation, Hz (estimated by `modulationSpectrum`, the arguments to which are passed in `roughness = list()`)
 * `ampl`: root mean square of amplitude per frame, calculated as `sqrt(mean(frame ^ 2))`
 * `dom`: lowest dominant frequency band (Hz) (see "Pitch tracking methods / Dominant frequency")
 * `entropy`: Weiner entropy of the spectrum of the current frame. Close to 0: pure tone or tonal sound with nearly all energy in harmonics; close to 1: white noise
@@ -153,7 +152,7 @@ Apart from pitch tracking, `analyze` calculates and returns several acoustic cha
 * `HNR`: harmonics-to-noise ratio (dB), a measure of harmonicity returned by `soundgen:::getPitchAutocor()` (see "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as in noise
 * `loudness`: subjective loudness in sone, assuming a certain sound pressure level (takes into account the energy in different frequency bands as well as the sensitivity of human ears to different frequencies); see `getLoudness()` and the section on Loudness below for details
 * `novelty`: spectral novelty - a measure of how variable the spectrum is on a particular time scale, as estimated by `ssm()`
-* `peakFreq`: the frequency with maximum spectral energy below `cutFreq` (Hz)
+* `peakFreq`: the frequency with maximum spectral energy (Hz)
 * `roughness`: the amount of spectrotemporal modulation in the "roughness" zone of frequencies (estimated by `modulationSpectrum`, the arguments to which are fpassed in `roughness = list()`)
 * `quartile25`, `quartile50`, `quartile75`: the 25th, 50th, and 75th quantiles of the spectrum below `cutFreq` (Hz) for VOICED frames
 * `specCentroid`: the center of gravity of the frame’s spectrum below `cutFreq`, first spectral moment (Hz)
@@ -254,7 +253,7 @@ par(mfrow = c(1, 1))
 Having looked at the general settings, it is time to consider the theoretical principles behind each pitch tracking method, together with arguments to `analyze` that can be used to tweak each one.
 
 #### Autocorrelation
-Time domain: pitch by autocorrelation, PRAAT, `pitchAutocor`.
+Time domain: pitch by autocorrelation, `pitchAutocor`.
 
 This is an R implementation of the algorithm used in the popular open-source program PRAAT (Boersma, 1993). The basic idea is that a harmonic signal correlates with itself most strongly at a delay equal to the period of its fundamental frequency (f0). Peaks in the autocorrelation function are thus treated as potential pitch candidates. The main trick is to choose an appropriate windowing function and adjust for its own autocorrelation. Compared to other methods implemented in soundgen, pitch estimates based on autocorrelation appear to be particularly accurate for relatively high values of f0. The settings that control `pitchAutocor` are:
 

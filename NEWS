@@ -1,3 +1,23 @@
+          CHANGES IN SOUNDGEN VERSION 2.5.2 [14-August-2022]
+
+MINOR:
+  * estimateVTL(), schwa(), formant_app(): new argument "tube" to implement either closed-open or open-open tube approximation
+  * estimateVTL(), formant_app(): regression plots sensitive to interceptZero, show multiples of F1
+  * schwa(), formant_app(): relative formant frequencies expressed in units of formant spacing (dF) instead of semitones, soundgen::hillenbrand dataset updated accordingly
+  * pitchDescriptives() accept the output of analyze('folder_with_many_files')$detailed
+  * getRMS(): new argument "stereo" for working with stereo recordings - thanks to Cameron Anderson
+  * pitchShift(), transplantFormants(), flatSpectrum(), analyze(), resample(), etc.: improved efficiency thanks to calling fast internal versions of some basic functions
+
+BUGS FIXED:
+  * pitch_app() and formant_app() work on Mac OS
+  * writeAudio() and upstream functions: audio saved correctly (bug because of incorrect order of arguments)
+  * resample() and all upstream functions like analyze(): correct processing of vectors with initial NA and one unique non-NA value (eg constant-f0 manual pitch contours)
+  * analyze(), pitch_app(): fixed crashing with adaptPrior = TRUE in files with <2 putatively voiced frames
+  * analyze(): fixed occasional crashing when analyzing from... to... (RMS calculation failed due to imperfectly aligned timing) - thanks to Constantijn Kaland
+  * pitch_app(): pitch contour always passes through manual anchors (previously it could occasionally deviate because of interpolation)
+  * annotation_app(): spectrogram brush (selection) cleared on click / next
+
+
           CHANGES IN SOUNDGEN VERSION 2.5.1 [10-February-2022]
 NEW FUNCTIONS:
   * notesToHz(): convert musical notation to Hz
@@ -123,9 +143,8 @@ BUGS FIXED:
 
 
           CHANGES IN SOUNDGEN VERSION 2.0.0 [15-March-2021]
-This version represents an attempt to standardize and better integrate all functions for acoustic analysis in the package. Functions for sound synthesis, notably soundgen(), are not affected by these structural changes and remain fully back-compatible.
-
 GLOBAL (seriously affects back-compatibility):
+  * This version represents an attempt to standardize and better integrate all functions for acoustic analysis in the package. Functions for sound synthesis, notably soundgen(), are not affected by these structural changes and remain fully back-compatible.
   * Functions analyzeFolder(), spectrogramFolder(), segmentFolder(), modulationSpectrumFolder(), getRMSFolder(), getLoudnessFolder() are deprecated.
   * Instead, analyze(), spectrogram(), osc(), segment(), modulationSpectrum(), getRMS(), getLoudness(), ssm(), playme(), etc. accept as input either a single sound (numeric vector, Wave object, or filename) or multiple sounds (a list of vectors or Wave objects, multiple filenames like "c(file1, file2)"", or path to folder with audio files).
   * Functions for acoustic analysis return lists with both detailed results and summaries; for example, analyze() returns a list with two components: "$detailed" (frame-by-frame acoustic measures, one dataframe per file) and "$summary" (summaries based on "summaryFun", one row per file).
@@ -231,15 +250,15 @@ BUGS FIXED:
 
           CHANGES IN SOUNDGEN VERSION 1.7.0 [24-May-2020]
 MAJOR (affects back-compatibility):
-  (1) A modified way of creating subharmonics and sidebands in soundgen():
-    * The old argument "subDep"" now controls the max amplitude of g0 vs f0 harmonics, while a new argument "subWidth" controls the width of sidebands. Check your old code! Setting "subDep = 100, subWidth = old_value_of_subDep" gives the same results as in earlier versions of soundgen
-    * A new argument "subRatio" controls the number of subharmonics, but this behavior can be overridden by the old argument "subFreq"
-  (2) All pitch-tracker-specific arguments in analyze() are provided as lists:
-    * All arguments starting with "dom", "autocor", "cep", and "spec" are deprecated
-    * Instead, use "pitchDom = list(...old arugments...)", "pitchAutocor = list()", etc.
-  (3) Some arguments have been removed, notably:
-    * analyze(): instead of "candPlot", use tracker specific lists to control how pitch candidate are plotted, eg "pitchAutocor = list(cex = 3, col = 'red')"
-    * All previously deprecated arguments have been removed in all functions.
+  * A modified way of creating subharmonics and sidebands in soundgen():
+  * The old argument "subDep"" now controls the max amplitude of g0 vs f0 harmonics, while a new argument "subWidth" controls the width of sidebands. Check your old code! Setting "subDep = 100, subWidth = old_value_of_subDep" gives the same results as in earlier versions of soundgen
+  * A new argument "subRatio" controls the number of subharmonics, but this behavior can be overridden by the old argument "subFreq"
+  * All pitch-tracker-specific arguments in analyze() are provided as lists:
+  * All arguments starting with "dom", "autocor", "cep", and "spec" are deprecated
+  * Instead, use "pitchDom = list(...old arugments...)", "pitchAutocor = list()", etc.
+  * Some arguments have been removed, notably:
+  * analyze(): instead of "candPlot", use tracker specific lists to control how pitch candidate are plotted, eg "pitchAutocor = list(cex = 3, col = 'red')"
+  * All previously deprecated arguments have been removed in all functions.
 
 MAJOR:
   * analyze(), analyzeFolder(), pitch_app(): a fifth method added for pitch tracking, namely Harmonic Product Spectrum ("hps")
@@ -432,8 +451,7 @@ BUG FIXES:
 
 
           CHANGES IN SOUNDGEN VERSION 1.3.0 [31-August-2018]
-
-Back-compatible with soundgen 1.2.X. The main change is abolishing the distinction between anchors (previously pitchAnchors, ampAnchors, etc.) and other vectorized arguments to soundgen (jitterDep, rolloff, etc.) Most vectorized arguments can now be either numeric vectors or dataframes.
+* Back-compatible with soundgen 1.2.X. The main change is abolishing the distinction between anchors (previously pitchAnchors, ampAnchors, etc.) and other vectorized arguments to soundgen (jitterDep, rolloff, etc.) Most vectorized arguments can now be either numeric vectors or dataframes.
 
 NEW FUNCTIONS:
   * osc_dB(): draws an oscillogram (waveform) on a log-tranformed, dB scale. Analogous to the "Waveform (dB)" view in Audacity
@@ -467,8 +485,7 @@ MINOR:
 
 
           CHANGES IN SOUNDGEN VERSION 1.2.0 [04-March-2018]
-
-Back-compatibible with soundgen 1.1.x. Old code will mostly produce the same results, except for moving noise formants and amplitude envelopes in polysyllabic sounds.
+  * Back-compatibible with soundgen 1.1.x. Old code will mostly produce the same results, except for moving noise formants and amplitude envelopes in polysyllabic sounds.
 
 MAJOR:
   * soundgen(): the argument "formantsNoise" (formants in the unvoiced component) now affects polysyllabic bouts in the same way as "formants" (formants in the voiced component), i.e. moving formants in "noiseFormants" span multiple syllables (see vignette 2.12)

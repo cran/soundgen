@@ -1,8 +1,8 @@
-# TODO: getRMS should support stereo; smart merge in all folder functions in case there are missing columns;
+# TODO: check new schwa/hillenbrand
 
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); AM aspiration noise (not really needed, except maybe for glottis > 0); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO maybe: smart merge in all folder functions in case there are missing columns; RAM leak - bloated session with no visible objects, gc() doesn't work; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
@@ -358,7 +358,7 @@ soundgen = function(
 
   for (p in pars_to_check) {
     gp = try(get(p), silent = TRUE)
-    if (class(gp)[1] != "try-error") {
+    if (!inherits(gp, "try-error")) {
       if (is.numeric(gp)) {
         assign(noquote(p),
                validatePars(p, gp, permittedValues, invalidArgAction))
@@ -970,7 +970,7 @@ soundgen = function(
       # playme(syllable, samplingRate = samplingRate)
       # ***THE ACTUAL SYNTHESIS IS HERE***
 
-      if (class(syllable)[1] == 'try-error') {
+      if (inherits(syllable, 'try-error')) {
         stop('Failed to generate the new syllable!')
       }
       # if (any(is.na(syllable))) {
@@ -1265,7 +1265,7 @@ soundgen = function(
   if (!is.na(saveAudio)) {
     audio = list(samplingRate = samplingRate, bit = 16, scale = 1,
                  scale_used = max(abs(range(bout))))
-    writeAudio(bout, audio, filename = saveAudio)
+    writeAudio(bout, audio = audio, filename = saveAudio)
     # seewave::savewav(bout, filename = saveAudio, f = samplingRate)
   }
   if (plot) {

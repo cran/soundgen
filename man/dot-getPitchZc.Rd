@@ -19,9 +19,7 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
 \item{zcThres}{pitch candidates with certainty below this value are treated
 as noise and set to NA (0 = anything goes, 1 = pitch must be perfectly

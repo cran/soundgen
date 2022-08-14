@@ -108,24 +108,11 @@ padded with some silence (ms)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{main}{main plotting parameters}
-
-\item{xlab}{main plotting parameters}
-
-\item{ylab}{main plotting parameters}
+\item{xlab, ylab, main}{main plotting parameters}
 
 \item{showLegend}{if TRUE, shows a legend for thresholds}
 
-\item{width}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{height}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{units}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{res}{parameters passed to
+\item{width, height, units, res}{parameters passed to
 \code{\link[grDevices]{png}} if the plot is saved}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)

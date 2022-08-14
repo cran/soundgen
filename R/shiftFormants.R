@@ -229,7 +229,7 @@ shiftFormants = function(
   }
   if (is.character(audio$saveAudio)) {
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
-    writeAudio(soundFiltered, audio, filename)
+    writeAudio(soundFiltered, audio = audio, filename = filename)
   }
 
   return(soundFiltered)

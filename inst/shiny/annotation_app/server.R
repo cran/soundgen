@@ -17,9 +17,10 @@ server = function(input, output, session) {
   options(shiny.maxRequestSize = 30 * 1024 ^ 2)
 
   myPars = reactiveValues(
+    print = FALSE,          # if TRUE, some functions print a message to the console when called
+    debugQn = FALSE,             # for debugging - click "?" to step into the code
     zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
-    print = FALSE,          # if TRUE, some functions print a message to the console when called
     shinyTip_show = 1000,      # delay until showing a tip (ms)
     shinyTip_hide = 0,         # delay until hiding a tip (ms)
     initDur = 2000,            # initial duration to plot (ms)
@@ -33,8 +34,7 @@ server = function(input, output, session) {
     listen_enter = FALSE,      # enable/disable ENTER to close modal (new annotation)
     listen_enter_edit = FALSE, # ENTER to edit an existing annotation
     cursor = 0,
-    play = list(on = FALSE),
-    debugQn = FALSE             # for debugging - click "?" to step into the code
+    play = list(on = FALSE)
   )
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
@@ -77,6 +77,7 @@ server = function(input, output, session) {
     myPars$selection = NULL
     myPars$cursor = 0
     myPars$spectrogram_brush = NULL
+    shinyjs::js$clearBrush(s = '_brush')
   }
 
   resetSliders = function() {
@@ -264,7 +265,7 @@ server = function(input, output, session) {
         output = 'processed',
         plot = FALSE
       ))
-      if (class(temp_spec) != 'try-error' &&
+      if (!inherits(temp_spec, 'try-error') &&
           length(temp_spec) > 0 &&
           is.matrix(temp_spec))
         myPars$spec = temp_spec
@@ -445,8 +446,6 @@ server = function(input, output, session) {
   })
 
   observeEvent(input$spectrogram_click, {
-    # myPars$spectrogram_brush = NULL
-    # shinyjs::js$clearBrush(s = '_brush')
     myPars$cursor = input$spectrogram_click$x
   })
 
@@ -723,11 +722,11 @@ server = function(input, output, session) {
   ## Buttons for operations with selection
   startPlay = function() {
     if (!is.null(myPars$myAudio)) {
-      if (!is.null(myPars$spectrogram_brush) &&
-          (myPars$spectrogram_brush$xmax - myPars$spectrogram_brush$xmin > 100)) {
+      if (!is.null(input$spectrogram_brush) &&
+          (input$spectrogram_brush$xmax - input$spectrogram_brush$xmin > 100)) {
         # at least 100 ms selected
-        myPars$play$from = myPars$spectrogram_brush$xmin / 1000
-        myPars$play$to = myPars$spectrogram_brush$xmax / 1000
+        myPars$play$from = input$spectrogram_brush$xmin / 1000
+        myPars$play$to = input$spectrogram_brush$xmax / 1000
       } else {
         myPars$play$from = myPars$spec_xlim[1] / 1000 # myPars$cursor / 1000
         myPars$play$to = myPars$spec_xlim[2] / 1000

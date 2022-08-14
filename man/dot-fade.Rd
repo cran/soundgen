@@ -24,16 +24,10 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{fadeIn}{length of segments for fading in and out, ms (0 = no
+\item{fadeIn, fadeOut}{length of segments for fading in and out, ms (0 = no
 fade)}
 
-\item{fadeOut}{length of segments for fading in and out, ms (0 = no
-fade)}
-
-\item{fadeIn_points}{length of segments for fading in and out,
-points (if specified, override \code{fadeIn/fadeOut})}
-
-\item{fadeOut_points}{length of segments for fading in and out,
+\item{fadeIn_points, fadeOut_points}{length of segments for fading in and out,
 points (if specified, override \code{fadeIn/fadeOut})}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
@@ -48,16 +42,7 @@ S-curve}
 
 \item{plot}{if TRUE, produces an oscillogram of the waveform after fading}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

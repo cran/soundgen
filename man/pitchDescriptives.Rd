@@ -98,7 +98,12 @@ a = analyze(sheep)
 pd1 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
                         timeUnit = 'ms', inflThres = NA, plot = TRUE)
 pd2 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
-                        timeUnit = 'ms', inflThres = c(0.1, .5), plot = TRUE)
+                        timeUnit = 'ms', inflThres = c(0.1, 0.1, .5), plot = TRUE)
+
+# multiple files returned by analyze()
+an = analyze('~/Downloads/temp')
+pd = pitchDescriptives(an$detailed, timeUnit = 'ms')
+pd
 
 # multiple files returned by pitch_app()
 pd = pitchDescriptives(

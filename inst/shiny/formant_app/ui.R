@@ -184,6 +184,14 @@ ui = fluidPage(
                   'interceptZero',
                   'Set intercept to zero',
                   value = TRUE),
+
+                selectInput(
+                  'tube',
+                  'Tube approximation of vocal tract',
+                  choices = list('Closed-open' = 'closed-open',
+                                 'Open-open / closed-closed' = 'open-open'),
+                  selected = 'closed-open'
+                )
               )
             ),
 
@@ -514,6 +522,12 @@ ui = fluidPage(
       fluidRow(
         tags$div(
           id = 'fmtSpaceDiv',
+          radioButtons(
+            'fmtSpacePlot',
+            label = NULL,
+            choices = list('Vowel space' = 'vowelSpace', 'Regression' = 'regression'),
+            selected = 'vowelSpace', inline = TRUE, width = NULL
+          ),
           plotOutput(
             'fmtSpace', height = "175px")
         )

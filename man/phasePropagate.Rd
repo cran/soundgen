@@ -11,8 +11,6 @@ phasePropagate(i, dp_hor, dp_ver, magn, phase_new, tol, bin_width, alpha)
 
 \item{dp_hor, dp_ver}{time and frequency partical derivatives of phase}
 
-\item{magn}{phase and magnitude of a spectrogram}
-
 \item{phase_new}{matrix for storing the new phase}
 
 \item{tol}{tolerance of "vocoder done right" algorithm}

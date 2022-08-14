@@ -80,9 +80,7 @@ BaNa or "spec" method; see details and \code{?soundgen:::getPitchSpec}}
 harmonic product spectrum or "hps" method; see details and
 \code{?soundgen:::getPitchHps}}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 }
 \value{
 Returns a list with two components: $pitchCands_frame contains pitch

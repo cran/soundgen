@@ -7,6 +7,7 @@
 getFormantDispersion(
   formants,
   method = c("meanDispersion", "regression")[2],
+  tube = c("closed-open", "open-open")[1],
   interceptZero = TRUE,
   speedSound = 35400,
   plot = FALSE,
@@ -16,23 +17,30 @@ getFormantDispersion(
 }
 \arguments{
 \item{formants}{formant frequencies in any format recognized by
-\code{\link{soundgen}}: a character string like \code{aaui} referring to
-default presets for speaker "M1"; a vector of formant frequencies like
-\code{c(550, 1600, 3200)}; or a list with multiple values per formant like
-\code{list(f1 = c(500, 550), f2 = 1200))}}
+\code{\link{soundgen}}: a vector of formant frequencies like \code{c(550,
+1600, 3200)}; a list with multiple values per formant like \code{list(f1 =
+c(500, 550), f2 = 1200))}; or a character string like \code{aaui} referring
+to default presets for speaker "M1" in soundgen presets}
 
 \item{method}{the method of estimating vocal tract length (see details)}
 
+\item{tube}{the vocal tract is assumed to be a cylindrical tube that is
+either "closed-open" or "open-open" (same as closed-closed)}
+
 \item{interceptZero}{if TRUE, forces the regression curve to pass through the
-origin, which corresponds to a closed-open tube (method = "regression" only)}
+origin. This reduces the influence of highly variable lower formants, but
+we have to commit to a particular model of the vocal tract: closed-open or
+open-open/closed-closed (method = "regression" only)}
 
 \item{speedSound}{speed of sound in warm air, by default 35400 cm/s. Stevens
 (2000) "Acoustic phonetics", p. 138}
 
 \item{plot}{if TRUE, plots the regression line whose slope gives formant
-dispersion (method = "regression" only) and Label size shows the influence
-of each observation; the second plot shows how VTL varies depending on the
-number of formants used}
+dispersion (method = "regression" only). Label sizes show the influence of
+each formant, and the blue line corresponds to each formant being an
+integer multiple of F1 (as when harmonics are misidentified as formants);
+the second plot shows how VTL varies depending on the number of formants
+used}
 
 \item{checkFormat}{if FALSE, only a list of properly formatted formant
 frequencies is accepted}

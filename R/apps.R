@@ -19,13 +19,11 @@ soundgen_app = function() {
 
 #' Interactive pitch tracker
 #'
-#' Starts a shiny app for manually editing pitch contours. IMPORTANT: please use
-#' Firefox on a Linux or Windows PC. A bug in Chrome interferes with correct
-#' audio playback; Mac OS is not supported due to an unresolved issue with png
-#' transparency. The settings in the panels on the left correspond to arguments
-#' to \code{\link{analyze}} - see `?analyze` and the vignette on acoustic
-#' analysis for help and examples. You can verify the pitch contours first, and
-#' then feed them back into \code{analyze} (see examples).
+#' Starts a shiny app for manually editing pitch contours. The settings in the
+#' panels on the left correspond to arguments to \code{\link{analyze}} - see
+#' `?analyze` and the vignette on acoustic analysis for help and examples. You
+#' can verify the pitch contours first, and then feed them back into
+#' \code{analyze} (see examples).
 #'
 #' @return The app produces a .csv file with one row per audio file. Apart from
 #'   the usual descriptives from analyze(), there are two additional columns:
@@ -86,44 +84,30 @@ soundgen_app = function() {
 #' # Recommended workflow for analyzing a lot of short audio files
 #' path_to_audio = '~/Downloads/temp'  # our audio lives here
 #'
-#' # STEP 0: set up Firefox as default browser either system-wide or just in R.
-#' # For ex., on Linux, run:
-#' options('browser' = '/usr/bin/firefox')  # path to the executable
-#'
 #' # STEP 1: extract manually corrected pitch contours
-#' pitch_app()  # runs in Firefox
+#' pitch_app()  # runs in default browser such as Firefox or Chrome
+#' # To change system default browser, run something like:
+#' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
+#'
 #' df1 = read.csv('~/Downloads/output.csv')  # saved output from pitch_app()
 #'
-#' # STEP 2: run analyzeFolder() with manually corrected pitch contours to
-#' obtain accurate descriptives like the proportion of energy in harmonics above
-#' f0, etc. This also gives you formants and loudness estimates (disabled in
+#' # STEP 2: run analyze() with manually corrected pitch contours to obtain
+#' accurate descriptives like the proportion of energy in harmonics above f0,
+#' etc. This also gives you formants and loudness estimates (disabled in
 #' pitch_app to speed things up)
-#' df2 = analyzeFolder(path_to_audio,
-#'   pitchMethods = NULL,  # don't need to re-analyze pitch
+#' df2 = analyze(path_to_audio,
+#'   pitchMethods = 'autocor',  # only needed for HNR
 #'   nFormants = 5,        # now we can measure formants as well
 #'   pitchManual = df1     # df1 contains our manually corrected contours
 #' )
 #'
 #' # STEP 3: add other acoustic descriptors, for ex.
-#' df3 = segmentFolder(path_to_audio)
-#' df4 = modulationSpectrumFolder(path_to_audio)
+#' df3 = segment(path_to_audio)
 #'
 #' # STEP 4: merge df2, df3, df4, ... in R or a spreadsheet editor to have all
 #' acoustic descriptives together
 #' }
 pitch_app = function() {
-  # throw a warning on Macs
-  os = Sys.info()[['sysname']]
-  if (os == 'Darwin' | os == 'darwin') {
-    wrn = paste(
-      "Sorry, pitch_app() currently doesn't work on Macs. You can install",
-      "an older soundgen version 1.7.0 from",
-      "https://cran.r-project.org/src/contrib/Archive/soundgen",
-      "or run pitch_app() online at https://cogsci.shinyapps.io/pitch_app"
-    )
-    warning(wrn)
-  }
-
   appDir = system.file("shiny", "pitch_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",
@@ -136,11 +120,8 @@ pitch_app = function() {
 
 #' Interactive formant tracker
 #'
-#' Starts a shiny app for manually correcting formant measurements. IMPORTANT:
-#' please use Firefox on a Linux or Windows PC. A bug in Chrome interferes with
-#' correct audio playback; Mac OS is not supported due to an unresolved issue
-#' with png transparency. For more tips, see \code{\link{pitch_app}} and
-#' http://cogsci.se/soundgen.html.
+#' Starts a shiny app for manually correcting formant measurements. For more
+#' tips, see \code{\link{pitch_app}} and http://cogsci.se/soundgen.html.
 #'
 #' Suggested workflow: load one or several audio files (wav/mp3), preferably not
 #' longer than a minute or so. Select a region of interest in the spectrogram -
@@ -164,24 +145,12 @@ pitch_app = function() {
 #' @export
 #' @examples
 #' \dontrun{
-#' # Set up Firefox as default browser either system-wide or just in R.
-#' # For ex., on Linux, run:
-#' options('browser' = '/usr/bin/firefox')  # path to the executable
-#' formant_app()  # runs in Firefox
+#' formant_app()  # runs in default browser such as Firefox or Chrome
+#'
+#' # To change system default browser, run something like:
+#' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 #' }
 formant_app = function() {
-  # throw a warning on Macs
-  os = Sys.info()[['sysname']]
-  if (os == 'Darwin' | os == 'darwin') {
-    wrn = paste(
-      "Sorry, formant_app() currently doesn't work on Macs. You can install",
-      "an older soundgen version 1.7.0 from",
-      "https://cran.r-project.org/src/contrib/Archive/soundgen",
-      "or run pitch_app() online at https://cogsci.shinyapps.io/formant_app"
-    )
-    warning(wrn)
-  }
-
   appDir = system.file("shiny", "formant_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",
@@ -193,16 +162,16 @@ formant_app = function() {
 
 #' Annotation app
 #'
-#' Starts a shiny app for annotating audio. This is a simplified version of
-#' \code{\link{formant_app}} that also works on Macs.
+#' Starts a shiny app for annotating audio. This is a simplified and faster
+#' version of \code{\link{formant_app}} intended only for making annotations.
 #'
 #' @export
 #' @examples
 #' \dontrun{
-#' # Set up Firefox as default browser either system-wide or just in R.
-#' # For ex., on Linux, run:
-#' options('browser' = '/usr/bin/firefox')  # path to the executable
-#' annotation_app()  # runs in Firefox
+#' annotation_app()  # runs in default browser such as Firefox or Chrome
+#'
+#' # To change system default browser, run something like:
+#' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 #' }
 annotation_app = function() {
   appDir = system.file("shiny", "annotation_app", package = "soundgen")

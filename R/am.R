@@ -6,7 +6,7 @@
 #' @keywords internal
 #' @examples
 #' s = soundgen(sylLen = 1500, pitch = c(300, 550, 320, 220),
-#'               amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
+#'              amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
 #' # spectrogram(s)
 #' # playme(s)
 #' am = soundgen:::getAM_env(audio = list(sound = s, samplingRate = 16000),
@@ -28,7 +28,8 @@ getAM_env = function(audio,
   sr_new = audio$samplingRate / wl * (100 / (100 - overlap))
 
   # high-pass, normalize the envelope
-  env = bandpass(env, samplingRate = sr_new, lwr = amRange[1], plot = FALSE)
+  env = .bandpass(list(sound = env, samplingRate = sr_new),
+                  lwr = amRange[1], plot = FALSE)
   env = env - min(env)
   # env = env - mean(env)
   # env = env / max(env)
@@ -42,13 +43,13 @@ getAM_env = function(audio,
 
   # get amDep from inflections after low-pass filtering to 2 x max discovered AM
   # (too tight a filter --> we dampen the apparent amDep)
-  ps = bandpass(env, samplingRate = sr_new,
-                upr = max(am$freq) * 2,
-                action = 'pass', plot = FALSE)
+  ps = .bandpass(list(sound = env, samplingRate = sr_new),
+                 upr = max(am$freq) * 2,
+                 action = 'pass', plot = FALSE)
   ps = ps - min(ps)
   infl = findInflections(ps, thres = 0, plot = FALSE)
   amDep = 1 - exp(-abs(diff(log(ps[infl]))))
-  amDep_res = resample(amDep, len = nrow(am), lowPass = FALSE)
+  amDep_res = .resample(list(sound = amDep), len = nrow(am), lowPass = FALSE)
   amDep_res[amDep_res < 0] = 0
   am$dep = amDep_res  # to_dB(amDep_res)
   return(am)
@@ -70,18 +71,20 @@ getPeakFreq = function(x,
   # sp1 = tuneR::powspec(x, sr = round(samplingRate),
   #         wintime = 1 / freqRange[1] * 4,
   #         steptime = 1 / freqRange[1] * 4 * .3)
-  sp = try(suppressMessages(spectrogram(x,
-                   samplingRate = samplingRate,
-                   windowLength = 1000 / freqRange[1] * 4,
-                   padWithSilence = FALSE,
-                   normalize = FALSE,
-                   # often no variation, so getFrameBank returns NaN
-                   # when trying to normalize the "audio"
-                   plot = FALSE,
-                   ylim = c(0, .1))), silent = TRUE)
+  sp = try(suppressMessages(.spectrogram(
+    list(sound = x,
+    samplingRate = samplingRate,
+    ls = length(x)),
+    windowLength = 1000 / freqRange[1] * 4,
+    padWithSilence = FALSE,
+    normalize = FALSE,
+    # often no variation, so getFrameBank returns NaN
+    # when trying to normalize the "audio"
+    plot = FALSE,
+    ylim = c(0, .1))), silent = TRUE)
   # suppressMessages b/c spectrograms complains before returning NA for very
   # short sequences
-  if (class(sp)[1] == 'try-error') return(out)
+  if (inherits(sp, 'try-error')) return(out)
   if (!is.matrix(sp)) return(out)
   nc = ncol(sp)
   nr = nrow(sp)

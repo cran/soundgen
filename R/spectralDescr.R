@@ -209,6 +209,7 @@ harmHeight_dif = function(frame_dB,
               lastHarm_dif = lastHarm_dif))
 }
 
+
 #' Energy in harmonics
 #'
 #' Internal soundgun function

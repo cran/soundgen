@@ -104,26 +104,9 @@ size}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
-\item{main}{graphical parameters}
+\item{xlab, ylab, main, xlim, ylim}{graphical parameters}
 
-\item{xlab}{graphical parameters}
-
-\item{ylab}{graphical parameters}
-
-\item{xlim}{graphical parameters}
-
-\item{ylim}{graphical parameters}
-
-\item{width}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{height}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{units}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{res}{parameters passed to
+\item{width, height, units, res}{parameters passed to
 \code{\link[grDevices]{png}} if the plot is saved}
 
 \item{...}{other graphical parameters passed on to \code{filled.contour.mod}

@@ -31,15 +31,10 @@ numeric vector)}
 \item{scale}{maximum possible amplitude of input used for normalization of
 input vector (only needed if \code{x} is a numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
 \item{zcThres}{pitch candidates with certainty below this value are treated
 as noise and set to NA (0 = anything goes, 1 = pitch must be perfectly

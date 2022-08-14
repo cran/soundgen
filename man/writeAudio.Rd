@@ -4,18 +4,18 @@
 \alias{writeAudio}
 \title{Write audio}
 \usage{
-writeAudio(x, scale_used = NULL, audio, filename)
+writeAudio(x, audio, filename, scale_used = NULL)
 }
 \arguments{
 \item{x}{numeric vector}
-
-\item{scale_used}{actually used scale (max(abs(x))) - overrides
-audio$scale_used}
 
 \item{audio}{list returned by \code{\link{readAudio}} containing
 samplingRate, bit, scale, scale_used}
 
 \item{filename}{full path and filename including .wav}
+
+\item{scale_used}{actually used scale (max(abs(x))) - overrides
+audio$scale_used}
 }
 \description{
 Internal soundgen function.

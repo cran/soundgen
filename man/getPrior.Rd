@@ -17,13 +17,7 @@ getPrior(
 )
 }
 \arguments{
-\item{priorMean}{specifies the mean (Hz) and standard deviation
-(semitones) of gamma distribution describing our prior knowledge about the
-most likely pitch values for this file. For ex., \code{priorMean = 300,
-priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-an octave)}
-
-\item{priorSD}{specifies the mean (Hz) and standard deviation
+\item{priorMean, priorSD}{specifies the mean (Hz) and standard deviation
 (semitones) of gamma distribution describing our prior knowledge about the
 most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
@@ -32,9 +26,7 @@ an octave)}
 \item{distribution}{the shape of prior distribution on the musical scale:
 'normal' (mode = priorMean) or 'gamma' (skewed to lower frequencies)}
 
-\item{pitchFloor}{absolute bounds for pitch candidates (Hz)}
-
-\item{pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+\item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
 \item{len}{the required length of output vector (resolution)}
 

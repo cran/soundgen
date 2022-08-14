@@ -20,7 +20,7 @@ Measures AM
 }
 \examples{
 s = soundgen(sylLen = 1500, pitch = c(300, 550, 320, 220),
-              amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
+             amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
 # spectrogram(s)
 # playme(s)
 am = soundgen:::getAM_env(audio = list(sound = s, samplingRate = 16000),

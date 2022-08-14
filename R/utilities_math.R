@@ -1069,9 +1069,9 @@ getSigmoid = function(len,
 #' soundgen:::reportCI(a, 1, ' cm')
 #' soundgen:::reportCI(a, 1, '%, 95% CI')
 reportCI = function(n, digits = 2, suffix = NULL) {
-  if (class(n)[1] == 'data.frame') n = as.matrix(n)
+  if (is.data.frame(n)) n = as.matrix(n)
   n = round(n, digits)
-  if (class(n)[1] == 'matrix') {
+  if (is.matrix(n)) {
     out = matrix(NA, nrow = nrow(n))
     rownames(out) = rownames(n)
     for (i in 1:nrow(n)) {
@@ -1111,7 +1111,7 @@ interpolMatrix = function(m,
                           nr = NULL,
                           nc = NULL,
                           interpol = c("approx", "spline")[1]) {
-  if (class(m)[1] != 'matrix') {
+  if (!is.matrix(m)) {
     m = as.matrix(m)
     warning('non-matrix input m: converting to matrix')
   }
@@ -1179,7 +1179,7 @@ interpolMatrix = function(m,
       cnms = as.numeric(colnames(m))
       try_colnames = try(do.call(interpol, list(x = cnms, n = nc))$y,
                          silent = TRUE)
-      if (class(try_colnames) != 'try-error') {
+      if (!inherits(try_colnames, 'try-error')) {
         colnames(out) = try_colnames
       }
     }

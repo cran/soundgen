@@ -41,10 +41,7 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{from}{if NULL (default), analyzes the whole sound, otherwise
-from...to (s)}
-
-\item{to}{if NULL (default), analyzes the whole sound, otherwise
+\item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
@@ -64,10 +61,7 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
 \item{zp}{window length after zero padding, points}
 
-\item{amCond}{character strings with valid conditions on amplitude and
-frequency modulation (see examples)}
-
-\item{fmCond}{character strings with valid conditions on amplitude and
+\item{amCond, fmCond}{character strings with valid conditions on amplitude and
 frequency modulation (see examples)}
 
 \item{jointCond}{character string with a valid joint condition amplitude and
@@ -99,16 +93,7 @@ the MS of the output sound}
 \item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
 
-\item{width}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{height}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{units}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
-
-\item{res}{parameters passed to
+\item{width, height, units, res}{parameters passed to
 \code{\link[grDevices]{png}} if the plot is saved}
 }
 \value{

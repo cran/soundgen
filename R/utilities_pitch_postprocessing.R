@@ -109,6 +109,12 @@ pathfinder = function(pitchCands,
     pitchSource = intplt$pitchSource
     pitchCenterGravity = intplt$pitchCenterGravity
   }
+  # remove interpolated candidates in manual frames (otherwise they might be preferred)
+  if (length(manual$frame) > 0) {
+    for (f in manual$frame) {
+      pitchCands[which(pitchSource[, f] != 'manual'), f] = NA
+    }
+  }
 
   # remove rows with all NA's
   keep_rows = which(rowSums(!is.na(pitchCands)) > 0)
@@ -236,7 +242,7 @@ interpolate = function(pitchCands,
       if (nrow(curve_df) > 2) {
         # >2 points - use loess
         l = try(suppressWarnings(loess(y ~ x, data = curve_df, span = 1)))
-        if (class(med) != 'try-error') {
+        if (!inherits(med, 'try-error')) {
           p = predict(l, newdata = 1:tail(curve_df$x, n = 1))
           med = p[f + 1 - left]
           # print(c(f, 'loess'))
@@ -323,7 +329,7 @@ pathfinding_fast = function(pitchCands,
   for (seed in 1:nSeeds) {
     # Find the frame with the greatest number of candidates (to explore as many paths as possible)
     seed_win = (seed_approx_pos[seed] - seed_half_step) :
-       (seed_approx_pos[seed] + seed_half_step)
+      (seed_approx_pos[seed] + seed_half_step)
     seed_win = seed_win[which(seed_win >= 1 & seed_win <= nc)]
     idx_max = which.max(apply(
       pitchCands[, seed_win, drop = FALSE], 2, function(x) sum(!is.na(x))
@@ -1117,30 +1123,59 @@ addPitchCands = function(pitchCands,
 #' Internal soundgen function
 #'
 #' Takes a numeric vector and fills in the NAs by linear
-#' interpolation in the middle and constant interpolation at the ends.
+#' interpolation in the middle and constant or linear interpolation at the ends.
 #' @param x numeric vector
 #' @param idx_na which(is.na(x))
+#' @param nPoints the number of points to use for interpolating leading and
+#'   trailing NAs: 1 = constant interpolation, 2 = use the first two non-NAs at
+#'   the beginning and the last two non-NAs at the end, etc.
 #' @return Returns the same numeric vector with NAs filled in by interpolation.
 #' @keywords internal
 #' @examples
 #' soundgen:::intplNA(c(NA, 405, 441, 460, NA, NA, NA, 480, 490, NA, NA))
-intplNA = function(x, idx_na = NULL) {
+#' soundgen:::intplNA(c(NA, 405, 441, 460, NA, NA, NA, 480, 490, NA, NA), nPoints = 3)
+intplNA = function(x, idx_na = NULL, nPoints = 1) {
   len = length(x)
   if (is.null(idx_na)) idx_na = which(is.na(x))
   n_na = length(idx_na)
   if (n_na == len | n_na == 0) return(x)
   idx_notNA = (1:len)[-idx_na]
 
-  # fill in NAs at the ends by constant interpolation
-  if (idx_notNA[1] > 1) {
-    x[1:(idx_notNA[1] - 1)] = x[idx_notNA[1]]
-  }
-  last_nonNA = tail(idx_notNA, 1)
-  if (last_nonNA < len) {
-    x[(last_nonNA + 1):len] = x[last_nonNA]
+  # fill in NAs in the middle by linear interpolation
+  if (n_na > 0) {
+    idx_center = idx_notNA[1]:tail(idx_notNA, 1)
+    if (length(idx_center) > 1) {
+      xc = approx(x[idx_center], n = length(idx_center), na.rm = TRUE)$y
+      if (!inherits(xc, 'try-error')) x[idx_center] = xc
+    }
+
+    # fill in NAs at the ends
+    if (nPoints == 1) {
+      # constant interpolation
+      if (idx_notNA[1] > 1) {
+        x[1:(idx_notNA[1] - 1)] = x[idx_notNA[1]]
+      }
+      last_nonNA = tail(idx_notNA, 1)
+      if (last_nonNA < len) {
+        x[(last_nonNA + 1):len] = x[last_nonNA]
+      }
+    } else {
+      # linear interpolation of NAs at the beg & end
+      if (idx_notNA[1] > 1) {
+        a = idx_notNA[1]:min(len, (idx_notNA[1] + nPoints - 1))
+        b = x[a]
+        mod = lm(b ~ a)
+        x[1:(idx_notNA[1] - 1)] = predict(mod, newdata = list(a = 1:(idx_notNA[1] - 1)))
+      }
+      last_nonNA = tail(idx_notNA, 1)
+      if (last_nonNA < len) {
+        a = max(1, (last_nonNA - nPoints + 1)) : last_nonNA
+        b = x[a]
+        mod = lm(b ~ a)
+        x[(last_nonNA + 1):len] = predict(mod, newdata = list(a = (last_nonNA + 1):len))
+      }
+    }
   }
 
-  # fill in NAs in the middle by linear interpolation
-  x = approx(x, n = len, na.rm = TRUE)$y
   return(x)
 }

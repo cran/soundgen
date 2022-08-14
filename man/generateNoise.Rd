@@ -25,11 +25,7 @@ generateNoise(
 \arguments{
 \item{len}{length of output}
 
-\item{rolloffNoise}{linear rolloff of the excitation source for
-the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
-above \code{noiseFlatSpec} Hz}
-
-\item{noiseFlatSpec}{linear rolloff of the excitation source for
+\item{rolloffNoise, noiseFlatSpec}{linear rolloff of the excitation source for
 the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
 above \code{noiseFlatSpec} Hz}
 

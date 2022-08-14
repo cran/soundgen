@@ -65,16 +65,7 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
@@ -95,11 +86,11 @@ audio, the settings that control pitch shifting may also need to be
 fine-tuned with the \code{shiftPitch_pars} argument.
 }
 \examples{
-s = soundgen(sylLen = 200, pitch = c(150, 220), addSilence = 20,
+s = soundgen(sylLen = 200, pitch = c(150, 220), addSilence = 50,
              plot = TRUE, yScale = 'log')
 # playme(s)
 s1 = prosody(s, 16000, multProsody = 2,
-  analyze_pars = list(windowLength = 25, step = 5),
+  analyze_pars = list(windowLength = 30, step = 15),
   shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
   plot = TRUE)
 # playme(s1)
@@ -108,7 +99,7 @@ s1 = prosody(s, 16000, multProsody = 2,
 \dontrun{
 # Flat intonation - remove all frequency modulation
 s2 = prosody(s, 16000, multProsody = 0,
-  analyze_pars = list(windowLength = 25, step = 5),
+  analyze_pars = list(windowLength = 30, step = 15),
   shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
   plot = TRUE)
 playme(s2)
@@ -122,8 +113,9 @@ samplingRate = tuneR::readWave(target)@samp.rate
 spectrogram(target, yScale = 'log')
 playme(target)
 
-s3 = prosody(target, multProsody = 1.5, shiftPitch_pars = list(
-  freqWindow = 400, propagation = 'adaptive'))
+s3 = prosody(target, multProsody = 1.5,
+  analyze_pars = list(windowLength = 30, step = 15),
+  shiftPitch_pars = list(freqWindow = 400, propagation = 'adaptive'))
 spectrogram(s3, tuneR::readWave(target)@samp.rate, yScale = 'log')
 playme(s3)
 

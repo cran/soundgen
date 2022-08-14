@@ -6,8 +6,8 @@
 \usage{
 .bandpass(
   audio,
-  lwr,
-  upr,
+  lwr = NULL,
+  upr = NULL,
   action = c("pass", "stop")[1],
   dB = Inf,
   na.rm = TRUE,
@@ -23,12 +23,7 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{lwr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
-filter, just upr low-pass filter with action = 'pass' (or vice versa with
-action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
-depending on 'action'}
-
-\item{upr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
+\item{lwr, upr}{cutoff frequencies, Hz. Specifying just lwr gives a high-pass
 filter, just upr low-pass filter with action = 'pass' (or vice versa with
 action = 'stop'). Specifying both lwr and upr a bandpass/bandstop filter,
 depending on 'action'}
@@ -37,7 +32,7 @@ depending on 'action'}
 "stop" = remove the selected frequency range (bandstop)}
 
 \item{dB}{a positive number giving the strength of effect in dB (defaults to
-Int - complete removal of selected frequencies)}
+Inf - complete removal of selected frequencies)}
 
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}
@@ -47,16 +42,7 @@ filtering often reduces the amplitude)}
 
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
-\item{width}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{height}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{units}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{res}{graphical parameters for saving plots passed to
+\item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}

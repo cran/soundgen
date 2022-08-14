@@ -441,7 +441,7 @@ analyze = function(
   pitchPlot = list(col = rgb(0, 0, 1, .75), lwd = 3, showPrior = TRUE),
   extraContour = NULL,
   ylim = NULL,
-  xlab = 'Time, ms',
+  xlab = 'Time',
   ylab = NULL,
   main = NULL,
   width = 900,
@@ -460,7 +460,7 @@ analyze = function(
                  'specSinglePeakCert', 'certWeight')
   for (p in simplePars) {
     gp = try(get(p), silent = TRUE)
-    if (class(gp)[1] != "try-error") {
+    if (!inherits(gp, "try-error")) {
       if (is.numeric(gp)) {
         assign(noquote(p),
                validatePars(p, gp, def = defaults_analyze,
@@ -939,7 +939,7 @@ analyze = function(
     output = 'original',
     plot = FALSE
   ), extraSpecPars)))
-  if (class(s)[1] == 'try-error') return(NA)
+  if (inherits(s, 'try-error')) return(NA)
   # image(t(s))
   bin = audio$samplingRate / 2 / nrow(s)  # width of spectral bin, Hz
   freqs = as.numeric(rownames(s)) * 1000  # central bin freqs, Hz
@@ -949,11 +949,13 @@ analyze = function(
   myseq = (timestamps - audio$timeShift * 1000 - windowLength / 2) *
     audio$samplingRate / 1000 + 1
   myseq[1] = 1  # just in case of rounding errors
+  l = length(myseq)
+  myseq[l] = min(myseq[l], audio$ls - windowLength_points)
   ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
     # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
     sqrt(mean((audio$sound[myseq[x]:(myseq[x] + windowLength_points - 1)] *
-                 m / audio$scale) ^ 2))
+                 m / audio$scale) ^ 2, na.rm = TRUE))
   })
 
   # calculate entropy of each frame within the most relevant
@@ -971,6 +973,7 @@ analyze = function(
   # if the frame is too quiet or too noisy, we will not analyze it
   cond_silence = ampl >= silence &
     as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
+  # cond_silence[is.na(cond_silence)] = FALSE  # just in case of weird NAs
   framesToAnalyze = which(cond_silence)
   if (!is.numeric(entropyThres)) entropyThres = Inf
   cond_entropy = cond_silence & entropy < entropyThres
@@ -1001,7 +1004,9 @@ analyze = function(
                            plot = FALSE)$acf / autoCorrelation_filter
   }
   autocorBank = autocorBank[-1, ]  # b/c it starts with zero lag (identity)
-  # plot(autocorBank[, 15], type = 'l')
+  # plot(rownames(s)[1:50], s[1:50, 8], type = 'l')
+  # plot(frameBank[, 8], type = 'l')
+  # plot(names(autocorBank[40:550, 8]), autocorBank[40:550, 8], type = 'l')
   rownames(autocorBank) = audio$samplingRate / (1:nrow(autocorBank))
 
   ## FORMANTS
@@ -1020,7 +1025,7 @@ analyze = function(
                fs = audio$samplingRate, verify = FALSE),
           formants))),
         silent = TRUE)
-      if (class(fmts_list[[i]]) == 'try-error') {
+      if (inherits(fmts_list[[i]], 'try-error')) {
         fmts_list[[i]] = data.frame(formant = NA, bandwidth = NA)[-1, ]
       }
     }
@@ -1252,7 +1257,9 @@ analyze = function(
       if (any(!is.na(pitchFinal))) {
         pitch_sem = HzToSemitones(pitchFinal[!is.na(pitchFinal)])
         priorMean = semitonesToHz(mean(pitch_sem))
-        priorSD = semitonesToHz(sd(pitch_sem)) * 4
+        new_sd = sd(pitch_sem)
+        if (is.finite(new_sd))
+          priorSD = semitonesToHz(new_sd) * 4
         pitchCert_multiplier2 = getPrior(priorMean = priorMean,
                                          priorSD = priorSD,
                                          pitchFloor = pitchFloor,
@@ -1334,8 +1341,8 @@ analyze = function(
     }
     if (!is.null(pitch_raw)) {
       # up/downsample pitchManual to the right length
-      pitch_true = resample(
-        x = pitch_raw,
+      pitch_true = .resample(
+        list(sound = pitch_raw),
         len = nr,
         lowPass = FALSE,
         plot = FALSE)
@@ -1356,11 +1363,11 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            returnMS = FALSE, plot = FALSE, amRange = amRange),
       roughness))
-    result$roughness = resample(ms$roughness, len = nr,
+    result$roughness = .resample(list(sound = ms$roughness), len = nr,
                                 lowPass = FALSE, plot = FALSE)
-    result$amMsFreq = resample(ms$amMsFreq, len = nr,
+    result$amMsFreq = .resample(list(sound = ms$amMsFreq), len = nr,
                                lowPass = FALSE, plot = FALSE)
-    result$amMsPurity = resample(ms$amMsPurity, len = nr,
+    result$amMsPurity = .resample(list(sound = ms$amMsPurity), len = nr,
                                  lowPass = FALSE, plot = FALSE)
     result[!cond_silence, c('roughness', 'amMsFreq', 'amMsPurity')] = NA
   }
@@ -1373,7 +1380,7 @@ analyze = function(
       list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
            sparse = TRUE, plot = FALSE),
       novelty))$novelty
-    result$novelty = resample(novel, len = nr,
+    result$novelty = .resample(list(sound = novel), len = nr,
                               lowPass = FALSE, plot = FALSE)
     result$novelty[!cond_silence] = NA
   }
@@ -1385,11 +1392,11 @@ analyze = function(
                    amRange = amRange,
                    overlap = overlap,
                    plot = FALSE)
-    result$amEnvFreq = resample(am$freq, len = nr,
+    result$amEnvFreq = .resample(list(sound = am$freq), len = nr,
                                 lowPass = FALSE, plot = FALSE)
-    result$amEnvDep = resample(am$dep, len = nr,
+    result$amEnvDep = .resample(list(sound = am$dep), len = nr,
                                lowPass = FALSE, plot = FALSE)
-    result$amEnvPurity = resample(am$purity, len = nr,
+    result$amEnvPurity = .resample(list(sound = am$purity), len = nr,
                                   lowPass = FALSE, plot = FALSE)
     result[!cond_silence, c('amEnvFreq', 'amEnvDep', 'amEnvPurity')] = NA
   }
