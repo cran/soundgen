@@ -564,7 +564,7 @@ getFormantDispersion = function(
       # line
       if (length(formants) > 1 & is.finite(formants$f1$freq[1]) &
           tube %in% c('closed-open', 'open-closed'))
-        abline(fdf$formantSpacing[1], formants$f1$freq[1],
+        abline(formants$f1$freq[1] / 2, formants$f1$freq[1],
                lty = 3, col = 'blue')
       if (method == 'regression') {
         if (interceptZero) {

@@ -239,10 +239,12 @@ server = function(input, output, session) {
         dynamicRange = input$dynamicRange,
         windowLength = input$windowLength,
         step = input$step,
+        specType = input$specType,
         wn = input$wn,
         zp = 2 ^ input$zp,
         contrast = input$specContrast,
         brightness = input$specBrightness,
+        blur = c(input$blur_freq, input$blur_time),
         output = 'processed',
         plot = FALSE
       )
@@ -615,6 +617,7 @@ server = function(input, output, session) {
           myPars$myAudio_list,
           windowLength = input$windowLength,
           step = input$step,
+          specType = input$specType,
           wn = input$wn,
           zp = input$zp,
           dynamicRange = input$dynamicRange,
@@ -1468,6 +1471,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms. Larger values improve frequency resolution at the expense of time resolution', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms (alternative to "overlap")', placement="right", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram(). Affects pitch tracking', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, % (alternative to "step")', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range of spectrogram, dB', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='zp', title = 'Zero padding of STFT window (improves frequency resolution): 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = tooltip_options)
@@ -1495,7 +1499,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='autocorBestPeak', title = 'Amplitude of the lowest best candidate relative to the absolute max of the acf', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='cepThres', title = 'Voicing threshold for cepstral algorithm', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='cepZp', title = 'Length of cepstral window after zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = tooltip_options)
-  shinyBS::addTooltip(session, id='specMethod', title = '"commonFactor" = greatest common factor of putative harmonics, "BaNa" = ratio of putative harmonics', placement="right", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='specType', title = '"commonFactor" = greatest common factor of putative harmonics, "BaNa" = ratio of putative harmonics', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specThres', title = 'Voicing threshold for Ba-Na algorithm', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specPeak', title = 'Minimum amplitude of harmonics considered pitch candidates', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specHNRslope', title = '0 = same threshold regardless of HNR; positive = lower threshold in noisy sounds', placement="right", trigger="hover", options = tooltip_options)
@@ -1531,6 +1535,8 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 
   # oscillogram
   shinyBS::addTooltip(session, id='osc', title = 'The type of oscillogram to show', placement="below", trigger="hover", options = tooltip_options)

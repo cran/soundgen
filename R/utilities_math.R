@@ -43,12 +43,12 @@
 #' }
 #' }
 reportTime = function(
-  i,
-  time_start,
-  nIter = NULL,
-  reportEvery = NULL,
-  jobs = NULL,
-  prefix = ''
+    i,
+    time_start,
+    nIter = NULL,
+    reportEvery = NULL,
+    jobs = NULL,
+    prefix = ''
 ) {
   time_diff = as.numeric((proc.time() - time_start)[3])
   if (is.null(reportEvery))
@@ -1220,29 +1220,52 @@ sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 #' @param kernelSize the size of the Gaussian kernel, in points
 #' @param kernelSD the SD of the Gaussian kernel relative to its size (.5 = the
 #'   edge is two SD's away)
+#' @param action 'blur' = kernel-weighted average, 'unblur' = subtract
+#'   kernel-weighted average
 #' @param plotKernel if TRUE, plots the kernel
 #' @export
 #' @examples
-#' s = spectrogram(soundgen(), samplingRate = 16000,
+#' s = spectrogram(soundgen(), samplingRate = 16000, windowLength = 10,
 #'   output = 'original', plot = FALSE)
-#' # image(log(s))
-#' s1 = gaussianSmooth2D(s, kernelSize = 11, plotKernel = TRUE)
-#' # image(log(s1))
+#' s = log(s + .001)
+#' # image(s)
+#' s1 = gaussianSmooth2D(s, kernelSize = 5, plotKernel = TRUE)
+#' # image(s1)
+#'
+#' \dontrun{
+#' # more smoothing in time than in frequency
+#' s2 = gaussianSmooth2D(s, kernelSize = c(5, 15))
+#' image(s2)
+#'
+#' # vice versa - more smoothing in frequency
+#' s3 = gaussianSmooth2D(s, kernelSize = c(25, 3))
+#' image(s3)
+#'
+#' # sharpen the image by deconvolution with the kernel
+#' s4 = gaussianSmooth2D(s1, kernelSize = 5, action = 'unblur')
+#' image(s4)
+#'
+#' s5 = gaussianSmooth2D(s, kernelSize = c(15, 1), action = 'unblur')
+#' image(s5)
+#' }
 gaussianSmooth2D = function(m,
                             kernelSize = 5,
                             kernelSD = .5,
+                            action = c('blur', 'unblur')[1],
                             plotKernel = FALSE) {
+  if (length(kernelSize) == 1) kernelSize = c(kernelSize, kernelSize)
   nr = nrow(m)
   nc = ncol(m)
-  if (kernelSize < 2) return(m)
-  if (kernelSize >= (nr / 2)) {
-    kernelSize = ceiling(nr / 2) - 1
+  if (max(kernelSize) < 2) return(m)
+  if (kernelSize[1] >= (nr / 2)) {
+    kernelSize[1] = ceiling(nr / 2) - 1
   }
-  if (kernelSize >= (nc / 2)) {
-    kernelSize = ceiling(nc / 2) - 1
+  if (kernelSize[2] >= (nc / 2)) {
+    kernelSize[2] = ceiling(nc / 2) - 1
   }
-  if (kernelSize %% 2 == 0) kernelSize = kernelSize - 1  # make uneven
-  if (kernelSize < 2) return(m)
+  if (kernelSize[1] %% 2 == 0) kernelSize[1] = kernelSize[1] + 1  # make uneven
+  if (kernelSize[2] %% 2 == 0) kernelSize[2] = kernelSize[2] + 1  # make uneven
+  if (max(kernelSize) < 2) return(m)
 
   # set up 2D Gaussian filter
   kernel = getCheckerboardKernel(
@@ -1255,18 +1278,27 @@ gaussianSmooth2D = function(m,
   ## pad matrix with size / 2 zeros, so that we can correlate it with the
   #  kernel starting from the very edge
   m_padded = matrix(0,
-                    nrow = nr + kernelSize,
-                    ncol = nc + kernelSize)
+                    nrow = nr + kernelSize[1],
+                    ncol = nc + kernelSize[2])
   # lower left corner in the padded matrix where we'll paste the original m
-  idx = (kernelSize + 1) / 2
+  idx_row = round((kernelSize[1] + 1) / 2)
+  idx_col = round((kernelSize[2] + 1) / 2)
   # paste original. Now we have a padded matrix
-  m_padded[idx:(idx + nrow(m) - 1), idx:(idx + ncol(m) - 1)] = m
+  m_padded[idx_row:(idx_row + nr - 1), idx_col:(idx_col + nc - 1)] = m
 
-  # kernel smoothing
+  # kernel smoothing / deconvolution
   out = matrix(NA, nrow = nr, ncol = nc)
-  for (i in 1:nr) {
-    for (j in 1:nc) {
-      out[i, j] = sum(m_padded[i : (i + 2 * idx - 2), j : (j + 2 * idx - 2)] * kernel)
+  if (action == 'blur') {
+    for (i in 1:nr) {
+      for (j in 1:nc) {
+        out[i, j] = sum(m_padded[i : (i + 2 * idx_row - 2), j : (j + 2 * idx_col - 2)] * kernel)
+      }
+    }
+  } else if (action == 'unblur') {
+    for (i in 1:nr) {
+      for (j in 1:nc) {
+        out[i, j] = m[i, j] - sum(m_padded[i : (i + 2 * idx_row - 2), j : (j + 2 * idx_col - 2)] * kernel)
+      }
     }
   }
   if (!is.null(rownames(m))) rownames(out) = rownames(m)
@@ -1460,14 +1492,14 @@ parabPeakInterpol = function(threePoints, plot = FALSE) {
 #'   pch = 8)
 #' }
 identifyAndPlay = function(
-  x,
-  y = NULL,
-  data = NULL,
-  audioFolder,
-  to = 5,
-  plot = FALSE,
-  pch = 19,
-  ...) {
+    x,
+    y = NULL,
+    data = NULL,
+    audioFolder,
+    to = 5,
+    plot = FALSE,
+    pch = 19,
+    ...) {
   n = length(x)
   if (is.null(data)) {
     data = data.frame(

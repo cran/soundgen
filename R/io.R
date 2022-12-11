@@ -131,8 +131,8 @@ checkInputType = function(x) {
     } else {
       # input is one or more audio files
       for (f in 1:length(x)) {
-        if (!file.exists(x) ||
-            !substr(x, nchar(x) - 3, nchar(x)) %in% c('.wav', '.mp3', '.WAV', '.MP3')) {
+        if (!file.exists(x[f]) ||
+            !substr(x[f], nchar(x[f]) - 3, nchar(x[f])) %in% c('.wav', '.mp3', '.WAV', '.MP3')) {
           stop('Input not recognized - must be a folder, wav/mp3 file(s), or numeric vector(s)')
         }
       }

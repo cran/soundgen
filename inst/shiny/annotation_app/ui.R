@@ -63,14 +63,14 @@ ui = fluidPage(
               numericInput(
                 'windowLength',
                 'Window length, ms',
-                value = def_form['windowLength', 'default'],
+                value = 20, # def_form['windowLength', 'default'],
                 min = def_form['windowLength', 'low'],
                 max = def_form['windowLength', 'high'],
                 step = def_form['windowLength', 'step']),
               numericInput(
                 'step',
                 'Step, ms',
-                value = def_form['step', 'default'],
+                value = 5, # def_form['step', 'default'],
                 min = def_form['step', 'low'],
                 max = def_form['step', 'high'],
                 step = def_form['step', 'step']),
@@ -81,6 +81,13 @@ ui = fluidPage(
               #   min = def_form['overlap', 'low'],
               #   max = def_form['overlap', 'high'],
               #   step = def_form['overlap', 'step']),
+              radioButtons(
+                inputId = 'specType',
+                label = 'Spectrogram type',
+                choices = c("Ordinary FFT" = "spectrum",
+                            "Reassigned" = "reassigned",
+                            "Derivative" = "spectralDerivative"),
+                selected = 'spectrum', inline = TRUE, width = NULL),
               sliderInput(
                 'dynamicRange',
                 'Dynamic range, dB',
@@ -107,17 +114,31 @@ ui = fluidPage(
               sliderInput(
                 'specContrast',
                 'Contrast',
-                value = def_form['specContrast', 'default'],
+                value = 0, # def_form['specContrast', 'default'],
                 min = def_form['specContrast', 'low'],
                 max = def_form['specContrast', 'high'],
                 step = def_form['specContrast', 'step']),
               sliderInput(
                 'specBrightness',
                 'Brightness',
-                value = def_form['specBrightness', 'default'],
+                value =0, # def_form['specBrightness', 'default'],
                 min = def_form['specBrightness', 'low'],
                 max = def_form['specBrightness', 'high'],
                 step = def_form['specBrightness', 'step']),
+              sliderInput(
+                'blur_freq',
+                'Blur: frequency (Hz)',
+                value = 0, # def_form['blur_freq', 'default'],
+                min = def_form['blur_freq', 'low'],
+                max = def_form['blur_freq', 'high'],
+                step = def_form['blur_freq', 'step']),
+              sliderInput(
+                'blur_time',
+                'Blur: time (ms)',
+                value = 0, # def_form['blur_time', 'default'],
+                min = def_form['blur_time', 'low'],
+                max = def_form['blur_time', 'high'],
+                step = def_form['blur_time', 'step']),
               shinyBS::bsCollapsePanel(
                 "Advanced",
                 sliderInput(

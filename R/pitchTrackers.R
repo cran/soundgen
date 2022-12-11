@@ -481,8 +481,8 @@ getPitchSpec = function(frame,
   # nCands = 1, otherwise returns subh with the same apparent certainty
   pitchSpec_array = NULL
   n = length(frame)
-  width = 2 * ceiling((specSmooth / bin + 1) * 20 / bin / 2) - 1 # to be always ~100 Hz,
-  # regardless of bin, but an odd number
+  width = max(3, 2 * ceiling((specSmooth / bin + 1) * 20 / bin / 2) - 1)
+  # to be always ~100 Hz, regardless of bin, but an odd number
   if (!is.numeric(HNR)) {
     specPitchThreshold = specPeak # if HNR is NA, the sound is
     # probably a mess, so we play safe by only looking at very strong harmonics
@@ -521,8 +521,10 @@ getPitchSpec = function(frame,
         specPeaks$amp[i] = frame[idx_peak]
       }
     }
+    specPeaks = specPeaks[specPeaks$freq > pitchFloor, ]
   }
 
+  nr = nrow(specPeaks)
   if (nr == 1) {
     if (specPeaks$freq < pitchCeiling & specPeaks$freq > pitchFloor) {
       pitchSpec = specPeaks$freq

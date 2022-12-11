@@ -27,6 +27,7 @@ harmHeight = function(frame,
                       harmTol = 0.25,
                       harmPerSel = 5) {
   frame_dB = 20 * log10(frame)
+  # plot(freqs, frame_dB, type = 'l'); abline(v = pitch, col = 'blue')
 
   # METHOD 1: look for peaks at multiples of f0
   lh_peaks = harmHeight_peaks(frame_dB, pitch, bin, freqs,
@@ -41,11 +42,14 @@ harmHeight = function(frame,
                        harmPerSel = harmPerSel,
                        plot = FALSE)
   lh = median(c(lh_peaks, lh2$lastHarm_dif, lh2$lastHarm_cep), na.rm = TRUE)
+  if (lh < pitch) lh = NA
   return(list(harmHeight = lh,
               harmHeight_peaks = lh_peaks,
               harmHeight_dif = lh2$lastHarm_dif,
-              harmHeight_cep = lh2$lastHarm_cep))
+              harmHeight_cep = lh2$lastHarm_cep,
+              harmSlope = lh2$harmSlope))
 }
+
 
 #' Height of harmonics: peaks method
 #'
@@ -63,6 +67,8 @@ harmHeight_peaks = function(frame_dB,
                             harmThres = 3,
                             harmTol = 0.25,
                             plot = FALSE) {
+  pitch_bin = round(pitch / bin)
+  len_frame = length(frame_dB)
   harmSmooth = round(harmTol * pitch / bin)  # from prop of f0 to bins
   nHarm = floor((max(freqs) - harmSmooth * bin) / pitch)
   peakFound = rep(FALSE, nHarm)
@@ -70,48 +76,41 @@ harmHeight_peaks = function(frame_dB,
   for (h in 1:nHarm) {
     # check f0 as well, otherwise may get 2 * f0 although f0 is also below thres
     bin_h = round(pitch * h / bin)
+
     # b/c of rounding error, and b/c pitch estimates are often slightly off, the
     # true harmonic may lie a bit above or below this bin, so we search for a
     # peak within harmSmooth of where we expect to find it
     idx_peak = which.max(frame_dB[(bin_h - harmSmooth) : (bin_h + harmSmooth)])
     bin_peak = bin_h + idx_peak - harmSmooth - 1
-    # left
-    if (bin_peak == 1) {
-      left_over_zero = left_over_thres = TRUE
-    } else {
-      # should be higher than both adjacent points
-      left_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > 0
-      # should be higher than either of the adjacent points by harmThres
-      left_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak - 1] > harmThres
-    }
-    # right
-    if (bin_peak == length(frame_dB)) {
-      right_over_zero = right_over_thres = TRUE
-    } else {
-      right_over_zero = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > 0
-      right_over_thres = frame_dB[bin_peak] - frame_dB[bin_peak + 1] > harmThres
-    }
-    peakFound[h] = left_over_zero & right_over_zero &
-      (left_over_thres | right_over_thres)
 
-    if (plot) {  # plot for debugging
-      if (peakFound[h]) {
-        text(freqs[bin_peak], frame_dB[bin_peak],
-             labels = h, pch = 5, col = 'blue')
-      } else {
-        text(freqs[bin_peak], frame_dB[bin_peak],
-             labels = h, pch = 5, col = 'red')
-      }
-    }
+    # compare the peak with the median over ±pitch to check whether the peak is
+    # prominent enough
+    idx_around = max(1, bin_h - pitch_bin) : (min(len_frame, bin_h + pitch_bin))
+    idx_around = idx_around[-h]
+    median_around = median(frame_dB[idx_around])
+    peakFound[h] = frame_dB[bin_peak] - median_around > harmThres
+
+    if (plot)
+      text(freqs[bin_peak], frame_dB[bin_peak], labels = h, pch = 5,
+           col = if (peakFound[h]) 'red' else 'blue')
   }
-  first_absent_harm = which(!peakFound)[1]
-  if (length(first_absent_harm) > 0) {
-    lastHarm = pitch * (first_absent_harm - 1)
+
+  if (any(peakFound)) {
+    absent_harm = which(!peakFound)
+    if (length(absent_harm) == 0) {
+      # just the last found harmonic peak
+      lastHarm = pitch * nHarm
+    } else {
+      # the last non-missing harmonic peak
+      lastHarm = pitch * (absent_harm[1] - 1)
+    }
   } else {
     lastHarm = NA
   }
+
   return(lastHarm)
 }
+
 
 #' Height of harmonics: difference method
 #'
@@ -140,17 +139,13 @@ harmHeight_dif = function(frame_dB,
     align = 'center',
     function(x) {
       middle = ceiling(length(x) / 2)
+      median_around = median(x[-middle])
       which.max(x) == middle &   # peak in the middle
-        any(x[middle] - x[1:(middle - 1)] > harmThres) &  # a deep drop on the left
-        any(x[middle] - x[(middle + 1):length(x)] > harmThres)  # ...or on the right
+        x[middle] - median_around > harmThres  # and high enough
     }
   )
   idx = zoo::index(temp)[zoo::coredata(temp)]
-
-  if (plot) {
-    plot(freqs, frame_dB, type = 'l')
-    points(freqs[idx], frame_dB[idx], pch = 5, col = 'blue')
-  }
+  nPeaks = length(idx)
 
   # slide a selection along the spectrum starting from f0
   pitch_bins = pitch / bin  # f0 location in bins
@@ -185,28 +180,48 @@ harmHeight_dif = function(frame_dB,
     i = round(i + pitch_bins)  # move the sel by one harmonic (f0)
   }
 
-  # Find the central frequency of the first bin w/o harmonics
+  # Find the middle frequency of the first bin w/o harmonics
   fbwh_peaks = which(!pitch_bin_peaks)[1]
   if (is.na(fbwh_peaks)) {
-    lastHarm_dif = tail(freqs, 1)
+    lastHarm_dif = nPeaks * pitch  # found everywhere - take the top frequency, not middle
   } else {
-    lastHarm_dif = (pitch_bins * (fbwh_peaks - 1) - sel_bins / 2) * bin
-    if (!is.na(lastHarm_dif) && lastHarm_dif < pitch) lastHarm_dif = NA
+    lastHarm_dif = (sel_bins / 2 + pitch_bins * (fbwh_peaks - 1)) * bin
   }
-
+  if (!is.na(lastHarm_dif) && lastHarm_dif < pitch) lastHarm_dif = NA
 
   fbwh_cep = which(!pitch_bin_cep)[1]
   if (is.na(fbwh_cep)) {
-    lastHarm_cep = tail(freqs, 1)
+    lastHarm_cep = nPeaks * pitch
   } else {
-    lastHarm_cep = (pitch_bins * (fbwh_cep - 1) - sel_bins / 2) * bin
-    if (!is.na(lastHarm_cep) && lastHarm_cep < pitch) lastHarm_cep = NA
+    lastHarm_cep = (sel_bins / 2 + pitch_bins * (fbwh_cep - 1)) * bin
   }
-  lastHarm_cep = (pitch_bins * (fbwh_cep - 1) - sel_bins / 2) * bin
   if (!is.na(lastHarm_cep) && lastHarm_cep < pitch) lastHarm_cep = NA
 
+  # calculate harmonic slope
+  # (like spectral slope, but only for the confirmed harmonic peaks)
+  idx_harms = idx[which(pitch_bin_peaks & pitch_bin_cep)]
+  last_harm_bin = median(lastHarm_dif, lastHarm_cep, na.rm = TRUE) / bin
+  idx_harms = idx_harms[idx_harms < last_harm_bin]
+  if (length(idx_harms) > 1) {
+    harms = data.frame(freq = freqs[idx_harms] / 1000, ampl = frame_dB[idx_harms])
+    mod = suppressWarnings(lm(ampl ~ freq, harms))
+    harmSlope = mod$coefficients[2]
+  } else {
+    harmSlope = NA
+  }
+
+  if (plot) {
+    plot(freqs, frame_dB, type = 'l')
+    points(freqs[idx_harms], frame_dB[idx_harms], pch = 5, col = 'blue')
+    points(freqs[idx[!idx %in% idx_harms]],
+           frame_dB[idx[!idx %in% idx_harms]],
+           pch = 5, col = 'red')
+    abline(mod$coefficients[1], mod$coefficients[2] / 1000, lty = 2, col = 'blue')
+  }
+
   return(list(lastHarm_cep = lastHarm_cep,
-              lastHarm_dif = lastHarm_dif))
+              lastHarm_dif = lastHarm_dif,
+              harmSlope = harmSlope))
 }
 
 
@@ -271,18 +286,18 @@ harmEnergy = function(pitch, s, freqs = NULL, coef = 1.25) {
 #'             extraContour = list('subDep', type = 'b', col = 'brown'))
 #' s$detailed[, c('subRatio', 'subDep')]
 subhToHarm = function(
-  frame,
-  bin,
-  freqs,
-  pitch,
-  pitchCands = NULL,
-  samplingRate,
-  method = c('cep', 'pitchCands', 'harm')[1],
-  nSubh = 5,
-  tol = .05,
-  nHarm = 5,
-  harmThres = 3,
-  harmTol = 0.25
+    frame,
+    bin,
+    freqs,
+    pitch,
+    pitchCands = NULL,
+    samplingRate,
+    method = c('cep', 'pitchCands', 'harm')[1],
+    nSubh = 5,
+    tol = .05,
+    nHarm = 5,
+    harmThres = 3,
+    harmTol = 0.25
 ) {
   # plot(frame, type = 'l')
   best_subh = NA

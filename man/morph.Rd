@@ -42,6 +42,7 @@ equal steps. Normally you will want to set \code{temperature} very low; the
 \code{tempEffects} argument is not supported.
 }
 \examples{
+\dontrun{
 # write two formulas or copy-paste them from soundgen_app() or presets:
 playback = c(TRUE, FALSE)[2]
 # [a] to barking
@@ -53,7 +54,6 @@ m = morph(formula1 = list(repeatBout = 2),
  # m$formulas[[4]]
  # playme(m$sounds[[3]])
 
-\dontrun{
 # morph intonation and vowel quality
 m = morph(
   'soundgen(pitch = c(300, 250, 400),

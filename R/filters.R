@@ -339,6 +339,3 @@ pitchSmoothPraat = function(pitch,
   }
   return(pitch2)
 }
-
-
-

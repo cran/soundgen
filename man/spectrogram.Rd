@@ -14,6 +14,7 @@ spectrogram(
   windowLength = 50,
   step = NULL,
   overlap = 70,
+  specType = c("spectrum", "reassigned", "spectralDerivative")[1],
   wn = "gaussian",
   zp = 0,
   normalize = TRUE,
@@ -22,8 +23,7 @@ spectrogram(
   qTime = 0,
   percentNoise = 10,
   noiseReduction = 0,
-  method = c("spectrum", "spectralDerivative")[1],
-  output = c("original", "processed", "complex")[1],
+  output = c("original", "processed", "complex", "all")[1],
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
@@ -34,6 +34,7 @@ spectrogram(
   yScale = c("linear", "log", "bark", "mel", "ERB")[1],
   contrast = 0.2,
   brightness = 0,
+  blur = 0,
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
@@ -77,6 +78,9 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
+\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+('reassigned'), or spectral derivative ('spectralDerivative')}
+
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
@@ -99,9 +103,6 @@ recommended 0 to 2). 0 = no noise reduction, 2 = strong noise reduction:
 \eqn{spectrum - (noiseReduction * noiseSpectrum)}, where noiseSpectrum is
 the average spectrum of frames with entropy exceeding the quantile set by
 \code{percentNoise}}
-
-\item{method}{plot spectrum ('spectrum') or spectral derivative
-('spectralDerivative')}
 
 \item{output}{specifies what to return: nothing ('none'), unmodified
 spectrogram ('original'), denoised and/or smoothed spectrogram
@@ -138,6 +139,12 @@ sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 
+\item{blur}{apply a Gaussian filter to blur or sharpen the image, two
+numbers: frequency (Hz), time (ms). A single number is interpreted as
+frequency, and a square filter is applied. NA / NULL / 0 means to blurring
+in that dimension. Negative numbers mean un-blurring (sharpening) the image
+by dividing instead of multiplying by the filter during convolution}
+
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
 c(1e5, 5e5)}
@@ -167,15 +174,15 @@ examples)}
 \value{
 Returns nothing (if output = 'none'), absolute - not power! -
   spectrum (if output = 'original'), denoised and/or smoothed spectrum (if
-  output = 'processed'), or spectral derivatives (if method =
+  output = 'processed'), or spectral derivatives (if specType =
   'spectralDerivative') as a matrix of real numbers.
 }
 \description{
 Produces the spectrogram of a sound using short-time Fourier transform.
 Inspired by \code{\link[seewave]{spectro}}, this function offers added
-routines for noise reduction, smoothing in time and frequency domains, manual
-control of contrast and brightness, plotting the oscillogram on a dB scale,
-grid, etc.
+routines for reassignment, noise reduction, smoothing in time and frequency
+domains, manual control of contrast and brightness, plotting the oscillogram
+on a dB scale, grid, etc.
 }
 \details{
 Many soundgen functions call \code{spectrogram}, and you can pass along most
@@ -225,6 +232,20 @@ spectrogram(sound, samplingRate = 16000,
 # broad-band instead of narrow-band
 spectrogram(sound, samplingRate = 16000, windowLength = 5)
 
+# reassigned spectrograms are plotted after rasterizing, which reduces
+# the resolution...
+s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
+  samplingRate = 22050, formants = NULL, lipRad = 0, rolloff = -20)
+spectrogram(s, 22050, windowLength = 15, step = 1, ylim = c(0, 2))
+sp = spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
+                 step = 1, ylim = c(0, 2), output = 'all')
+# ...but the raw reassigned version is also available if output = 'all'. The
+# problem is that it's difficult to plot well because the grid is irregular
+df = sp$reassigned
+df$z1 = soundgen:::zeroOne(log(df$z))
+plot(df$x, df$y, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
+  pch = 16, cex = 0.5, ylim = c(0, 2))
+
 # focus only on values in the upper 5\% for each frequency bin
 spectrogram(sound, samplingRate = 16000, qTime = 0.95)
 
@@ -233,12 +254,19 @@ spectrogram(sound, samplingRate = 16000, qTime = 0.95)
 spectrogram(sound, samplingRate = 16000,  noiseReduction = 1.1,
   brightness = -2)  # white noise attenuated
 
+# increase contrast, reduce brightness
+spectrogram(sound, samplingRate = 16000, contrast = .7, brightness = -.5)
+
 # apply median smoothing in both time and frequency domains
 spectrogram(sound, samplingRate = 16000, smoothFreq = 5,
   smoothTime = 5)
 
-# increase contrast, reduce brightness
-spectrogram(sound, samplingRate = 16000, contrast = 1, brightness = -1)
+# Gaussian filter to blur or sharpen ("unblur") the image in time and/or
+# frequency domains
+spectrogram(sound, samplingRate = 16000, blur = c(100, 500))
+# TIP: when unblurring, set the first (frequency) parameter to the
+# frequency resolution of interest, eg ~500-1000 Hz for human formants
+spectrogram(sound, samplingRate = 16000, windowLength = 10, blur = c(-500, 50))
 
 # specify location of tick marks etc - see ?par() for base graphics
 spectrogram(sound, samplingRate = 16000,

@@ -1149,7 +1149,7 @@ server = function(input, output, session) {
       } else {
         heights = c(1, input$osc_heights)
       }
-      spectrogram(
+      soundgen::spectrogram(
         myPars$sound,
         samplingRate = input$samplingRate,
         wn = 'gaussian', windowLength = input$specWindowLength,

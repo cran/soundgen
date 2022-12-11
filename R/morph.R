@@ -23,6 +23,7 @@
 #'   \code{m$formulas[[2]]}, and the waveform is \code{m$sounds[[2]]}
 #' @export
 #' @examples
+#' \dontrun{
 #' # write two formulas or copy-paste them from soundgen_app() or presets:
 #' playback = c(TRUE, FALSE)[2]
 #' # [a] to barking
@@ -34,7 +35,6 @@
 #'  # m$formulas[[4]]
 #'  # playme(m$sounds[[3]])
 #'
-#' \dontrun{
 #' # morph intonation and vowel quality
 #' m = morph(
 #'   'soundgen(pitch = c(300, 250, 400),

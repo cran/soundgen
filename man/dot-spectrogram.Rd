@@ -10,6 +10,7 @@
   windowLength = 50,
   step = NULL,
   overlap = 70,
+  specType = c("spectrum", "reassigned", "spectralDerivative")[1],
   wn = "gaussian",
   zp = 0,
   normalize = TRUE,
@@ -18,8 +19,7 @@
   qTime = 0,
   percentNoise = 10,
   noiseReduction = 0,
-  method = c("spectrum", "spectralDerivative")[1],
-  output = c("original", "processed", "complex")[1],
+  output = c("original", "processed", "complex", "all")[1],
   plot = TRUE,
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
@@ -27,6 +27,7 @@
   yScale = "linear",
   contrast = 0.2,
   brightness = 0,
+  blur = 0,
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
@@ -60,6 +61,9 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
+\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+('reassigned'), or spectral derivative ('spectralDerivative')}
+
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 
@@ -82,9 +86,6 @@ recommended 0 to 2). 0 = no noise reduction, 2 = strong noise reduction:
 \eqn{spectrum - (noiseReduction * noiseSpectrum)}, where noiseSpectrum is
 the average spectrum of frames with entropy exceeding the quantile set by
 \code{percentNoise}}
-
-\item{method}{plot spectrum ('spectrum') or spectral derivative
-('spectralDerivative')}
 
 \item{output}{specifies what to return: nothing ('none'), unmodified
 spectrogram ('original'), denoised and/or smoothed spectrogram
@@ -112,6 +113,12 @@ recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
 sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
+
+\item{blur}{apply a Gaussian filter to blur or sharpen the image, two
+numbers: frequency (Hz), time (ms). A single number is interpreted as
+frequency, and a square filter is applied. NA / NULL / 0 means to blurring
+in that dimension. Negative numbers mean un-blurring (sharpening) the image
+by dividing instead of multiplying by the filter during convolution}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to

@@ -37,5 +37,9 @@ kernel = soundgen:::getCheckerboardKernel(size = 64, kernelSD = 0.1, plot = TRUE
 dim(kernel)
 kernel = soundgen:::getCheckerboardKernel(size = 19, kernelSD = .5,
   checker = FALSE, plot = TRUE)
+kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
+  checker = FALSE, plot = TRUE)
+kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
+  checker = TRUE, plot = TRUE)
 }
 \keyword{internal}

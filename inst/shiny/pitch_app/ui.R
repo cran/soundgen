@@ -66,6 +66,13 @@ ui = fluidPage(
               min = defaults_analyze['step', 'low'],
               max = defaults_analyze['step', 'high'],
               step = defaults_analyze['step', 'step']),
+            radioButtons(
+              inputId = 'specType',
+              label = 'Spectrogram method',
+              choices = c("Ordinary FFT" = "spectrum",
+                          "Reassigned" = "reassigned",
+                          "Derivative" = "spectralDerivative"),
+              selected = 'spectrum', inline = TRUE, width = NULL),
             # sliderInput(
             #   'overlap',
             #   'Overlap, % ("overlap")',
@@ -486,7 +493,21 @@ ui = fluidPage(
               value = defaults_analyze['specBrightness', 'default'],
               min = defaults_analyze['specBrightness', 'low'],
               max = defaults_analyze['specBrightness', 'high'],
-              step = defaults_analyze['specBrightness', 'step'])
+              step = defaults_analyze['specBrightness', 'step']),
+            sliderInput(
+              'blur_freq',
+              'Blur: frequency (Hz)',
+              value = defaults_analyze['blur_freq', 'default'],
+              min = defaults_analyze['blur_freq', 'low'],
+              max = defaults_analyze['blur_freq', 'high'],
+              step = defaults_analyze['blur_freq', 'step']),
+            sliderInput(
+              'blur_time',
+              'Blur: time (ms)',
+              value = defaults_analyze['blur_time', 'default'],
+              min = defaults_analyze['blur_time', 'low'],
+              max = defaults_analyze['blur_time', 'high'],
+              step = defaults_analyze['blur_time', 'step'])
           ),
 
           tabPanel(

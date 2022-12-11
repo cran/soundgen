@@ -252,7 +252,7 @@ server = function(input, output, session) {
     # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {  # & is.null(myPars$spec)
       if (myPars$print) print('Extracting spectrogram...')
-      temp_spec = try(spectrogram(
+      temp_spec = try(soundgen::spectrogram(
         myPars$myAudio,
         samplingRate = myPars$samplingRate,
         dynamicRange = input$dynamicRange,
@@ -262,6 +262,8 @@ server = function(input, output, session) {
         zp = 2 ^ input$zp,
         contrast = input$specContrast,
         brightness = input$specBrightness,
+        blur = c(input$blur_freq, input$blur_time),
+        specType = input$specType,
         output = 'processed',
         plot = FALSE
       ))
@@ -621,6 +623,7 @@ server = function(input, output, session) {
 
   new_annotation = function() {
     if (myPars$print) print('Creating a new annotation...')
+    Sys.sleep(0.5)  # wait for 500 ms, otherwise label not saved if OK is clicked too fast (why?)
     new = data.frame(
       # idx = ifelse(is.null(myPars$ann), 1, nrow(myPars$ann) + 1),
       file = myPars$myAudio_filename,
@@ -1049,12 +1052,15 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram()', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='spec_yScale', title = 'Frequency scale', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='zp', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='spec_maxPoints', title = 'The number of points to plot in the spectrogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))

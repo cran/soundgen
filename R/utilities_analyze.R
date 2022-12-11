@@ -431,9 +431,11 @@ updateAnalyze = function(
              bin = bin,
              freqs = freqs,
              pitch = result$pitch[f]
-        )))$harmHeight, silent = TRUE)
+        ))), silent = TRUE)
       if (!inherits(temp, 'try-error')) {
-        result$harmHeight[f] = temp
+        result$harmHeight[f] = temp$harmHeight
+        # result$harmSlope[f] = temp$harmSlope
+        # not super meaningful - often too few harmonics, strong formants, etc
       }
     }
 

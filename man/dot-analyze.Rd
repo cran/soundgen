@@ -11,6 +11,7 @@
   windowLength = 50,
   step = 25,
   overlap = 50,
+  specType = c("spectrum", "reassign", "spectralDerivative")[1],
   wn = "gaussian",
   zp = 0,
   cutFreq = NULL,
@@ -91,6 +92,9 @@ because digital audio is sampled at discrete time intervals of
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
+
+\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+('reassigned'), or spectral derivative ('spectralDerivative')}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}

@@ -82,7 +82,7 @@ getPeakFreq = function(x,
     # when trying to normalize the "audio"
     plot = FALSE,
     ylim = c(0, .1))), silent = TRUE)
-  # suppressMessages b/c spectrograms complains before returning NA for very
+  # suppressMessages b/c spectrogram complains before returning NA for very
   # short sequences
   if (inherits(sp, 'try-error')) return(out)
   if (!is.matrix(sp)) return(out)

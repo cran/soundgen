@@ -511,40 +511,55 @@ selfsim = function(m,
 #' dim(kernel)
 #' kernel = soundgen:::getCheckerboardKernel(size = 19, kernelSD = .5,
 #'   checker = FALSE, plot = TRUE)
+#' kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
+#'   checker = FALSE, plot = TRUE)
+#' kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
+#'   checker = TRUE, plot = TRUE)
 getCheckerboardKernel = function(size,
                                  kernel_mean = 0,
                                  kernelSD = 0.5,
                                  plot = FALSE,
                                  checker = TRUE) {
-  x = seq(-1, 1, length.out = size)
+  if (length(size) == 1) {
+    x = y = seq(-1, 1, length.out = size)
+    size = c(size, size)
+  } else if (length(size) == 2) {
+    x = seq(-1, 1, length.out = size[1])
+    y = seq(-1, 1, length.out = size[2])
+  } else {
+    stop('size must be of length 1 or 2')
+  }
+
   kernelSD = kernelSD  # just to get rid of the "unused arg" warning in CMD check :-)
-  if (size < 50) {
+  if (max(size) < 50) {
     # faster than mvtnorm::dmvnorm for small kernels
-    kernel = matrix(NA, ncol = size, nrow = size)
+    kernel = matrix(NA, ncol = size[2], nrow = size[1])
     for (i in 1:nrow(kernel)) {
       for (j in 1:ncol(kernel)) {
         kernel[i, j] = dnorm(x[i], mean = kernel_mean, sd = kernelSD) *
-          dnorm(x[j], mean = kernel_mean, sd = kernelSD)
+          dnorm(y[j], mean = kernel_mean, sd = kernelSD)
       }
     }
   } else {
     # this is faster for large kernels
     sigma = diag(2) * kernelSD
-    kernel_long = expand.grid(x1 = x, x2 = x)
+    kernel_long = expand.grid(x1 = x, x2 = y)
     kernel_long$dd = mvtnorm::dmvnorm(x = kernel_long,
                                       mean = c(kernel_mean, kernel_mean),
                                       sigma = sigma)
-    kernel = matrix(kernel_long$dd, nrow = length(x))
-    kernel[1:5, 1:5]
+    kernel = matrix(kernel_long$dd, nrow = size[1])
+    # kernel[1:5, 1:5]
   }
 
   if (checker) {
-    fl = floor(size / 2)
-    cl = ceiling(size / 2)
+    fl_row = floor(size[1] / 2)
+    fl_col = floor(size[2] / 2)
+    cl_row = ceiling(size[1] / 2)
+    cl_col = ceiling(size[2] / 2)
     # quadrant 0 to 3 o'clock
-    kernel[1:fl, (cl + 1):size] = -kernel[1:fl, (cl + 1):size]
+    kernel[1:fl_row, (cl_col + 1):size[2]] = -kernel[1:fl_row, (cl_col + 1):size[2]]
     # quadrant 6 to 9 o'clock
-    kernel[(cl + 1):size, 1:cl] = -kernel[(cl + 1):size, 1:cl]
+    kernel[(cl_row + 1):size[1], 1:cl_col] = -kernel[(cl_row + 1):size[1], 1:cl_col]
   }
 
   kernel = kernel / max(kernel)

@@ -1,5 +1,21 @@
-          CHANGES IN SOUNDGEN VERSION 2.5.2 [14-August-2022]
+          CHANGES IN SOUNDGEN VERSION 2.5.3 [10-Dec-2022]
+MINOR
+  * vignettes removed to comply with CRAN's restrictions on package size and complexity
+  * spectrogram(), apps: reassigned spectrogram available (specType = "reassigned", replaces former argument "method")
+  * spectrogram(), apps: a new argument "blur" for blurring or sharpening the spectrogram in frequency and/or time
+  * analyze(): pitchMethods = 'spec' has more robust smoothing defaults so works with eg ultrasound
+  * analyze(): improved calculation of harmHeight
+  * analyze(): new spectral descriptor "entropySh" = normalized Shannon entropy (in addition to "entropy" = Weiner entropy)
+  * formant_app(): button for reverting all formant measurements in an annotation to defaults (as measured)
 
+BUGS FIXED:
+  * estimateVTL() diagnostic plot: corrected blue line warning for harmonics (formants that are integer multiple of F1 in closed-open tube model)
+  * analyze(): pitchMethods = 'spec' less likely to crash
+  * formant_app(): more tolerant of incorrectly or incompletely formatted csv input, doesn't crash if analyze doesn't find enough formants, playback doesn't crash when some formants are NA
+  * timeStretch() saves audio correctly
+
+
+          CHANGES IN SOUNDGEN VERSION 2.5.2 [14-August-2022]
 MINOR:
   * estimateVTL(), schwa(), formant_app(): new argument "tube" to implement either closed-open or open-open tube approximation
   * estimateVTL(), formant_app(): regression plots sensitive to interceptZero, show multiples of F1

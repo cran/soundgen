@@ -15,6 +15,7 @@ analyze(
   windowLength = 50,
   step = 25,
   overlap = 50,
+  specType = c("spectrum", "reassign", "spectralDerivative")[1],
   wn = "gaussian",
   zp = 0,
   cutFreq = NULL,
@@ -104,6 +105,9 @@ because digital audio is sampled at discrete time intervals of
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
+
+\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+('reassigned'), or spectral derivative ('spectralDerivative')}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
@@ -303,24 +307,27 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   \code{amEnvPurity}, but estimated via \code{\link{modulationSpectrum}}}
   \item{ampl}{root mean square of amplitude per frame, calculated as
   sqrt(mean(frame ^ 2))} \item{ampl_noSilence}{same as \code{ampl}, but
-  ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (see "Pitch
-  tracking methods / Cepstrum" in the vignette)} \item{dom}{lowest dominant
-  frequency band (Hz) (see "Pitch tracking methods / Dominant frequency" in
-  the vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
+  ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (a measure
+  of pitch quality, the ratio of the highest peak in the cepstrum to the
+  regression line drawn through it)} \item{dom}{lowest dominant frequency
+  band (Hz) (see "Pitch tracking methods / Dominant frequency" in the
+  vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
   frame. Close to 0: pure tone or tonal sound with nearly all energy in
-  harmonics; close to 1: white noise} \item{f1_freq, f1_width, ...}{the
-  frequency and bandwidth of the first nFormants formants per STFT frame, as
-  calculated by phonTools::findformants} \item{flux}{feature-based flux, the
-  rate of change in acoustic features such as pitch, HNR, etc. (0 = none, 1 =
-  max); "epoch" is an audio segment between two peaks of flux that exceed a
-  threshold of \code{flux = list(thres = ...)} (listed in output$detailed
-  only)} \item{fmFreq}{frequency of frequency modulation (FM) such as vibrato
-  or jitter, Hz} \item{fmDep}{depth of FM, semitones} \item{fmPurity}{purity
-  or dominance of the main FM frequency (fmFreq), 0 to 1}
-  \item{harmEnergy}{the amount of energy in upper harmonics, namely the ratio
-  of total spectral mass above 1.25 x F0 to the total spectral mass below
-  1.25 x F0 (dB)} \item{harmHeight}{how high harmonics reach in the spectrum,
-  based on the best guess at pitch (or the manually provided pitch values)}
+  harmonics; close to 1: white noise} \item{entropySh}{Normalized Shannon
+  entropy of the spectrum of the current frame: 0 = pure tone, 1 = white
+  noise} \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the
+  first nFormants formants per STFT frame, as calculated by
+  phonTools::findformants} \item{flux}{feature-based flux, the rate of change
+  in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
+  is an audio segment between two peaks of flux that exceed a threshold of
+  \code{flux = list(thres = ...)} (listed in output$detailed only)}
+  \item{fmFreq}{frequency of frequency modulation (FM) such as vibrato or
+  jitter, Hz} \item{fmDep}{depth of FM, semitones} \item{fmPurity}{purity or
+  dominance of the main FM frequency (fmFreq), 0 to 1} \item{harmEnergy}{the
+  amount of energy in upper harmonics, namely the ratio of total spectral
+  mass above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
+  \item{harmHeight}{how high harmonics reach in the spectrum, based on the
+  best guess at pitch (or the manually provided pitch values)}
   \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
   by soundgen:::getPitchAutocor (see "Pitch tracking methods /
   Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as

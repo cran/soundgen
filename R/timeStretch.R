@@ -37,14 +37,14 @@
 #' # factors in different ways, the duration is not identical, even though the
 #' # range of pitch change is the same
 timeStretch = function(
-  x,
-  stretch = 1,
-  samplingRate = NULL,
-  precision = 1000,
-  play = FALSE,
-  saveAudio = NULL,
-  reportEvery = NULL,
-  cores = 1) {
+    x,
+    stretch = 1,
+    samplingRate = NULL,
+    precision = 1000,
+    play = FALSE,
+    saveAudio = NULL,
+    reportEvery = NULL,
+    cores = 1) {
   stretch = reformatAnchors(stretch)
 
   # match args
@@ -78,11 +78,11 @@ timeStretch = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .timeStretch = function(
-  audio,
-  stretch,
-  precision,
-  normalize = TRUE,
-  play = FALSE) {
+    audio,
+    stretch,
+    precision,
+    normalize = TRUE,
+    play = FALSE) {
   if (!any(stretch$value != 1)) {
     message('Nothing to do')
     return(audio$sound)
@@ -116,5 +116,11 @@ timeStretch = function(
                n = new_len)$y
   # playme(out, audio$samplingRate)
   # spectrogram(out, audio$samplingRate)
+
+  if (!is.null(audio$saveAudio)) {
+    if (!dir.exists(audio$saveAudio)) dir.create(audio$saveAudio)
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(out, audio = audio, filename = filename)
+  }
   return(out)
 }

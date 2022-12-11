@@ -1,6 +1,6 @@
 # formant_app()
 #
-# To do: hotkey A to create new annotation (see annotation_app); maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
+# To do: deleting a formant in the button also deletes the annotation (bug); maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
 
 # Start with a fresh R session and run the command options(shiny.reactlog=TRUE)
 # Then run your app in a show case mode: runApp('inst/shiny/formant_app', display.mode = "showcase")
@@ -134,6 +134,10 @@ server = function(input, output, session) {
           !any(!oblig_cols %in% colnames(user_ann))) {
         idx_missing = which(apply(user_ann[, oblig_cols], 1, function(x) any(is.na(x))))
         if (length(idx_missing) > 0) user_ann = user_ann[-idx_missing, ]
+        need_cols = c('label', 'dF', 'vtl', myPars$ff)
+        missing_cols = need_cols[which(!need_cols %in% colnames(user_ann))]
+        if (length(missing_cols) > 0) user_ann[, missing_cols] = NA
+        user_ann = user_ann[, c(oblig_cols, need_cols)]
         if (nrow(user_ann) > 0) {
           if (is.null(myPars$out)) {
             myPars$out = user_ann
@@ -277,7 +281,7 @@ server = function(input, output, session) {
     # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {  # & is.null(myPars$spec)
       if (myPars$print) print('Extracting spectrogram...')
-      temp_spec = try(spectrogram(
+      temp_spec = try(soundgen::spectrogram(
         myPars$myAudio,
         samplingRate = myPars$samplingRate,
         dynamicRange = input$dynamicRange,
@@ -287,6 +291,8 @@ server = function(input, output, session) {
         zp = 2 ^ input$zp,
         contrast = input$specContrast,
         brightness = input$specBrightness,
+        blur = c(input$blur_freq, input$blur_time),
+        specType = input$specType,
         output = 'processed',
         plot = FALSE
       ))
@@ -348,10 +354,16 @@ server = function(input, output, session) {
         label = HTML("<img src='icons/plus.png' width = '25px'>"), # '+',
         class = "buttonInline"
       )),
+      list(actionButton(
+        inputId = 'defaultFmtBtn',
+        label = HTML("<img src='icons/update.png' width = '30px'>"),
+        class = "buttonInline"
+      )),
       list(
-        shinyBS:::bsPopover(id = 'fDiv_1', title = NULL, content = 'Click to select, type a number to correct or NA to treat as missing, empty to reset to default', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0))),
+        shinyBS:::bsPopover(id = 'fDiv_1', title = NULL, content = 'Click to select, type a number to correct, any text or NA to treat as missing, empty to reset to default', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0))),
         shinyBS::bsPopover(id='remF', title = NULL, content = 'Remove one formant', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0))),
-        shinyBS::bsPopover(id='addF', title = NULL, content = 'Add one formant', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0)))
+        shinyBS::bsPopover(id='addF', title = NULL, content = 'Add one formant', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0))),
+        shinyBS::bsPopover(id='defaultFmtBtn', title = NULL, content = 'Reset formant values to defaults as measured', placement = "right", trigger = "hover", options = list(delay = list(show = 1000, hide = 0)))
       )
     )
   })
@@ -654,7 +666,7 @@ server = function(input, output, session) {
 
       # Add formant tracks
       if (!is.null(myPars$formantTracks)) {
-        for (f in 2:(input$nFormants + 1)) {
+        for (f in 2:(length(myPars$ff) + 1)) {
           points(myPars$formantTracks$time,
                  myPars$formantTracks[, f] / 1000,
                  pch = 16,
@@ -1291,6 +1303,7 @@ server = function(input, output, session) {
         myPars$temp_anal = temp_anal
         myPars$nMeasuredFmts = length(grep('_freq', colnames(myPars$temp_anal)))
         myPars$allF_colnames = paste0('f', 1:myPars$nMeasuredFmts, '_freq')
+        myPars$ff = myPars$ff[1:min(input$nFormants, myPars$nMeasuredFmts)]
         myPars$temp_anal = myPars$temp_anal[, c('time', myPars$allF_colnames)]
         colnames(myPars$temp_anal) = c('time', paste0('F', 1:myPars$nMeasuredFmts))
         for (c in colnames(myPars$temp_anal)) {
@@ -1339,7 +1352,7 @@ server = function(input, output, session) {
             myPars$formantTracks$time <= myPars$ann$to[myPars$currentAnn]
         )
       })
-      fMat = myPars$formantTracks[idx, 2:(input$nFormants + 1)]
+      fMat = myPars$formantTracks[idx, 2:(length(myPars$ff) + 1)]
       myPars$formants = apply(fMat, 2, function(x)
         round(do.call(input$summaryFun, list(x, na.rm = TRUE))))
       # myPars$bandwidth ?
@@ -1357,6 +1370,18 @@ server = function(input, output, session) {
     }
   }
   observeEvent(myPars$formantTracks, avFmPerSel())
+
+  observeEvent(input$defaultFmtBtn, {
+    # browser()
+    for (f in 1:input$nFormants) {
+      fn = paste0('F', f, '_text')
+      updateTextInput(
+        session, fn,
+        value = as.character(myPars$formants[f]))
+    }
+    myPars$ann[myPars$currentAnn, myPars$ff] = myPars$formants[myPars$ff]
+    updateVTL()
+  })
 
   observeEvent(myPars$ann, {
     if (myPars$print) print('Drawing ann_table...')
@@ -1789,20 +1814,25 @@ server = function(input, output, session) {
                              input$pitch / 1.11, input$pitch / 1.5))
       if (input$adaptivePitch)
         pitch$value = pitch$value * 17 / myPars$ann$vtl[myPars$currentAnn]
-      temp_s = soundgen(
+      ff_vector = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff])
+      # drop NAs in formant frequencies, otherwise soundgen can't synthesize them
+      ff_vector = ff_vector[!is.na(ff_vector)]
+      temp_s = try(soundgen(
         sylLen = 300 * myPars$samplingRate_idx,
         pitch = pitch,
-        formants = as.numeric(myPars$ann[myPars$currentAnn, myPars$ff]),
-        temperature = .001, tempEffects = list(formDisp = 0, formDrift = 0))
-      if (input$audioMethod == 'Browser') {
-        # save a temporary file and play with the browser
-        seewave::savewav(temp_s,
-                         f = 16000 * myPars$samplingRate_idx,
-                         filename = 'www/temp.wav')
-        shinyjs::js$play_file(filename = 'temp.wav')
-      } else {
-        # play directly in R without saving to disk
-        playme(temp_s, samplingRate = 16000 * myPars$samplingRate_idx)
+        formants = ff_vector,
+        temperature = .001, tempEffects = list(formDisp = 0, formDrift = 0)))
+      if (!inherits(temp_s, 'try-error')) {
+        if (input$audioMethod == 'Browser') {
+          # save a temporary file and play with the browser
+          seewave::savewav(temp_s,
+                           f = 16000 * myPars$samplingRate_idx,
+                           filename = 'www/temp.wav')
+          shinyjs::js$play_file(filename = 'temp.wav')
+        } else {
+          # play directly in R without saving to disk
+          playme(temp_s, samplingRate = 16000 * myPars$samplingRate_idx)
+        }
       }
     }
   }
@@ -1842,11 +1872,14 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window for plotting the spectrogram', placement="rights", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram(). Visualization only, does NOT affect formant tracking with LPC', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing formant candidates", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='zp', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='spec_maxPoints', title = 'The number of points to plot in the spectrogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))

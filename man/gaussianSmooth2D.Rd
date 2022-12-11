@@ -4,7 +4,13 @@
 \alias{gaussianSmooth2D}
 \title{Gaussian smoothing in 2D}
 \usage{
-gaussianSmooth2D(m, kernelSize = 5, kernelSD = 0.5, plotKernel = FALSE)
+gaussianSmooth2D(
+  m,
+  kernelSize = 5,
+  kernelSD = 0.5,
+  action = c("blur", "unblur")[1],
+  plotKernel = FALSE
+)
 }
 \arguments{
 \item{m}{input matrix (numeric, on any scale, doesn't have to be square)}
@@ -13,6 +19,9 @@ gaussianSmooth2D(m, kernelSize = 5, kernelSD = 0.5, plotKernel = FALSE)
 
 \item{kernelSD}{the SD of the Gaussian kernel relative to its size (.5 = the
 edge is two SD's away)}
+
+\item{action}{'blur' = kernel-weighted average, 'unblur' = subtract
+kernel-weighted average}
 
 \item{plotKernel}{if TRUE, plots the kernel}
 }
@@ -24,11 +33,29 @@ Takes a matrix of numeric values and smoothes it by convolution with a
 symmetric Gaussian window function.
 }
 \examples{
-s = spectrogram(soundgen(), samplingRate = 16000,
+s = spectrogram(soundgen(), samplingRate = 16000, windowLength = 10,
   output = 'original', plot = FALSE)
-# image(log(s))
-s1 = gaussianSmooth2D(s, kernelSize = 11, plotKernel = TRUE)
-# image(log(s1))
+s = log(s + .001)
+# image(s)
+s1 = gaussianSmooth2D(s, kernelSize = 5, plotKernel = TRUE)
+# image(s1)
+
+\dontrun{
+# more smoothing in time than in frequency
+s2 = gaussianSmooth2D(s, kernelSize = c(5, 15))
+image(s2)
+
+# vice versa - more smoothing in frequency
+s3 = gaussianSmooth2D(s, kernelSize = c(25, 3))
+image(s3)
+
+# sharpen the image by deconvolution with the kernel
+s4 = gaussianSmooth2D(s1, kernelSize = 5, action = 'unblur')
+image(s4)
+
+s5 = gaussianSmooth2D(s, kernelSize = c(15, 1), action = 'unblur')
+image(s5)
+}
 }
 \seealso{
 \code{\link{modulationSpectrum}}

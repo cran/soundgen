@@ -227,6 +227,13 @@ ui = fluidPage(
                 #   min = def_form['overlap', 'low'],
                 #   max = def_form['overlap', 'high'],
                 #   step = def_form['overlap', 'step']),
+                radioButtons(
+                  inputId = 'specType',
+                  label = 'Spectrogram method',
+                  choices = c("Ordinary FFT" = "spectrum",
+                              "Reassigned" = "reassigned",
+                              "Derivative" = "spectralDerivative"),
+                  selected = 'reassigned', inline = TRUE, width = NULL),
                 sliderInput(
                   'dynamicRange',
                   'Dynamic range, dB',
@@ -255,6 +262,20 @@ ui = fluidPage(
                   min = def_form['specBrightness', 'low'],
                   max = def_form['specBrightness', 'high'],
                   step = def_form['specBrightness', 'step']),
+                sliderInput(
+                  'blur_freq',
+                  'Blur: frequency (Hz)',
+                  value = def_form['blur_freq', 'default'],
+                  min = def_form['blur_freq', 'low'],
+                  max = def_form['blur_freq', 'high'],
+                  step = def_form['blur_freq', 'step']),
+                sliderInput(
+                  'blur_time',
+                  'Blur: time (ms)',
+                  value = def_form['blur_time', 'default'],
+                  min = def_form['blur_time', 'low'],
+                  max = def_form['blur_time', 'high'],
+                  step = def_form['blur_time', 'step']),
                 shinyBS::bsCollapsePanel(
                   "Advanced",
                   sliderInput(
