@@ -12,6 +12,7 @@ getSurprisal(
   to = NULL,
   step = 20,
   winSurp = 2000,
+  method = c("acf", "np")[1],
   yScale = c("bark", "mel", "log")[1],
   nFilters = 64,
   dynamicRange = 80,
@@ -30,6 +31,7 @@ getSurprisal(
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -62,6 +64,9 @@ from...to (s)}
 downsampling at all (ncol of output = length of input audio)}
 
 \item{winSurp}{surprisal analysis window, ms}
+
+\item{method}{acf = change in maximum autocorrelation after adding the final
+point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
@@ -118,6 +123,9 @@ apparent duration doesn't change)}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
+
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
@@ -156,16 +164,10 @@ of bandpass filters to the signal, by default with central frequencies
 equally spaced on the bark scale (see \code{\link{audSpectrogram}}). For each
 frequency channel, a sliding window is analyzed to compare the actually
 observed final value with its expected value. There are many ways to
-extrapolate / predict time series and thus perform this comparison. Here, we
-calculate the autocorrelation function of the window without the final point,
-find its peak (i.e., the delay that produces the highest autocorrelation),
-calculate autocorrelation of the window with the final point at this
-"optimal" delay, and compare these two correlations. In effect, we estimate
-how far the final point in our window deviates from the dominant oscillation
-frequency or "fundamental frequency" of the time series, which in this case
-represents the changes in amplitude in the same frequency channel over time.
-The resulting per-channel surprisal contours are aggregated by taking their
-mean weighted by the average amplitude of each frequency channel across the
+extrapolate / predict time series and thus perform this comparison such as
+autocorrelation (method = 'acf') or nonlinear prediction (method = 'np'). The
+resulting per-channel surprisal contours are aggregated by taking their mean
+weighted by the average amplitude of each frequency channel across the
 analysis window. Because increases in loudness are known to be important
 predictors of auditory salience, loudness per frame is also returned, as well
 as the square root of the product of its derivative and surprisal.
@@ -182,7 +184,14 @@ sound = soundgen(nSyl = 5, sylLen = 150,
   pauseLen = c(50, 50, 50, 130), pitch = c(200, 150),
   noise = list(time = c(-300, 200), value = -20), plot = TRUE)
 # playme(sound)
-surp = getSurprisal(sound, samplingRate = 16000, yScale = 'bark')
+surp = getSurprisal(sound, samplingRate = 16000,
+  yScale = 'bark', method = 'acf')
+surp = getSurprisal(sound, samplingRate = 16000,
+  yScale = 'bark', method = 'np')  # very slow
+
+# plot "pure" surprisal, without weighting by loudness
+spectrogram(sound, 16000, extraContour = surp$detailed$surprisal /
+  max(surp$detailed$surprisal, na.rm = TRUE) * 8000)
 
 # NB: surprisalLoudness contour is also log-transformed if yScale = 'log',
 # so zeros become NAs
@@ -194,10 +203,12 @@ surp = getSurprisal(sound, samplingRate = 16000,
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
   brightness = -.1,  # reduce brightness
-  colorTheme = 'heat.colors',  # pick color theme
+  # colorTheme = 'heat.colors',  # pick color theme...
+  col = rev(hcl.colors(30, palette = 'Viridis')),  # ...or specify the colors
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
   ylim = c(0, 5),  # always in kHz
-  main = 'Audiogram with surprisal contour' # title
+  main = 'Audiogram with surprisal contour', # title
+  extraContour = list(col = 'blue', lty = 2, lwd = 2)
   # + axis labels, etc
 )
 

@@ -11,6 +11,7 @@ bandpass(
   upr = NULL,
   action = c("pass", "stop")[1],
   dB = Inf,
+  bw = 0,
   na.rm = TRUE,
   from = NULL,
   to = NULL,
@@ -46,6 +47,11 @@ depending on 'action'}
 \item{dB}{a positive number giving the strength of effect in dB (defaults to
 Inf - complete removal of selected frequencies)}
 
+\item{bw}{bandwidth of the filter cutoffs, Hz. Defaults to 0 (abrupt, step
+function), a positive number corresponds to the standard deviation of a
+Gaussian curve, and two numbers set different bandwidths for the lower and
+upper cutoff points}
+
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}
 
@@ -70,7 +76,8 @@ don't save, '' = same folder as audio)}
 \item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
-\item{...}{other graphical parameters}
+\item{...}{other graphical parameters passed to \code{plot()} as well as to
+\code{\link[seewave]{meanspec}}}
 }
 \description{
 Filtering in the frequency domain with FFT-iFFT: low-pass, high-pass,
@@ -82,8 +89,9 @@ attack and decay. NAs are accepted and can be interpolated or preserved in
 the output. Because we don't do STFT, arbitrarily short vectors are also fine
 as input - for example, we can apply a low-pass filter prior to decimation
 when changing the sampling rate without aliasing. Note that, unlike
-\code{\link{pitchSmoothPraat}}, \code{bandpass} applies an abrupt cutoff
-instead of a smooth gaussian filter.
+\code{\link{pitchSmoothPraat}}, \code{bandpass} by default applies an abrupt
+cutoff instead of a smooth gaussian filter, but this behavior can be adjusted
+with the \code{bw} argument.
 }
 \details{
 Algorithm: fill in NAs with constant interpolation at the edges and linear
@@ -94,23 +102,41 @@ NAs back in.
 \examples{
 # Filter white noise
 s1 = fade(c(runif(2000, -1, 1)), samplingRate = 16000)
-bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
-bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE)  # high-pass by 40 dB
-bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
-s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE) # bandpass
-# playme(rep(s2, 5))
-spectrogram(s2, 16000)  # more accurate than plotting the spectrum with plot = TRUE
 
-# a short vector with some NAs
+# low-pass
+bandpass(s1, 16000, upr = 2000, plot = TRUE)
+
+# high-pass by 40 dB
+bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE, wl = 1024)
+# wl is passed to seewave::meanspec for plotting
+
+# bandstop
+bandpass(s1, 16000, lwr = 1000, upr = 1800, action = 'stop', plot = TRUE)
+
+# bandpass
+s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE)
+# playme(rep(s2, 5))
+# spectrogram(s2, 16000)
+
+# low-pass and interpolate a short vector with some NAs
 x = rnorm(150, 10) + 3 * sin((1:50) / 5)
 x[sample(1:length(x), 50)] = NA
 plot(x, type = 'l')
-points(bandpass(x, samplingRate = 100, upr = 10), type = 'l', col = 'blue')
+x_bandp = bandpass(x, samplingRate = 100, upr = 10)
+points(x_bandp, type = 'l', col = 'blue')
 
 \dontrun{
+# add 200 dB with a Gaussian-shaped filter instead of step function
+s3 = bandpass(s1, 16000, lwr = 1700, upr = 2100, bw = 200,
+  dB = 20, plot = TRUE)
+spectrogram(s3, 16000)
+s4 = bandpass(s1, 16000, lwr = 2000, upr = 4300, bw = c(100, 500),
+  dB = 60, action = 'stop', plot = TRUE)
+spectrogram(s4, 16000)
+
 # precise notch filtering is possible, even in low frequencies
-whiteNoise = runif(8000, -1, 1)
-s3 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40,
+whiteNoise = runif(16000, -1, 1)
+s3 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40, normalize = TRUE,
               plot = TRUE, xlim = c(0, 500))
 playme(rep(s3, 5))
 spectrogram(s3, 16000, windowLength = 150, yScale = 'log')

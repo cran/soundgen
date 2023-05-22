@@ -1,3 +1,28 @@
+          CHANGES IN SOUNDGEN VERSION 2.6.0 [22-May-2023]
+NEW FUNCTIONS:
+  * plotMS() for plotting a modulation spectrum produced with modulationSpectrum()
+  * nonlinPred() for predicting new points in a time series based on reconstructed phase space
+  * naiveBayes() for predicting classes of observations in a possibly autocorrelated time series
+  * phasegram() for plotting Poincare sections through phase portraits and extracting nonlinear statistics such as the correlation dimension
+  * detectNLP() for automatically detecting and annotating nonlinear vocal phenomena: subharmonics, sidebands, deterministic chaos, and pitch jumps (EXPERIMENTAL)
+
+MAJOR:
+  * formant_app(), annotation_app(), pitch_app(), soundgen_app(): reassigned spectrograms available
+  * spectrogram() and all other functions using "colorTheme": an alternative new argument "col" for specifying the exact colors in the palette for more flexibility compared to "colorTheme"
+  * modulationSpectrum(): a separate logWarpX / logWarpY for the two dimensions, which affect only the plot but not the processed matrix, new argument "normalize"
+
+MINOR:
+  * spectrogram(): by default, reassigned spectrograms are plotted without rasterizing
+  * getSurprisal(): faster, extraContour controls the color etc of the surprisal contour
+  * getSurprisal(): alternative method implemented based on nonlinear prediction (method = 'np')
+  * bandpass(): new argument "bw" for Gaussian filters, improved plotting
+  * soundgen(): a new algorithm for clumpering epochs when generating nonlinear phenomena stochastically (also used by naiveBayes)
+
+BUGS FIXED:
+  * analyze() and all functions that call .resample(): fixed extra NAs that appeared after sampling rate conversion. Thanks to Virgile Daunay for noticing the problem
+  * interpolMatrix() and upstream functions (eg modulationSpectrum) interpolate when downsampling and preserve colnames in all conditions
+
+
           CHANGES IN SOUNDGEN VERSION 2.5.3 [10-Dec-2022]
 MINOR
   * vignettes removed to comply with CRAN's restrictions on package size and complexity

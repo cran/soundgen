@@ -29,7 +29,7 @@ getSpectralEnvelope(
   plot = FALSE,
   duration = NULL,
   colorTheme = c("bw", "seewave", "...")[1],
-  nCols = 100,
+  col = NULL,
   xlab = "Time",
   ylab = "Frequency, kHz",
   ...
@@ -120,7 +120,8 @@ internal purposes such as formant locking)}
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or another color theme (e.g. 'heat.colors')}
 
-\item{nCols}{number of colors in the palette}
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
 
 \item{xlab, ylab}{labels of axes}
 
@@ -143,7 +144,7 @@ package = 'soundgen') for more information.
 # [a] with only F1-F3 visible, with no stochasticity
 e = getSpectralEnvelope(nr = 512, nc = 50, duration = 300,
   formants = soundgen:::convertStringToFormants('a'),
-  temperature = 0, plot = TRUE)
+  temperature = 0, plot = TRUE, col = heat.colors(150))
 # image(t(e))  # to plot the output on a linear scale instead of dB
 
 # some "wiggling" of specified formants plus extra formants on top

@@ -156,8 +156,8 @@ fade = function(
     fadeOut_points = round(fadeOut * audio$samplingRate / 1000)
 
   # make sure fadeIn/Out region is no longer than the entire sound
-  fadeIn_points = min(len, fadeIn_points)
-  fadeOut_points = min(len, fadeOut_points)
+  fadeIn_points = round(min(len, fadeIn_points))
+  fadeOut_points = round(min(len, fadeOut_points))
 
   # prepare a fade-in/out curve of requisite length
   time_in = seq(0, 1, length.out = fadeIn_points)

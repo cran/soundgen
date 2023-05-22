@@ -66,13 +66,6 @@ ui = fluidPage(
               min = defaults_analyze['step', 'low'],
               max = defaults_analyze['step', 'high'],
               step = defaults_analyze['step', 'step']),
-            radioButtons(
-              inputId = 'specType',
-              label = 'Spectrogram method',
-              choices = c("Ordinary FFT" = "spectrum",
-                          "Reassigned" = "reassigned",
-                          "Derivative" = "spectralDerivative"),
-              selected = 'spectrum', inline = TRUE, width = NULL),
             # sliderInput(
             #   'overlap',
             #   'Overlap, % ("overlap")',
@@ -507,7 +500,38 @@ ui = fluidPage(
               value = defaults_analyze['blur_time', 'default'],
               min = defaults_analyze['blur_time', 'low'],
               max = defaults_analyze['blur_time', 'high'],
-              step = defaults_analyze['blur_time', 'step'])
+              step = defaults_analyze['blur_time', 'step']),
+
+            shinyBS::bsCollapsePanel(
+              "Advanced",
+              radioButtons(
+                inputId = 'specType',
+                label = 'Spectrogram method',
+                choices = c("Ordinary FFT" = "spectrum",
+                            "Reassigned" = "reassigned"),
+                selected = 'spectrum', inline = TRUE, width = NULL),
+              sliderInput(
+                'reass_cex',
+                'Point size (reassigned spectrogram only)',
+                value = defaults_analyze['reass_cex', 'default'],
+                min = defaults_analyze['reass_cex', 'low'],
+                max = defaults_analyze['reass_cex', 'high'],
+                step = defaults_analyze['reass_cex', 'step']),
+              numericInput(
+                'reass_windowLength',
+                'Window length, ms (reassigned only)',
+                value = defaults_analyze['reass_windowLength', 'default'],
+                min = defaults_analyze['reass_windowLength', 'low'],
+                max = defaults_analyze['reass_windowLength', 'high'],
+                step = defaults_analyze['reass_windowLength', 'step']),
+              numericInput(
+                'reass_step',
+                'Step, ms (reassigned only)',
+                value = defaults_analyze['reass_step', 'default'],
+                min = defaults_analyze['reass_step', 'low'],
+                max = defaults_analyze['reass_step', 'high'],
+                step = defaults_analyze['reass_step', 'step'])
+            )
           ),
 
           tabPanel(

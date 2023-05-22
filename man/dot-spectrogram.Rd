@@ -8,9 +8,10 @@
   audio,
   dynamicRange = 80,
   windowLength = 50,
-  step = NULL,
-  overlap = 70,
+  step = windowLength/2,
+  overlap = NULL,
   specType = c("spectrum", "reassigned", "spectralDerivative")[1],
+  rasterize = FALSE,
   wn = "gaussian",
   zp = 0,
   normalize = TRUE,
@@ -31,6 +32,7 @@
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -61,8 +63,13 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+\item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
 ('reassigned'), or spectral derivative ('spectralDerivative')}
+
+\item{rasterize}{(only applies if specType = 'reassigned') if TRUE, the
+reassigned spectrogram is plotted after rasterizing it: that is, showing
+density per time-frequency bins with the same resolution as an ordinary
+spectrogram}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
@@ -131,6 +138,9 @@ apparent duration doesn't change)}
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
+
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale!) that will be plotted over the spectrogram (eg pitch contour); can

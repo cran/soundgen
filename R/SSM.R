@@ -68,8 +68,8 @@
 #'     input = 'mfcc', simil = 'cor', norm = TRUE,
 #'     ssmWin = 25,  # speed up the processing
 #'     kernelLen = 300,  # global features
-#'     specPars = list(colorTheme = 'heat.colors'),
-#'     ssmPars = list(colorTheme = 'bw'),
+#'     specPars = list(colorTheme = 'seewave'),
+#'     ssmPars = list(col = rainbow(100)),
 #'     noveltyPars = list(type = 'l', lty = 3, lwd = 2))
 #' }
 ssm = function(

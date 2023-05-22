@@ -68,6 +68,7 @@ server = function(input, output, session) {
   })
   observeEvent(input$append, {
     myPars$out = try(read.csv('www/temp.csv', stringsAsFactors = FALSE))
+    myPars$out = unique(myPars$out)  # remove duplicate rows
     removeModal()
   })
 
@@ -235,6 +236,14 @@ server = function(input, output, session) {
     #                   value = c(0, min(def_form['spectrum_xlim', 'default'], myPars$nyquist)),
     #                   max = myPars$nyquist)
     myPars$dur = length(myPars$temp_audio@left) * 1000 / myPars$temp_audio@samp.rate
+    myPars$myAudio_list = list(
+      sound = myPars$myAudio,
+      samplingRate = myPars$samplingRate,
+      scale = myPars$maxAmpl,
+      timeShift = 0,
+      ls = length(myPars$myAudio),
+      duration = myPars$dur / 1000
+    )
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
     if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
@@ -281,8 +290,8 @@ server = function(input, output, session) {
     # matrix and re-draw manually with soundgen:::filled.contour.mod
     if (!is.null(myPars$myAudio)) {  # & is.null(myPars$spec)
       if (myPars$print) print('Extracting spectrogram...')
-      temp_spec = try(soundgen::spectrogram(
-        myPars$myAudio,
+      temp_spec = try(soundgen:::.spectrogram(
+        myPars$myAudio_list,
         samplingRate = myPars$samplingRate,
         dynamicRange = input$dynamicRange,
         windowLength = input$windowLength,
@@ -293,13 +302,14 @@ server = function(input, output, session) {
         brightness = input$specBrightness,
         blur = c(input$blur_freq, input$blur_time),
         specType = input$specType,
-        output = 'processed',
+        output = 'all',
         plot = FALSE
       ))
       if (!inherits(temp_spec, 'try-error') &&
           length(temp_spec) > 0 &&
-          is.matrix(temp_spec))
-        myPars$spec = temp_spec
+          is.matrix(temp_spec$processed))
+        myPars$spec = temp_spec$processed
+      myPars$reassigned = temp_spec$reassigned
     }
   })
 
@@ -585,27 +595,40 @@ server = function(input, output, session) {
         text(x = 5, y = 5,
              labels = 'Upload wav/mp3 file(s) to begin...\nSuggested max duration ~30 s')
       } else {
-        if (input$spec_colorTheme == 'bw') {
-          color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
-        } else if (input$spec_colorTheme == 'seewave') {
-          color.palette = seewave::spectro.colors
+        if (input$specType != 'reassigned') {
+          # rasterized spectrogram
+          soundgen:::filled.contour.mod(
+            x = as.numeric(colnames(myPars$spec_trimmed)),
+            y = as.numeric(rownames(myPars$spec_trimmed)),
+            z = t(myPars$spec_trimmed),
+            levels = seq(0, 1, length = 30),
+            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            log = '',
+            yScale = 'linear',
+            xlim = myPars$spec_xlim,
+            xaxt = 'n',
+            xaxs = 'i', xlab = '',
+            ylab = '',
+            main = '',
+            ylim = input$spec_ylim
+          )
         } else {
-          colFun = match.fun(input$spec_colorTheme)
-          color.palette = function(x) rev(colFun(x))
+          # unrasterized reassigned spectrogram
+          soundgen:::plotUnrasterized(
+            myPars$reassigned,
+            levels = seq(0, 1, length = 30),
+            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            log = '',
+            yScale = 'linear',
+            xlim = myPars$spec_xlim,
+            xaxt = 'n',
+            xaxs = 'i', xlab = '',
+            ylab = '',
+            main = '',
+            ylim = input$spec_ylim,
+            cex = input$reass_cex
+          )
         }
-        soundgen:::filled.contour.mod(
-          x = as.numeric(colnames(myPars$spec_trimmed)),
-          y = as.numeric(rownames(myPars$spec_trimmed)),
-          z = t(myPars$spec_trimmed),
-          levels = seq(0, 1, length = 30),
-          color.palette = color.palette,
-          xlim = myPars$spec_xlim,
-          xaxt = 'n',
-          xaxs = 'i', xlab = '',
-          ylab = 'Frequency, kHz',
-          main = '',
-          ylim = input$spec_ylim
-        )
 
         # Add text label of file name
         ran_x = myPars$spec_xlim[2] - myPars$spec_xlim[1]
@@ -1271,12 +1294,7 @@ server = function(input, output, session) {
       sel_anal = max(1, round(myPars$regionToAnalyze[1] / 1000 * myPars$samplingRate)) :
         min(myPars$ls, round(myPars$regionToAnalyze[2] / 1000 * myPars$samplingRate))
       temp_anal = try(soundgen:::.analyze(
-        list(sound = myPars$myAudio[sel_anal],
-             samplingRate = myPars$samplingRate,
-             scale = myPars$maxAmpl,
-             timeShift = myPars$regionToAnalyze[1] / 1000,
-             ls = length(sel_anal),
-             duration = length(sel_anal) / myPars$samplingRate),
+        myPars$myAudio_list,
         windowLength = input$windowLength_lpc,
         step = input$step_lpc,
         wn = input$wn_lpc,

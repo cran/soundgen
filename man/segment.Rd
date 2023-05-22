@@ -40,7 +40,7 @@ segment(
   units = "px",
   res = NA,
   maxPoints = c(1e+05, 5e+05),
-  specPlot = list(color.palette = "bw"),
+  specPlot = list(colorTheme = "bw"),
   contourPlot = list(lty = 1, lwd = 2, col = "green"),
   sylPlot = list(lty = 1, lwd = 2, col = "blue"),
   burstPlot = list(pch = 8, cex = 3, col = "red"),
@@ -211,8 +211,8 @@ s
 # customizing the plot
 segment(sound, samplingRate = 16000, plot = TRUE,
         sylPlot = list(lty = 2, col = 'gray20'),
-        burstPlot = list(pch = 16, col = 'gray80'),
-        specPlot = list(color.palette = 'heat.colors'),
+        burstPlot = list(pch = 16, col = 'blue'),
+        specPlot = list(col = rev(heat.colors(50))),
         xlab = 'Some custom label', cex.lab = 1.2,
         showLegend = TRUE,
         main = 'My awesome plot')

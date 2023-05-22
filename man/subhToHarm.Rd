@@ -15,8 +15,9 @@ subhToHarm(
   nSubh = 5,
   tol = 0.05,
   nHarm = 5,
-  harmThres = 3,
-  harmTol = 0.25
+  harmThres = 12,
+  harmTol = 0.25,
+  amRange = c(10, 200)
 )
 }
 \arguments{

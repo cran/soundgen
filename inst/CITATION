@@ -1,6 +1,5 @@
-citHeader("To cite soundgen in publications use:")
-
-citEntry(entry = "Article",
+bibentry(
+  bibtype      = "Article",
   title        = "Soundgen: An open-source tool for synthesizing nonverbal vocalizations",
   author       = as.person("Andrey Anikin"),
   journal      = "Behavior Research Methods",

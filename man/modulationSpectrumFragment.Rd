@@ -14,7 +14,8 @@ modulationSpectrumFragment(
   wn = "hanning",
   zp = 0,
   logSpec = FALSE,
-  power = 1
+  power = 1,
+  normalize = TRUE
 )
 }
 \arguments{
@@ -40,12 +41,15 @@ FFT}
 
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}
+
+\item{normalize}{if TRUE, the modulation spectrum of each analyzed fragment
+\code{maxDur} in duration is separately normalized to have max = 1}
 }
 \description{
 Internal soundgen function.
 }
 \examples{
-s = soundgen(amMsFreq = 25, amMsPurity = 100)
+s = soundgen(amFreq = 25, amDep = 100)
 ms = soundgen:::modulationSpectrumFragment(s, 16000,
   windowLength = 50, windowLength_points = .05 * 16000,
   step = 5, step_points = .005 * 16000)

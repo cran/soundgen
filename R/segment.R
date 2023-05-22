@@ -113,8 +113,8 @@
 #' # customizing the plot
 #' segment(sound, samplingRate = 16000, plot = TRUE,
 #'         sylPlot = list(lty = 2, col = 'gray20'),
-#'         burstPlot = list(pch = 16, col = 'gray80'),
-#'         specPlot = list(color.palette = 'heat.colors'),
+#'         burstPlot = list(pch = 16, col = 'blue'),
+#'         specPlot = list(col = rev(heat.colors(50))),
 #'         xlab = 'Some custom label', cex.lab = 1.2,
 #'         showLegend = TRUE,
 #'         main = 'My awesome plot')
@@ -174,7 +174,7 @@ segment = function(
   units = 'px',
   res = NA,
   maxPoints = c(1e5, 5e5),
-  specPlot = list(color.palette = 'bw'),
+  specPlot = list(colorTheme = 'bw'),
   contourPlot = list(lty = 1, lwd = 2, col = 'green'),
   sylPlot = list(lty = 1, lwd = 2, col = 'blue'),
   burstPlot = list(pch = 8, cex = 3, col = 'red'),
@@ -802,6 +802,7 @@ segment = function(
         switchColorTheme('bw'),
         switchColorTheme(specPlot$color.palette)
       )
+      specPlot$colorTheme = NULL  # to avoid warnings
       do.call('filled.contour.mod', c(list(
         x = seq(envelope$time[1], envelope$time[nrow(envelope)], length.out = ncol(sp)),
         y = seq(min(envelope$value), max(envelope$value) * 1.05, length.out = nrow(sp)),

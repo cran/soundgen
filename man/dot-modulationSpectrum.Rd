@@ -15,17 +15,20 @@
   wn = "hanning",
   zp = 0,
   power = 1,
+  normalize = TRUE,
   roughRange = c(30, 150),
   amRange = c(10, 200),
   returnMS = TRUE,
   returnComplex = FALSE,
   plot = TRUE,
   savePlots = NULL,
-  logWarp = NA,
+  logWarpX = NULL,
+  logWarpY = NULL,
   quantiles = c(0.5, 0.8, 0.9),
   kernelSize = 5,
   kernelSD = 0.5,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   main = NULL,
   xlab = "Hz",
   ylab = "1/KHz",
@@ -72,6 +75,9 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}
 
+\item{normalize}{if TRUE, the modulation spectrum of each analyzed fragment
+\code{maxDur} in duration is separately normalized to have max = 1}
+
 \item{roughRange}{the range of temporal modulation frequencies that
 constitute the "roughness" zone, Hz}
 
@@ -88,8 +94,9 @@ normalization and warping)}
 \item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
 
-\item{logWarp}{the base of log for warping the modulation spectrum (ie log2
-if logWarp = 2); set to NULL or NA if you don't want to log-warp}
+\item{logWarpX, logWarpY}{numeric vector of length 2: c(sigma, base) of
+pseudolog-warping the modulation spectrum, as in
+\code{\link[scales]{pseudo_log_trans}}}
 
 \item{quantiles}{labeled contour values, \% (e.g., "50" marks regions that
 contain 50\% of the sum total of the entire modulation spectrum)}
@@ -103,6 +110,9 @@ size}
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
+
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
 
 \item{xlab, ylab, main, xlim, ylim}{graphical parameters}
 

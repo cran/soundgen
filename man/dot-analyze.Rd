@@ -30,15 +30,18 @@
   priorAdapt = TRUE,
   nCands = 1,
   minVoicedCands = NULL,
-  pitchDom = list(),
-  pitchAutocor = list(),
-  pitchCep = list(),
-  pitchSpec = list(),
-  pitchHps = list(),
-  pitchZc = list(),
-  harmHeight = list(),
-  subh = list(),
-  flux = list(),
+  pitchDom = list(domThres = 0.1, domSmooth = 220),
+  pitchAutocor = list(autocorThres = 0.7, autocorSmooth = 7, autocorUpsample = 25,
+    autocorBestPeak = 0.975),
+  pitchCep = list(cepThres = 0.75, cepZp = 0),
+  pitchSpec = list(specThres = 0.05, specPeak = 0.25, specHNRslope = 0.8, specSmooth =
+    150, specMerge = 0.1, specSinglePeakCert = 0.4, specRatios = 3),
+  pitchHps = list(hpsNum = 5, hpsThres = 0.1, hpsNorm = 2, hpsPenalty = 2),
+  pitchZc = list(zcThres = 0.1, zcWin = 5),
+  harmHeight = list(harmThres = 3, harmTol = 0.25, harmPerSel = 5),
+  subh = list(method = c("cep", "pitchCands", "harm")[1], nSubh = 5, tol = 0.05, nHarm =
+    5, harmThres = 12, harmTol = 0.25, amRange = c(10, 200)),
+  flux = list(thres = 0.15, smoothWin = 100),
   amRange = c(10, 200),
   fmRange = c(5, 1000/step/2),
   shortestSyl = 20,
@@ -47,7 +50,7 @@
   pathfinding = c("none", "fast", "slow")[2],
   annealPars = list(maxit = 5000, temp = 1000),
   certWeight = 0.5,
-  snakeStep = 0.05,
+  snakeStep = 0,
   snakePlot = FALSE,
   smooth = 1,
   smoothVars = c("pitch", "dom"),
@@ -93,7 +96,7 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+\item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
 ('reassigned'), or spectral derivative ('spectralDerivative')}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently

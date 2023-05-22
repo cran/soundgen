@@ -545,7 +545,7 @@ getFormantDispersion = function(
       plot(
         fdf$formantSpacing, fdf$freq,
         type = 'n',
-        xlab = 'Formant spacing',
+        xlab = 'Formant spacings',
         ylab = 'Formant frequency, Hz',
         xaxs = 'i', yaxs = 'i',
         xlim = c(0, tail(fdf$formantSpacing, 1) + 1),

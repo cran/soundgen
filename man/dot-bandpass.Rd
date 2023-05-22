@@ -10,6 +10,7 @@
   upr = NULL,
   action = c("pass", "stop")[1],
   dB = Inf,
+  bw = 0,
   na.rm = TRUE,
   normalize = FALSE,
   plot = FALSE,
@@ -34,6 +35,11 @@ depending on 'action'}
 \item{dB}{a positive number giving the strength of effect in dB (defaults to
 Inf - complete removal of selected frequencies)}
 
+\item{bw}{bandwidth of the filter cutoffs, Hz. Defaults to 0 (abrupt, step
+function), a positive number corresponds to the standard deviation of a
+Gaussian curve, and two numbers set different bandwidths for the lower and
+upper cutoff points}
+
 \item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
 the output}
 
@@ -45,7 +51,8 @@ filtering often reduces the amplitude)}
 \item{width, height, units, res}{graphical parameters for saving plots passed to
 \code{\link[grDevices]{png}}}
 
-\item{...}{other graphical parameters}
+\item{...}{other graphical parameters passed to \code{plot()} as well as to
+\code{\link[seewave]{meanspec}}}
 }
 \description{
 Internal soundgen function

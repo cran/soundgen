@@ -8,6 +8,7 @@
   audio,
   step,
   winSurp,
+  method = c("acf", "np")[1],
   yScale = c("bark", "mel", "log")[1],
   nFilters = 64,
   dynamicRange = 80,
@@ -22,6 +23,7 @@
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -41,6 +43,9 @@
 downsampling at all (ncol of output = length of input audio)}
 
 \item{winSurp}{surprisal analysis window, ms}
+
+\item{method}{acf = change in maximum autocorrelation after adding the final
+point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
 
 \item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
 logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
@@ -83,6 +88,9 @@ apparent duration doesn't change)}
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
+
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale!) that will be plotted over the spectrogram (eg pitch contour); can

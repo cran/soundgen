@@ -1160,7 +1160,7 @@ server = function(input, output, session) {
         main = 'Spectrogram', contrast = input$specContrast,
         brightness = input$specBrightness,
         colorTheme = input$spec_colorTheme,
-        method = input$spec_method,
+        specType = input$spec_method,
         ylim = c(input$spec_ylim[1], input$spec_ylim[2])
       )
     } else {

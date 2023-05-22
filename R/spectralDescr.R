@@ -296,12 +296,14 @@ subhToHarm = function(
     nSubh = 5,
     tol = .05,
     nHarm = 5,
-    harmThres = 3,
-    harmTol = 0.25
+    harmThres = 12,
+    harmTol = 0.25,
+    amRange = c(10, 200)
 ) {
-  # plot(frame, type = 'l')
+  # plot(freqs, log(frame), type = 'l')
   best_subh = NA
   subDep = 0
+  am = list(amFreq = NA, amDep = NA)
   if (method == 'pitchCands' &
       (is.null(pitchCands) || length(pitchCands$freq) < 2)) {
     method = 'cep'
@@ -328,7 +330,7 @@ subhToHarm = function(
     cep = cep[1:l]
     cep[1] = 0
     freqs_cep = samplingRate / (1:l) / 2
-    # plot(freqs_cep, cep, type = 'l', log = 'x')
+    # plot(freqs_cep, cep, type = 'b', log = 'x')
     bin_at_pitch = which.min(abs(freqs_cep - pitch))
     nToTry = min(nSubh, floor(l / bin_at_pitch))
     ratios = data.frame(r = 1:nToTry, energy = NA)
@@ -340,24 +342,61 @@ subhToHarm = function(
     if (nrow(subR) > 0) {
       best_subh = subR$r[which.max(subR$extraEnergy)]
       subDep = ratios$extraEnergy[best_subh] / ratios$energy[best_subh]
+      subDep[subDep > 1] = 1
+      # ad hoc correction to linearize subDep - from simulations with known
+      # soundgen(subDep = ...), mod = nls(subDep ~ exp(b * m + c), data = out1,
+      # start = list(b = 1, c = 0))  See validate_subDep.R
+      subDep = exp(5 * subDep - 5)
     }
+
+    ## calculate AM (cepstral peaks in amRange not harmonically related to pitch)
+    # cancel pitch harmonics
+    cep1 = cep
+    for (i in 1:min(10, floor(l / bin_at_pitch))) {
+      idx = which.min(abs(freqs_cep - pitch / i))
+      idx = c(idx, idx + 1, idx - 1)
+      idx = idx[idx > 1 & idx < l]
+      cep1[idx] = 0
+    }
+    # plot(freqs_cep, cep1, type = 'b', log = 'x')
+
+    # find peaks within amRange
+    idx_keep = which(freqs_cep >= amRange[1] & freqs_cep <= amRange[2])
+    b = data.frame(
+      idx = idx_keep,
+      freq = freqs_cep[idx_keep], # samplingRate / idx_keep * zp_corr,  # smth fishy here...
+      cep = cep1[idx_keep]
+    )
+    # plot(b$freq, b$cep, type = 'l', log = 'x')
+    idx = which(diff(diff(b$cep) > 0) == -1) + 1
+    idx_am = idx[which.max(b$cep[idx])]
+    am = list(amFreq = b$freq[idx_am],
+              amDep = b$cep[idx_am] / cep[bin_at_pitch])
   } else if (method == 'harm') {
+    am = list(amFreq = NA, amDep = NA)
     keep_idx = which(freqs < (pitch * nHarm))
     frame = frame[keep_idx]
+    frame = frame / max(frame)
     frame_dB = 20 * log10(frame[keep_idx])
     freqs = freqs[keep_idx]
     n = length(keep_idx)
+    # plot(freqs[keep_idx], frame_dB, type = 'l')
 
     # look for spectral peaks
     temp = zoo::rollapply(zoo::as.zoo(frame_dB),
                           width = 3,  # parameter - see hps or smth
                           align = 'center',
                           function(x) {
-                            isCentral.localMax(x, threshold = harmThres)  # another par
-                            # plot(zoo::as.zoo(frame), type='l')
+                            middle = ceiling(length(x) / 2)
+                            which.max(x) == middle && (  # local maximum
+                              (x[middle] - min(x) > harmThres) |  # pronounced peak
+                                (x[middle] > -20)  # or a strong freq bin relative to global max
+                            )
                           })
-    idx = zoo::index(temp)[zoo::coredata(temp)]
-    specPeaks = data.frame('idx' = idx)
+    idx_peaks = zoo::index(temp)[zoo::coredata(temp)]
+    # plot(freqs, frame_dB, type = 'l')
+    # points(freqs[idx_peaks], frame_dB[idx_peaks], col = 'red', pch = 3)
+    specPeaks = data.frame('idx' = idx_peaks)
     nr = nrow(specPeaks)
 
     # parabolic interpolation to get closer to the true peak
@@ -377,61 +416,48 @@ subhToHarm = function(
       }
       # specPeaks[1:10, ]
 
-      idx_pitch = rep(NA, nHarm)
-      for (h in 1:nHarm) {
-        idx_range = pitch * h * c(1 - tol, 1 + tol)
-        peaks_range = which(specPeaks$freq > idx_range[1] &
-                              specPeaks$freq < idx_range[2])
-        lp = length(peaks_range)
-        if (lp == 1) {
-          idx_pitch[h] = specPeaks$idx[peaks_range]
-        } else if (lp > 1) {
-          it = which.min(abs(specPeaks$freq[peaks_range] - pitch * h))
-          idx_pitch[h] = specPeaks$idx[peaks_range][it]
-        }
-      }
-      idx_pitch = as.numeric(na.omit(idx_pitch))
-      # plot(freqs, frame_dB, type = 'l')
-      # points(freqs[idx_pitch], frame_dB[idx_pitch], col = 'red', pch = 3)
-
-      # now repeat for different f0/g0 ratios
+      # indices of possible harmonics and subharmonics
       ratios = data.frame(r = 1:nSubh, energy = NA)
-      ratios$energy[1] = sum(frame[idx_pitch])
-      for (r in 2:nrow(ratios)) {
-        freq_max = pitch * nHarm * r
-        i_max = which(specPeaks$freq > freq_max)[1] - 1
-        if (!is.finite(i_max)) i_max = nrow(specPeaks)
-        h_max = floor(specPeaks$freq[i_max] / pitch * r)
-        idx_pitch_r = rep(NA, h_max)
-        for (h in 1:h_max) {
-          pitch_h = pitch / r * h
-          idx_range = pitch_h * c(1 - tol, 1 + tol)
-          peaks_range = which(specPeaks$freq > idx_range[1] &
-                                specPeaks$freq < idx_range[2])
-          lp = length(peaks_range)
-          if (lp == 1) {
-            idx_pitch_r[h] = specPeaks$idx[peaks_range]
-          } else if (lp > 1) {
-            it = which.min(abs(specPeaks$freq[peaks_range] - pitch_h))
-            idx_pitch_r[h] = specPeaks$idx[peaks_range][it]
+      bin_at_pitch = which.min(abs(freqs - pitch))
+      lf = length(frame)
+      for (r in 1:nSubh) {
+        nToTry = min(50, floor(lf / (bin_at_pitch / r)))
+        idx_h = amp_h = rep(0, nToTry)
+        for (h in 1:nToTry) {
+          # bin_at_h = round(bin_at_pitch / r * h * c(1 - tol, 1 + tol))
+          # peaks_range = which(specPeaks$freq > freqs[bin_at_h[1]] &
+          #                       specPeaks$freq < freqs[bin_at_h[2]])
+          freq_range = pitch / r * h * c(1 - tol, 1 + tol)
+          peaks_range = which(specPeaks$freq > freq_range[1] &
+                                specPeaks$freq < freq_range[2])
+          # specPeaks[peaks_range, ]
+          if (length(peaks_range) > 0) {
+            idx_h[h] = peaks_range[which.min(abs(specPeaks$freq[peaks_range] -
+                                                   mean(freq_range)))]
+            amp_h[h] = specPeaks$amp[idx_h[h]]
           }
         }
-        idx_pitch_r = as.numeric(na.omit(idx_pitch_r))
-        ratios$energy[r] = sum(frame[idx_pitch_r])
-        # plot(freqs, frame_dB, type = 'l')
-        # points(freqs[idx_pitch_r], frame_dB[idx_pitch_r], col = 'red', pch = 3)
+        if (r == 1) {
+          # save indices of f0 harmonics
+          idx_pitch = idx_h[idx_h > 0]
+        } else {
+          # exclude f0 harmonics
+          amp_h = amp_h[which(!idx_h %in% idx_pitch)]
+        }
+        if (length(amp_h) > 0)
+          ratios$energy[r] = mean(amp_h)
+        # thus: the "energy" is calculated as the mean amplitude of subharmonics
+        # (excluding f0 stack)
+        # plot(freqs, log(frame), type = 'l')
+        # points(specPeaks$freq[idx_h], log(specPeaks$amp[idx_h]), col = 'red', pch = 3)
       }
-      # some harmonics repeat, eg for g0/2 and g0/4 - think about how to take this into account
-      ratios$extraEnergy = ratios$energy - ratios$energy[1]
-      if (nSubh > 3) ratios$extraEnergy[4] = ratios$extraEnergy[4] - ratios$extraEnergy[2]
-      # now we divide by subRatio b/c otherwise high subRatios are privileged (many
-      # more potential harmonics)
-      subR = na.omit(ratios[ratios$extraEnergy > 0, ])
-      if (nrow(subR) > 0) {
-        best_subh = subR$r[which.max(subR$extraEnergy)]
-        subDep = ratios$extraEnergy[best_subh] / ratios$energy[best_subh]
+      # ratios = na.omit(ratios)
+      if (nrow(ratios) > 1) {
+        idx_best = which.max(ratios$energy[-1]) + 1
+        best_subh = ratios$r[idx_best]
+        subDep = ratios$energy[idx_best] / ratios$energy[1]
       }
     }
   }
-  return(list(subRatio = best_subh, subDep = subDep))
+  return(c(list(subRatio = best_subh, subDep = subDep), am))
 }

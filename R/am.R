@@ -9,49 +9,49 @@
 #'              amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
 #' # spectrogram(s)
 #' # playme(s)
-#' am = soundgen:::getAM_env(audio = list(sound = s, samplingRate = 16000),
+#' am = soundgen:::getAM_env(audio = soundgen:::readAudio(s, samplingRate = 16000),
 #'   amRange = c(20, 200), overlap = 80, plot = TRUE)
-#' # compare getAM from modulation spectrum:
+#' plot(am$time, am$freq, cex = am$dep * 2)
+#' # compare to getAM from modulation spectrum:
 #' ms = modulationSpectrum(s, 16000, plot = FALSE)
 #' plot(x = seq(1, 1500, length.out = length(ms$amMsFreq)), y = ms$amMsFreq,
-#'      cex = 10^(ms$amMsDep/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
+#'      cex = 10^(ms$amMsPurity/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
 getAM_env = function(audio,
                      amRange = c(20, 100),
                      overlap = 80,
                      parab = TRUE,
                      plot = FALSE) {
-  # extract amplitude envelope
+  # flatten the envelope of the sound to avoid a dependence of amDep on global,
+  # slow changes in amplitude
   # osc(audio$sound, audio$samplingRate)
-  wl = round(1 / amRange[2] * audio$samplingRate / 2)  # half a period of the faster AM
+  wl_slow = round(1 / amRange[1] * audio$samplingRate / 2) # half the period of slow am
+  audio$sound = .flatEnv(
+    audio[which(!names(audio) == 'savePlots')],
+    dynamicRange = 240, windowLength_points = wl_slow)
+
+  # extract amplitude envelope
+  wl = round(1 / amRange[2] * audio$samplingRate / 2)  # half a period of fast AM
+  sr_new = audio$samplingRate / wl * (100 / (100 - overlap))
   env = as.numeric(seewave::env(audio$sound, f = audio$samplingRate, envt = 'hil',
                                 msmooth = c(wl, overlap), plot = FALSE))
-  sr_new = audio$samplingRate / wl * (100 / (100 - overlap))
-
-  # high-pass, normalize the envelope
-  env = .bandpass(list(sound = env, samplingRate = sr_new),
-                  lwr = amRange[1], plot = FALSE)
-  env = env - min(env)
-  # env = env - mean(env)
-  # env = env / max(env)
   # osc(env, samplingRate = sr_new)
 
-  am = getPeakFreq(env,
+  # bandpass the envelope to further focus on the frequency range of interest
+  env1 = .bandpass(list(sound = env, samplingRate = sr_new),
+                   lwr = amRange[1], upr = amRange[2], plot = FALSE)
+  # env1 = zeroOne(env1)
+  # env1 = env1 - mean(env1)
+  # osc(env1, samplingRate = sr_new)
+
+  # STFT of the smoothed envelope to find periodicity per frame
+  am = getPeakFreq(env1,
                    samplingRate = sr_new,
                    freqRange = amRange,
                    parab = parab,
                    plot = plot)
-
-  # get amDep from inflections after low-pass filtering to 2 x max discovered AM
-  # (too tight a filter --> we dampen the apparent amDep)
-  ps = .bandpass(list(sound = env, samplingRate = sr_new),
-                 upr = max(am$freq) * 2,
-                 action = 'pass', plot = FALSE)
-  ps = ps - min(ps)
-  infl = findInflections(ps, thres = 0, plot = FALSE)
-  amDep = 1 - exp(-abs(diff(log(ps[infl]))))
-  amDep_res = .resample(list(sound = amDep), len = nrow(am), lowPass = FALSE)
-  amDep_res[amDep_res < 0] = 0
-  am$dep = amDep_res  # to_dB(amDep_res)
+  am$dep = am$dep * 5.58
+  am$dep[am$dep < 0] = 0
+  am$dep[am$dep > 1] = 1
   return(am)
 }
 
@@ -66,15 +66,15 @@ getPeakFreq = function(x,
                        freqRange = NULL,
                        parab = TRUE,
                        plot = FALSE) {
-  out = data.frame(time = NA, freq = NA, amp = NA)
+  out = data.frame(time = NA, freq = NA, dep = NA)
   # STFT of the amplitude envelope
   # sp1 = tuneR::powspec(x, sr = round(samplingRate),
   #         wintime = 1 / freqRange[1] * 4,
   #         steptime = 1 / freqRange[1] * 4 * .3)
   sp = try(suppressMessages(.spectrogram(
     list(sound = x,
-    samplingRate = samplingRate,
-    ls = length(x)),
+         samplingRate = samplingRate,
+         ls = length(x)),
     windowLength = 1000 / freqRange[1] * 4,
     padWithSilence = FALSE,
     normalize = FALSE,
@@ -106,26 +106,32 @@ getPeakFreq = function(x,
   }
   if (nc < 1 | nr < 1) return(out)
   # image(t(sp))
+  if (nr == 1) {
+    # a single frequency bin left
+    return(data.frame(time = as.numeric(colnames(sp)),
+                      freq = as.numeric(rownames(sp)),
+                      dep = as.numeric(sp)))
+  }
 
   # find peak frequency per frame
-  peakFreq = data.frame(time = times, freq = rep(NA, nc), purity = NA)
+  peakFreq = data.frame(time = times, freq = rep(NA, nc), dep = NA)
   bin = freqs[2] - freqs[1]
   for (i in 1:ncol(sp)) {
     sp_i = as.numeric(sp[, i])
     idx_peak = which.max(sp_i)
-    applyCorrecton = parab && idx_peak > 1 & idx_peak < nr
+    applyCorrecton = parab && length(idx_peak) == 1 && idx_peak > 1 & idx_peak < nr
     if (applyCorrecton) {
       # use parabolic correction to improve freq resolution
       threePoints = sp_i[(idx_peak - 1) : (idx_peak + 1)]
       parabCor = parabPeakInterpol(threePoints)
       peakFreq$freq[i] = freqs[idx_peak] + bin * parabCor$p
-      peakFreq$purity[i] = parabCor$ampl_p
+      peakFreq$dep[i] = parabCor$ampl_p
     } else {
       peakFreq$freq[i] = freqs[idx_peak]
-      peakFreq$purity[i] = sp[idx_peak, i]
+      peakFreq$dep[i] = sp[idx_peak, i]
     }
   }
-  peakFreq$purity = to_dB(peakFreq$purity)
+  # peakFreq$dep = to_dB(peakFreq$dep)
   if (plot) plot(peakFreq$time, peakFreq$freq, type = 'b', cex = peakFreq$amp * 10)
   return(peakFreq)
 }

@@ -4,13 +4,16 @@
 \alias{getSurprisal_matrix}
 \title{Get surprisal per matrix}
 \usage{
-getSurprisal_matrix(x, win)
+getSurprisal_matrix(x, win, method = c("acf", "np")[1])
 }
 \arguments{
 \item{x}{input matrix such as a spectrogram (columns = time, rows =
 frequency)}
 
 \item{win}{length of analysis window}
+
+\item{method}{acf = change in maximum autocorrelation after adding the final
+point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
 }
 \description{
 Internal soundgen function called by \code{\link{getSurprisal}}.

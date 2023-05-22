@@ -33,8 +33,12 @@
 #'   because digital audio is sampled at discrete time intervals of
 #'   1/samplingRate, the actual step and thus the time stamps of STFT frames
 #'   may be slightly different, eg 24.98866 instead of 25.0 ms)
-#' @param specType plot the original FFT ('spectrum'), ressigned spectrogram
+#' @param specType plot the original FFT ('spectrum'), reassigned spectrogram
 #'   ('reassigned'), or spectral derivative ('spectralDerivative')
+#' @param rasterize (only applies if specType = 'reassigned') if TRUE, the
+#'   reassigned spectrogram is plotted after rasterizing it: that is, showing
+#'   density per time-frequency bins with the same resolution as an ordinary
+#'   spectrogram
 #' @param wn window type accepted by \code{\link[seewave]{ftwindow}}, currently
 #'   gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop
 #' @param normalize if TRUE, scales input prior to FFT
@@ -89,6 +93,8 @@
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
 #'   or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 #'   'cm.colors', etc
+#' @param col actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+#'   in base R (overrides colorTheme)
 #' @param extraContour a vector of arbitrary length scaled in Hz (regardless of
 #'   yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 #'   also be a list with extra graphical parameters such as lwd, col, etc. (see
@@ -119,7 +125,10 @@
 #'   heights = c(2, 1),  # spectro/osc height ratio
 #'   noiseReduction = 1.1,  # subtract the spectrum of noisy parts
 #'   brightness = -1,  # reduce brightness
-#'   colorTheme = 'heat.colors',  # pick color theme
+#'   # pick color theme - see ?hcl.colors
+#'   # colorTheme = 'heat.colors',
+#'   # ...or just specify the actual colors
+#'   col = colorRampPalette(c('white', 'yellow', 'red'))(50),
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
 #'   grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
 #'   ylim = c(0, 5),  # always in kHz
@@ -144,19 +153,21 @@
 #' # broad-band instead of narrow-band
 #' spectrogram(sound, samplingRate = 16000, windowLength = 5)
 #'
-#' # reassigned spectrograms are plotted after rasterizing, which reduces
-#' # the resolution...
+#' # reassigned spectrograms can be plotted without rasterizing, as a
+#' # scatterplot instead of a contour plot
 #' s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
 #'   samplingRate = 22050, formants = NULL, lipRad = 0, rolloff = -20)
-#' spectrogram(s, 22050, windowLength = 15, step = 1, ylim = c(0, 2))
-#' sp = spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
-#'                  step = 1, ylim = c(0, 2), output = 'all')
-#' # ...but the raw reassigned version is also available if output = 'all'. The
-#' # problem is that it's difficult to plot well because the grid is irregular
+#' spectrogram(s, 22050, windowLength = 5, step = 1, ylim = c(0, 2))
+#' spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
+#'   step = 1, ylim = c(0, 2))
+#' # ...or it can be rasterized, but that sacrifices frequency resolution:
+#' sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
+#'                  windowLength = 5, step = 1, ylim = c(0, 2), output = 'all')
+#' # The raw reassigned version is saved if output = 'all' for custom plotting
 #' df = sp$reassigned
-#' df$z1 = soundgen:::zeroOne(log(df$z))
-#' plot(df$x, df$y, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
-#'   pch = 16, cex = 0.5, ylim = c(0, 2))
+#' df$z1 = soundgen:::zeroOne(log(df$magn))
+#' plot(df$time, df$freq, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
+#'   pch = 16, cex = 0.25, ylim = c(0, 2))
 #'
 #' # focus only on values in the upper 5% for each frequency bin
 #' spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -195,7 +206,8 @@
 #' # will not work if osc = TRUE b/c the plot layout is modified)
 #' s = soundgen()
 #' an = analyze(s, 16000, plot = FALSE)
-#' spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2), yScale = 'bark')
+#' spectrogram(s, 16000, extraContour = an$detailed$dom,
+#'   ylim = c(0, 2), yScale = 'bark')
 #' # For values that are not in Hz, normalize any way you like
 #' spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
 #'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
@@ -210,9 +222,10 @@ spectrogram = function(
     to = NULL,
     dynamicRange = 80,
     windowLength = 50,
-    step = NULL,
-    overlap = 70,
+    step = windowLength / 2,
+    overlap = NULL,
     specType = c('spectrum', 'reassigned', 'spectralDerivative')[1],
+    rasterize = FALSE,
     wn = 'gaussian',
     zp = 0,
     normalize = TRUE,
@@ -236,6 +249,7 @@ spectrogram = function(
     maxPoints = c(1e5, 5e5),
     padWithSilence = TRUE,
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
     extraContour = NULL,
     xlab = NULL,
     ylab = NULL,
@@ -294,9 +308,10 @@ spectrogram = function(
     audio,
     dynamicRange = 80,
     windowLength = 50,
-    step = NULL,
-    overlap = 70,
+    step = windowLength / 2,
+    overlap = NULL,
     specType = c('spectrum', 'reassigned', 'spectralDerivative')[1],
+    rasterize = FALSE,
     wn = 'gaussian',
     zp = 0,
     normalize = TRUE,
@@ -317,6 +332,7 @@ spectrogram = function(
     maxPoints = c(1e5, 5e5),
     padWithSilence = TRUE,
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
     extraContour = NULL,
     xlab = NULL,
     ylab = NULL,
@@ -331,6 +347,7 @@ spectrogram = function(
     internal = NULL,
     ...
 ) {
+  if (is.null(audio$ls)) audio$ls = length(audio$sound)
   if (!is.null(step)) overlap = 100 * (1 - step / windowLength)
   if (overlap < 0 | overlap > 100) {
     warning('overlap must be >0 and <= 100%; resetting to 70')
@@ -354,6 +371,12 @@ spectrogram = function(
   }
   if (!specType %in% c('spectrum', 'reassigned', 'spectralDerivative'))
     warning('Unknown specType, defaulting to "spectrum"')
+
+  if (is.character(audio$savePlots)) {
+    plot = TRUE
+    png(filename = paste0(audio$savePlots, audio$filename_noExt, "_spectrogram.png"),
+        width = width, height = height, units = units, res = res)
+  }
 
   # Get a bank of windowed frames
   if (is.null(internal$frameBank)) {
@@ -406,6 +429,7 @@ spectrogram = function(
   Z = t(Mod(z))
   # image(Z)
 
+  reassigned_raw = NULL
   if (specType == 'spectralDerivative') {
     # first derivative of spectrum by time
     dZ_dt = cbind(rep(0, lx), t(apply(Z, 1, diff)))
@@ -455,34 +479,50 @@ spectrogram = function(
       Re(z_th / z) / audio$samplingRate * 1000
 
     # to long format, remove weird values
-    df = data.frame(x = as.numeric(times_new),
-                    y = as.numeric(freqs_new),
-                    z = as.numeric(t(Z)))
-    df = na.omit(df)
+    reassigned_raw = na.omit(data.frame(
+      time = as.numeric(times_new),
+      freq = as.numeric(freqs_new),
+      magn = as.numeric(t(Z)))
+    )
     min_x = min(X); min_y = min(Y)
     max_x = max(X); max_y = max(Y)
-    df = df[which(df$x > min_x & df$x < max_x &
-                    df$y > min_y & df$y < max_y), ]
-    reassigned_raw = df
+    reassigned_raw = reassigned_raw[which(
+      reassigned_raw$time > min_x &
+        reassigned_raw$time < max_x &
+        reassigned_raw$freq > min_y &
+        reassigned_raw$freq < max_y), ]
 
-    if (FALSE) {
+    if (!rasterize & plot) {
       # plot without rasterizing
-      df$magn = df$z
-      df$magn[df$magn <= 0] = min(df$magn[df$magn > 0])
-      df$magn = zeroOne(log(df$magn))
-      colfunc = colorRampPalette(c("blue", "yellow"))
-      df$order = findInterval(df$magn, seq(0, 1, length.out = 30))
-      plot(df$x, df$y, type = 'n')
-      points(df$x, df$y, col = colfunc(30)[df$order],
-             pch = 16, cex = .5)
+      plotSpec(
+        X = X, Y = Y, Z = reassigned_raw,
+        audio = audio, internal = internal, dynamicRange = dynamicRange,
+        osc = osc, heights = heights, ylim = ylim, yScale = yScale,
+        maxPoints = maxPoints, colorTheme = colorTheme, col = col,
+        extraContour = extraContour,
+        xlab = xlab, ylab = ylab, xaxp = xaxp,
+        mar = mar, main = main, grid = grid,
+        width = width, height = height,
+        units = units, res = res,
+        ...
+      )
+      return(invisible(list(
+        original = t(Z),
+        processed = t(Z),
+        reassigned = reassigned_raw,
+        complex = z
+      )))
     }
 
     # An irregular time-frequency grid is hard to plot, so we rasterize it
-    df$ix = findInterval(df$x, seq(min_x, max_x, length.out = lx + 1))
-    df$iy = findInterval(df$y, seq(min_y, max_y, length.out = ly + 1))
-    Z = matrix(min(df$z), nrow = lx, ncol = ly)
+    df = reassigned_raw
+    df$ix = findInterval(df$time, seq(min_x, max_x, length.out = lx + 1),
+                         all.inside = TRUE)
+    df$iy = findInterval(df$freq, seq(min_y, max_y, length.out = ly + 1),
+                         all.inside = TRUE)
+    Z = matrix(min(df$magn), nrow = lx, ncol = ly)
     for (i in 1:nrow(df))
-      Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$z[i]
+      Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$magn[i]
 
     if (FALSE) {
       # alternative (marginally faster): use library(raster)
@@ -498,7 +538,7 @@ spectrogram = function(
     }
     rownames(Z) = X
     colnames(Z) = Y
-    # soundgen:::filled.contour.mod(X, Y, z = Z)
+    # soundgen:::filled.contour.mod(X, Y, z = log(Z))
   }
 
   # set to zero under dynamic range
@@ -617,18 +657,13 @@ spectrogram = function(
   }
 
   # plot
-  if (is.character(audio$savePlots)) {
-    plot = TRUE
-    png(filename = paste0(audio$savePlots, audio$filename_noExt, "_spectrogram.png"),
-        width = width, height = height, units = units, res = res)
-  }
   if (plot) {
     # produce a spectrogram of the modified fft
     plotSpec(
       X = X, Y = Y, Z = Z1,
       audio = audio, internal = internal, dynamicRange = dynamicRange,
       osc = osc, heights = heights, ylim = ylim, yScale = yScale,
-      maxPoints = maxPoints, colorTheme = colorTheme,
+      maxPoints = maxPoints, colorTheme = colorTheme, col = col,
       extraContour = extraContour,
       xlab = xlab, ylab = ylab, xaxp = xaxp,
       mar = mar, main = main, grid = grid,
@@ -821,6 +856,7 @@ plotSpec = function(
     maxPoints = c(1e5, 5e5),
     padWithSilence = TRUE,
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
     extraContour = NULL,
     xlab = NULL,
     ylab = NULL,
@@ -835,7 +871,12 @@ plotSpec = function(
     ...
 ) {
   # produce a spectrogram of the modified fft
-  color.palette = switchColorTheme(colorTheme)
+  if (!is.null(col)) colorTheme = NULL
+  if (!is.null(colorTheme)) {
+    color.palette = switchColorTheme(colorTheme)
+  } else {
+    color.palette = NULL
+  }
   if (osc == TRUE) osc = 'linear' else if (!is.character(osc)) osc = 'none'
   op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
   if (is.null(xlab)) xlab = ''
@@ -907,31 +948,52 @@ plotSpec = function(
     xlim = c(0, audio$duration * 1000) + audio$timeShift * 1000
   } else {
     X = X / 1000
+    if ('magn' %in% colnames(Z)) Z$time = Z$time / 1000
     xlim = c(0, audio$duration) + audio$timeShift
   }
 
   if (yScale == 'log' & ylim[1] < .01) ylim[1] = .01  # min 10 Hz
-  idx_y = which(Y >= (ylim[1] / 1.05) & Y <= (ylim[2] * 1.05))
-  # 1.05 to avoid having a bit of white space
-  Y = Y[idx_y]
-  ly = length(Y)
-  Z = Z[, idx_y]
   y_Hz = ylim[2] < 1  # labels in Hz or kHz
   if (!exists('ylab') || is.null(ylab))
     if (y_Hz) ylab = 'Frequency, Hz' else ylab = 'Frequency, kHz'
 
-  filled.contour.mod(
-    x = X, y = Y, z = Z,
-    levels = seq(0, 1, length = 30),
-    color.palette = color.palette,
-    ylim = ylim, main = main,
-    xlab = xlab, ylab = ylab,
-    xlim = xlim, xaxt = 'n',
-    log = ifelse(yScale == 'log', 'y', ''),
-    yScale = yScale,
-    maxPoints = maxPoints[2],
-    ...
-  )
+  if ('magn' %in% colnames(Z)) {
+    # unrasterized spectrogram
+    plotUnrasterized(
+      Z,
+      color.palette = color.palette,
+      col = col,
+      ylim = ylim, main = main,
+      xlab = xlab, ylab = ylab,
+      xlim = xlim, xaxt = 'n',
+      log = ifelse(yScale == 'log', 'y', ''),
+      yScale = yScale,
+      maxPoints = maxPoints[2],
+      ...
+    )
+  } else {
+    # rasterized spectrogram
+    idx_y = which(Y >= (ylim[1] / 1.05) & Y <= (ylim[2] * 1.05))
+    # 1.05 to avoid having a bit of white space
+    Y = Y[idx_y]
+    ly = length(Y)
+    Z = Z[, idx_y]
+
+    filled.contour.mod(
+      x = X, y = Y, z = Z,
+      levels = seq(0, 1, length = 30),
+      color.palette = color.palette,
+      col = col,
+      ylim = ylim, main = main,
+      xlab = xlab, ylab = ylab,
+      xlim = xlim, xaxt = 'n',
+      log = ifelse(yScale == 'log', 'y', ''),
+      yScale = yScale,
+      maxPoints = maxPoints[2],
+      ...
+    )
+  }
+
   if (!(osc %in% c('linear', 'dB'))) {
     time_location = axTicks(1, axp = xaxp)
     time_labels = convert_sec_to_hms(time_location, 3)
@@ -1005,9 +1067,11 @@ filled.contour.mod = function(
     nlevels = 30,
     color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
     col = color.palette(length(levels) - 1),
+    legend = FALSE,
     asp = NA,
     xaxs = "i",
     yaxs = "i",
+    las = 1,
     log = '',
     yScale = c('orig', 'bark', 'mel', 'ERB')[1],
     axisX = TRUE,
@@ -1015,6 +1079,12 @@ filled.contour.mod = function(
     maxPoints = 5e5,
     ...
 ) {
+  if (!is.null(col)) {
+    nlevels = length(col)
+    levels = pretty(zlim, nlevels)
+  } else if (!is.null(color.palette)) {
+    col = color.palette(length(levels) - 1)
+  }
   y_Hz = ylim[2] < 1  # labels in Hz or kHz
   if (ylim[2] > tail(y, 1)) ylim[2] = tail(y, 1)
   if (yScale == 'bark') {
@@ -1032,6 +1102,26 @@ filled.contour.mod = function(
       ylim = ylim * 1000
     }
     if (log == 'y' & ylim[1] < .01) ylim[1] = .01
+  }
+
+  if (legend) {
+    mar.orig = (par.orig = par(c("mar", "las", "mfrow")))$mar
+    on.exit(par(par.orig))
+    w = (3 + mar.orig[2L]) * par("csi") * 2.54
+    layout(matrix(c(2, 1), ncol = 2L), widths = c(1, lcm(w)))
+    par(las = las)
+    mar = mar.orig
+    mar[4L] = mar[2L]
+    mar[2L] = 1
+    par(mar = mar)
+    plot.new()
+    plot.window(xlim = c(0, 1), ylim = range(levels), xaxs = "i",
+                yaxs = "i")
+    rect(0, levels[-length(levels)], 1, levels[-1L], col = col, border = NA)
+    axis(4)
+    mar = mar.orig
+    mar[4L] = 1
+    par(mar = mar)
   }
 
   suppressWarnings({
@@ -1061,46 +1151,137 @@ filled.contour.mod = function(
 
     # could label frequency axis in Hz, but maybe it's a bit strange, and hard
     # to make sure ylab is correct (Hz or kHz, etc.)
-    if (axisY) {
-      if (!yScale %in% c('bark', 'mel', 'ERB')) {
-        axis(2, ...)
-      } else {
-        y_at = seq(y[1], tail(y, 1), length.out = 5) # pretty(c(y[1], tail(y, 1)))
-        if (yScale == 'bark') {
-          # round to pretty labels in Hz or kHz
-          if (y_Hz) {
-            y_lab = round(tuneR::bark2hz(y_at))
-            # and back to bark for precise position
-            y_at = tuneR::hz2bark(y_lab)
-          } else {
-            y_lab = round(tuneR::bark2hz(y_at) / 1000, 1)
-            y_at = tuneR::hz2bark(y_lab * 1000)
-          }
-        } else if (yScale == 'mel') {
-          # round to pretty labels in Hz or kHz
-          if (y_Hz) {
-            y_lab = round(tuneR::mel2hz(y_at))
-            # and back to mel for precise position
-            y_at = tuneR::hz2mel(y_lab)
-          } else {
-            y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
-            y_at = tuneR::hz2mel(y_lab * 1000)
-          }
-        } else if (yScale == 'ERB') {
-          # round to pretty labels in Hz or kHz
-          if (y_Hz) {
-            y_lab = round(ERBToHz(y_at))
-            # and back to bark for precise position
-            y_at = HzToERB(y_lab)
-          } else {
-            y_lab = round(ERBToHz(y_at) / 1000, 1)
-            y_at = HzToERB(y_lab * 1000)
-          }
-        }
-        axis(2, at = y_at, labels = y_lab, ...)
-      }
-    }
+    if (axisY)
+      drawFreqAxis(y, yScale = yScale, nLbls = 5, y_Hz = y_Hz, ...)
   })
   invisible()
 }
 
+drawFreqAxis = function(y,
+                        ylim = range(y),
+                        yScale,
+                        nLbls = 5,
+                        y_Hz = TRUE,
+                        ...) {
+  if (!yScale %in% c('bark', 'mel', 'ERB')) {
+    axis(2, ...)
+    return()
+  }
+  y_at = seq(ylim[1], ylim[2], length.out = nLbls) # pretty(c(y[1], tail(y, 1)))
+  if (yScale == 'bark') {
+    # round to pretty labels in Hz or kHz
+    if (y_Hz) {
+      y_lab = round(tuneR::bark2hz(y_at))
+      # and back to bark for precise position
+      y_at = tuneR::hz2bark(y_lab)
+    } else {
+      y_lab = round(tuneR::bark2hz(y_at) / 1000, 1)
+      y_at = tuneR::hz2bark(y_lab * 1000)
+    }
+  } else if (yScale == 'mel') {
+    # round to pretty labels in Hz or kHz
+    if (y_Hz) {
+      y_lab = round(tuneR::mel2hz(y_at))
+      # and back to mel for precise position
+      y_at = tuneR::hz2mel(y_lab)
+    } else {
+      y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
+      y_at = tuneR::hz2mel(y_lab * 1000)
+    }
+  } else if (yScale == 'ERB') {
+    # round to pretty labels in Hz or kHz
+    if (y_Hz) {
+      y_lab = round(ERBToHz(y_at))
+      # and back to bark for precise position
+      y_at = HzToERB(y_lab)
+    } else {
+      y_lab = round(ERBToHz(y_at) / 1000, 1)
+      y_at = HzToERB(y_lab * 1000)
+    }
+  }
+  axis(2, at = y_at, labels = y_lab, ...)
+}
+
+
+plotUnrasterized = function(
+    df,
+    xlim = range(df$time, finite = TRUE),
+    ylim = range(df$freq, finite = TRUE),
+    zlim = range(df$magn, finite = TRUE),
+    levels = pretty(df$magn, nlevels),
+    nlevels = 30,
+    pch = 16,
+    cex = .25,
+    color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
+    col = color.palette(length(levels) - 1),
+    legend = FALSE,
+    asp = NA,
+    xaxs = "i",
+    yaxs = "i",
+    las = 1,
+    log = '',
+    yScale = c('orig', 'bark', 'mel', 'ERB')[1],
+    axisX = TRUE,
+    axisY = TRUE,
+    maxPoints = 5e5,
+    ...
+) {
+  if (!is.null(col)) {
+    nlevels = length(col)
+    levels = pretty(zlim, nlevels)
+  } else if (!is.null(color.palette)) {
+    col = color.palette(length(levels) - 1)
+  }
+  y_Hz = ylim[2] < 1  # labels in Hz or kHz
+  mf = max(df$freq)
+  if (ylim[2] > mf) ylim[2] = mf
+  if (yScale == 'bark') {
+    df$freq = tuneR::hz2bark(df$freq * 1000)
+    ylim = tuneR::hz2bark(ylim * 1000)
+  } else if (yScale == 'mel') {
+    df$freq = hz2mel(df$freq * 1000)
+    ylim = hz2mel(ylim * 1000)
+  } else if (yScale == 'ERB') {
+    df$freq = HzToERB(df$freq * 1000)
+    ylim = HzToERB(ylim * 1000)
+  } else {
+    if (y_Hz) {
+      df$freq = df$freq * 1000
+      ylim = ylim * 1000
+    }
+    if (log == 'y' & ylim[1] < .01) ylim[1] = .01
+  }
+
+  idx_neg = which(df$magn <= 0)
+  if (length(idx_neg) > 0)
+    df$magn[idx_neg] = min(df$magn[-idx_neg])
+  df$magn = zeroOne(log(df$magn))
+  ord = findInterval(df$magn, seq(0, 1, length.out = length(col)))
+
+  # for very large matrices, downsample before plotting to avoid delays
+  if (!is.null(maxPoints)) {
+    nr = nrow(df)
+    if (nr > maxPoints) {
+      message(paste('Plotting with reduced resolution;',
+                    'increase maxPoints or set to NULL to override'))
+      idx = seq(1, nr, length.out = maxPoints)
+      df = df[idx, ]
+    }
+  }
+
+  suppressWarnings({
+    plot.new()
+    plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
+                asp = asp, log = log, ...)
+    points(
+      df$time, df$freq,
+      col = col[ord],
+      pch = pch, cex = cex, ...
+    )
+    title(...)
+    if (axisX) axis(1, ...)
+    if (axisY)
+      drawFreqAxis(df$freq, ylim = ylim, yScale = yScale, nLbls = 5, y_Hz = y_Hz, ...)
+  })
+  invisible()
+}

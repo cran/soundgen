@@ -154,6 +154,7 @@ resample = function(x,
     n2 = len
     mult = n2 / n1
   }
+  if (mult == 1) return(x)
 
   # prepare to deal with NAs
   idx_na = which(is.na(x))
@@ -194,16 +195,19 @@ resample = function(x,
     # find NA positions in the new sound
     d = diff(is.na(x))  # 1 = beginning of NA episode, -1 = end of NA episode
     beg = which(d == 1) + 1
-    end = which(d == -1) + 1
     if (is.na(x[1])) beg = c(1, beg)
-    if (is.na(x[n1])) end = c(end, n1)
-    time_stamps = seq(0, 1, length.out = n1)
-    na_pos_01 = data.frame(beg = time_stamps[beg], end = time_stamps[end])
-    na_pos2 = round(na_pos_01 * n2)  # from % to position indices
-    na_pos2_vector = as.numeric(unlist(apply(na_pos2, 1, function(x) x[1]:x[2])))
-    na_pos2_vector = na_pos2_vector[na_pos2_vector > 0 &
-                                      na_pos2_vector <= n2]
-    out[na_pos2_vector] = NA  # fill in NAs in the new vector
+    end = which(d == -1) + 1
+    if (is.na(x[n1]) & !n1 %in% end) end = c(end, n1 + 1)
+    time_stamps = (0:n1) / n1  # the beg of each frame plus one extra
+    na_pos = data.frame(beg = time_stamps[beg], end = time_stamps[end])
+    na_idx = numeric(0)
+    for (i in 1:length(beg)) {
+      idx_start = round(time_stamps[beg[i]] * n2) + 1
+      n_na = round((na_pos$end[i] - na_pos$beg[i]) * n2)
+      if (n_na > 0) na_idx = c(na_idx, idx_start:(min(n2, (idx_start + n_na - 1))))
+    }
+    na_idx = unique(na_idx[na_idx > 0 & na_idx <= n2])
+    out[na_idx] = NA  # fill in NAs in the new vector
   }
 
   # PLOTTING
@@ -219,7 +223,7 @@ resample = function(x,
     } else {
       main = audio$filename_noExt
     }
-    plot(time_stamps, x, type = 'p', ylim = range(c(x, out), na.rm = TRUE),
+    plot(seq(0, 1, length.out = n1), x, type = 'p', ylim = range(c(x, out), na.rm = TRUE),
          xlab = 'Relative position', ylab = '', main = main)
     points(x = seq(0, 1, length.out = n2), y = out,
            type = 'b', col = 'red', pch = 3)
@@ -235,3 +239,4 @@ resample = function(x,
 
   return(out)
 }
+

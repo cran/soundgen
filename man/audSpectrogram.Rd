@@ -29,6 +29,7 @@ audSpectrogram(
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -112,6 +113,9 @@ apparent duration doesn't change)}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
+
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
@@ -159,7 +163,8 @@ audSpectrogram(sound, samplingRate = 16000,
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
   brightness = -.1,  # reduce brightness
-  colorTheme = 'heat.colors',  # pick color theme
+  # colorTheme = 'heat.colors',  # pick color theme...
+  col = hcl.colors(30, palette = 'Plasma'),  # ...or specify the colors
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
   grid = 5,  # to customize, add manually with graphics::grid()
   ylim = c(0.1, 5),  # always in kHz

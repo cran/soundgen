@@ -13,16 +13,10 @@
 #' equally spaced on the bark scale (see \code{\link{audSpectrogram}}). For each
 #' frequency channel, a sliding window is analyzed to compare the actually
 #' observed final value with its expected value. There are many ways to
-#' extrapolate / predict time series and thus perform this comparison. Here, we
-#' calculate the autocorrelation function of the window without the final point,
-#' find its peak (i.e., the delay that produces the highest autocorrelation),
-#' calculate autocorrelation of the window with the final point at this
-#' "optimal" delay, and compare these two correlations. In effect, we estimate
-#' how far the final point in our window deviates from the dominant oscillation
-#' frequency or "fundamental frequency" of the time series, which in this case
-#' represents the changes in amplitude in the same frequency channel over time.
-#' The resulting per-channel surprisal contours are aggregated by taking their
-#' mean weighted by the average amplitude of each frequency channel across the
+#' extrapolate / predict time series and thus perform this comparison such as
+#' autocorrelation (method = 'acf') or nonlinear prediction (method = 'np'). The
+#' resulting per-channel surprisal contours are aggregated by taking their mean
+#' weighted by the average amplitude of each frequency channel across the
 #' analysis window. Because increases in loudness are known to be important
 #' predictors of auditory salience, loudness per frame is also returned, as well
 #' as the square root of the product of its derivative and surprisal.
@@ -38,6 +32,8 @@
 #' @inheritParams audSpectrogram
 #' @inheritParams analyze
 #' @param winSurp surprisal analysis window, ms
+#' @param method acf = change in maximum autocorrelation after adding the final
+#'   point, np = nonlinear prediction (see \code{\link{nonlinPred}})
 #' @param plot if TRUE, plots the auditory spectrogram and the
 #'   \code{suprisalLoudness} contour
 #' @export
@@ -53,7 +49,14 @@
 #'   pauseLen = c(50, 50, 50, 130), pitch = c(200, 150),
 #'   noise = list(time = c(-300, 200), value = -20), plot = TRUE)
 #' # playme(sound)
-#' surp = getSurprisal(sound, samplingRate = 16000, yScale = 'bark')
+#' surp = getSurprisal(sound, samplingRate = 16000,
+#'   yScale = 'bark', method = 'acf')
+#' surp = getSurprisal(sound, samplingRate = 16000,
+#'   yScale = 'bark', method = 'np')  # very slow
+#'
+#' # plot "pure" surprisal, without weighting by loudness
+#' spectrogram(sound, 16000, extraContour = surp$detailed$surprisal /
+#'   max(surp$detailed$surprisal, na.rm = TRUE) * 8000)
 #'
 #' # NB: surprisalLoudness contour is also log-transformed if yScale = 'log',
 #' # so zeros become NAs
@@ -65,10 +68,12 @@
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
 #'   brightness = -.1,  # reduce brightness
-#'   colorTheme = 'heat.colors',  # pick color theme
+#'   # colorTheme = 'heat.colors',  # pick color theme...
+#'   col = rev(hcl.colors(30, palette = 'Viridis')),  # ...or specify the colors
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
 #'   ylim = c(0, 5),  # always in kHz
-#'   main = 'Audiogram with surprisal contour' # title
+#'   main = 'Audiogram with surprisal contour', # title
+#'   extraContour = list(col = 'blue', lty = 2, lwd = 2)
 #'   # + axis labels, etc
 #' )
 #'
@@ -76,43 +81,45 @@
 #' surp$summary
 #' }
 getSurprisal = function(
-  x,
-  samplingRate = NULL,
-  scale = NULL,
-  from = NULL,
-  to = NULL,
-  step = 20,
-  winSurp = 2000,
-  yScale = c('bark', 'mel', 'log')[1],
-  nFilters = 64,
-  dynamicRange = 80,
-  minFreq = 20,
-  maxFreq = samplingRate / 2,
-  summaryFun = 'mean',
-  reportEvery = NULL,
-  cores = 1,
-  plot = TRUE,
-  savePlots = NULL,
-  osc = c('none', 'linear', 'dB')[2],
-  heights = c(3, 1),
-  ylim = NULL,
-  contrast = .2,
-  brightness = 0,
-  maxPoints = c(1e5, 5e5),
-  padWithSilence = TRUE,
-  colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
-  extraContour = NULL,
-  xlab = NULL,
-  ylab = NULL,
-  xaxp = NULL,
-  mar = c(5.1, 4.1, 4.1, 2),
-  main = NULL,
-  grid = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...) {
+    x,
+    samplingRate = NULL,
+    scale = NULL,
+    from = NULL,
+    to = NULL,
+    step = 20,
+    winSurp = 2000,
+    method = c('acf', 'np')[1],
+    yScale = c('bark', 'mel', 'log')[1],
+    nFilters = 64,
+    dynamicRange = 80,
+    minFreq = 20,
+    maxFreq = samplingRate / 2,
+    summaryFun = 'mean',
+    reportEvery = NULL,
+    cores = 1,
+    plot = TRUE,
+    savePlots = NULL,
+    osc = c('none', 'linear', 'dB')[2],
+    heights = c(3, 1),
+    ylim = NULL,
+    contrast = .2,
+    brightness = 0,
+    maxPoints = c(1e5, 5e5),
+    padWithSilence = TRUE,
+    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
+    extraContour = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    xaxp = NULL,
+    mar = c(5.1, 4.1, 4.1, 2),
+    main = NULL,
+    grid = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...) {
   # match args
   myPars = as.list(environment())
   # myPars = mget(names(formals()), sys.frame(sys.nframe()))
@@ -184,35 +191,37 @@ getSurprisal = function(
 #' @inheritParams getSurprisal
 #' @keywords internal
 .getSurprisal = function(
-  audio,
-  step,
-  winSurp,
-  yScale = c('bark', 'mel', 'log')[1],
-  nFilters = 64,
-  dynamicRange = 80,
-  minFreq = 20,
-  maxFreq = audio$samplingRate / 2,
-  plot = TRUE,
-  osc = c('none', 'linear', 'dB')[2],
-  heights = c(3, 1),
-  ylim = NULL,
-  contrast = .2,
-  brightness = 0,
-  maxPoints = c(1e5, 5e5),
-  padWithSilence = TRUE,
-  colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
-  extraContour = NULL,
-  xlab = NULL,
-  ylab = NULL,
-  xaxp = NULL,
-  mar = c(5.1, 4.1, 4.1, 2),
-  main = NULL,
-  grid = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...) {
+    audio,
+    step,
+    winSurp,
+    method = c('acf', 'np')[1],
+    yScale = c('bark', 'mel', 'log')[1],
+    nFilters = 64,
+    dynamicRange = 80,
+    minFreq = 20,
+    maxFreq = audio$samplingRate / 2,
+    plot = TRUE,
+    osc = c('none', 'linear', 'dB')[2],
+    heights = c(3, 1),
+    ylim = NULL,
+    contrast = .2,
+    brightness = 0,
+    maxPoints = c(1e5, 5e5),
+    padWithSilence = TRUE,
+    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
+    extraContour = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    xaxp = NULL,
+    mar = c(5.1, 4.1, 4.1, 2),
+    main = NULL,
+    grid = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...) {
   if (is.null(maxFreq) | length(maxFreq) < 1) maxFreq = audio$samplingRate / 2
   # sp = getMelSpec(audio$sound, samplingRate = audio$samplingRate,
   #                 windowLength = windowLength, step = step,
@@ -240,7 +249,7 @@ getSurprisal = function(
   sp[sp < thres] = 0
 
   # get surprisal
-  surprisal = getSurprisal_matrix(sp, win = floor(winSurp / step))
+  surprisal = getSurprisal_matrix(sp, win = floor(winSurp / step), method = method)
   # we don't care about negative surprisal
   surprisal[surprisal < 0] = 0
 
@@ -286,8 +295,8 @@ getSurprisal = function(
       osc = osc, heights = heights, ylim = ylim,
       yScale = yScale,
       contrast = contrast, brightness = brightness,
-      maxPoints = maxPoints, colorTheme = colorTheme,
-      extraContour = sl_norm,
+      maxPoints = maxPoints, colorTheme = colorTheme, col = col,
+      extraContour = c(list(x = sl_norm), extraContour),
       xlab = xlab, ylab = ylab, xaxp = xaxp,
       mar = mar, main = main, grid = grid,
       width = width, height = height,
@@ -311,15 +320,18 @@ getSurprisal = function(
 #' @param x input matrix such as a spectrogram (columns = time, rows =
 #'   frequency)
 #' @param win length of analysis window
+#' @inheritParams getSurprisal
 #' @keywords internal
-getSurprisal_matrix = function(x, win) {
+getSurprisal_matrix = function(x,
+                               win,
+                               method = c('acf', 'np')[1]) {
   # image(t(log(x)))
   nc = ncol(x)  # time
   nr = nrow(x)  # freq bins
   surprisal = rep(NA, nc)
   for (c in 2:nc) {  # for each time point
     idx_i = max(1, c - win + 1):c
-    win_i = x[, idx_i]
+    win_i = x[, idx_i, drop = FALSE]
     if (c < win) {
       # pad the matrix with 0s on the left to have win columns
       nColsToAdd = win - c
@@ -330,7 +342,7 @@ getSurprisal_matrix = function(x, win) {
     # image(t(log(win_i)))
     surp_i = rep(NA, nr)
     for (r in 1:nr) {  # for each freq bin
-      surp_i[r] = getSurprisal_vector(as.numeric(win_i[r, ]))
+      surp_i[r] = getSurprisal_vector(as.numeric(win_i[r, ]), method = method)
     }
     weights = as.numeric(rowSums(win_i))
     weights = weights / sum(weights)
@@ -347,79 +359,92 @@ getSurprisal_matrix = function(x, win) {
 #' the unexpectedness or "surprisal" of the last element of input vector.
 #' @param x numeric vector representing the time sequence of interest, eg
 #'   amplitudes in a frequency bin over multiple STFT frames
+#' @inheritParams getSurprisal
 #' @keywords internal
 #' @examples
 #' x = c(rep(1, 3), rep(0, 4), rep(1, 3), rep(0, 4), rep(1, 3), 0, 0)
 #' soundgen:::getSurprisal_vector(x)
 #' soundgen:::getSurprisal_vector(c(x, 1))
 #' soundgen:::getSurprisal_vector(c(x, 13))
-getSurprisal_vector = function(x) {
-  if (diff(range(x)) == 0) return(0)
+#'
+#' soundgen:::getSurprisal_vector(x, method = 'np')
+#' soundgen:::getSurprisal_vector(c(x, 1), method = 'np')
+#' soundgen:::getSurprisal_vector(c(x, 13), method = 'np')
+getSurprisal_vector = function(x, method = c('acf', 'np')[1]) {
+  ran_x = diff(range(x))
+  if (ran_x == 0) return(0)
   # plot(x, type = 'b')
   len = length(x)
   x1 = x[1:(len - 1)]
-  # a = as.numeric(acf(x1, lag.max = len / 2, plot = FALSE)$acf)[-1]
-  # plot(a, type = 'l')
-
-  # calculate acf manually for speed and compatibility (we compare it later
-  # with one more cor to estimate how well the next point fits in) - problems
-  # with dealing with all-zero series, I don't know how acf does this, so
-  # let's just stick to acf even if it's a bit slower
-  # lag = 1:floor(len / 2)
-  # len_lag = length(lag)
-  # autocor = numeric(len_lag)
-  # for (lag in 1:len_lag) {
-  #   idx = (1 + lag) : len
-  #   # n = len - lag
-  #   autocor[lag] = cor(x1[idx], x1[idx - lag], use = 'complete.obs') # * (n - 1) / n
-  # }
-  # plot(a, type = 'l', ylim = c(-1, 1))
-  # points(autocor, type = 'l', col = 'blue')
-  # plot(autocor, type = 'b')
-  if (diff(range(x1)) == 0) {
+  ran_x1 = diff(range(x1))
+  if (ran_x1 == 0) {
     # completely stationary until the analyzed point
-    # out = abs(x[len] - x[len - 1]) # / max(tail(x, 2))
-    # out = NA
-    # or (but this tends to create a much higher peak at .5 after complete
-    # silence vs near-silence)
-    best_lag = 1
-    best_acf = 1
-  } else {
+    surprisal = abs(x[len] - x[1]) / x[1]
+    if (!is.finite(surprisal)) {
+      out = 1
+    } else if (surprisal < 1) {
+      out = surprisal / 2
+    } else {
+      out = 1 / (1 + exp(1 - surprisal))
+    }
+    return(out)
+  }
+
+  if (method == 'acf') {
     autocor = as.numeric(acf(x1, lag.max = len - 2, plot = FALSE)$acf)[-1]
     # plot(autocor, type = 'b')
-    # take the absolute max of autocor function
-    # best_lag = which.max(autocor)
-    # ...or find the highest peak to avoid getting best_lag = 1 all the time
+    # find the highest peak to avoid getting best_lag = 1 all the time
     peaks = which(diff(sign(diff(autocor))) == -2) + 1
     if (length(peaks) > 0) {
       best_lag = peaks[which.max(autocor[peaks])]
     } else {
       best_lag = which.max(autocor)
     }
-    best_acf = autocor[best_lag]
+    best_acf = suppressWarnings(
+      cor(x1, c(x1[(best_lag+1):(len - 1)], rep(0, best_lag)))
+    )
+
+    # check acf at the best lag for the time series with the next point
+    best_next_point = suppressWarnings(
+      cor(x, c(x[(best_lag+1):len], rep(0, best_lag)))
+    )
+    out = (best_acf - best_next_point) / 2
+
+    # rescale from [-2, 2] to [-1, 1] * len
+    # * len to compensate for diminishing effects of single-point changes on acf
+    # as window length increases
+  } else if (method == 'np') {
+    # predict the last point and get residual
+
+    pr = try(nonlinPred(x1, nPoints = 1), silent = TRUE)
+    if (inherits(pr, 'try-error')) pr = NA
+    surprisal = abs(x[len] - pr) / ran_x1
+
+    # rescale from [0, Inf) to [0, 1)
+    if (FALSE) {
+      a = c(seq(0, 1, .01), seq(1.1, 10, .1))
+      for (i in 1:length(a)) {
+        if (a[i] < 1) {
+          b[i] = a[i] / 2
+        } else {
+          b[i] = 1 / (1 + exp(1 - a[i]))
+        }
+      }
+      plot(a, b, log = 'x', type = 'l')
+    }
+    if (!is.finite(surprisal)) {
+      if (is.finite(pr)) {
+        out = 1
+      } else {
+        out = NA
+      }
+    } else if (surprisal < 1) {
+      out = surprisal / 2
+    } else {
+      out = 1 / (1 + exp(1 - surprisal))
+    }
+  } else {
+    stop('method not recognized')
   }
-
-  # check acf at the best lag for the time series with the next point
-  # idx = (2 + best_lag) : (len + 1)
-  # autocor_next_point = cor(x[idx], x[idx - best_lag], use = 'complete.obs')
-  autocor_next_point = tail(as.numeric(acf(x, lag.max = best_lag,
-                                           plot = FALSE)$acf), 1)
-  # out = max(0, (best_acf - autocor_next_point) / 2)
-  # rescale from [-2, 2] to [-1, 1] * len
-  # * len to compensate for diminishing effects of single-point changes on acf
-  # as window length increases
-  out = (best_acf - autocor_next_point) / 2 # * len
-
-  # # or: predict the last point and get residual
-  # idx = (best_lag + 1) : (len - 1)
-  # xc = x[idx]
-  # xp = x[idx - best_lag]
-  # # plot(xp, xc)
-  # # cor(xc, xp, use = 'complete.obs')  # basically best_acf
-  # mod = lm(xc ~ xp)
-  # # summary(mod)
-  # pred = as.numeric(predict(mod, newdata = data.frame(xp = x[len - best_lag])))
-  # out = abs(x[len] - pred)
-
   return(out)
 }

@@ -616,7 +616,9 @@ compressor = flatEnv
   soundFlat[idx] = soundFlat[idx] * (1 - compression) +
     soundFlat[idx] / env[idx] * audio$scale * compression
   # re-normalize to original scale
-  soundFlat = soundFlat / max(abs(soundFlat)) * audio$scale_used
+  soundFlat = soundFlat / max(abs(soundFlat))
+  if (!is.null(audio$scale_used))
+    soundFlat = soundFlat * audio$scale_used
 
   # PLOTTING
   if (is.character(audio$savePlots)) {

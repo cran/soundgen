@@ -39,7 +39,7 @@ pathfinder = function(pitchCands,
                       interpolTol = 0.05,
                       interpolCert = 0.3,
                       manualCert = 1,
-                      snakeStep = 0.05,
+                      snakeStep = 0,
                       snakePlot = FALSE) {
   nr = nrow(pitchCands)
   nc = ncol(pitchCands)
@@ -732,7 +732,7 @@ findGrad = function(path, interpol = 3) {
       path[i + 2]
   }
   grad = grad[3:(length(grad) - 2)]
-  return (grad)
+  return(grad)
 }
 
 

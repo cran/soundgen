@@ -40,7 +40,8 @@
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
 #'   brightness = -.1,  # reduce brightness
-#'   colorTheme = 'heat.colors',  # pick color theme
+#'   # colorTheme = 'heat.colors',  # pick color theme...
+#'   col = hcl.colors(30, palette = 'Plasma'),  # ...or specify the colors
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
 #'   grid = 5,  # to customize, add manually with graphics::grid()
 #'   ylim = c(0.1, 5),  # always in kHz
@@ -84,6 +85,7 @@ audSpectrogram = function(
   maxPoints = c(1e5, 5e5),
   padWithSilence = TRUE,
   colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -153,6 +155,7 @@ audSpectrogram = function(
   maxPoints = c(1e5, 5e5),
   padWithSilence = TRUE,
   colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -255,7 +258,7 @@ audSpectrogram = function(
     fb_env = seewave::env(fb[[i]], f = audio$samplingRate,
                           envt = 'hil',
                           # msmooth = c(10, 0),
-                          plot = F)
+                          plot = FALSE)
     # plot(fb_env, type = 'l')
     if (!is.null(len)) {
       # downsample
@@ -269,7 +272,7 @@ audSpectrogram = function(
   colnames(audSpec) = step / 2 + step * (0 : (ncol(audSpec) - 1))
   # or: seq(0, audio$duration, length.out = ncol(audSpec)) * 1000
 
-  # rescale etc in order to return $audSpectorgram_processed
+  # rescale etc in order to return $audSpectrogram_processed
   Z1 = t(audSpec)
   # set to zero under dynamic range
   threshold = max(Z1) / 10^(dynamicRange/20)
@@ -315,7 +318,7 @@ audSpectrogram = function(
       audio = audio, internal = NULL, dynamicRange = dynamicRange,
       osc = osc, heights = heights, ylim = ylim, yScale = yScale,
       contrast = contrast, brightness = brightness,
-      maxPoints = maxPoints, colorTheme = colorTheme,
+      maxPoints = maxPoints, colorTheme = colorTheme, col = col,
       extraContour = extraContour,
       xlab = xlab, ylab = ylab, xaxp = xaxp,
       mar = mar, main = main, grid = grid,

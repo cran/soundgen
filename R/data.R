@@ -61,3 +61,18 @@
 #' plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n')
 #' text(hillenbrand$F1Rel, hillenbrand$F2Rel, labels = hillenbrand$vowel)
 "hillenbrand"
+
+#' Nonlinear phenomena: Naive Bayes classifier trained on human nonverbal
+#' vocalizations
+#'
+#' The results of running \code{\link{naiveBayes_train}} on acoustically
+#' analyzed 969 human nonverbal vocalizations (>83K frames). It is used by
+#' \code{\link{detectNLP}}.
+"detectNLP_training_nonv"
+
+#' Nonlinear phenomena: Naive Bayes classifier trained on synthetic sounds
+#'
+#' The results of running \code{\link{naiveBayes_train}} on 5000 synthetic
+#' sounds with or without NLP created with soundgen(). It is used by
+#' \code{\link{detectNLP}}.
+"detectNLP_training_synth"

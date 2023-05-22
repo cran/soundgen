@@ -691,7 +691,8 @@ ui = fluidPage(
             radioButtons(
               inputId = 'spec_method', label = "Method",
               choices = c("Spectrum" = "spectrum",
-                          "Spectral derivative" = "spectralDerivative"),
+                          "Spectral derivative" = "spectralDerivative",
+                          "Reassigned" = "reassigned"),
               selected = 'spectrum', inline = TRUE, width = NULL),
             radioButtons(
               inputId= 'osc', label ="Oscillogram type",

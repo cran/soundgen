@@ -9,8 +9,9 @@
 #' the output. Because we don't do STFT, arbitrarily short vectors are also fine
 #' as input - for example, we can apply a low-pass filter prior to decimation
 #' when changing the sampling rate without aliasing. Note that, unlike
-#' \code{\link{pitchSmoothPraat}}, \code{bandpass} applies an abrupt cutoff
-#' instead of a smooth gaussian filter.
+#' \code{\link{pitchSmoothPraat}}, \code{bandpass} by default applies an abrupt
+#' cutoff instead of a smooth gaussian filter, but this behavior can be adjusted
+#' with the \code{bw} argument.
 #'
 #' Algorithm: fill in NAs with constant interpolation at the edges and linear
 #' interpolation in the middle; perform FFT; set the frequency ranges to be
@@ -26,32 +27,56 @@
 #'   "stop" = remove the selected frequency range (bandstop)
 #' @param dB a positive number giving the strength of effect in dB (defaults to
 #'   Inf - complete removal of selected frequencies)
+#' @param bw bandwidth of the filter cutoffs, Hz. Defaults to 0 (abrupt, step
+#'   function), a positive number corresponds to the standard deviation of a
+#'   Gaussian curve, and two numbers set different bandwidths for the lower and
+#'   upper cutoff points
 #' @param na.rm if TRUE, NAs are interpolated, otherwise they are preserved in
 #'   the output
 #' @param normalize if TRUE, resets the output to the original scale (otherwise
 #'   filtering often reduces the amplitude)
 #' @param saveAudio full path to the folder in which to save the processed audio
+#' @param ... other graphical parameters passed to \code{plot()} as well as to
+#'   \code{\link[seewave]{meanspec}}
 #' @export
 #' @examples
 #' # Filter white noise
 #' s1 = fade(c(runif(2000, -1, 1)), samplingRate = 16000)
-#' bandpass(s1, 16000, upr = 2000, plot = TRUE)    # low-pass
-#' bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE)  # high-pass by 40 dB
-#' bandpass(s1, 16000, lwr = 1000, upr = 1100, action = 'stop', plot = TRUE) # bandstop
-#' s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE) # bandpass
-#' # playme(rep(s2, 5))
-#' spectrogram(s2, 16000)  # more accurate than plotting the spectrum with plot = TRUE
 #'
-#' # a short vector with some NAs
+#' # low-pass
+#' bandpass(s1, 16000, upr = 2000, plot = TRUE)
+#'
+#' # high-pass by 40 dB
+#' bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE, wl = 1024)
+#' # wl is passed to seewave::meanspec for plotting
+#'
+#' # bandstop
+#' bandpass(s1, 16000, lwr = 1000, upr = 1800, action = 'stop', plot = TRUE)
+#'
+#' # bandpass
+#' s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE)
+#' # playme(rep(s2, 5))
+#' # spectrogram(s2, 16000)
+#'
+#' # low-pass and interpolate a short vector with some NAs
 #' x = rnorm(150, 10) + 3 * sin((1:50) / 5)
 #' x[sample(1:length(x), 50)] = NA
 #' plot(x, type = 'l')
-#' points(bandpass(x, samplingRate = 100, upr = 10), type = 'l', col = 'blue')
+#' x_bandp = bandpass(x, samplingRate = 100, upr = 10)
+#' points(x_bandp, type = 'l', col = 'blue')
 #'
 #' \dontrun{
+#' # add 200 dB with a Gaussian-shaped filter instead of step function
+#' s3 = bandpass(s1, 16000, lwr = 1700, upr = 2100, bw = 200,
+#'   dB = 20, plot = TRUE)
+#' spectrogram(s3, 16000)
+#' s4 = bandpass(s1, 16000, lwr = 2000, upr = 4300, bw = c(100, 500),
+#'   dB = 60, action = 'stop', plot = TRUE)
+#' spectrogram(s4, 16000)
+#'
 #' # precise notch filtering is possible, even in low frequencies
-#' whiteNoise = runif(8000, -1, 1)
-#' s3 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40,
+#' whiteNoise = runif(16000, -1, 1)
+#' s3 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40, normalize = TRUE,
 #'               plot = TRUE, xlim = c(0, 500))
 #' playme(rep(s3, 5))
 #' spectrogram(s3, 16000, windowLength = 150, yScale = 'log')
@@ -72,6 +97,7 @@ bandpass = function(
     upr = NULL,
     action = c('pass', 'stop')[1],
     dB = Inf,
+    bw = 0,
     na.rm = TRUE,
     from = NULL,
     to = NULL,
@@ -132,6 +158,7 @@ bandpass = function(
                      upr = NULL,
                      action = c('pass', 'stop')[1],
                      dB = Inf,
+                     bw = 0,
                      na.rm = TRUE,
                      normalize = FALSE,
                      plot = FALSE,
@@ -159,11 +186,12 @@ bandpass = function(
     target_len = 2 ^ ceiling(log2(len))
     n_zeros = target_len - len
     x = c(x, rep(pad_with, n_zeros))
-    len = length(x)
+    len = len + n_zeros
   } else {
     n_zeros = 0
   }
   half_len = len %/% 2
+  bin_width = audio$samplingRate / len
 
   # interpolate NAs
   idx_na = which(is.na(x))
@@ -173,33 +201,76 @@ bandpass = function(
   # get spectrum
   sp = stats::fft(x)
 
-  # select frequency range
+  # bandwidths for gradual Gaussian slopes instead of step functions at lwr & upr
+  # a = seq(-5, 5, .01)
+  # b = pnorm(a, mean = 0, sd = 1)
+  # plot(a, b)
+  if (is.null(bw) || !is.numeric(bw)) {
+    bw_lwr = bw_upr = 0
+  } else {
+    if (length(bw) == 1) {
+      bw_lwr = bw_upr = bw
+    } else {
+      bw_lwr = bw[1]
+      bw_upr = bw[2]
+    }
+  }
+  bw_lwr_bins = round(bw_lwr / bin_width)
+  bw_upr_bins = round(bw_upr / bin_width)
+
+  ## set up the filter
+  if (is.null(lwr)) idx_lwr = 1 else
+    idx_lwr = max(1, round(lwr / bin_width))
+  if (is.null(upr)) idx_upr = half_len else
+    idx_upr = min(half_len, round(upr / bin_width))
+
+  # lower
+  a = 1:half_len
   if (!is.null(lwr)) {
-    idx_lwr = max(1, round(half_len / (audio$samplingRate / lwr) * 2))
+    if (bw_lwr_bins > 0) {
+      b_lwr = 1 - pnorm(a, mean = idx_lwr, sd = bw_lwr_bins)
+    } else {
+      b_lwr = c(rep(1, idx_lwr), rep(0, half_len - idx_lwr))
+    }
+    b_lwr[idx_upr:half_len] = 0
   } else {
-    idx_lwr = 1
+    b_lwr = rep(0, half_len)
   }
+  # plot(b_lwr)
 
+  # upper
   if (!is.null(upr)) {
-    idx_upr = min(half_len, round(half_len / (audio$samplingRate / upr) * 2))
+    if (bw_upr_bins > 0) {
+      b_upr = pnorm(a, mean = idx_upr, sd = bw_upr_bins)
+    } else {
+      b_upr = c(rep(0, idx_upr), rep(1, half_len - idx_upr))
+    }
+    b_upr[1:idx_lwr] = 0
   } else {
-    idx_upr = half_len
+    b_upr = rep(0, half_len)
   }
+  # plot(b_upr)
 
-  # half-filter of 1/0
+  # both combined
+  if (action == 'pass') {
+    filter = 1 - b_lwr - b_upr
+  } else {
+    filter = b_lwr + b_upr
+  }
+  filter = filter / max(filter)
+  # plot(filter)
+
+  # normalize the filter
   if (is.finite(dB)) {
     m = 10 ^ (-abs(dB) / 20)
-  } else {
-    m = 0
+    # normalize to (m, 1) - need to change min from 0 to m, preserving max at 1;
+    # solve a system of equations (1+addid)/denom = 1 and (0+addit)/denom = m
+    denom = 1 / (1 - m)
+    addit = denom - 1
+    filter = (filter + addit) / denom
   }
-  if (action == 'pass') {
-    filter = rep(m, half_len)
-    filter[idx_lwr:idx_upr] = 1
-  } else {
-    filter = rep(1, half_len)
-    filter[idx_lwr:idx_upr] = m
-  }
-  # plot(filter)
+  # range(filter)
+  # plot(a, filter)
 
   # mirror image of filter to cover the whole spectrum
   even = len %% 2 == 0
@@ -208,7 +279,7 @@ bandpass = function(
   } else {
     filter_full = c(filter, filter[half_len], rev(filter))
   }
-  filter_full[c(1, len)] = 1  # why?
+  # filter_full[c(1, len)] = 1  # why?
   # plot(filter_full)
 
   # inverse fft
@@ -230,21 +301,29 @@ bandpass = function(
         width = width, height = height, units = units, res = res)
   }
   if (plot) {
-    bin_width = audio$samplingRate / 2 / len
-    freq = seq(bin_width / 2,
-               audio$samplingRate / 2 - bin_width / 2,
-               length.out = half_len)
-    sp_dB = 20 * log10(abs(sp[1:half_len]))
-    sp_dB = sp_dB - max(sp_dB)
-    if (!exists('ylim')) ylim = c(-120, 0)
-    if (!exists('xlab')) xlab = 'Hz'
-    if (!exists('ylab')) ylab = 'dB'
-    plot(freq, sp_dB, type = 'l', ylim = ylim, xlab = xlab, ylab = ylab, ...)
+    par(mfrow = c(1, 2))
+    if (is.finite(dB)) {
+      # plot in dB (log-scale)
+      filter_dB = 20 * log10(filter)
+      plot(a * bin_width / 1000, filter_dB, type = 'l',
+           xlab = 'Frequency, kHz', ylab = 'Amplitude, dB', main = 'Filter', ...)
+    } else {
+      # plot on linear scale
+      plot(a * bin_width / 1000, filter, type = 'l',
+           xlab = 'Frequency, kHz', ylab = 'Amplitude', main = 'Filter', ...)
+    }
 
-    sp_new = stats::fft(x_new - min(x_new))
-    sp_new_dB = 20 * log10(abs(sp_new[1:half_len]))
-    sp_new_dB = sp_new_dB - max(sp_new_dB)
-    points(freq, sp_new_dB, type = 'l', col = 'blue')
+
+    sp_old = try(seewave::meanspec(audio$sound, f = audio$samplingRate,
+                                   plot = FALSE, dB = 'max0', ...))
+    if (!inherits(sp_old, 'try-error'))
+      plot(sp_old, type = 'l',
+           xlab = 'Frequency, kHz', ylab = 'dB', main = 'Spectra', ...)
+    sp_new = try(seewave::meanspec(x_new, f = audio$samplingRate,
+                                   plot = FALSE, dB = 'max0', ...))
+    if (!inherits(sp_new, 'try-error'))
+      points(sp_new, type = 'l', col = 'blue', ...)
+    par(mfrow = c(1, 1))
     if (is.character(audio$savePlots)) dev.off()
   }
 

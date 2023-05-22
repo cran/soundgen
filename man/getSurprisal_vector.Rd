@@ -4,11 +4,14 @@
 \alias{getSurprisal_vector}
 \title{Get surprisal per vector}
 \usage{
-getSurprisal_vector(x)
+getSurprisal_vector(x, method = c("acf", "np")[1])
 }
 \arguments{
 \item{x}{numeric vector representing the time sequence of interest, eg
 amplitudes in a frequency bin over multiple STFT frames}
+
+\item{method}{acf = change in maximum autocorrelation after adding the final
+point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
 }
 \description{
 Internal soundgen function called by \code{\link{getSurprisal}}. Estimates
@@ -19,5 +22,9 @@ x = c(rep(1, 3), rep(0, 4), rep(1, 3), rep(0, 4), rep(1, 3), 0, 0)
 soundgen:::getSurprisal_vector(x)
 soundgen:::getSurprisal_vector(c(x, 1))
 soundgen:::getSurprisal_vector(c(x, 13))
+
+soundgen:::getSurprisal_vector(x, method = 'np')
+soundgen:::getSurprisal_vector(c(x, 1), method = 'np')
+soundgen:::getSurprisal_vector(c(x, 13), method = 'np')
 }
 \keyword{internal}

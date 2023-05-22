@@ -41,7 +41,8 @@
 #' @param duration duration of the sound, ms (for plotting purposes only)
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
 #'   or another color theme (e.g. 'heat.colors')
-#' @param nCols number of colors in the palette
+#' @param col actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+#'   in base R (overrides colorTheme)
 #' @param xlab,ylab labels of axes
 #' @param ... other graphical parameters passed on to \code{image()}
 #' @export
@@ -53,7 +54,7 @@
 #' # [a] with only F1-F3 visible, with no stochasticity
 #' e = getSpectralEnvelope(nr = 512, nc = 50, duration = 300,
 #'   formants = soundgen:::convertStringToFormants('a'),
-#'   temperature = 0, plot = TRUE)
+#'   temperature = 0, plot = TRUE, col = heat.colors(150))
 #' # image(t(e))  # to plot the output on a linear scale instead of dB
 #'
 #' # some "wiggling" of specified formants plus extra formants on top
@@ -137,7 +138,7 @@ getSpectralEnvelope = function(
     plot = FALSE,
     duration = NULL,
     colorTheme = c('bw', 'seewave', '...')[1],
-    nCols = 100,
+    col = NULL,
     xlab = 'Time',
     ylab = 'Frequency, kHz',
     ...
@@ -536,13 +537,9 @@ getSpectralEnvelope = function(
   # plot(spectralEnvelope_lin[, 1], type = 'l')
 
   if (plot) {
-    if (colorTheme == 'bw') {
-      col = gray(seq(from = 1, to = 0, length = nCols))
-    } else if (colorTheme == 'seewave') {
-      col = seewave::spectro.colors(nCols)
-    } else {
-      colFun = match.fun(colorTheme)
-      col = rev(colFun(nCols))
+    if (is.null(col)) {
+      colfunc = switchColorTheme(colorTheme)
+      col = colfunc(100)
     }
     image(x = as.numeric(colnames(spectralEnvelope)),
           y = as.numeric(rownames(spectralEnvelope)),

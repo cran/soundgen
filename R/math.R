@@ -879,75 +879,93 @@ addVectors = function(v1, v2, insertionPoint = 1, normalize = TRUE) {
 #' Internal soundgen function.
 #'
 #' \code{clumper} makes sure each homogeneous segment in a sequence is at least
-#' minLength long. Called by getIntegerRandomWalk() and getVocalFry(). Algorithm:
-#' go through the sequence once. If a short segment is encountered, it is pooled
-#' with the previous one (i.e., the currently evaluated segment grows until it
-#' is long enough, which may shorten the following segment). Finally, the last
-#' segment is checked separately. This is CRUDE - a smart implementation is
-#' pending!
+#' minLength long. Called by getIntegerRandomWalk(), getVocalFry(),
+#' naiveBayes(), etc. Algorithm: find the epochs shorter than minLength, merge
+#' max 1/4 of them with the largest neighbor, and repeat recursively until all
+#' epochs are at least minLength long. minLength can be a vector, in which case
+#' it is assumed to change over time.
 #' @keywords internal
-#' @param s a vector (soundgen supplies integers, but \code{clumper} also works
-#'   on a vector of floats, characters or booleans)
-#' @param minLength an integer or vector of integers indicating the desired
-#'   length of a segment at each position (can vary with time, e.g., if we are
-#'   processing pitch_per_gc values)
-#' @return Returns the original sequence s transformed to homogeneous segments
-#'   of required length.
+#' @param x a vector: anything that can be converted into an integer to call
+#'   diff(): factors, integers, characters, booleans
+#' @param minLength the minimum length of a segment (interger or vector)
+#' @return Returns the original sequence x transformed to homogeneous segments
+#'   of required length, with the original class (e.g. character or factor).
 #' @keywords internal
 #' @examples
 #' s = c(1,3,2,2,2,0,0,4,4,1,1,1,1,1,3,3)
 #' soundgen:::clumper(s, 2)
 #' soundgen:::clumper(s, 3)
-#' soundgen:::clumper(s, seq(1, 3, length.out = length(s)))
-#' soundgen:::clumper(c('a','a','a','b','b','c','c','c','a','c'), 4)
-clumper = function(s, minLength) {
-  if (max(minLength) < 2) return(s)
-  minLength = round(minLength) # just in case it's not all integers
-  if (length(minLength) == 1) {
-    if (length(s) < minLength) {
-      return(rep(round(median(s)), length(s)))
-    }
-  } else if (length(unique(s)) < 2 |
-             length(s) < minLength[1]) {
-    return(rep(round(median(s)), length(s)))
-  }
-  if (length(minLength)==1 | length(minLength) != length(s)) {
-    minLength = rep(minLength, length(s)) # upsample minLength
+#' soundgen:::clumper(1:5, 10)
+#' soundgen:::clumper(c('a','a','a','b','b','c','c','c','a','c'), 3)
+#' soundgen:::clumper(x = c(1,2,1,2,1,1,1,1,3,1), minLength = c(1, 1, 1, 3))
+#' soundgen:::clumper(as.factor(c('A','B','B','C')), 2)
+clumper = function(x, minLength, n = length(x)) {
+  mode_orig = mode(x)
+  minLength = round(minLength)   # just in case it's not all integers
+  if (max(minLength) < 2) return(x)
+  n = length(x)
+  if (n <= minLength[1]) {
+    # just repeat the most common element
+    tbx = table(x)
+    mode_x = names(tbx)[which.max(tbx)]
+    x = rep(mode_x, n)
+    mode(x) = mode_orig
+    return(x)
   }
 
-  c = 0
-  for (i in 2:length(s)) {
-    if (s[i - 1] == s[i]) {
-      c = c + 1
-    } else {
-      if (c < minLength[i]) {
-        s[i] = s[i - 1] # grow the current segment until it is long enough
-        c = c + 1
+  # find indices of changes in the composition of x (epoch boundaries)
+  if (inherits(x, 'character')) {
+    x_int = as.integer(as.factor(x))
+  } else {
+    x_int = as.integer(x)
+  }
+  idx_change = which(diff(as.numeric(x_int)) != 0)
+  if (length(idx_change) < 1) {
+    return(x)
+  }
+  dur_epochs = diff(unique(c(0, idx_change, n)))
+  n_epochs = length(dur_epochs)
+  if (length(minLength) == 1) {
+    minLength_ups = minLength
+  } else {
+    minLength_ups = round(approx(minLength, n = n_epochs)$y)
+  }
+  short_epochs = which(dur_epochs < minLength_ups)
+  short_epochs = short_epochs[order(dur_epochs[short_epochs])]
+  nse = length(short_epochs)
+
+  # limit the number of epochs that are to be modified per iteration - here set
+  # to max 1/4 of the total n_epochs (starting with the shortest - this is
+  # crucial!)
+  n_max = max(2, ceiling(n_epochs / 4))
+  if (nse > n_max) {
+    short_epochs = order(dur_epochs)[1:n_max]
+    nse = n_max
+  }
+  if (nse > 0) {
+    idx = c(1, idx_change + 1)
+    for (e in short_epochs) {
+      # calculate the indices within vector x corresponding to this short epoch
+      if (e < n_epochs) {
+        idx_epoch = idx[e]:(idx[e + 1] - 1)
       } else {
-        c = 1 # terminate the segment and reset the counter
+        idx_epoch = idx[e]:n
+      }
+
+      # merge the short epoch with the longer neighbor (ie replace original
+      # elements with those of the longest adjacent epoch)
+      dur_left = ifelse(e > 1, dur_epochs[e - 1], 0)
+      dur_right = ifelse(e < n_epochs, dur_epochs[e + 1], 0)
+      if (dur_left >= dur_right) {
+        x[idx_epoch] = x[idx_epoch[1] - 1]
+      } else if (dur_left < dur_right) {
+        x[idx_epoch] = x[tail(idx_epoch, 1) + 1]
       }
     }
+    # call clumper() recursively until no short epochs are left
+    x = clumper(x, minLength, n = n)  # just to avoid recalculating n every time
   }
-
-  # make sure the last epoch is also long enough
-  idx_min = max((length(s) - tail(minLength, 1) + 1), 2):length(s)
-  # these elements have to be homogeneous
-  if (sum(s[idx_min] == tail(s, 1)) < tail(minLength, 1)) {
-    # if they are not...
-    idx = rev(idx_min)
-    c = 1
-    i = 2
-    while (s[idx[i]] == s[idx[i] - 1] & i < length(idx)) {
-      # count the number of repetitions for the last element
-      c = c + 1
-      i = i + 1
-    }
-    if (c < tail(minLength, 1)) {
-      # if this number is insufficient,...
-      s[idx] = s[min(idx_min)] # ...pool the final segment and the previous one
-    }
-  } # plot (s)
-  return(s)
+  return(x)
 }
 
 
@@ -1090,7 +1108,7 @@ reportCI = function(n, digits = 2, suffix = NULL) {
 #'
 #' Performs a chosen type of interpolation (linear or smooth) across both rows
 #' and columns of a matrix, in effect up- or downsampling a matrix to required
-#' dimensions
+#' dimensions. Rownames and colnames are also interpolated as needed.
 #' @param m input matrix of numeric values
 #' @param nr,nc target dimensions
 #' @param interpol interpolation method ('approx' for linear, 'spline' for
@@ -1098,11 +1116,12 @@ reportCI = function(n, digits = 2, suffix = NULL) {
 #' @keywords internal
 #' @examples
 #' m = matrix(1:12 + rnorm(12, 0, .2), nrow = 3)
+#' rownames(m) = 1:3; colnames(m) = 1:4
 #' soundgen:::interpolMatrix(m)  # just returns the original
 #' soundgen:::interpolMatrix(m, nr = 10, nc = 7)
 #' soundgen:::interpolMatrix(m, nr = 10, nc = 7, interpol = 'spline')
 #' soundgen:::interpolMatrix(m, nr = 2, nc = 7)
-#' soundgen:::interpolMatrix(m, nr = 2, nc = 2)
+#' soundgen:::interpolMatrix(m, nr = 2, nc = 3)
 #'
 #' # input matrices can have a single row/column
 #' soundgen:::interpolMatrix(matrix(1:5, nrow = 1), nc = 9)
@@ -1115,30 +1134,32 @@ interpolMatrix = function(m,
     m = as.matrix(m)
     warning('non-matrix input m: converting to matrix')
   }
-  if (is.null(nr)) nr = nrow(m)
-  if (is.null(nc)) nc = ncol(m)
-  if (nr == nrow(m) & nc == ncol(m)) return(m)
+  nr0 = nrow(m)
+  nc0 = ncol(m)
+  if (is.null(nr)) nr = nr0
+  if (is.null(nc)) nc = nc0
+  if (nr == nr0 & nc == nc0) return(m)
   # if (nr < 2) stop('nr must be >1')
   # if (nc < 2) stop('nc must be >1')
   isComplex = is.complex(m[1, 1])
 
-  # Downsample rows if necessary
-  if (nrow(m) > nr) {
-    m = m[seq(1, nrow(m), length.out = nr),, drop = FALSE]
-  }
-
-  # Downsample columns if necessary
-  if (ncol(m) > nc) {
-    m = m[, seq(1, ncol(m), length.out = nc), drop = FALSE]
-  }
+  # # Downsample rows if necessary
+  # if (nr0 > nr) {
+  #   m = m[seq(1, nr0, length.out = nr),, drop = FALSE]
+  # }
+  #
+  # # Downsample columns if necessary
+  # if (nc0 > nc) {
+  #   m = m[, seq(1, nc0, length.out = nc), drop = FALSE]
+  # }
 
   # Interpolate rows if necessary
-  if (nrow(m) < nr) {
-    if (nrow(m) == 1) {
+  if (nr0 != nr) {
+    if (nr0 == 1) {
       temp = matrix(rep(m, nr), nrow = nr, byrow = TRUE)
     } else {
-      temp = matrix(1, nrow = nr, ncol = ncol(m))
-      for (c in 1:ncol(m)) {
+      temp = matrix(1, nrow = nr, ncol = nc0)
+      for (c in 1:nc0) {
         if (isComplex) {
           # approx doesn't work with complex numbers properly, so we treat the
           # Re and Im parts separately
@@ -1158,10 +1179,11 @@ interpolMatrix = function(m,
     temp = m
     rownames(temp) = rownames(m)
   }
+  colnames(temp) = colnames(m)
 
   # Interpolate columns if necessary
-  if (ncol(m) < nc) {
-    if (ncol(m) == 1) {
+  if (nc0 != nc) {
+    if (nc0 == 1) {
       out = matrix(rep(temp[, 1], nc), ncol = nc, byrow = FALSE)
     } else {
       out = matrix(1, nrow = nr, ncol = nc)
@@ -1348,6 +1370,7 @@ pDistr = function(x, quantiles) {
 #' @keywords internal
 #' @examples
 #' m = matrix(1:90, nrow = 10)
+#' colnames(m) = 1:9
 #' soundgen:::logMatrix(m, base = 2)
 #' soundgen:::logMatrix(m, base = 10)
 #'
@@ -1622,3 +1645,95 @@ rbind_fill = function(df1, df2) {
   df2[setdiff(names(df1), names(df2))] = NA
   return(rbind(df1, df2))
 }
+
+
+#' Pseudolog
+#'
+#' Internal soundgen function
+#'
+#' From scales::pseudo_log_trans()
+#'
+#' @seealso \code{\link{pseudoLog_undo}}
+#'
+#' @param x numeric vector to transform
+#' @param sigma scaling factor for the linear part
+#' @param approximate logarithm base used
+#' @keywords internal
+#' @examples
+#' a = -30:30
+#' plot(a, soundgen:::pseudoLog(a, sigma = 1, base = 2))
+#' plot(a, soundgen:::pseudoLog(a, sigma = 5, base = 2))
+#' plot(a, soundgen:::pseudoLog(a, sigma = .1, base = 2))
+pseudoLog = function(x, sigma, base) {
+  asinh(x/(2 * sigma))/log(base)
+}
+
+
+#' Undo pseudolog
+#'
+#' Internal soundgen function
+#'
+#' From scales::pseudo_log_trans()
+#'
+#' @seealso \code{\link{pseudoLog}}
+#'
+#' @param x numeric vector to transform
+#' @param sigma scaling factor for the linear part
+#' @param approximate logarithm base used
+#' @keywords internal
+pseudoLog_undo = function(x, sigma, base) {
+  2 * sigma * sinh(x * log(base))
+}
+
+
+#' Find the elbow of a screeplot or similar
+#'
+#' Adapted from
+#' https://stackoverflow.com/questions/2018178/finding-the-best-trade-off-point-on-a-curve
+#' Algorithm: draw a straight line between the two endpoints and find the point
+#' furthest from this line.
+#'
+#' @param d dataframe containing x and y coordinates of the points
+#' @keywords internal
+#' @examples
+#' y = c(10, 11, 8, 4, 2, 1.5, 1, 0.7, .5, .4, .3)
+#' soundgen:::findElbow(data.frame(x = 1:length(y), y = y), plot = TRUE)
+findElbow = function(d, plot = FALSE) {
+  d = na.omit(d)
+  n = nrow(d)
+
+  # draw a straight line between the endpoints
+  endpoints = d[c(1, n), ]
+  fit = lm(endpoints$y ~ endpoints$x)
+
+  # calculate distances from points to line
+  # https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+  coefs = coef(fit)
+  distances = abs(coefs[2] * d$x - d$y + coefs[1]) / sqrt(coefs[2]^2 + 1)
+  out = which.max(distances)
+
+  if (plot) {
+    plot(d, type = 'b')
+    abline(coefs, col = 'blue', lty = 2)
+    # segment to the closest point on the line (again from wiki)
+    a = -coefs[2]; b = 1; c = -coefs[1]
+    x0 = d$x[out]; y0 = d$y[out]
+    x1 = (b * (b * x0 - a * y0) - a * c) / (a^2 + b^2)
+    y1 = (a * (-b * x0 + a * y0) - b * c) / (a^2 + b^2)
+    segments(x0, y0, x1, y1, lty = 3)
+    # NB: the angle only looks straight if the plot is square!
+  }
+  return(out)
+}
+
+
+#' Logistic
+#' @param x numeric vector
+#' @keywords internal
+logistic = function(x) 1 / (1 + exp(-x))
+
+
+#' Logit
+#' @param x numeric vector
+#' @keywords internal
+logit = function(x) log(x / (1 - x))

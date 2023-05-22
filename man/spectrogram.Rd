@@ -12,9 +12,10 @@ spectrogram(
   to = NULL,
   dynamicRange = 80,
   windowLength = 50,
-  step = NULL,
-  overlap = 70,
+  step = windowLength/2,
+  overlap = NULL,
   specType = c("spectrum", "reassigned", "spectralDerivative")[1],
+  rasterize = FALSE,
   wn = "gaussian",
   zp = 0,
   normalize = TRUE,
@@ -38,6 +39,7 @@ spectrogram(
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -78,8 +80,13 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
-\item{specType}{plot the original FFT ('spectrum'), ressigned spectrogram
+\item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
 ('reassigned'), or spectral derivative ('spectralDerivative')}
+
+\item{rasterize}{(only applies if specType = 'reassigned') if TRUE, the
+reassigned spectrogram is plotted after rasterizing it: that is, showing
+density per time-frequency bins with the same resolution as an ordinary
+spectrogram}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
@@ -157,6 +164,9 @@ apparent duration doesn't change)}
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
 
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
+
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale!) that will be plotted over the spectrogram (eg pitch contour); can
 also be a list with extra graphical parameters such as lwd, col, etc. (see
@@ -207,7 +217,10 @@ spectrogram(sound, samplingRate = 16000,
   heights = c(2, 1),  # spectro/osc height ratio
   noiseReduction = 1.1,  # subtract the spectrum of noisy parts
   brightness = -1,  # reduce brightness
-  colorTheme = 'heat.colors',  # pick color theme
+  # pick color theme - see ?hcl.colors
+  # colorTheme = 'heat.colors',
+  # ...or just specify the actual colors
+  col = colorRampPalette(c('white', 'yellow', 'red'))(50),
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
   grid = 5,  # lines per kHz; to customize, add manually with graphics::grid()
   ylim = c(0, 5),  # always in kHz
@@ -232,19 +245,21 @@ spectrogram(sound, samplingRate = 16000,
 # broad-band instead of narrow-band
 spectrogram(sound, samplingRate = 16000, windowLength = 5)
 
-# reassigned spectrograms are plotted after rasterizing, which reduces
-# the resolution...
+# reassigned spectrograms can be plotted without rasterizing, as a
+# scatterplot instead of a contour plot
 s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
   samplingRate = 22050, formants = NULL, lipRad = 0, rolloff = -20)
-spectrogram(s, 22050, windowLength = 15, step = 1, ylim = c(0, 2))
-sp = spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
-                 step = 1, ylim = c(0, 2), output = 'all')
-# ...but the raw reassigned version is also available if output = 'all'. The
-# problem is that it's difficult to plot well because the grid is irregular
+spectrogram(s, 22050, windowLength = 5, step = 1, ylim = c(0, 2))
+spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
+  step = 1, ylim = c(0, 2))
+# ...or it can be rasterized, but that sacrifices frequency resolution:
+sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
+                 windowLength = 5, step = 1, ylim = c(0, 2), output = 'all')
+# The raw reassigned version is saved if output = 'all' for custom plotting
 df = sp$reassigned
-df$z1 = soundgen:::zeroOne(log(df$z))
-plot(df$x, df$y, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
-  pch = 16, cex = 0.5, ylim = c(0, 2))
+df$z1 = soundgen:::zeroOne(log(df$magn))
+plot(df$time, df$freq, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
+  pch = 16, cex = 0.25, ylim = c(0, 2))
 
 # focus only on values in the upper 5\% for each frequency bin
 spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -283,7 +298,8 @@ nrow(sp) * ncol(sp) / 5e3  # spec downsampled by a factor of ~2
 # will not work if osc = TRUE b/c the plot layout is modified)
 s = soundgen()
 an = analyze(s, 16000, plot = FALSE)
-spectrogram(s, 16000, extraContour = an$detailed$dom, ylim = c(0, 2), yScale = 'bark')
+spectrogram(s, 16000, extraContour = an$detailed$dom,
+  ylim = c(0, 2), yScale = 'bark')
 # For values that are not in Hz, normalize any way you like
 spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,

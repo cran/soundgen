@@ -194,10 +194,10 @@
 #'   non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
 #'   depends strongly on \code{windowLength} and \code{silence} settings)}
 #'   \item{time}{time of the middle of each frame (ms)}
-#'   \item{amEnvFreq,amEnvPurity,amEnvDep}{frequency (Hz), purity (dB), and
+#'   \item{amEnvFreq,amEnvDep}{frequency (Hz) and
 #'   depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude
-#'   envelope} \item{amMsFreq,amMsPurity}{the same as \code{amEnvFreq} and
-#'   \code{amEnvPurity}, but estimated via \code{\link{modulationSpectrum}}}
+#'   envelope} \item{amMsFreq,amMsPurity}{frequency and purity of amplitude
+#'   modulation estimated via \code{\link{modulationSpectrum}}}
 #'   \item{ampl}{root mean square of amplitude per frame, calculated as
 #'   sqrt(mean(frame ^ 2))} \item{ampl_noSilence}{same as \code{ampl}, but
 #'   ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (a measure
@@ -413,15 +413,39 @@ analyze = function(
     priorAdapt = TRUE,
     nCands = 1,
     minVoicedCands = NULL,
-    pitchDom = list(),
-    pitchAutocor = list(),
-    pitchCep = list(),
-    pitchSpec = list(),
-    pitchHps = list(),
-    pitchZc = list(),
-    harmHeight = list(),
-    subh = list(method = 'cep', nSubh = 5),
-    flux = list(thres = 0.15, smoothWin = 100),
+    pitchDom = list(domThres = 0.1,
+                    domSmooth = 220),
+    pitchAutocor = list(autocorThres = 0.7,
+                        autocorSmooth = 7,
+                        autocorUpsample = 25,
+                        autocorBestPeak = 0.975),
+    pitchCep = list(cepThres = 0.75,
+                    cepZp = 0),
+    pitchSpec = list(specThres = 0.05,
+                     specPeak = 0.25,
+                     specHNRslope = 0.8,
+                     specSmooth = 150,
+                     specMerge = 0.1,
+                     specSinglePeakCert = 0.4,
+                     specRatios = 3),
+    pitchHps = list(hpsNum = 5,
+                    hpsThres = 0.1,
+                    hpsNorm = 2,
+                    hpsPenalty = 2),
+    pitchZc = list(zcThres = 0.1,
+                   zcWin = 5),
+    harmHeight = list(harmThres = 3,
+                      harmTol = 0.25,
+                      harmPerSel = 5),
+    subh = list(method = c('cep', 'pitchCands', 'harm')[1],
+                nSubh = 5,
+                tol = .05,
+                nHarm = 5,
+                harmThres = 12,
+                harmTol = 0.25,
+                amRange = c(10, 200)),
+    flux = list(thres = 0.15,
+                smoothWin = 100),
     amRange = c(10, 200),
     fmRange = c(5, 1000 / step / 2),
     shortestSyl = 20,
@@ -430,7 +454,7 @@ analyze = function(
     pathfinding = c('none', 'fast', 'slow')[2],
     annealPars = list(maxit = 5000, temp = 1000),
     certWeight = .5,
-    snakeStep = 0.05,
+    snakeStep = 0,
     snakePlot = FALSE,
     smooth = 1,
     smoothVars = c('pitch', 'dom'),
@@ -700,15 +724,39 @@ analyze = function(
     priorAdapt = TRUE,
     nCands = 1,
     minVoicedCands = NULL,
-    pitchDom = list(),
-    pitchAutocor = list(),
-    pitchCep = list(),
-    pitchSpec = list(),
-    pitchHps = list(),
-    pitchZc = list(),
-    harmHeight = list(),
-    subh = list(),
-    flux = list(),
+    pitchDom = list(domThres = 0.1,
+                    domSmooth = 220),
+    pitchAutocor = list(autocorThres = 0.7,
+                        autocorSmooth = 7,
+                        autocorUpsample = 25,
+                        autocorBestPeak = 0.975),
+    pitchCep = list(cepThres = 0.75,
+                    cepZp = 0),
+    pitchSpec = list(specThres = 0.05,
+                     specPeak = 0.25,
+                     specHNRslope = 0.8,
+                     specSmooth = 150,
+                     specMerge = 0.1,
+                     specSinglePeakCert = 0.4,
+                     specRatios = 3),
+    pitchHps = list(hpsNum = 5,
+                    hpsThres = 0.1,
+                    hpsNorm = 2,
+                    hpsPenalty = 2),
+    pitchZc = list(zcThres = 0.1,
+                   zcWin = 5),
+    harmHeight = list(harmThres = 3,
+                      harmTol = 0.25,
+                      harmPerSel = 5),
+    subh = list(method = c('cep', 'pitchCands', 'harm')[1],
+                nSubh = 5,
+                tol = .05,
+                nHarm = 5,
+                harmThres = 12,
+                harmTol = 0.25,
+                amRange = c(10, 200)),
+    flux = list(thres = 0.15,
+                smoothWin = 100),
     amRange = c(10, 200),
     fmRange = c(5, 1000 / step / 2),
     shortestSyl = 20,
@@ -717,7 +765,7 @@ analyze = function(
     pathfinding = c('none', 'fast', 'slow')[2],
     annealPars = list(maxit = 5000, temp = 1000),
     certWeight = .5,
-    snakeStep = 0.05,
+    snakeStep = 0,
     snakePlot = FALSE,
     smooth = 1,
     smoothVars = c('pitch', 'dom'),
@@ -1397,7 +1445,7 @@ analyze = function(
   }
 
   # AM from envelope
-  result[, c('amEnvFreq', 'amEnvDep', 'amEnvPurity')] = NA
+  result[, c('amEnvFreq', 'amEnvDep')] = NA
   if (!is.null(amRange)) {
     am = getAM_env(audio = audio,
                    amRange = amRange,
@@ -1407,15 +1455,12 @@ analyze = function(
                                  lowPass = FALSE, plot = FALSE)
     result$amEnvDep = .resample(list(sound = am$dep), len = nr,
                                 lowPass = FALSE, plot = FALSE)
-    result$amEnvPurity = .resample(list(sound = am$purity), len = nr,
-                                   lowPass = FALSE, plot = FALSE)
-    result[!cond_silence, c('amEnvFreq', 'amEnvDep', 'amEnvPurity')] = NA
+    result[!cond_silence, c('amEnvFreq', 'amEnvDep')] = NA
   }
 
   # save spectral descriptives separately for voiced and unvoiced frames
   varsToUnv = c(
-    'ampl', 'roughness', 'amMsFreq', 'amMsPurity',
-    'amEnvFreq', 'amEnvDep', 'amEnvPurity',
+    'ampl', 'roughness', 'amMsFreq', 'amMsPurity', 'amEnvFreq', 'amEnvDep',
     'novelty', 'entropy', 'entropySh', 'dom', 'HNR', 'loudness', 'peakFreq',
     'quartile25', 'quartile50', 'quartile75', 'specCentroid', 'specSlope'
   )
@@ -1460,8 +1505,8 @@ analyze = function(
       if (cnt_name %in% valid_cols) {
         cnt = result[, cnt_name]
         col_non_Hz = c(
-          'amDep', 'ampl, amplVoiced', 'entropy', 'entropyVoiced',
-          'entropySh', 'entropyShVoiced',
+          'amEnvDep', 'amMsPurity', 'ampl, amplVoiced',
+          'entropy', 'entropyVoiced', 'entropySh', 'entropyShVoiced',
           paste0('f', 1:10, '_width'), 'flux', 'fmDep',
           'harmEnergy', 'harmSlope', 'HNR', 'HNR_voiced', 'CPP',
           'loudness', 'loudnessVoiced', 'roughness', 'roughnessVoiced',
@@ -1490,7 +1535,7 @@ analyze = function(
     # pitch contours internally in spectrogram() - a hassle, but it only take a
     # few ms, and otherwise it's hard to add pitch contours b/c the y-axis is
     # messed up if spectrogram() calls layout() to add an oscillogram
-    do.call(.spectrogram, c(list(
+    try(do.call(.spectrogram, c(list(
       audio = list(
         sound = audio$sound,
         samplingRate = audio$samplingRate,
@@ -1548,6 +1593,7 @@ analyze = function(
           timeShift = audio$timeShift
         ))
     ), extraSpecPars))
+    )  # end of try()
   }
   if (is.character(audio$savePlots)) {
     dev.off()

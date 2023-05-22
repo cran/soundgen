@@ -19,6 +19,7 @@ modulationSpectrum(
   wn = "hanning",
   zp = 0,
   power = 1,
+  normalize = TRUE,
   roughRange = c(30, 150),
   amRange = c(10, 200),
   returnMS = TRUE,
@@ -29,11 +30,13 @@ modulationSpectrum(
   cores = 1,
   plot = TRUE,
   savePlots = NULL,
-  logWarp = NA,
+  logWarpX = NULL,
+  logWarpY = NULL,
   quantiles = c(0.5, 0.8, 0.9),
   kernelSize = 5,
   kernelSD = 0.5,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  col = NULL,
   main = NULL,
   xlab = "Hz",
   ylab = "1/KHz",
@@ -91,6 +94,9 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}
 
+\item{normalize}{if TRUE, the modulation spectrum of each analyzed fragment
+\code{maxDur} in duration is separately normalized to have max = 1}
+
 \item{roughRange}{the range of temporal modulation frequencies that
 constitute the "roughness" zone, Hz}
 
@@ -120,8 +126,9 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
 
-\item{logWarp}{the base of log for warping the modulation spectrum (ie log2
-if logWarp = 2); set to NULL or NA if you don't want to log-warp}
+\item{logWarpX, logWarpY}{numeric vector of length 2: c(sigma, base) of
+pseudolog-warping the modulation spectrum, as in
+\code{\link[scales]{pseudo_log_trans}}}
 
 \item{quantiles}{labeled contour values, \% (e.g., "50" marks regions that
 contain 50\% of the sum total of the entire modulation spectrum)}
@@ -135,6 +142,9 @@ size}
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 'cm.colors', etc}
+
+\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
+in base R (overrides colorTheme)}
 
 \item{xlab, ylab, main, xlim, ylim}{graphical parameters}
 
@@ -206,7 +216,7 @@ ms = modulationSpectrum(runif(16000), samplingRate = 16000,
 str(ms)
 
 # Harmonic sound
-s = soundgen(amMsFreq = 25, amMsPurity = 50)
+s = soundgen(amFreq = 25, amDep = 50)
 ms = modulationSpectrum(s, samplingRate = 16000, amRes = NULL)
 ms[c('roughness', 'amMsFreq', 'amMsPurity')]  # a single value for each
 ms1 = modulationSpectrum(s, samplingRate = 16000, amRes = 5)
@@ -221,8 +231,8 @@ ms = modulationSpectrum(s, samplingRate = 16000,
 
 \dontrun{
 # A long sound with varying AM and a bit of chaos at the end
-s_long = soundgen(sylLen = 1500, pitch = c(250, 320, 280),
-                  amMsFreq = c(30, 55), amMsPurity = c(20, 60, 40),
+s_long = soundgen(sylLen = 3500, pitch = c(250, 320, 280),
+                  amFreq = c(30, 55), amDep = c(20, 60, 40),
                   jitterDep = c(0, 0, 2))
 playme(s_long)
 ms = modulationSpectrum(s_long, 16000)
@@ -234,7 +244,8 @@ spectrogram(s_long, 16000, ylim = c(0, 4),
   extraContour = list(ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
 
 # As with spectrograms, there is a tradeoff in time-frequency resolution
-s = soundgen(pitch = 500, amMsFreq = 50, amMsPurity = 100, samplingRate = 44100)
+s = soundgen(pitch = 500, amFreq = 50, amDep = 100,
+             samplingRate = 44100, plot = TRUE)
 # playme(s, samplingRate = 44100)
 ms = modulationSpectrum(s, samplingRate = 44100,
   windowLength = 50, step = 50, amRes = NULL)  # poor temporal resolution
@@ -249,13 +260,13 @@ ms = modulationSpectrum(s, samplingRate = 44100,
   kernelSize = 17,  # more smoothing
   xlim = c(-70, 70), ylim = c(0, 4),  # zoom in on the central region
   quantiles = c(.25, .5, .8),  # customize contour lines
-  colorTheme = 'heat.colors',  # alternative palette
+  col = rev(rainbow(100)),  # alternative palette
   power = 2)                   # ^2
 # Note the peaks at FM = 2/KHz (from "pitch = 500") and AM = 50 Hz (from
-# "amMsFreq = 50")
+# "amFreq = 50")
 
 # Input can be a wav/mp3 file
-ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')
+ms = modulationSpectrum('~/Downloads/temp/16002_Faking_It_Large_clear.wav')
 
 # Input can be path to folder with audio files. Each file is processed
 # separately, and the output can contain an MS per file...
@@ -266,7 +277,7 @@ names(ms1$original)  # a separate MS per file
 # ...or a single MS can be calculated:
 ms2 = modulationSpectrum('~/Downloads/temp', kernelSize = 11,
                          plot = FALSE, averageMS = TRUE)
-image(t(ms2$original))
+plotMS(ms2$original)
 ms2$summary
 
 # Input can also be a list of waveforms (numeric vectors)
@@ -279,7 +290,8 @@ for (i in 1:length(ss)) {
 # MS of the first sound
 ms1 = modulationSpectrum(ss[[1]], samplingRate = 16000, scale = 1)
 # average MS of all 10 sounds
-ms2 = modulationSpectrum(ss, samplingRate = 16000, scale = 1, averageMS = TRUE)
+ms2 = modulationSpectrum(ss, samplingRate = 16000, scale = 1, averageMS = TRUE, plot = FALSE)
+plotMS(ms2$original)
 
 # A sound with ~3 syllables per second and only downsweeps in F0 contour
 s = soundgen(nSyl = 8, sylLen = 200, pauseLen = 100, pitch = c(300, 200))
@@ -294,29 +306,30 @@ ms = modulationSpectrum(s, samplingRate = 16000, maxDur = .5,
 ms$roughness
 # compare:
 modulationSpectrum(s, samplingRate = 16000, maxDur = .5,
-  xlim = c(-25, 25), colorTheme = 'seewave', logWarp = NULL,
+  xlim = c(-25, 25), colorTheme = 'seewave',
   power = 1)$roughness  # much higher roughness
 
 # Plotting with or without log-warping the modulation spectrum:
+ms = modulationSpectrum(soundgen(), samplingRate = 16000, plot = TRUE)
 ms = modulationSpectrum(soundgen(), samplingRate = 16000,
-  logWarp = NA, plot = TRUE)
-ms = modulationSpectrum(soundgen(), samplingRate = 16000,
-  logWarp = 2, plot = TRUE)
+  logWarpX = c(2, 2), plot = TRUE)
 
 # logWarp and kernelSize have no effect on roughness
 # because it is calculated before these transforms:
-modulationSpectrum(s, samplingRate = 16000, logWarp = 5)$roughness
-modulationSpectrum(s, samplingRate = 16000, logWarp = NA)$roughness
+modulationSpectrum(s, samplingRate = 16000, logWarpX = c(1, 10))$roughness
+modulationSpectrum(s, samplingRate = 16000, logWarpX = NA)$roughness
 modulationSpectrum(s, samplingRate = 16000, kernelSize = 17)$roughness
 
 # Log-transform the spectrogram prior to 2D FFT (affects roughness):
-ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = FALSE)
-ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = TRUE)
+modulationSpectrum(s, samplingRate = 16000, logSpec = FALSE)$roughness
+modulationSpectrum(s, samplingRate = 16000, logSpec = TRUE)$roughness
 
 # Complex modulation spectrum with phase preserved
 ms = modulationSpectrum(soundgen(), samplingRate = 16000,
                         returnComplex = TRUE)
-image(t(log(abs(ms$complex))))
+plotMS(abs(ms$complex))  # note the symmetry
+# compare:
+plotMS(ms$original)
 }
 }
 \references{
@@ -327,5 +340,5 @@ image(t(log(abs(ms$complex))))
 }
 }
 \seealso{
-\code{\link{spectrogram}} \code{\link{analyze}}
+\code{\link{plotMS}} \code{\link{spectrogram}} \code{\link{analyze}}
 }

@@ -23,11 +23,12 @@ s = soundgen(sylLen = 1500, pitch = c(300, 550, 320, 220),
              amFreq = c(50, 120, 100), amDep = c(10, 60, 30))
 # spectrogram(s)
 # playme(s)
-am = soundgen:::getAM_env(audio = list(sound = s, samplingRate = 16000),
+am = soundgen:::getAM_env(audio = soundgen:::readAudio(s, samplingRate = 16000),
   amRange = c(20, 200), overlap = 80, plot = TRUE)
-# compare getAM from modulation spectrum:
+plot(am$time, am$freq, cex = am$dep * 2)
+# compare to getAM from modulation spectrum:
 ms = modulationSpectrum(s, 16000, plot = FALSE)
 plot(x = seq(1, 1500, length.out = length(ms$amMsFreq)), y = ms$amMsFreq,
-     cex = 10^(ms$amMsDep/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
+     cex = 10^(ms$amMsPurity/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
 }
 \keyword{internal}

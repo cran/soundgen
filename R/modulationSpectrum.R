@@ -28,7 +28,7 @@
 #' ensemble of modulation spectra can be interpolated to the same spectral and
 #' temporal resolution and averaged (if \code{averageMS}).
 #'
-#' @seealso \code{\link{spectrogram}} \code{\link{analyze}}
+#' @seealso \code{\link{plotMS}} \code{\link{spectrogram}} \code{\link{analyze}}
 #'
 #' @references \itemize{
 #'   \item Singh, N. C., & Theunissen, F. E. (2003). Modulation spectra of
@@ -54,6 +54,8 @@
 #'   FFT
 #' @param power raise modulation spectrum to this power (eg power = 2 for ^2, or
 #'   "power spectrum")
+#' @param normalize if TRUE, the modulation spectrum of each analyzed fragment
+#'   \code{maxDur} in duration is separately normalized to have max = 1
 #' @param returnMS if FALSE, only roughness is returned (much faster)
 #' @param returnComplex if TRUE, returns a complex modulation spectrum (without
 #'   normalization and warping)
@@ -62,8 +64,9 @@
 #' @param plot if TRUE, plots the modulation spectrum of each sound
 #' @param savePlots if a valid path is specified, a plot is saved in this folder
 #'   (defaults to NA)
-#' @param logWarp the base of log for warping the modulation spectrum (ie log2
-#'   if logWarp = 2); set to NULL or NA if you don't want to log-warp
+#' @param logWarpX,logWarpY numeric vector of length 2: c(sigma, base) of
+#'   pseudolog-warping the modulation spectrum, as in
+#'   \code{\link[scales]{pseudo_log_trans}}
 #' @param quantiles labeled contour values, \% (e.g., "50" marks regions that
 #'   contain 50\% of the sum total of the entire modulation spectrum)
 #' @param kernelSize the size of Gaussian kernel used for smoothing (1 = no
@@ -108,7 +111,7 @@
 #' str(ms)
 #'
 #' # Harmonic sound
-#' s = soundgen(amMsFreq = 25, amMsPurity = 50)
+#' s = soundgen(amFreq = 25, amDep = 50)
 #' ms = modulationSpectrum(s, samplingRate = 16000, amRes = NULL)
 #' ms[c('roughness', 'amMsFreq', 'amMsPurity')]  # a single value for each
 #' ms1 = modulationSpectrum(s, samplingRate = 16000, amRes = 5)
@@ -123,8 +126,8 @@
 #'
 #' \dontrun{
 #' # A long sound with varying AM and a bit of chaos at the end
-#' s_long = soundgen(sylLen = 1500, pitch = c(250, 320, 280),
-#'                   amMsFreq = c(30, 55), amMsPurity = c(20, 60, 40),
+#' s_long = soundgen(sylLen = 3500, pitch = c(250, 320, 280),
+#'                   amFreq = c(30, 55), amDep = c(20, 60, 40),
 #'                   jitterDep = c(0, 0, 2))
 #' playme(s_long)
 #' ms = modulationSpectrum(s_long, 16000)
@@ -136,7 +139,8 @@
 #'   extraContour = list(ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
 #'
 #' # As with spectrograms, there is a tradeoff in time-frequency resolution
-#' s = soundgen(pitch = 500, amMsFreq = 50, amMsPurity = 100, samplingRate = 44100)
+#' s = soundgen(pitch = 500, amFreq = 50, amDep = 100,
+#'              samplingRate = 44100, plot = TRUE)
 #' # playme(s, samplingRate = 44100)
 #' ms = modulationSpectrum(s, samplingRate = 44100,
 #'   windowLength = 50, step = 50, amRes = NULL)  # poor temporal resolution
@@ -151,13 +155,13 @@
 #'   kernelSize = 17,  # more smoothing
 #'   xlim = c(-70, 70), ylim = c(0, 4),  # zoom in on the central region
 #'   quantiles = c(.25, .5, .8),  # customize contour lines
-#'   colorTheme = 'heat.colors',  # alternative palette
+#'   col = rev(rainbow(100)),  # alternative palette
 #'   power = 2)                   # ^2
 #' # Note the peaks at FM = 2/KHz (from "pitch = 500") and AM = 50 Hz (from
-#' # "amMsFreq = 50")
+#' # "amFreq = 50")
 #'
 #' # Input can be a wav/mp3 file
-#' ms = modulationSpectrum('~/Downloads/temp/200_ut_fear-bungee_11.wav')
+#' ms = modulationSpectrum('~/Downloads/temp/16002_Faking_It_Large_clear.wav')
 #'
 #' # Input can be path to folder with audio files. Each file is processed
 #' # separately, and the output can contain an MS per file...
@@ -168,7 +172,7 @@
 #' # ...or a single MS can be calculated:
 #' ms2 = modulationSpectrum('~/Downloads/temp', kernelSize = 11,
 #'                          plot = FALSE, averageMS = TRUE)
-#' image(t(ms2$original))
+#' plotMS(ms2$original)
 #' ms2$summary
 #'
 #' # Input can also be a list of waveforms (numeric vectors)
@@ -181,7 +185,8 @@
 #' # MS of the first sound
 #' ms1 = modulationSpectrum(ss[[1]], samplingRate = 16000, scale = 1)
 #' # average MS of all 10 sounds
-#' ms2 = modulationSpectrum(ss, samplingRate = 16000, scale = 1, averageMS = TRUE)
+#' ms2 = modulationSpectrum(ss, samplingRate = 16000, scale = 1, averageMS = TRUE, plot = FALSE)
+#' plotMS(ms2$original)
 #'
 #' # A sound with ~3 syllables per second and only downsweeps in F0 contour
 #' s = soundgen(nSyl = 8, sylLen = 200, pauseLen = 100, pitch = c(300, 200))
@@ -196,70 +201,74 @@
 #' ms$roughness
 #' # compare:
 #' modulationSpectrum(s, samplingRate = 16000, maxDur = .5,
-#'   xlim = c(-25, 25), colorTheme = 'seewave', logWarp = NULL,
+#'   xlim = c(-25, 25), colorTheme = 'seewave',
 #'   power = 1)$roughness  # much higher roughness
 #'
 #' # Plotting with or without log-warping the modulation spectrum:
+#' ms = modulationSpectrum(soundgen(), samplingRate = 16000, plot = TRUE)
 #' ms = modulationSpectrum(soundgen(), samplingRate = 16000,
-#'   logWarp = NA, plot = TRUE)
-#' ms = modulationSpectrum(soundgen(), samplingRate = 16000,
-#'   logWarp = 2, plot = TRUE)
+#'   logWarpX = c(2, 2), plot = TRUE)
 #'
 #' # logWarp and kernelSize have no effect on roughness
 #' # because it is calculated before these transforms:
-#' modulationSpectrum(s, samplingRate = 16000, logWarp = 5)$roughness
-#' modulationSpectrum(s, samplingRate = 16000, logWarp = NA)$roughness
+#' modulationSpectrum(s, samplingRate = 16000, logWarpX = c(1, 10))$roughness
+#' modulationSpectrum(s, samplingRate = 16000, logWarpX = NA)$roughness
 #' modulationSpectrum(s, samplingRate = 16000, kernelSize = 17)$roughness
 #'
 #' # Log-transform the spectrogram prior to 2D FFT (affects roughness):
-#' ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = FALSE)
-#' ms = modulationSpectrum(soundgen(), samplingRate = 16000, logSpec = TRUE)
+#' modulationSpectrum(s, samplingRate = 16000, logSpec = FALSE)$roughness
+#' modulationSpectrum(s, samplingRate = 16000, logSpec = TRUE)$roughness
 #'
 #' # Complex modulation spectrum with phase preserved
 #' ms = modulationSpectrum(soundgen(), samplingRate = 16000,
 #'                         returnComplex = TRUE)
-#' image(t(log(abs(ms$complex))))
+#' plotMS(abs(ms$complex))  # note the symmetry
+#' # compare:
+#' plotMS(ms$original)
 #' }
 modulationSpectrum = function(
-  x,
-  samplingRate = NULL,
-  scale = NULL,
-  from = NULL,
-  to = NULL,
-  amRes = 5,
-  maxDur = 5,
-  logSpec = FALSE,
-  windowLength = 15,
-  step = NULL,
-  overlap = 80,
-  wn = 'hanning',
-  zp = 0,
-  power = 1,
-  roughRange = c(30, 150),
-  amRange = c(10, 200),
-  returnMS = TRUE,
-  returnComplex = FALSE,
-  summaryFun = c('mean', 'median', 'sd'),
-  averageMS = FALSE,
-  reportEvery = NULL,
-  cores = 1,
-  plot = TRUE,
-  savePlots = NULL,
-  logWarp = NA,
-  quantiles = c(.5, .8, .9),
-  kernelSize = 5,
-  kernelSD = .5,
-  colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
-  main = NULL,
-  xlab = 'Hz',
-  ylab = '1/KHz',
-  xlim = NULL,
-  ylim = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...
+    x,
+    samplingRate = NULL,
+    scale = NULL,
+    from = NULL,
+    to = NULL,
+    amRes = 5,
+    maxDur = 5,
+    logSpec = FALSE,
+    windowLength = 15,
+    step = NULL,
+    overlap = 80,
+    wn = 'hanning',
+    zp = 0,
+    power = 1,
+    normalize = TRUE,
+    roughRange = c(30, 150),
+    amRange = c(10, 200),
+    returnMS = TRUE,
+    returnComplex = FALSE,
+    summaryFun = c('mean', 'median', 'sd'),
+    averageMS = FALSE,
+    reportEvery = NULL,
+    cores = 1,
+    plot = TRUE,
+    savePlots = NULL,
+    logWarpX = NULL,
+    logWarpY = NULL,
+    quantiles = c(.5, .8, .9),
+    kernelSize = 5,
+    kernelSD = .5,
+    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
+    main = NULL,
+    xlab = 'Hz',
+    ylab = '1/KHz',
+    xlim = NULL,
+    ylim = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...
 ) {
   ## Prepare a list of arguments to pass to .modulationSpectrum()
   myPars = c(as.list(environment()), list(...))
@@ -369,37 +378,40 @@ modulationSpectrum = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .modulationSpectrum = function(
-  audio,
-  amRes = 5,
-  maxDur = 5,
-  logSpec = FALSE,
-  windowLength = 15,
-  step = NULL,
-  overlap = 80,
-  wn = 'hanning',
-  zp = 0,
-  power = 1,
-  roughRange = c(30, 150),
-  amRange = c(10, 200),
-  returnMS = TRUE,
-  returnComplex = FALSE,
-  plot = TRUE,
-  savePlots = NULL,
-  logWarp = NA,
-  quantiles = c(.5, .8, .9),
-  kernelSize = 5,
-  kernelSD = .5,
-  colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
-  main = NULL,
-  xlab = 'Hz',
-  ylab = '1/KHz',
-  xlim = NULL,
-  ylim = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...
+    audio,
+    amRes = 5,
+    maxDur = 5,
+    logSpec = FALSE,
+    windowLength = 15,
+    step = NULL,
+    overlap = 80,
+    wn = 'hanning',
+    zp = 0,
+    power = 1,
+    normalize = TRUE,
+    roughRange = c(30, 150),
+    amRange = c(10, 200),
+    returnMS = TRUE,
+    returnComplex = FALSE,
+    plot = TRUE,
+    savePlots = NULL,
+    logWarpX = NULL,
+    logWarpY = NULL,
+    quantiles = c(.5, .8, .9),
+    kernelSize = 5,
+    kernelSD = .5,
+    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
+    main = NULL,
+    xlab = 'Hz',
+    ylab = '1/KHz',
+    xlim = NULL,
+    ylim = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...
 ) {
   # Re-set windowLength, step, and overlap so as to ensure that
   # windowLength_points and step_points are not fractions
@@ -466,7 +478,8 @@ modulationSpectrum = function(
       wn = wn,
       zp = zp,
       logSpec = logSpec,
-      power = power)
+      power = power,
+      normalize = normalize)
     out[[i]] = ms_i$ms_half
 
     if (returnComplex) {
@@ -523,25 +536,8 @@ modulationSpectrum = function(
       # image(t(log(abs(out_aggreg_complex))))
     }
 
-    # log-transform the axes (or, actually, warps the matrix itself)
-    if (is.numeric(logWarp)) {
-      neg_col = which(X < 0)
-      zero_col = which(X == 0)
-      pos_col = which(X > 0)
-      m_left = logMatrix(out_aggreg[, rev(neg_col)], base = logWarp)
-      # NB: flip the left half!
-      m_right = logMatrix(out_aggreg[, pos_col], base = logWarp)
-      out_transf = cbind(m_left[, ncol(m_left):1],
-                         out_aggreg[, zero_col, drop = FALSE], m_right)
-      X1 = as.numeric(colnames(out_transf))  # warped by logMatrix
-      Y1 = as.numeric(rownames(out_transf))  # warped by logMatrix
-    } else {
-      out_transf = out_aggreg
-    }
-    # image(out_transf)
-
     # smoothing / blurring
-    out_transf = gaussianSmooth2D(out_transf,
+    out_transf = gaussianSmooth2D(out_aggreg,
                                   kernelSize = kernelSize,
                                   kernelSD = kernelSD)
     result = list('original' = out_aggreg,
@@ -561,81 +557,158 @@ modulationSpectrum = function(
   }
 
   if (plot) {
-    color.palette = switchColorTheme(colorTheme)
-    if (is.null(xlim)) xlim = c(X[1], -X[1])
-    if (is.null(ylim)) ylim = range(Y)
-    if (is.null(main)) {
-      if (audio$filename_noExt == 'sound') {
-        main = ''
-      } else {
-        main = audio$filename_noExt
-      }
-    }
-    if (is.numeric(logWarp)) {
-      filled.contour.mod(
-        x = X, y = Y, z = t(out_transf),
-        levels = seq(0, 1, length = 30),
-        color.palette = color.palette,
-        xlab = xlab, ylab = ylab,
-        bty = 'n', axisX = FALSE, axisY = FALSE,
-        main = main,
-        xlim = xlim, ylim = ylim,
-        ...
-      )
-      # add manually labeled x-axis
-      max_tm = log(-X[1], logWarp)
-      xl = unique(round(logWarp ^ pretty(c(1, max_tm), n = 4)))
-      xl = c(-rev(xl), 0, xl)
-      xl = xl[abs(xl) < -X1[1]]
-      pos = apply(matrix(xl), 1, function(x) which.min(abs(x - X1)))
-      axis(side = 1,
-           at  = X[pos],
-           labels = xl)
-
-      # add manually labeled y-axis
-      yseq = seq(1, length(Y), length.out = 7)
-      digits = 0
-      ry = round(Y1[yseq], digits = digits)
-      while (length(ry) > length(unique(ry))) {
-        digits = digits + 1
-        ry = round(Y1[yseq], digits = digits)
-      }
-      axis(side = 2,
-           at  = round(Y[yseq]),
-           labels = ry)
-      # max_fm = log(Y[length(Y)], logWarp)
-      # yl = logWarp ^ pretty(c(0, max_fm))
-      # yl = unique(round(c(0, yl[yl < max(Y)])))
-      # yl1 = yl
-      # for (i in 1:length(yl)) {
-      #   yl1[i] = Y[which.min(abs(Y1 - yl[i]))]
-      # }
-      # axis(side = 2,
-      #      at  = yl1,
-      #      labels = yl)
-    } else {
-      filled.contour.mod(
-        x = X, y = Y, z = t(out_transf),
-        levels = seq(0, 1, length = 30),
-        color.palette = color.palette,
-        xlab = xlab, ylab = ylab, main = main,
-        bty = 'n', xlim = xlim, ylim = ylim, ...
-      )
-    }
-    abline(v = 0, lty = 3)
-    # qntls = quantile(out_aggreg, probs = quantiles)  # could try HDI instead
-    qntls = pDistr(as.numeric(out_transf), quantiles = quantiles)
-    par(new = TRUE)
-    contour(x = X, y = Y, z = t(out_transf),
-            levels = qntls, labels = quantiles * 100,
-            xaxs = 'i', yaxs = 'i',
-            axes = FALSE, frame.plot = FALSE,
-            xlim = xlim, ylim = ylim, ...)
-    par(new = FALSE)
+    plotMS(ms = out_transf,
+           X = X,
+           Y = Y,
+           audio = audio,
+           colorTheme = colorTheme,
+           col = col,
+           logWarpX = logWarpX,
+           logWarpY = logWarpY,
+           xlab = xlab, ylab = ylab,
+           main = main,
+           xlim = xlim, ylim = ylim,
+           quantiles = quantiles,
+           ...
+    )
     if (is.character(audio$savePlots)) dev.off()
   }
 
   invisible(result)
+}
+
+
+#' Plot modulation spectrum
+#'
+#' Plots a single modulation spectrum returned by
+#' \code{\link{modulationSpectrum}}. The result is the same as the plot produced
+#' by \code{\link{modulationSpectrum}}, but calling \code{plotMS} is handy for
+#' processed modulation spectra - for instance, for plotting the difference
+#' between the modulation spectra of two sounds or groups of sounds.
+#'
+#' @inheritParams modulationSpectrum
+#' @param ms modulation spectrum - a matrix with temporal modulation in columns
+#'   and spectral modulation in rows, as returned by
+#'   \code{\link{modulationSpectrum}}
+#' @param X,Y rownames and colnames of \code{ms}, respectively
+#' @param audio (internal) a list of audio attributes
+#' @export
+#' @examples
+#' ms1 = modulationSpectrum(runif(4000), samplingRate = 16000, plot = TRUE)
+#' plotMS(ms1$processed)  # identical to above
+#'
+#' # compare two modulation spectra
+#' ms2 = modulationSpectrum(soundgen(sylLen = 100, addSilence = 0),
+#'                          samplingRate = 16000)
+#' # ensure the two matrices have the same dimensions
+#' ms2_resized = soundgen:::interpolMatrix(ms2$original,
+#'   nr = nrow(ms1$original), nc = ncol(ms1$original))
+#' # plot the difference
+#' plotMS(log(ms1$original / ms2_resized), quantile = NULL,
+#'   col = colorRampPalette(c('blue', 'yellow')) (50))
+plotMS = function(
+    ms,
+    X = NULL,
+    Y = NULL,
+    quantiles = c(.5, .8, .9),
+    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
+    col = NULL,
+    logWarpX = NULL,
+    logWarpY = NULL,
+    main = NULL,
+    xlab = 'Hz',
+    ylab = '1/KHz',
+    xlim = NULL,
+    ylim = NULL,
+    audio = NULL,
+    ...
+) {
+  if (!is.null(col)) colorTheme = NULL
+  if (!is.null(colorTheme)) {
+    color.palette = switchColorTheme(colorTheme)
+  } else {
+    color.palette = NULL
+  }
+  if (is.null(X)) X = as.numeric(colnames(ms))
+  if (is.null(Y)) Y = as.numeric(rownames(ms))
+  if (is.null(xlim)) xlim = c(X[1], -X[1])
+  if (is.null(ylim)) ylim = range(Y)
+  if (is.null(main) & !is.null(audio$filename_noExt)) {
+    if (audio$filename_noExt == 'sound') {
+      main = ''
+    } else {
+      main = audio$filename_noExt
+    }
+  }
+
+  # plot with filled.contour.mod
+  ms = zeroOne(ms)
+  X1 = X
+  Y1 = Y
+  if (is.numeric(logWarpX) | is.numeric(logWarpY)) {
+    if (is.numeric(logWarpX)) {
+      X1 = pseudoLog(X, sigma = logWarpX[1], base = logWarpX[2])
+      # lab_x = pretty(X, n = 9, min.n = 7)
+      # at_x = pseudoLog(lab_x, sigma = logWarpX[1], base = logWarpX[2])
+      at_x = pretty(X1, n = 7)
+      lab_x = round(pseudoLog_undo(at_x, sigma = logWarpX[1], base = logWarpX[2]))
+    } else {
+      lab_x = at_x = pretty(X)
+    }
+
+    if (is.numeric(logWarpY)) {
+      Y1 = pseudoLog(Y, sigma = logWarpY[1], base = logWarpY[2])
+      lab_y = pretty(Y)
+      at_y = pseudoLog(lab_y, sigma = logWarpY[2], base = logWarpY[2])
+    } else {
+      lab_y = at_y = pretty(Y)
+    }
+    filled.contour.mod(X1, Y1, t(ms),
+                       levels = seq(0, 1, length = 100),
+                       color.palette = color.palette,
+                       col = col,
+                       xlab = xlab, ylab = ylab,
+                       bty = 'n',
+                       main = main, xaxt = 'n', yaxt = 'n',
+                       # xlim = xlim, ylim = ylim,
+                       ...)
+
+    # add nicely labeled axes
+    axis(1, at = at_x, labels = lab_x, ...)  # xpd = TRUE to extend beyond the plot
+    axis(2, at = at_y, labels = lab_y, ...)
+
+    lbl_Hz_pos = pretty(Y1)
+    lbls_Hz = round(1000 / lbl_Hz_pos)
+    axis(4, at = lbl_Hz_pos, labels = lbls_Hz, ...)
+  } else {
+    filled.contour.mod(X1, Y1, t(ms),
+                       levels = seq(0, 1, length = 100),
+                       color.palette = color.palette,
+                       col = col,
+                       xlab = xlab, ylab = ylab,
+                       bty = 'n',
+                       main = main,
+                       # xlim = xlim, ylim = ylim,
+                       ...)
+    lbls = round(1000 / pretty(Y1))
+    lbl_pos = 1000 / lbls
+    axis(4, at = lbl_pos, labels = lbls, ...)
+  }
+  abline(v = 0, lty = 3)
+
+  # add contours
+  if (is.numeric(quantiles)) {
+    # qntls = quantile(out_aggreg, probs = quantiles)  # could try HDI instead
+    qntls = pDistr(as.numeric(ms), quantiles = quantiles)
+    par(new = TRUE)
+    contour(x = X1, y = Y1, z = t(ms),
+            levels = qntls, labels = quantiles * 100,
+            xaxs = 'i', yaxs = 'i',
+            axes = FALSE, frame.plot = FALSE,
+            # xlim = xlim, ylim = ylim,
+            ...)
+    par(new = FALSE)
+  }
 }
 
 
@@ -646,7 +719,7 @@ modulationSpectrum = function(
 #' @param sound numeric vector
 #' @keywords internal
 #' @examples
-#' s = soundgen(amMsFreq = 25, amMsPurity = 100)
+#' s = soundgen(amFreq = 25, amDep = 100)
 #' ms = soundgen:::modulationSpectrumFragment(s, 16000,
 #'   windowLength = 50, windowLength_points = .05 * 16000,
 #'   step = 5, step_points = .005 * 16000)
@@ -661,7 +734,8 @@ modulationSpectrumFragment = function(sound,
                                       wn = 'hanning',
                                       zp = 0,
                                       logSpec = FALSE,
-                                      power = 1) {
+                                      power = 1,
+                                      normalize = TRUE) {
   # Calling stdft is ~80 times faster than going through spectrogram (!)
   step_seq = seq(1, length(sound) + 1 - windowLength_points, step_points)
   # print(length(step_seq))
@@ -703,7 +777,7 @@ modulationSpectrumFragment = function(sound,
   if (is.numeric(power) && power != 1) ms_half = ms_half ^ power
 
   # normalize
-  if (any(s1 != 0)) {
+  if (normalize && any(s1 != 0)) {
     ms_half = ms_half - min(ms_half)
     ms_half = ms_half / max(ms_half)
   }
@@ -851,4 +925,29 @@ getAM = function(m,
     }
   }
   return(out)
+}
+
+
+#' Log-warp a modulation spectrum
+#'
+#' Internal soundgen function
+#'
+#' Log-warps a modulation spectrum along time dimension
+#'
+#' @param x a modulation spectrum: rows = FM, cols = AM
+#' @keywords internal
+#' @examples
+#' a = matrix(1:44, ncol = 11)
+#' colnames(a) = -5:5
+#' soundgen:::logWarpMS(a, logWarp = 2)
+logWarpMS = function(x, logWarp) {
+  X = as.numeric(colnames(x))
+  neg_col = which(X < 0)
+  zero_col = which(X == 0)
+  pos_col = which(X > 0)
+  m_left = logMatrix(x[, rev(neg_col)], base = logWarp)
+  # NB: flip the left half!
+  m_right = logMatrix(x[, pos_col], base = logWarp)
+  x_transf = cbind(m_left[, ncol(m_left):1], x[, zero_col, drop = FALSE], m_right)
+  return(x_transf)
 }

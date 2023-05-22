@@ -125,22 +125,29 @@ ui = fluidPage(
                 min = def_form['specBrightness', 'low'],
                 max = def_form['specBrightness', 'high'],
                 step = def_form['specBrightness', 'step']),
-              sliderInput(
-                'blur_freq',
-                'Blur: frequency (Hz)',
-                value = 0, # def_form['blur_freq', 'default'],
-                min = def_form['blur_freq', 'low'],
-                max = def_form['blur_freq', 'high'],
-                step = def_form['blur_freq', 'step']),
-              sliderInput(
-                'blur_time',
-                'Blur: time (ms)',
-                value = 0, # def_form['blur_time', 'default'],
-                min = def_form['blur_time', 'low'],
-                max = def_form['blur_time', 'high'],
-                step = def_form['blur_time', 'step']),
               shinyBS::bsCollapsePanel(
                 "Advanced",
+                sliderInput(
+                  'blur_freq',
+                  'Blur: frequency (Hz)',
+                  value = 0, # def_form['blur_freq', 'default'],
+                  min = def_form['blur_freq', 'low'],
+                  max = def_form['blur_freq', 'high'],
+                  step = def_form['blur_freq', 'step']),
+                sliderInput(
+                  'blur_time',
+                  'Blur: time (ms)',
+                  value = 0, # def_form['blur_time', 'default'],
+                  min = def_form['blur_time', 'low'],
+                  max = def_form['blur_time', 'high'],
+                  step = def_form['blur_time', 'step']),
+                sliderInput(
+                  'reass_cex',
+                  'Point size (reassigned spectrogram only)',
+                  value = def_form['reass_cex', 'default'],
+                  min = def_form['reass_cex', 'low'],
+                  max = def_form['reass_cex', 'high'],
+                  step = def_form['reass_cex', 'step']),
                 sliderInput(
                   'zp',
                   'Zero padding, points 2 ^ n',
