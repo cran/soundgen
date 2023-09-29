@@ -122,7 +122,8 @@ getLoudness = function(x,
   myPars = c(as.list(environment()), list(...))
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'scale', 'savePlots', 'reportEvery', 'cores', 'summaryFun')]
+    'x', 'samplingRate', 'scale', 'from', 'to',
+    'savePlots', 'reportEvery', 'cores', 'summaryFun')]
 
   # analyze
   pa = processAudio(

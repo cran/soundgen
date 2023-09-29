@@ -46,10 +46,13 @@
 #' data(sheep, package = 'seewave')
 #' osc(sheep, dB = TRUE)
 #'
+#' # Plot a section
+#' osc(sheep, from = .5, to = 1.2)
+#'
 #' # for long files, reduce the resolution to plot quickly (careful: if the
 #' # resolution is too low, antialiasing may cause artifacts)
 #' osc(sheep, dB = TRUE, maxPoints = 2500)
-#' osc(sound, samplingRate = 5000, maxPoints = 100)
+#' osc(sheep, samplingRate = 5000, maxPoints = 100)
 #'
 #' # files several minutes long can be plotted in under a second
 #' osc('~/Downloads/speechEx.wav', maxPoints = 20000)
@@ -151,6 +154,7 @@ osc = function(
     mult = 1  # assume max loudness
     m = max(abs(rs))
   }
+  if (is.null(audio$timeShift)) audio$timeShift = 0
 
   if (dB) {
     # center and normalize to range from -1 to +1, unless it is quieter than maxAmpl
@@ -206,8 +210,9 @@ osc = function(
 
     # Get time stamps
     if (!is.null(audio$samplingRate)) {
-      time = seq(1, audio$ls, length.out = maxPoints) / audio$samplingRate * 1000
-      if (is.null(xlab)) xlab = 'Time, ms'
+      time = (seq(1, audio$ls, length.out = maxPoints) /
+                audio$samplingRate + audio$timeShift) * 1000
+      if (is.null(xlab)) xlab = 'Time'
     } else {
       time = seq(1, audio$ls, length.out = maxPoints)
       if (is.null(xlab)) xlab = 'Time, points'

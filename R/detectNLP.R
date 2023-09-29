@@ -20,6 +20,7 @@
 #'   analyze() and phasegram().
 #'
 #' @inheritParams analyze
+#' @inheritParams findJumps
 #' @param predictors variables to include in NLP classification. The default is
 #'   to include all 7 variables in the training corpus. NA values are fine (they
 #'   do not cause the entire frame to be dropped as long as at least one
@@ -51,11 +52,6 @@
 #'   strongly recommended to use some clumpering, with \code{wlClumper} given as
 #'   frames (multiple by \code{step} to get the corresponding minumum duration
 #'   of an NLP segment in ms), and/or dynamic priors.
-#' @param jumpThres frames in which pitch changes by \code{jumpThres} octaves/s
-#'   more than in the surrounding frames are classified as containing "pitch
-#'   jumps"
-#' @param jumpWindow the window for calculating the median pitch slope around
-#'   the analyzed frame, ms
 #' @param plot if TRUE, produces a spectrogram with annotated NLP regimes
 #' @param main,xlab,ylab,... graphical parameters passed to
 #'   \code{\link{spectrogram}}
@@ -186,10 +182,8 @@ detectNLP = function(
 
 #' Detect NLP per sound
 #'
-#' Internal soundgen function called by \code{\link{getRMS}}.
+#' Internal soundgen function called by \code{\link{detectNLP}}.
 #' @param audio a list returned by \code{readAudio}
-#' @param orig_x the original input passed to \code{detectNLP} (needed to call
-#'   analyze instead of .analyze)
 #' @inheritParams getRMS
 #' @keywords internal
 .detectNLP = function(
@@ -266,7 +260,7 @@ detectNLP = function(
   } else {
     step = df$time[2] - df$time[1]
   }
-  df$pitchJumps = detectPitchJumps(
+  df$pitchJumps = findJumps(
     pitch = df$pitch, step = step,
     jumpThres = jumpThres, jumpWindow = jumpWindow)
 
@@ -328,18 +322,25 @@ detectNLP = function(
     } else {
       rect_top = audio$samplingRate / 2 / 1000 / 10
     }
-    for (i in 1:nrow(df)) {
-      rect(xleft = time_s[i] - halfstep_s,
-           xright = time_s[i] + halfstep_s,
-           ybottom = 0, ytop = rect_top, border = NA, col = cols[[pr_str[i]]])
-      if ((i == 1 || pr_str[i] != pr_str[i - 1]) & pr_str[i] != 'none')
-        text(x = time_s[i], y = rect_top/2, labels = pr_str[i], cex = 1.5, adj = 0)
-    }
+
+    # plot pitch jumps
     idx_pj = which(df$pitchJumps)
     if (length(idx_pj) > 0) {
       for (i in idx_pj) {
         arrows(x0 = time_s[i] - halfstep_s, x1 = time_s[i] - halfstep_s,
                y0 = 0, y1 = df$pitch[i] / 1000, lwd = 2, length = .05)
+      }
+    }
+
+    # plot other NLP
+    idx_nlp = which(pr_str != 'none')
+    if (length(idx_nlp) > 0) {
+      for (i in idx_nlp) {
+        rect(xleft = time_s[i] - halfstep_s,
+             xright = time_s[i] + halfstep_s,
+             ybottom = 0, ytop = rect_top, border = NA, col = cols[[pr_str[i]]])
+        if ((i == 1 || pr_str[i] != pr_str[i - 1]) & pr_str[i] != 'none')
+          text(x = time_s[i], y = rect_top/2, labels = pr_str[i], cex = 1.5, adj = 0)
       }
     }
     if (is.character(audio$savePlots)) dev.off()
@@ -348,25 +349,73 @@ detectNLP = function(
 }
 
 
-#' Detect pitch jumps
+#' Find frequency jumps
 #'
-#' Interal soundgen function
+#' This function flags frames with apparent pith jumps (frequency jumps, voice
+#' breaks), defined as relatively large and sudden changes in voice pitch or
+#' some other frequency measure (peak frequency, a formant frequency, etc). It
+#' is called by \code{\link{detectNLP}}. Algorithm: a frame is considered to
+#' contain a frequency jump if the absolute slope at this frame exceeds the
+#' average slope over ±\code{jumpWindow} around it by more than
+#' \code{jumpThres}. Note that the slope is considered per second rather than
+#' per time step - that is, taking into account the sampling rate of the
+#' frequency track. Thus, it's not just the change from frame to frame that
+#' defines what is considered a jump, but a change that differs from the trend
+#' in the surrounding frames (see examples). If several consecutive frames
+#' contain apparent jumps, only the greatest of them is preserved.
 #'
-#' @param pitch vector of pitch values per frame, Hz
-#' @param step time step between pitch values, ms
-#' @inheritParams detectNLP
-#' @keywords internal
+#' @param pitch vector of frequencies per frame, Hz
+#' @param step time step between frames, ms
+#' @param jumpThres frames in which pitch changes by \code{jumpThres} octaves/s
+#'   more than in the surrounding frames are classified as containing "pitch
+#'   jumps". Note that this is the rate of frequency change PER SECOND, not from
+#'   one frame to the next
+#' @param jumpWindow the window for calculating the median pitch slope around
+#'   the analyzed frame, ms
+#' @param plot if TRUE, plots the pitch contour with putative frequency jumps
+#'   marked by arrows
+#' @param xlab,ylab,... graphical parameters passed to \code{plot}
+#'
+#' @return Returns a boolean vector of the same length as \code{pitch}, where
+#'   TRUE values correspond to frames with detected pitch jumps.
+#'
+#' @export
 #' @examples
 #' pitch = getSmoothContour(anchors = list(
 #'   time = c(0, 350, 351, 890, 891, 1200),
 #'   value = c(140, 230, 460, 330, 220, 200)), len = 40)
-#' soundgen:::detectPitchJumps(pitch, step = 25,
-#'   jumpThres = 10, jumpWindow = 100)
-detectPitchJumps = function(pitch, step, jumpThres, jumpWindow) {
-  wl_frames = round(jumpWindow / step)
-  thres_per_frame = jumpThres * step / 1000
+#' step = 25
+#' pj = findJumps(pitch, step, plot = TRUE)
+#'
+#' # convert frame indices to time in ms
+#' step = 25
+#' which(pj) * step
+#' # or consider pj's to occur midway between the two frames
+#' which(pj) * step - step / 2
+#'
+#' # even very rapid changes are not considered jumps if they match
+#' # the surrounding trend
+#' pitch = getSmoothContour(anchors = list(
+#'   time = c(0, 350, 351, 700),
+#'   value = c(340, 710, 850, 1200)), len = 20)
+#' findJumps(pitch, step, plot = TRUE)
+#' diff(HzToSemitones(pitch)) * (1000 / step) / 12
+#' # the slope at frame 10 (10.4 oct/s) exceeds the jumpThres (8 oct/s), but not
+#' # 10.4 minus the average slope around frame 10 (~3 oct/s, so 10 - 3 < 8)
+findJumps = function(pitch,
+                     step,
+                     jumpThres = 8,
+                     jumpWindow = 80,
+                     plot = FALSE,
+                     xlab = 'Time, ms',
+                     ylab = 'f0, Hz',
+                     ...) {
+  wl_frames = round(jumpWindow / step)  # slope averaged over ... frames
+  thres_per_frame = jumpThres * step / 1000  # convert thres from st/s to st/frame
   pitch_oct = log2(pitch)
   nFrames = length(pitch)
+
+  # calculate slope, average slope around each frame, and their difference
   relativeSlope = rep(NA, nFrames)
   diff_pitch = c(NA, diff(pitch_oct))
   for (i in 2:nFrames) {
@@ -394,6 +443,19 @@ detectPitchJumps = function(pitch, step, jumpThres, jumpWindow) {
       } else {
         pitchJumps[i] = FALSE
       }
+    }
+  }
+
+  if (plot) {
+    plot(step * (1:length(pitch)), pitch, type = 'b',
+         pch = 16, xlab = xlab, ylab = ylab)
+    pj_idx = which(pitchJumps)
+    pj_times = pj_idx * step - step / 2
+    if (length(pj_idx) > 0) {
+      for (i in 1:length(pj_idx))
+        arrows(x0 = pj_times[i], x1 = pj_times[i],
+               y0 = 0, y1 = pitch[pj_idx[i]],
+               lwd = 2, length = .05, col = 'blue')
     }
   }
   return(pitchJumps)

@@ -6,6 +6,12 @@
 \usage{
 formant_app()
 }
+\value{
+Every time a new annotation is added, the app creates a backup csv
+  file and creates or updates a global object called "my_formants", which
+  contains all the annotations. When the app is terminated, it also returns
+  the results as a dataframe.
+}
 \description{
 Starts a shiny app for manually correcting formant measurements. For more
 tips, see \code{\link{pitch_app}} and http://cogsci.se/soundgen.html.
@@ -30,7 +36,7 @@ very large files.
 }
 \examples{
 \dontrun{
-formant_app()  # runs in default browser such as Firefox or Chrome
+f = formant_app()  # runs in default browser such as Firefox or Chrome
 
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux

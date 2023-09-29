@@ -29,6 +29,10 @@
 #'   number of steps beyond which the mutual information function reaches its
 #'   minimum or, if that fails, the steps until mutual information experiences
 #'   the first exponential decay - see \code{\link[nonlinearTseries]{timeLag}}
+#' @param theilerWindow time lag between two points that are considered locally
+#'   independent and can be treated as neighbors in the reconstructed phase
+#'   space. defaults to the first minimum or, if unavailable, the first zero of
+#'   the autocorrelation function (or, failing that, to \code{timeLag * 2})
 #' @param nonlinStats nonlinear statistics to report: "ed" = the optimal number
 #'   of embedding dimensions, "d2" = correlation dimension D2, "ml" = maximum
 #'   Lyapunov exponent, "sur" = the results of surrogate data testing for
@@ -104,6 +108,7 @@ phasegram = function(
     windowLength = 10,
     step = windowLength / 2,
     timeLag = NULL,
+    theilerWindow = NULL,
     nonlinStats = c('ed', 'd2', 'ml', 'sur'),
     pars_ed = list(max.embedding.dim = 15),
     pars_d2 = list(min.embedding.dim = 2,
@@ -175,6 +180,7 @@ phasegram = function(
     windowLength = 10,
     step = windowLength / 2,
     timeLag = NULL,
+    theilerWindow = NULL,
     nonlinStats = c('ed', 'd2', 'ml', 'sur'),
     pars_ed = list(max.embedding.dim = 15),
     pars_d2 = list(min.embedding.dim = 2,
@@ -236,9 +242,36 @@ phasegram = function(
     warning('timeLag is too large, resetting to 1 point')
     t = 1
   }
-  if (is.null(pars_d2$theiler.window)) pars_d2$theiler.window = t * 2
-  if (is.null(pars_ml$theiler.window)) pars_ml$theiler.window = t * 2
   if (is.null(pars_d2$max.radius)) pars_d2$max.radius = max(abs(audio$sound)) * 2
+
+  # theiler window - only needed if we calculate d2 or ml
+  if (is.null(theilerWindow) & ('ed' %in% nonlinStats |
+                                'ml' %in% nonlinStats)) {
+    theiler.window = suppressWarnings(try(
+      nonlinearTseries::timeLag(audio$sound,
+                                technique = 'acf',
+                                selection.method = 'first.minimum',
+                                do.plot = FALSE),
+      silent = TRUE))
+    if (inherits(theiler.window, 'try-error') || !is.numeric(theiler.window)) {
+      theiler.window = suppressWarnings(try(
+        nonlinearTseries::timeLag(audio$sound,
+                                  technique = 'acf',
+                                  selection.method = 'first.zero',
+                                  do.plot = FALSE),
+        silent = TRUE))
+      if (inherits(theiler.window, 'try-error') || !is.numeric(theiler.window)) {
+        theiler.window = t * 2
+        warning('Failed to determine theiler.window automatically; defaulting to t * 2')
+      }
+    }
+  } else if (!is.null(theilerWindow)) {
+    theiler.window = round(theilerWindow / audio$samplingRate * 1000, 1)
+  } else {
+    theiler.window = t * 2
+  }
+  if (is.null(pars_d2$theiler.window)) pars_d2$theiler.window = theiler.window
+  if (is.null(pars_ml$theiler.window)) pars_ml$theiler.window = theiler.window
 
   # for each frame
   n_frames_max = floor(len / step_points)
@@ -316,12 +349,12 @@ phasegram = function(
   # rbind the phasegrams and stats into dataframes
   pg = do.call('rbind', out_pg)
   # head(pg)
-  pg$time = pg$time / audio$samplingRate * 1000
+  pg$time = (pg$time / audio$samplingRate + audio$timeShift) * 1000
   pg$y = pg$y / max(pg$y, na.rm = TRUE)
   # plot(pg$time, pg$x, col = rgb(0, 0, 0, pg$y), pch = 16, cex = .5)
 
   descriptives = do.call('rbind', out_stats)
-  descriptives$time = descriptives$time / audio$samplingRate * 1000
+  descriptives$time = (descriptives$time / audio$samplingRate + audio$timeShift) * 1000
   # head(descriptives)
   if (!is.null(nonlinStats)) {
     ns = as.data.frame(do.call('rbind', out_ns))
@@ -435,10 +468,10 @@ nonlinStats = function(
                    max.embedding.dim = 15),
     pars_d2 = list(time.lag = t,
                    min.embedding.dim = 2,
-                   theiler.window = t * 2,
                    min.radius = 1e-3,
                    max.radius = max(abs(x)) * 2,
-                   n.points.radius = 20),
+                   n.points.radius = 20,
+                   theiler.window = t * 2),
     pars_ml = list(time.lag = t,
                    min.embedding.dim = 2,
                    radius = 0.001,

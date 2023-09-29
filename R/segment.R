@@ -139,46 +139,46 @@
 #' cor(key, s$summary$nSyl, use = 'pairwise.complete.obs')
 #' }
 segment = function(
-  x,
-  samplingRate = NULL,
-  from = NULL,
-  to = NULL,
-  shortestSyl = 40,
-  shortestPause = 40,
-  method = c('env', 'spec', 'mel')[3],
-  propNoise = NULL,
-  SNR = NULL,
-  noiseLevelStabWeight = c(1, .25),
-  windowLength = 40,
-  step = NULL,
-  overlap = 80,
-  reverbPars = list(reverbDelay = 70, reverbSpread = 130,
-                    reverbLevel = -35, reverbDensity = 50),
-  interburst = NULL,
-  peakToTrough = SNR + 3,
-  troughLocation = c('left', 'right', 'both', 'either')[4],
-  summaryFun = c('median', 'sd'),
-  maxDur = 30,
-  reportEvery = NULL,
-  cores = 1,
-  plot = FALSE,
-  savePlots = NULL,
-  saveAudio = NULL,
-  addSilence = 50,
-  main = NULL,
-  xlab = '',
-  ylab = 'Signal, dB',
-  showLegend = FALSE,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  maxPoints = c(1e5, 5e5),
-  specPlot = list(colorTheme = 'bw'),
-  contourPlot = list(lty = 1, lwd = 2, col = 'green'),
-  sylPlot = list(lty = 1, lwd = 2, col = 'blue'),
-  burstPlot = list(pch = 8, cex = 3, col = 'red'),
-  ...
+    x,
+    samplingRate = NULL,
+    from = NULL,
+    to = NULL,
+    shortestSyl = 40,
+    shortestPause = 40,
+    method = c('env', 'spec', 'mel')[3],
+    propNoise = NULL,
+    SNR = NULL,
+    noiseLevelStabWeight = c(1, .25),
+    windowLength = 40,
+    step = NULL,
+    overlap = 80,
+    reverbPars = list(reverbDelay = 70, reverbSpread = 130,
+                      reverbLevel = -35, reverbDensity = 50),
+    interburst = NULL,
+    peakToTrough = SNR + 3,
+    troughLocation = c('left', 'right', 'both', 'either')[4],
+    summaryFun = c('median', 'sd'),
+    maxDur = 30,
+    reportEvery = NULL,
+    cores = 1,
+    plot = FALSE,
+    savePlots = NULL,
+    saveAudio = NULL,
+    addSilence = 50,
+    main = NULL,
+    xlab = '',
+    ylab = 'Signal, dB',
+    showLegend = FALSE,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    maxPoints = c(1e5, 5e5),
+    specPlot = list(colorTheme = 'bw'),
+    contourPlot = list(lty = 1, lwd = 2, col = 'green'),
+    sylPlot = list(lty = 1, lwd = 2, col = 'blue'),
+    burstPlot = list(pch = 8, cex = 3, col = 'red'),
+    ...
 ) {
   ## Check the arguments
   if (windowLength < 10) {
@@ -308,45 +308,46 @@ segment = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .segment = function(
-  audio,
-  shortestSyl = 40,
-  shortestPause = 40,
-  method = c('env', 'spec', 'mel')[3],
-  propNoise = NULL,
-  SNR = NULL,
-  noiseLevelStabWeight = c(1, .25),
-  windowLength = 40,
-  step = NULL,
-  overlap = 80,
-  reverbPars = list(reverbDelay = 70, reverbSpread = 130,
-                    reverbLevel = -35, reverbDensity = 50),
-  interburst = NULL,
-  peakToTrough = SNR + 3,
-  troughLocation = c('left', 'right', 'both', 'either')[4],
-  maxDur = 30,
-  saveAudio = NULL,
-  addSilence = 50,
-  plot = FALSE,
-  plotname = '',
-  savePlots = NULL,
-  main = NULL,
-  xlab = '',
-  ylab = 'Signal, dB',
-  showLegend = FALSE,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  maxPoints = c(1e5, 5e5),
-  specPlot = NULL,
-  contourPlot = list(lty = 1, lwd = 2, col = 'green'),
-  sylPlot = list(lty = 1, lwd = 2, col = 'blue'),
-  burstPlot = list(pch = 8, cex = 3, col = 'red'),
-  ...) {
+    audio,
+    shortestSyl = 40,
+    shortestPause = 40,
+    method = c('env', 'spec', 'mel')[3],
+    propNoise = NULL,
+    SNR = NULL,
+    noiseLevelStabWeight = c(1, .25),
+    windowLength = 40,
+    step = NULL,
+    overlap = 80,
+    reverbPars = list(reverbDelay = 70, reverbSpread = 130,
+                      reverbLevel = -35, reverbDensity = 50),
+    interburst = NULL,
+    peakToTrough = SNR + 3,
+    troughLocation = c('left', 'right', 'both', 'either')[4],
+    maxDur = 30,
+    saveAudio = NULL,
+    addSilence = 50,
+    plot = FALSE,
+    plotname = '',
+    savePlots = NULL,
+    main = NULL,
+    xlab = '',
+    ylab = 'Signal, dB',
+    showLegend = FALSE,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    maxPoints = c(1e5, 5e5),
+    specPlot = NULL,
+    contourPlot = list(lty = 1, lwd = 2, col = 'green'),
+    sylPlot = list(lty = 1, lwd = 2, col = 'blue'),
+    burstPlot = list(pch = 8, cex = 3, col = 'red'),
+    ...) {
 
   ## normalize
   audio$sound = audio$sound - mean(audio$sound)  # center around 0
   audio$sound = audio$sound / max(abs(audio$sound))  # range approx. -1 to 1
+  # audio$scale = 1
   windowLength_points = ceiling(windowLength * audio$samplingRate / 1000)
   if (windowLength_points > audio$ls / 2) {
     windowLength_points = audio$ls / 2
@@ -539,7 +540,7 @@ segment = function(
         col_noise = which(cs_dcs <= quantile(cs_dcs[nonZero_cs_dcs], probs = propNoise))
         thres_noise = as.numeric(median(cs[col_noise]))
       }
-      noise = rowMeans(sp[, col_noise])
+      noise = rowMeans(sp[, col_noise, drop = FALSE])
       # plot(noise, type = 'l')  # the spectrum of background noise, presumably
 
       # some kind of bin-by-bin spectral difference from noise
@@ -738,6 +739,13 @@ segment = function(
     }
   }
 
+  ## back to absolute time
+  if (!is.null(audio$timeShift) && audio$timeShift > 0) {
+    syllables$start = syllables$start + audio$timeShift * 1000
+    syllables$end = syllables$end + audio$timeShift * 1000
+    bursts$time = bursts$time + audio$timeShift * 1000
+  }
+
   if (plot) {
     # defaults
     if (is.null(sylPlot$lty)) sylPlot$lty = 1
@@ -762,7 +770,7 @@ segment = function(
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
     layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = c(2, 1))
     par(mar = c(op$mar[1:2], 0, op$mar[4]), xaxt = 's', yaxt = 's')
-    xlim = c(0, audio$ls / audio$samplingRate * 1000) + audio$timeShift
+    xlim = c(0, audio$ls / audio$samplingRate) + audio$timeShift
 
     # downsample long sounds to avoid delays when plotting
     if (audio$ls > maxPoints[1]) {
@@ -772,16 +780,24 @@ segment = function(
     }
 
     # plot osc
-    plot(x = idx_sound / audio$samplingRate * 1000 + audio$timeShift,
+    plot(x = idx_sound / audio$samplingRate + audio$timeShift,
          y = audio$sound[idx_sound], type = 'l', xlim = xlim,
          axes = FALSE, xaxs = "i", yaxs = "i", bty = 'o',
          xlab = xlab, ylab = '', main = '', ...)
     box()
     time_location = axTicks(1)
-    time_labels = convert_sec_to_hms(time_location / 1000, 3)
+    time_labels = convert_sec_to_hms(time_location, 3)
     axis(side = 1, at = time_location, labels = time_labels, ...)
     abline(h = 0, lty = 2)
     par(mar = c(0, op$mar[2:4]), xaxt = 'n', yaxt = 's')
+
+
+    # downsample long sounds to avoid delays when plotting
+    if (audio$ls > maxPoints[1]) {
+      idx_sound = seq(1, audio$ls, by = ceiling(audio$ls / maxPoints[1]))
+    } else {
+      idx_sound = 1:audio$ls
+    }
 
     # plot envelope
     envelope = data.frame(
@@ -808,7 +824,7 @@ segment = function(
         y = seq(min(envelope$value), max(envelope$value) * 1.05, length.out = nrow(sp)),
         z = t(zeroOne(sp)),
         levels = seq(0, 1, length = 30),
-        xlim = xlim, xaxs = "i", xlab = '',
+        xaxs = "i", xlab = '',
         ylab = ylab, main = main,
         maxPoints = maxPoints[2], ...),
         specPlot))

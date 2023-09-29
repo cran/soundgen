@@ -197,8 +197,6 @@ pathfinder = function(pitchCands,
 #' @param pitchCenterGravity numeric vector giving the mean of all pitch
 #'   candidates per fft frame weighted by our certainty in each of these
 #'   candidates
-#' @param manualUnvoiced a vector with indices of frames that are manually
-#'   specified as unvoiced and should not be interpolated
 #' @return Returns a modified pitchCands matrix.
 #' @keywords internal
 interpolate = function(pitchCands,

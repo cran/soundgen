@@ -14,11 +14,21 @@ htmlPlots(
 )
 }
 \arguments{
-\item{width}{default flex-basis, ie approximate default width of each image}
+\item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
+'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
+numeric vectors}
 
-\item{myfolder}{full path to target folder, without a '/' at the end}
+\item{savePlots}{a list of full names of files (with paths and extensions)}
 
-\item{myfiles}{a list of full names of files (with paths and extensions)}
+\item{changesAudio}{if TRUE, it means we modify the input audio, so the
+result shouldn't be saved in the original folder (if savePlots = '')}
+
+\item{suffix}{an extra string to add before the extension, usually the name
+of the function that calls htmlPlots, eg "spectrogram"}
+
+\item{extension}{file extension for the saved plots}
+
+\item{width}{the default width of flex elements in html}
 }
 \description{
 Internal soundgen function

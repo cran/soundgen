@@ -8,8 +8,8 @@ nonlinStats(
   x,
   t = NULL,
   pars_ed = list(time.lag = t, max.embedding.dim = 15),
-  pars_d2 = list(time.lag = t, min.embedding.dim = 2, theiler.window = t * 2, min.radius
-    = 0.001, max.radius = max(abs(x)) * 2, n.points.radius = 20),
+  pars_d2 = list(time.lag = t, min.embedding.dim = 2, min.radius = 0.001, max.radius =
+    max(abs(x)) * 2, n.points.radius = 20, theiler.window = t * 2),
   pars_ml = list(time.lag = t, min.embedding.dim = 2, radius = 0.001, theiler.window = t
     * 2),
   pars_sur = list(FUN = nonlinearTseries::timeAsymmetry, K = 1),

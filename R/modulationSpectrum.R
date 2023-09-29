@@ -65,8 +65,8 @@
 #' @param savePlots if a valid path is specified, a plot is saved in this folder
 #'   (defaults to NA)
 #' @param logWarpX,logWarpY numeric vector of length 2: c(sigma, base) of
-#'   pseudolog-warping the modulation spectrum, as in
-#'   \code{\link[scales]{pseudo_log_trans}}
+#'   pseudolog-warping the modulation spectrum, as in function
+#'   pseudo_log_trans() from the "scales" package
 #' @param quantiles labeled contour values, \% (e.g., "50" marks regions that
 #'   contain 50\% of the sum total of the entire modulation spectrum)
 #' @param kernelSize the size of Gaussian kernel used for smoothing (1 = no
@@ -832,7 +832,7 @@ getRough = function(m, roughRange, colNames = NULL) {
 #'   modulation spectra)
 #' @param rFun, cFun functions used to determine the number of rows and columns
 #'   in the result
-#' @param aggFun function used to aggregate
+#' @param reduceFun function used to aggregate
 #' @keywords internal
 #' @examples
 #' mat_list = list(

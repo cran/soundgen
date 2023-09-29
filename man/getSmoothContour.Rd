@@ -18,6 +18,9 @@ getSmoothContour(
   plot = FALSE,
   xlim = NULL,
   ylim = NULL,
+  xlab = "Time, ms",
+  ylab = ifelse(thisIsPitch, "Frequency, Hz", "Amplitude"),
+  main = ifelse(thisIsPitch, "Pitch contour", ""),
   samplingRate = 16000,
   voiced = NULL,
   contourLabel = NULL,
@@ -62,7 +65,7 @@ starts with no transition at all (e.g. for adding pitch jumps)}
 
 \item{plot}{(boolean) produce a plot?}
 
-\item{xlim, ylim}{plotting options}
+\item{xlim, ylim, xlab, ylab, main}{plotting options}
 
 \item{samplingRate}{sampling rate used to convert time values to points (Hz)}
 

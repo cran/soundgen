@@ -269,7 +269,8 @@ audSpectrogram = function(
   audSpec = do.call(rbind, sp)
   audSpec[is.na(audSpec)] = 0
   rownames(audSpec) = filters$cf / 1000
-  colnames(audSpec) = step / 2 + step * (0 : (ncol(audSpec) - 1))
+  colnames(audSpec) = step / 2 + step * (0 : (ncol(audSpec) - 1)) +
+    audio$timeShift * 1000
   # or: seq(0, audio$duration, length.out = ncol(audSpec)) * 1000
 
   # rescale etc in order to return $audSpectrogram_processed

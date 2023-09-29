@@ -26,12 +26,13 @@
 #'   reported: \code{loudness} (in sone, as per \code{\link{getLoudness}}), the
 #'   first derivative of loudness with respect to time (\code{dLoudness}),
 #'   \code{surprisal} (non-negative), and \code{suprisalLoudness} (geometric
-#'   mean of surprisal and dLoudness, treating negative values of dLoudnessas
+#'   mean of surprisal and dLoudness, treating negative values of dLoudness as
 #'   zero).
 #'
 #' @inheritParams audSpectrogram
 #' @inheritParams analyze
-#' @param winSurp surprisal analysis window, ms
+#' @param winSurp surprisal analysis window, ms (Inf = from sound onset to each
+#'   point)
 #' @param method acf = change in maximum autocorrelation after adding the final
 #'   point, np = nonlinear prediction (see \code{\link{nonlinPred}})
 #' @param plot if TRUE, plots the auditory spectrogram and the
@@ -53,6 +54,11 @@
 #'   yScale = 'bark', method = 'acf')
 #' surp = getSurprisal(sound, samplingRate = 16000,
 #'   yScale = 'bark', method = 'np')  # very slow
+#'
+#' # short window = amnesia (every even is equally surprising)
+#' getSurprisal(sound, samplingRate = 16000, winSurp = 250)
+#' # long window - remembers further into the past, Inf = from the beginning
+#' surp = getSurprisal(sound, samplingRate = 16000, winSurp = Inf)
 #'
 #' # plot "pure" surprisal, without weighting by loudness
 #' spectrogram(sound, 16000, extraContour = surp$detailed$surprisal /
@@ -223,6 +229,7 @@ getSurprisal = function(
     res = NA,
     ...) {
   if (is.null(maxFreq) | length(maxFreq) < 1) maxFreq = audio$samplingRate / 2
+  if (!is.finite(winSurp)) winSurp = length(audio$sound) / audio$samplingRate * 1000
   # sp = getMelSpec(audio$sound, samplingRate = audio$samplingRate,
   #                 windowLength = windowLength, step = step,
   #                 maxFreq = maxFreq, specPars = specPars, plot = FALSE)
@@ -408,7 +415,7 @@ getSurprisal_vector = function(x, method = c('acf', 'np')[1]) {
     best_next_point = suppressWarnings(
       cor(x, c(x[(best_lag+1):len], rep(0, best_lag)))
     )
-    out = (best_acf - best_next_point) / 2
+    out = (best_acf - best_next_point) / 2 * len
 
     # rescale from [-2, 2] to [-1, 1] * len
     # * len to compensate for diminishing effects of single-point changes on acf

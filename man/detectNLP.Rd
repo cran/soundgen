@@ -76,7 +76,7 @@ provide a numeric vector of any length. For multiple sounds, provide a
 dataframe with columns "file" and "pitch" (or path to a csv file) as
 returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
-file is also OK}
+file is also OK (eg as returned by pitch_app)}
 
 \item{pars_analyze}{arguments passed to \code{\link{analyze}}. NB: drop
 everything unnecessary to speed up the process, e.g. nFormants = 0,
@@ -97,7 +97,8 @@ of an NLP segment in ms), and/or dynamic priors.}
 
 \item{jumpThres}{frames in which pitch changes by \code{jumpThres} octaves/s
 more than in the surrounding frames are classified as containing "pitch
-jumps"}
+jumps". Note that this is the rate of frequency change PER SECOND, not from
+one frame to the next}
 
 \item{jumpWindow}{the window for calculating the median pitch slope around
 the analyzed frame, ms}

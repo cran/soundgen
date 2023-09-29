@@ -547,7 +547,9 @@ updateAnalyze = function(
 #' @examples
 #' soundgen:::formatPitchManual(c(NA, 120, 180, NA))
 #' soundgen:::formatPitchManual('NA, 120, 180, NA')
-#' soundgen:::formatPitchManual(list('myfile.wav' = c(NA, 120, 180, NA)))
+#' soundgen:::formatPitchManual(list(
+#'   'myfile.wav' = list(pitch = c(NA, 120, 180, NA))
+#' ))
 #' soundgen:::formatPitchManual(data.frame(file = c('file1.wav', 'file2.wav'),
 #'                                         pitch = c('NA, 120', '180, NA')))
 #' soundgen:::formatPitchManual('adja')
@@ -595,7 +597,7 @@ formatPitchManual = function(pitchManual) {
       }
     } else {
       # preformatted list - return as is
-      pitchManual_list = pitchManual
+      pitchManual_list = lapply(pitchManual, function(x) x$pitch)
     }
   } else if (is.numeric(pitchManual)) {
     # numeric vector (pitch contour of a single sound)

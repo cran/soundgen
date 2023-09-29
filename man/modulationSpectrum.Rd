@@ -127,8 +127,8 @@ left every ... iterations (NULL = default, NA = don't report)}
 (defaults to NA)}
 
 \item{logWarpX, logWarpY}{numeric vector of length 2: c(sigma, base) of
-pseudolog-warping the modulation spectrum, as in
-\code{\link[scales]{pseudo_log_trans}}}
+pseudolog-warping the modulation spectrum, as in function
+pseudo_log_trans() from the "scales" package}
 
 \item{quantiles}{labeled contour values, \% (e.g., "50" marks regions that
 contain 50\% of the sum total of the entire modulation spectrum)}

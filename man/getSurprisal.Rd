@@ -63,7 +63,8 @@ from...to (s)}
 \item{step}{step, ms (determines time resolution). step = NULL means no
 downsampling at all (ncol of output = length of input audio)}
 
-\item{winSurp}{surprisal analysis window, ms}
+\item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
+point)}
 
 \item{method}{acf = change in maximum autocorrelation after adding the final
 point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
@@ -146,7 +147,7 @@ Returns a list with $detailed per-frame and $summary per-file results
   reported: \code{loudness} (in sone, as per \code{\link{getLoudness}}), the
   first derivative of loudness with respect to time (\code{dLoudness}),
   \code{surprisal} (non-negative), and \code{suprisalLoudness} (geometric
-  mean of surprisal and dLoudness, treating negative values of dLoudnessas
+  mean of surprisal and dLoudness, treating negative values of dLoudness as
   zero).
 }
 \description{
@@ -188,6 +189,11 @@ surp = getSurprisal(sound, samplingRate = 16000,
   yScale = 'bark', method = 'acf')
 surp = getSurprisal(sound, samplingRate = 16000,
   yScale = 'bark', method = 'np')  # very slow
+
+# short window = amnesia (every even is equally surprising)
+getSurprisal(sound, samplingRate = 16000, winSurp = 250)
+# long window - remembers further into the past, Inf = from the beginning
+surp = getSurprisal(sound, samplingRate = 16000, winSurp = Inf)
 
 # plot "pure" surprisal, without weighting by loudness
 spectrogram(sound, 16000, extraContour = surp$detailed$surprisal /

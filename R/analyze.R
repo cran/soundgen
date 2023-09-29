@@ -93,7 +93,7 @@
 #'   dataframe with columns "file" and "pitch" (or path to a csv file) as
 #'   returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 #'   step as in current call to analyze. A named list with pitch vectors per
-#'   file is also OK
+#'   file is also OK (eg as returned by pitch_app)
 #' @param entropyThres pitch tracking is only performed for frames with Weiner
 #'   entropy below \code{entropyThres}, but other spectral descriptives are
 #'   still calculated (NULL = analyze everything)
@@ -676,8 +676,9 @@ analyze = function(
       }
       for (i in idx_failed) temp[[i]] = filler
     }
-    mysum_all = cbind(data.frame(file = pa$input$filenames_base),
-                      do.call('rbind', temp))
+    mysum_all = try(cbind(data.frame(file = pa$input$filenames_base),
+                      data.table::rbindlist(temp, fill = TRUE)))
+    if (inherits(mysum_all, 'try-error')) mysum_all = NULL
   } else {
     mysum_all = NULL
   }

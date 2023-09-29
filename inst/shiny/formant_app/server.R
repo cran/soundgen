@@ -1,6 +1,6 @@
 # formant_app()
 #
-# To do: deleting a formant in the button also deletes the annotation (bug); maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
+# To do: show default number of LPC coefs (grayed out), IPA chart as another option in addition to Hillenbrand; box for selecting desired pitch for synthesis; deleting a formant in the button also deletes the annotation (bug); maybe an option to have log-spectrogram and log-spectrum (a bit tricky b/c all layers have to be adjusted); maybe remove the buggy feature of editing formant freq in the button as text, just display current value there (but then how to make it NA?); LPC saves all avail formants - check beh when changing nFormants across annotations & files; from-to in play sometimes weird (stops audio while cursor is still moving); highlight smts disappears in ann_table (buggy! tricky!); load audio upon session start; maybe arbitrary number of annotation tiers
 
 # Start with a fresh R session and run the command options(shiny.reactlog=TRUE)
 # Then run your app in a show case mode: runApp('inst/shiny/formant_app', display.mode = "showcase")
@@ -236,6 +236,10 @@ server = function(input, output, session) {
     #                   value = c(0, min(def_form['spectrum_xlim', 'default'], myPars$nyquist)),
     #                   max = myPars$nyquist)
     myPars$dur = length(myPars$temp_audio@left) * 1000 / myPars$temp_audio@samp.rate
+    myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
+    myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
+    if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
+    myPars$regionToAnalyze = myPars$spec_xlim
     myPars$myAudio_list = list(
       sound = myPars$myAudio,
       samplingRate = myPars$samplingRate,
@@ -244,10 +248,6 @@ server = function(input, output, session) {
       ls = length(myPars$myAudio),
       duration = myPars$dur / 1000
     )
-    myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
-    myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
-    if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
-    myPars$regionToAnalyze = myPars$spec_xlim
 
     # shorten window and step if the input is very short
     max_win = round(myPars$dur / 2)
@@ -587,13 +587,16 @@ server = function(input, output, session) {
 
   ## SPECTROGRAM
   output$spectrogram = renderPlot({
-    if (!is.null(myPars$spec) && myPars$drawSpec == TRUE) {
+    if (myPars$drawSpec == TRUE) {
       if (myPars$print) print('Drawing spectrogram...')
       par(mar = c(0.2, 2, 0.5, 2))  # no need to save user's graphical par-s - revert to orig on exit
       if (is.null(myPars$spec)) {
         plot(1:10, type = 'n', bty = 'n', axes = FALSE, xlab = '', ylab = '')
-        text(x = 5, y = 5,
-             labels = 'Upload wav/mp3 file(s) to begin...\nSuggested max duration ~30 s')
+        text(x = 5, y = 5, cex = 3,
+             labels =
+             'Upload wav/mp3 file(s) to begin...\n
+             Suggested max duration\n
+             about a few minutes')
       } else {
         if (input$specType != 'reassigned') {
           # rasterized spectrogram
@@ -1238,6 +1241,7 @@ server = function(input, output, session) {
     # save a backup in case the app crashes before done() fires
     temp = soundgen:::rbind_fill(myPars$out, myPars$ann)
     temp = temp[order(temp$file), ]
+    my_formants <<- temp
     write.csv(temp, 'www/temp.csv', row.names = FALSE)
   }
 
@@ -1283,7 +1287,7 @@ server = function(input, output, session) {
 
 
   ### ANALYZE
-  extractFormants = reactive({
+  extractFormants = function() {
     if (!is.null(myPars$myAudio) & !is.null(myPars$regionToAnalyze)) {
       if (myPars$print) print('Extracting formants...')
       if (input$coeffs != '') {
@@ -1293,8 +1297,41 @@ server = function(input, output, session) {
       }
       sel_anal = max(1, round(myPars$regionToAnalyze[1] / 1000 * myPars$samplingRate)) :
         min(myPars$ls, round(myPars$regionToAnalyze[2] / 1000 * myPars$samplingRate))
-      temp_anal = try(soundgen:::.analyze(
-        myPars$myAudio_list,
+      myPars$myAudio_list_sel = list(
+        sound = myPars$myAudio[sel_anal],
+        samplingRate = myPars$samplingRate,
+        scale = myPars$maxAmpl,
+        timeShift = myPars$regionToAnalyze[1]/1000,
+        ls = length(myPars$myAudio),
+        duration = myPars$dur / 1000
+      )
+
+      # temp_anal = try(soundgen:::.analyze(
+      #   myPars$myAudio_list,
+      #   windowLength = input$windowLength_lpc,
+      #   step = input$step_lpc,
+      #   wn = input$wn_lpc,
+      #   zp = input$zp_lpc,
+      #   dynamicRange = input$dynamicRange_lpc,
+      #   silence = input$silence,
+      #   formants = list(
+      #     coeffs = coeffs,
+      #     minformant = input$minformant,
+      #     maxbw = input$maxbw
+      #   ),
+      #   nFormants = NULL,  # save all available formants
+      #   pitchMethods = NULL,  # disable pitch tracking
+      #   roughness = NULL,  # no roughness analysis
+      #   novelty = NULL,    # no ssm
+      #   loudness = NULL,   # no loudness analysis
+      #   amRange = NULL,  # no AM analysis
+      #   summaryFun = NULL,
+      #   plot = FALSE,
+      #   returnPitchCands = FALSE
+      # ))
+
+      temp_anal = try(soundgen:::getFormants(
+        audio = myPars$myAudio_list_sel,
         windowLength = input$windowLength_lpc,
         step = input$step_lpc,
         wn = input$wn_lpc,
@@ -1306,15 +1343,9 @@ server = function(input, output, session) {
           minformant = input$minformant,
           maxbw = input$maxbw
         ),
-        nFormants = NULL,  # save all available formants
-        pitchMethods = NULL,  # disable pitch tracking
-        roughness = NULL,  # no roughness analysis
-        novelty = NULL,    # no ssm
-        loudness = NULL,   # no loudness analysis
-        summaryFun = NULL,
-        plot = FALSE,
-        returnPitchCands = FALSE
+        nFormants = NULL  # save all available formants
       ))
+
       if (!inherits(temp_anal, 'try-error') &&
           length(temp_anal) > 0 &&
           is.list(temp_anal)) {
@@ -1347,7 +1378,7 @@ server = function(input, output, session) {
         })
       }
     }
-  })
+  }
 
   # if any of LPC settings change, we re-analyze the entire file
   observeEvent(
@@ -1758,6 +1789,7 @@ server = function(input, output, session) {
     if (!is.null(myPars$out)) {
       # re-order and save a backup
       myPars$out = myPars$out[order(myPars$out$file, myPars$out$from), ]
+      my_formants <<- myPars$out
       write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
     }
   }
@@ -1800,9 +1832,25 @@ server = function(input, output, session) {
     content = function(filename) {
       done()  # finalize the last file
       write.csv(myPars$out, filename, row.names = FALSE)
+      my_formants <<- myPars$out
       if (file.exists('www/temp.csv')) file.remove('www/temp.csv')
+      # offer to close the app
+      showModal(modalDialog(
+        title = "Terminate the app?",
+        easyClose = TRUE,
+        footer = tagList(
+          actionButton("terminate_no", "Keep working"),
+          actionButton("terminate_yes", "Terminate")
+        )
+      ))
     }
   )
+  observeEvent(input$terminate_no, {
+    removeModal()
+  })
+  observeEvent(input$terminate_yes, {
+    stopApp(returnValue = myPars$out)
+  })
 
   observeEvent(input$about, {
     if (myPars$debugQn) {

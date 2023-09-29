@@ -29,8 +29,6 @@ a = rnorm(500) * seq(1, 0, length.out = 500)
 windowLength_points = 50
 scale = max(abs(a))
 plot(a, type = 'l', ylim = c(-scale, scale))
-points(soundgen:::getEnv(a, windowLength_points, 'raw'),
-       type = 'l', col = 'brown')
 points(soundgen:::getEnv(a, windowLength_points, 'rms'),
        type = 'l', col = 'red')
 points(soundgen:::getEnv(a, windowLength_points, 'peak'),

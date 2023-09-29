@@ -32,8 +32,12 @@ getAM_env = function(audio,
   # extract amplitude envelope
   wl = round(1 / amRange[2] * audio$samplingRate / 2)  # half a period of fast AM
   sr_new = audio$samplingRate / wl * (100 / (100 - overlap))
-  env = as.numeric(seewave::env(audio$sound, f = audio$samplingRate, envt = 'hil',
-                                msmooth = c(wl, overlap), plot = FALSE))
+  env = try(as.numeric(seewave::env(audio$sound, f = audio$samplingRate, envt = 'hil',
+                                msmooth = c(wl, overlap), plot = FALSE)))
+  if (inherits(env, 'try-error')) {
+    warning('Failed to calculate amplitude modulation - check amRange')
+    return(data.frame(time = NA, freq = NA, dep = NA))
+  }
   # osc(env, samplingRate = sr_new)
 
   # bandpass the envelope to further focus on the frequency range of interest

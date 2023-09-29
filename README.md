@@ -9,7 +9,6 @@ Version](http://www.r-pkg.org/badges/version/soundgen)](https://cran.r-project.o
 
 R package for sound synthesis and acoustic analysis.  
 Homepage with help, demos, etc: <http://cogsci.se/soundgen.html>  
-Source code on github: <https://github.com/tatters/soundgen>
 
 Performs parametric synthesis of sounds with harmonic and noise
 components such as animal vocalizations or human voice. Also includes

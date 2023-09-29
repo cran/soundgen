@@ -55,11 +55,8 @@ don't save, '' = same folder as audio)}
 \code{\link[grDevices]{png}}}
 
 \item{...}{other graphical parameters}
-
-\item{orig_x}{the original input passed to \code{detectNLP} (needed to call
-analyze instead of .analyze)}
 }
 \description{
-Internal soundgen function called by \code{\link{getRMS}}.
+Internal soundgen function called by \code{\link{detectNLP}}.
 }
 \keyword{internal}

@@ -1,3 +1,20 @@
+          CHANGES IN SOUNDGEN VERSION 2.6.0.9000 [29-Sep-2023]
+NEW FUNCTIONS:
+  * findJumps(): automatic detetion of apparent discontinuities (jumps) in a provided frequency contour
+
+MINOR:
+  * annotation_app(), pitch_app(), formant_app() return global objects with their output. Thanks to Tecumseh Fitch for suggesting this feature
+  * phasegram(): theiler.window defaults to the first minimum of ACF
+  * osc(), segment(), getRMS(), phasegram(), etc.: when analyzing part of a longer recording with from/to, plot time relative to the original (ie starting from "from" s)
+  * getSurprisal(): method "acf" normalizes surprisal by the length of analyzed sequence (up to "winSurp")
+
+BUGS FIXED:
+  * bandpass doesn't crash when trying to plot the spectrum of input containing NAs
+  * audSpectrogram(), getSurprisal(): correct plotting when analyzing parts of long recordings with from...to
+  * segment(): saves audio correctly (normalization bug), doesn't crash when propNoise is automatically set to a single frame
+  * formant_app(), pitch_app(): much faster when working with long audio files (don't call fft to extract envelopes, better workflow, etc.)
+
+
           CHANGES IN SOUNDGEN VERSION 2.6.0 [22-May-2023]
 NEW FUNCTIONS:
   * plotMS() for plotting a modulation spectrum produced with modulationSpectrum()

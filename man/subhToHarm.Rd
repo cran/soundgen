@@ -62,6 +62,7 @@ treated as subharmonics. Note that this depends critically on accurate pitch
 tracking.
 }
 \examples{
+\dontrun{
 s400 = soundgen(
   sylLen = 300, pitch = c(280, 370, 330),
   subDep = list(
@@ -70,6 +71,7 @@ s400 = soundgen(
   ), subRatio = 3,
   smoothing = list(interpol = 'approx'), formants = 'a',
   rolloff = -12, addSilence = 50, temperature = .001,
+  plot = TRUE, ylim = c(0, 2)
 )
 s = analyze(s400, samplingRate = 16000,
             windowLength =  50, step = 10,
@@ -77,5 +79,14 @@ s = analyze(s400, samplingRate = 16000,
             plot = TRUE, ylim = c(0, 3),
             extraContour = list('subDep', type = 'b', col = 'brown'))
 s$detailed[, c('subRatio', 'subDep')]
+
+s2 = analyze(s400, samplingRate = 16000,
+            windowLength =  50, step = 10,
+            pitchMethods = c('dom', 'autocor', 'hps'), priorMean = NA,
+            subh = list(method = 'harm'),
+            plot = TRUE, ylim = c(0, 3),
+            extraContour = list('subDep', type = 'b', col = 'brown'))
+s$detailed[, c('subRatio', 'subDep')]
+}
 }
 \keyword{internal}

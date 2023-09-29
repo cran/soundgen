@@ -396,3 +396,121 @@ lockToFormants = function(pitch,
 
   invisible(d$pitch2)
 }
+
+
+#' Get formants
+#'
+#' Internal soundgen function
+#'
+#' A barebones version of analyze() that only measures formants. Called by
+#' formant_app()
+#' @param audio input sound as returned by readAudio
+#' @inheritParams analyze
+#' @keywords internal
+#' @examples
+#' data(sheep, package = 'seewave')
+#' f = soundgen:::getFormants(soundgen:::readAudio(sheep, from = .1, to = .5))
+#' f[11:15, 1:5]
+getFormants = function(
+    audio,
+    windowLength = 50,
+    step = 25,
+    wn = 'gaussian',
+    zp = 0,
+    dynamicRange = 80,
+    silence = 0.04,
+    formants = list(),
+    nFormants = NULL) {
+  windowLength_points = audio$samplingRate * (windowLength / 1000)
+  frameBank = getFrameBank(
+    sound = audio$sound,
+    samplingRate = audio$samplingRate,
+    windowLength_points = windowLength_points,
+    wn = wn,
+    step = step,
+    zp = zp,
+    normalize = TRUE,
+    filter = NULL,
+    padWithSilence = FALSE,
+    timeShift = audio$timeShift
+  )
+  timestamps = as.numeric(colnames(frameBank))
+  myseq = (timestamps - audio$timeShift * 1000 - windowLength / 2) *
+    audio$samplingRate / 1000 + 1
+  myseq[1] = 1  # just in case of rounding errors
+  l = length(myseq)
+  myseq[l] = min(myseq[l], audio$ls - windowLength_points)
+
+  # which frames are silent
+  m = max(abs(audio$sound))
+  m_to_scale = m / audio$scale
+  silence = silence * m / m_to_scale
+  ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
+    # perceived intensity - root mean square of amplitude
+    # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
+    sqrt(mean((audio$sound[myseq[x]:(myseq[x] + windowLength_points - 1)]) ^ 2, na.rm = TRUE))
+  })
+  cond_silence = ampl >= silence
+  framesToAnalyze = which(cond_silence)
+  nf = length(framesToAnalyze)
+
+  ## FORMANTS
+  fmts = NULL
+  no_formants = FALSE
+  if (is.null(nFormants)) nFormants = 100
+  # try one frame to see how many formants are returned
+  fmts_list = vector('list', length = nf)
+  if (nFormants > 0 & nf > 0) {
+    # we don't really know how many formants will be returned by phonTools, so
+    # we save everything at first, and then trim to nFormants
+    for (i in 1:nf) {
+      fmts_list[[i]] = try(suppressWarnings(do.call(
+        phonTools::findformants,
+        c(list(frameBank[, framesToAnalyze[i]],
+               fs = audio$samplingRate, verify = FALSE),
+          formants))),
+        silent = TRUE)
+      if (inherits(fmts_list[[i]], 'try-error')) {
+        fmts_list[[i]] = data.frame(formant = NA, bandwidth = NA)[-1, ]
+      }
+    }
+    # check how many formants we will/can save
+    nFormants_avail = min(nFormants, max(unlist(lapply(fmts_list, nrow))))
+    if (nFormants_avail > 0) {
+      nFormants = nFormants_avail
+      availableRows = 1:nFormants
+      fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
+      colnames(fmts) = paste0('f', rep(availableRows, each = 2),
+                              rep(c('_freq', '_width'), nFormants))
+      # iterate through the full formant list and save what's needed
+      for (i in 1:nf) {
+        ff = fmts_list[[i]]
+        if (is.list(ff)) {
+          nr = nrow(ff)
+          if (nr < nFormants) {
+            ff[(nr + 1):nFormants, ] = NA
+          }
+          temp = matrix(NA, nrow = nFormants, ncol = 2)
+          temp[availableRows, ] = as.matrix(ff[availableRows, ])
+          fmts[framesToAnalyze[i], ] = matrix(t(temp), nrow = 1)
+        }
+      }
+    } else {
+      no_formants = TRUE
+    }
+  } else if (nFormants > 0 && nf == 0) {
+    no_formants = TRUE
+  }
+  if (no_formants) {
+    # no formant analysis
+    availableRows = 1:nFormants
+    fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
+    colnames(fmts) = paste0('f', rep(availableRows, each = 2),
+                            rep(c('_freq', '_width'), nFormants))
+  }
+  out = cbind(
+    data.frame(time = timestamps),
+    as.data.frame(fmts)
+  )
+  return(out)
+}

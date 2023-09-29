@@ -335,7 +335,6 @@ writeAudio = function(x, audio, filename, scale_used = NULL) {
 #' @inheritParams spectrogram
 #' @param funToCall function to call (specify what to do with each audio input)
 #' @param myPars a list of parameters to pass on to `funToCall`
-#' @param summaryFun function(s) used to summarize the output per input
 #' @param var_noSummary names of output variables that should not be summarized
 #' @keywords internal
 #' @examples
@@ -531,9 +530,14 @@ processAudio = function(x,
 #' Internal soundgen function
 #'
 #' Writes an html file for displaying clickable plots in a browser.
-#' @param myfolder full path to target folder, without a '/' at the end
-#' @param myfiles a list of full names of files (with paths and extensions)
-#' @param width default flex-basis, ie approximate default width of each image
+#' @inheritParams spectrogram
+#' @param savePlots a list of full names of files (with paths and extensions)
+#' @param changesAudio if TRUE, it means we modify the input audio, so the
+#'   result shouldn't be saved in the original folder (if savePlots = '')
+#' @param suffix an extra string to add before the extension, usually the name
+#'   of the function that calls htmlPlots, eg "spectrogram"
+#' @param extension file extension for the saved plots
+#' @param width the default width of flex elements in html
 #' @keywords internal
 #' @examples
 #' \dontrun{

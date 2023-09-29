@@ -25,6 +25,8 @@ getSmoothSpectrum(
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
+\item{spectrum}{pre-extracted spectrum in dB with columns "freq" and "ampl"}
+
 \item{len}{the desired resolution of the output}
 
 \item{loessSpan}{passed to loess to control the amount of smoothing (.01 =
@@ -37,8 +39,6 @@ minimal smoothing, 1 = strong smoothing)}
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
 \item{...}{other graphical parameters}
-
-\item{a}{pre-extracted spectrum in dB with columns "freq" and "ampl"}
 }
 \description{
 Internal soundgen function.

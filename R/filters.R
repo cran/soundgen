@@ -316,13 +316,18 @@ bandpass = function(
 
     sp_old = try(seewave::meanspec(audio$sound, f = audio$samplingRate,
                                    plot = FALSE, dB = 'max0', ...))
-    if (!inherits(sp_old, 'try-error'))
-      plot(sp_old, type = 'l',
-           xlab = 'Frequency, kHz', ylab = 'dB', main = 'Spectra', ...)
     sp_new = try(seewave::meanspec(x_new, f = audio$samplingRate,
                                    plot = FALSE, dB = 'max0', ...))
-    if (!inherits(sp_new, 'try-error'))
-      points(sp_new, type = 'l', col = 'blue', ...)
+    if (!inherits(sp_old, 'try-error') && any(!is.na(sp_old[, 2]))) {
+      try(plot(sp_old, type = 'l',
+               xlab = 'Frequency, kHz', ylab = 'dB', main = 'Spectra', ...))
+      if (!inherits(sp_new, 'try-error') && any(!is.na(sp_new[, 2])))
+        try(points(sp_new, type = 'l', col = 'blue', ...))
+    } else {
+      if (!inherits(sp_new, 'try-error') && any(!is.na(sp_new[, 2])))
+        try(plot(sp_new, type = 'l', col = 'blue', xlab = 'Frequency, kHz',
+                 ylab = 'dB', main = 'Spectra', ...))
+    }
     par(mfrow = c(1, 1))
     if (is.character(audio$savePlots)) dev.off()
   }

@@ -9,6 +9,7 @@
   windowLength = 10,
   step = windowLength/2,
   timeLag = NULL,
+  theilerWindow = NULL,
   nonlinStats = c("ed", "d2", "ml", "sur"),
   pars_ed = list(max.embedding.dim = 15),
   pars_d2 = list(min.embedding.dim = 2, min.radius = 0.001, n.points.radius = 20),
@@ -42,6 +43,11 @@ frame that together represent the phase portrait (ms). Defaults to the
 number of steps beyond which the mutual information function reaches its
 minimum or, if that fails, the steps until mutual information experiences
 the first exponential decay - see \code{\link[nonlinearTseries]{timeLag}}}
+
+\item{theilerWindow}{time lag between two points that are considered locally
+independent and can be treated as neighbors in the reconstructed phase
+space. defaults to the first minimum or, if unavailable, the first zero of
+the autocorrelation function (or, failing that, to \code{timeLag * 2})}
 
 \item{nonlinStats}{nonlinear statistics to report: "ed" = the optimal number
 of embedding dimensions, "d2" = correlation dimension D2, "ml" = maximum

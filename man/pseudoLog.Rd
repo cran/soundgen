@@ -11,13 +11,13 @@ pseudoLog(x, sigma, base)
 
 \item{sigma}{scaling factor for the linear part}
 
-\item{approximate}{logarithm base used}
+\item{base}{approximate logarithm base used}
 }
 \description{
 Internal soundgen function
 }
 \details{
-From scales::pseudo_log_trans()
+From function pseudo_log_trans() in the "scales" package.
 }
 \examples{
 a = -30:30

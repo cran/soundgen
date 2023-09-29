@@ -40,8 +40,8 @@ or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
 in base R (overrides colorTheme)}
 
 \item{logWarpX, logWarpY}{numeric vector of length 2: c(sigma, base) of
-pseudolog-warping the modulation spectrum, as in
-\code{\link[scales]{pseudo_log_trans}}}
+pseudolog-warping the modulation spectrum, as in function
+pseudo_log_trans() from the "scales" package}
 
 \item{xlab, ylab, main, xlim, ylim}{graphical parameters}
 

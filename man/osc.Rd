@@ -117,10 +117,13 @@ o[1:10]  # the waveform in dB
 data(sheep, package = 'seewave')
 osc(sheep, dB = TRUE)
 
+# Plot a section
+osc(sheep, from = .5, to = 1.2)
+
 # for long files, reduce the resolution to plot quickly (careful: if the
 # resolution is too low, antialiasing may cause artifacts)
 osc(sheep, dB = TRUE, maxPoints = 2500)
-osc(sound, samplingRate = 5000, maxPoints = 100)
+osc(sheep, samplingRate = 5000, maxPoints = 100)
 
 # files several minutes long can be plotted in under a second
 osc('~/Downloads/speechEx.wav', maxPoints = 20000)

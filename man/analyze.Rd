@@ -154,7 +154,7 @@ provide a numeric vector of any length. For multiple sounds, provide a
 dataframe with columns "file" and "pitch" (or path to a csv file) as
 returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
-file is also OK}
+file is also OK (eg as returned by pitch_app)}
 
 \item{entropyThres}{pitch tracking is only performed for frames with Weiner
 entropy below \code{entropyThres}, but other spectral descriptives are

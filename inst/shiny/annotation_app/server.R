@@ -400,71 +400,71 @@ server = function(input, output, session) {
 
   ## SPECTROGRAM
   output$spectrogram = renderPlot({
-    if (!is.null(myPars$spec)) {
-      if (myPars$print) print('Drawing spectrogram...')
-      par(mar = c(0.2, 2, 0.5, 2))  # no need to save user's graphical par-s - revert to orig on exit
-      if (is.null(myPars$spec)) {
-        plot(1:10, type = 'n', bty = 'n', axes = FALSE, xlab = '', ylab = '')
-        text(x = 5, y = 5,
-             labels = 'Upload wav/mp3 file(s) to begin...\nSuggested max duration ~30 s')
+    if (myPars$print) print('Drawing spectrogram...')
+    par(mar = c(0.2, 2, 0.5, 2))  # no need to save user's graphical par-s - revert to orig on exit
+    if (is.null(myPars$spec)) {
+      plot(1:10, type = 'n', bty = 'n', axes = FALSE, xlab = '', ylab = '')
+      text(x = 5, y = 5, cex = 3,
+           labels =
+             'Upload wav/mp3 file(s) to begin...\n
+             Suggested max duration ~10 min')
+    } else {
+      if (input$specType != 'reassigned') {
+        # rasterized spectrogram
+        soundgen:::filled.contour.mod(
+          x = as.numeric(colnames(myPars$spec_trimmed)),
+          y = as.numeric(rownames(myPars$spec_trimmed)),
+          z = t(myPars$spec_trimmed),
+          levels = seq(0, 1, length = 30),
+          color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+          log = if (input$spec_yScale == 'log') 'y' else '',
+          yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB')) input$spec_yScale else 'orig',
+          xlim = myPars$spec_xlim,
+          xaxt = 'n',
+          xaxs = 'i', xlab = '',
+          ylab = '',
+          main = '',
+          ylim = input$spec_ylim
+        )
       } else {
-        if (input$specType != 'reassigned') {
-          # rasterized spectrogram
-          soundgen:::filled.contour.mod(
-            x = as.numeric(colnames(myPars$spec_trimmed)),
-            y = as.numeric(rownames(myPars$spec_trimmed)),
-            z = t(myPars$spec_trimmed),
-            levels = seq(0, 1, length = 30),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
-            log = if (input$spec_yScale == 'log') 'y' else '',
-            yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB')) input$spec_yScale else 'orig',
-            xlim = myPars$spec_xlim,
-            xaxt = 'n',
-            xaxs = 'i', xlab = '',
-            ylab = '',
-            main = '',
-            ylim = input$spec_ylim
-          )
-        } else {
-          # unrasterized reassigned spectrogram
-          soundgen:::plotUnrasterized(
-            myPars$reassigned,
-            levels = seq(0, 1, length = 30),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
-            log = if (input$spec_yScale == 'log') 'y' else '',
-            yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB'))
-              input$spec_yScale else 'orig',
-            xlim = myPars$spec_xlim,
-            xaxt = 'n',
-            xaxs = 'i', xlab = '',
-            ylab = '',
-            main = '',
-            ylim = input$spec_ylim,
-            cex = input$reass_cex
-          )
-        }
-
-        # Add text label of file name
-        if (input$spec_yScale == 'bark') {
-          spec_ylim = tuneR::hz2bark(input$spec_ylim * 1000)
-          nyquist = tuneR::hz2bark(myPars$samplingRate / 2)
-        } else if (input$spec_yScale == 'mel') {
-          spec_ylim = tuneR::hz2mel(input$spec_ylim * 1000)
-          nyquist = tuneR::hz2mel(myPars$samplingRate / 2)
-        } else if (input$spec_yScale == 'ERB') {
-          spec_ylim = HzToERB(input$spec_ylim * 1000)
-          nyquist = HzToERB(myPars$samplingRate / 2)
-        } else {
-          spec_ylim = input$spec_ylim
-          nyquist = myPars$samplingRate / 2000
-        }
-        if (spec_ylim[2] > nyquist) spec_ylim[2] = nyquist
-        text_y_lab = spec_ylim[2] - diff(spec_ylim) * .01
-        text(x = myPars$spec_xlim[1] + diff(myPars$spec_xlim) * .01,
-             y = text_y_lab,
-             labels = myPars$myAudio_filename,
-             adj = c(0, 1))  # left, top
+        # unrasterized reassigned spectrogram
+        soundgen:::plotUnrasterized(
+          myPars$reassigned,
+          levels = seq(0, 1, length = 30),
+          color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+          log = if (input$spec_yScale == 'log') 'y' else '',
+          yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB'))
+            input$spec_yScale else 'orig',
+          xlim = myPars$spec_xlim,
+          xaxt = 'n',
+          xaxs = 'i', xlab = '',
+          ylab = '',
+          main = '',
+          ylim = input$spec_ylim,
+          cex = input$reass_cex
+        )
       }
+
+      # Add text label of file name
+      if (input$spec_yScale == 'bark') {
+        spec_ylim = tuneR::hz2bark(input$spec_ylim * 1000)
+        nyquist = tuneR::hz2bark(myPars$samplingRate / 2)
+      } else if (input$spec_yScale == 'mel') {
+        spec_ylim = tuneR::hz2mel(input$spec_ylim * 1000)
+        nyquist = tuneR::hz2mel(myPars$samplingRate / 2)
+      } else if (input$spec_yScale == 'ERB') {
+        spec_ylim = HzToERB(input$spec_ylim * 1000)
+        nyquist = HzToERB(myPars$samplingRate / 2)
+      } else {
+        spec_ylim = input$spec_ylim
+        nyquist = myPars$samplingRate / 2000
+      }
+      if (spec_ylim[2] > nyquist) spec_ylim[2] = nyquist
+      text_y_lab = spec_ylim[2] - diff(spec_ylim) * .01
+      text(x = myPars$spec_xlim[1] + diff(myPars$spec_xlim) * .01,
+           y = text_y_lab,
+           labels = myPars$myAudio_filename,
+           adj = c(0, 1))  # left, top
     }
   })
 
@@ -676,7 +676,8 @@ server = function(input, output, session) {
 
     # save a backup in case the app crashes before done() fires
     temp = soundgen:::rbind_fill(myPars$out, myPars$ann)
-    temp = temp[order(temp$file), ]
+    temp = unique(temp[order(temp$file), ])  # remove duplicate rows
+    my_annot <<- temp
     write.csv(temp, 'www/temp.csv', row.names = FALSE)
   }
 
@@ -1001,6 +1002,7 @@ server = function(input, output, session) {
     if (!is.null(myPars$out)) {
       # re-order and save a backup
       myPars$out = myPars$out[order(myPars$out$file, myPars$out$from), ]
+      my_annot <<- myPars$out
       write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
     }
   }
@@ -1043,9 +1045,25 @@ server = function(input, output, session) {
     content = function(filename) {
       done()  # finalize the last file
       write.csv(myPars$out, filename, row.names = FALSE)
+      my_annot <<- myPars$out
       if (file.exists('www/temp.csv')) file.remove('www/temp.csv')
+      # offer to close the app
+      showModal(modalDialog(
+        title = "Terminate the app?",
+        easyClose = TRUE,
+        footer = tagList(
+          actionButton("terminate_no", "Keep working"),
+          actionButton("terminate_yes", "Terminate")
+        )
+      ))
     }
   )
+  observeEvent(input$terminate_no, {
+    removeModal()
+  })
+  observeEvent(input$terminate_yes, {
+    stopApp(returnValue = myPars$out)
+  })
 
   observeEvent(input$about, {
     if (myPars$debugQn) {

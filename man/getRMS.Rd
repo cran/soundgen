@@ -116,9 +116,10 @@ calculated as the mean / median / max of RMS values per frame.
 \examples{
 s = soundgen() + .25  # with added DC offset
 # osc(s)
-r = getRMS(s, samplingRate = 16000,
+r = getRMS(s, samplingRate = 16000, from = .05,
   windowLength = 40, overlap = 50, killDC = TRUE,
   plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
+r
 # short window = jagged envelope
 r = getRMS(s, samplingRate = 16000,
   windowLength = 5, overlap = 0, killDC = TRUE,
@@ -132,7 +133,8 @@ r = getRMS(s, samplingRate = 16000,
  getRMS(wave_stereo)$summary
  getRMS(wave_stereo, stereo = 'right')$summary
  getRMS(wave_stereo, stereo = 'average')$summary
- getRMS(wave_stereo, stereo = 'both', plot = TRUE)$summary
+ getRMS(wave_stereo, from = .05,
+   stereo = 'both', plot = TRUE)$summary
 
 \dontrun{
 r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')

@@ -1435,6 +1435,7 @@ switchColorTheme = function(colorTheme) {
   return(color.palette)
 }
 
+
 #' Parabolic peak interpolation
 #'
 #' Internal soundgen function
@@ -1442,7 +1443,7 @@ switchColorTheme = function(colorTheme) {
 #' Takes a spectral peak and two adjacent points, fits a parabola through them,
 #' and thus estimates true peak location relative to the discrete peak. See
 #' https://ccrma.stanford.edu/~jos/sasp/Quadratic_Interpolation_Spectral_Peaks.html
-#' @param points the amplitudes of three adjacent points (beta is the
+#' @param threePoints the amplitudes of three adjacent points (beta is the
 #'   peak), ideally spectrum on a dB scale, obtained with a Gaussian window
 #' @param plot if TRUE, plot the points and the fit parabola
 #' @return Returns a list: $p = the correction coefficient in bins (idx_beta + p
@@ -1651,13 +1652,13 @@ rbind_fill = function(df1, df2) {
 #'
 #' Internal soundgen function
 #'
-#' From scales::pseudo_log_trans()
+#' From function pseudo_log_trans() in the "scales" package.
 #'
 #' @seealso \code{\link{pseudoLog_undo}}
 #'
 #' @param x numeric vector to transform
 #' @param sigma scaling factor for the linear part
-#' @param approximate logarithm base used
+#' @param base approximate logarithm base used
 #' @keywords internal
 #' @examples
 #' a = -30:30
@@ -1673,13 +1674,13 @@ pseudoLog = function(x, sigma, base) {
 #'
 #' Internal soundgen function
 #'
-#' From scales::pseudo_log_trans()
+#' From function pseudo_log_trans() in the "scales" package.
 #'
 #' @seealso \code{\link{pseudoLog}}
 #'
 #' @param x numeric vector to transform
 #' @param sigma scaling factor for the linear part
-#' @param approximate logarithm base used
+#' @param base approximate logarithm base used
 #' @keywords internal
 pseudoLog_undo = function(x, sigma, base) {
   2 * sigma * sinh(x * log(base))

@@ -1,5 +1,5 @@
 ui = fluidPage(
-  # headerPanel('soundgen 1.1.0'),
+  # headerPanel('soundgen v...'),
 
   fluidRow(
     column(

@@ -13,7 +13,7 @@ modulation spectra)}
 \item{rFun, }{cFun functions used to determine the number of rows and columns
 in the result}
 
-\item{aggFun}{function used to aggregate}
+\item{reduceFun}{function used to aggregate}
 }
 \description{
 Internal soundgen function.

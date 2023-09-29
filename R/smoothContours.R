@@ -42,7 +42,7 @@
 #' @param voiced,contourLabel graphical pars for plotting breathing contours
 #'   (see examples below)
 #' @param NA_to_zero if TRUE, all NAs are replaced with zero
-#' @param xlim,ylim plotting options
+#' @param xlim,ylim,xlab,ylab,main plotting options
 #' @param ... other plotting options passed to \code{plot()}
 #' @export
 #' @return Returns a numeric vector of length \code{len}.
@@ -105,32 +105,27 @@
 #'   discontThres = 0)     # don't break into sub-contours
 #' plot(anchors_ups, type = 'b')
 getSmoothContour = function(
-  anchors = data.frame(time = c(0, 1), value = c(0, 1)),
-  len = NULL,
-  thisIsPitch = FALSE,
-  normalizeTime = TRUE,
-  interpol = c('approx', 'spline', 'loess')[3],
-  loessSpan = NULL,
-  discontThres = .05,
-  jumpThres = .01,
-  valueFloor = NULL,
-  valueCeiling = NULL,
-  plot = FALSE,
-  xlim = NULL,
-  ylim = NULL,
-  samplingRate = 16000,
-  voiced = NULL,
-  contourLabel = NULL,
-  NA_to_zero = TRUE,
-  ...) {
-  my_args = match.call()
-  if (is.null(my_args$main)) {
-    if (thisIsPitch)
-      main = 'Pitch contour'
-    else
-      main = ''
-  }
-  # if (is.null(my_args$main)) {
+    anchors = data.frame(time = c(0, 1), value = c(0, 1)),
+    len = NULL,
+    thisIsPitch = FALSE,
+    normalizeTime = TRUE,
+    interpol = c('approx', 'spline', 'loess')[3],
+    loessSpan = NULL,
+    discontThres = .05,
+    jumpThres = .01,
+    valueFloor = NULL,
+    valueCeiling = NULL,
+    plot = FALSE,
+    xlim = NULL,
+    ylim = NULL,
+    xlab = 'Time, ms',
+    ylab = ifelse(thisIsPitch, 'Frequency, Hz', 'Amplitude'),
+    main = ifelse(thisIsPitch, 'Pitch contour', ''),
+    samplingRate = 16000,
+    voiced = NULL,
+    contourLabel = NULL,
+    NA_to_zero = TRUE,
+    ...) {
   anchors = reformatAnchors(anchors, normalizeTime = normalizeTime)
   if (!is.null(len) && len == 1) return(anchors$value[1])
   if (is.list(anchors)) {
@@ -274,11 +269,13 @@ getSmoothContour = function(
       # unique to remove duplicates, max 5 labels
       lbls_notes = soundgen::notesDict$note[round(lbls_semitones) + 1]
       lbls_Hz = round(semitonesToHz(lbls_semitones))
+      if (!exists('xlab')) xlab = 'Time, ms'
+      if (!exists('ylab')) ylab = 'Frequency, Hz'
 
       par(mar = c(5, 4, 4, 3)) # c(bottom, left, top, right)
       plot(x, smoothContour_downsampled,
-           type = 'l', yaxt = "n", ylab = 'Frequency, Hz', xlab = 'Time, ms',
-           ylim = ylim, ...)
+           type = 'l', yaxt = "n", ylab = ylab, xlab = xlab,
+           ylim = ylim, main = main, ...)
       axis(2, at = lbls_semitones, labels = lbls_Hz, las = 1)
       axis(4, at = lbls_semitones, labels = lbls_notes, las = 1)
       points(anchors$time, anchors$value, col = 'blue', cex = 3)
@@ -300,11 +297,9 @@ getSmoothContour = function(
         ylim = c(m1, m2)
         # ylim = c(min(0, min(anchors$value)), max(0, max(anchors$value)))
       }
-      # x = seq(anchors$time[1],
-      #         anchors$time[length(anchors$time)],
-      #         length.out = length(smoothContour_downsampled))
-      plot(x, y = smoothContour_downsampled, type = 'l', ylab = 'Amplitude',
-           xlab = 'Time, ms', xlim = xlim, ylim = ylim, ...)
+
+      plot(x, y = smoothContour_downsampled, type = 'l', ylab = ylab,
+           xlab = xlab, xlim = xlim, ylim = ylim, main = main, ...)
       points(anchors$time, anchors$value, col = 'blue', cex = 3)
       if (is.numeric(voiced)) {
         lines(x = c(0, voiced), y = c(0, 0), col = 'blue', lwd = 10)

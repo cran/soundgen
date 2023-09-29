@@ -46,8 +46,6 @@ left every ... iterations (NULL = default, NA = don't report)}
 don't save, '' = same folder as audio)}
 
 \item{cores}{number of cores for parallel processing}
-
-\item{summaryFun}{function(s) used to summarize the output per input}
 }
 \description{
 Internal soundgen function.

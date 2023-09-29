@@ -270,6 +270,7 @@ harmEnergy = function(pitch, s, freqs = NULL, coef = 1.25) {
 #' @inheritParams harmHeight
 #' @keywords internal
 #' @examples
+#' \dontrun{
 #' s400 = soundgen(
 #'   sylLen = 300, pitch = c(280, 370, 330),
 #'   subDep = list(
@@ -278,6 +279,7 @@ harmEnergy = function(pitch, s, freqs = NULL, coef = 1.25) {
 #'   ), subRatio = 3,
 #'   smoothing = list(interpol = 'approx'), formants = 'a',
 #'   rolloff = -12, addSilence = 50, temperature = .001,
+#'   plot = TRUE, ylim = c(0, 2)
 #' )
 #' s = analyze(s400, samplingRate = 16000,
 #'             windowLength =  50, step = 10,
@@ -285,6 +287,15 @@ harmEnergy = function(pitch, s, freqs = NULL, coef = 1.25) {
 #'             plot = TRUE, ylim = c(0, 3),
 #'             extraContour = list('subDep', type = 'b', col = 'brown'))
 #' s$detailed[, c('subRatio', 'subDep')]
+#'
+#' s2 = analyze(s400, samplingRate = 16000,
+#'             windowLength =  50, step = 10,
+#'             pitchMethods = c('dom', 'autocor', 'hps'), priorMean = NA,
+#'             subh = list(method = 'harm'),
+#'             plot = TRUE, ylim = c(0, 3),
+#'             extraContour = list('subDep', type = 'b', col = 'brown'))
+#' s$detailed[, c('subRatio', 'subDep')]
+#' }
 subhToHarm = function(
     frame,
     bin,
@@ -337,11 +348,25 @@ subhToHarm = function(
     for (r in 1:nToTry) {
       ratios$energy[r] = max(cep[(bin_at_pitch * r - 1) : (bin_at_pitch * r + 1)])
     }
-    ratios$extraEnergy = ratios$energy - ratios$energy[1] / ratios$r
+    if (FALSE) {
+      # we expect the cepstral peak to grow linearly with the density of
+      # harmonics, so eg twice as strong at 200 Hz as at 400 Hz. Thus, if some
+      # energy is present at f0/r, we penalize its apparent strength by r
+      a = rep(c(1, 0), 100)
+      max(abs(fft(a) / length(a))) # .5
+
+      b = rep(c(1, 0, 0, 0), 50)
+      max(abs(fft(b) / length(b))) # .25
+
+      c = rep(c(1, 0, 0, 0, 0, 0, 0, 0), 25)
+      max(abs(fft(c) / length(c))) # .125
+    }
+    ratios$expected = ratios$energy[1] / ratios$r
+    ratios$extraEnergy = ratios$energy - ratios$expected
     subR = na.omit(ratios[ratios$extraEnergy > 0, ])
     if (nrow(subR) > 0) {
       best_subh = subR$r[which.max(subR$extraEnergy)]
-      subDep = ratios$extraEnergy[best_subh] / ratios$energy[best_subh]
+      subDep = ratios$extraEnergy[best_subh]/ratios$energy[best_subh]
       subDep[subDep > 1] = 1
       # ad hoc correction to linearize subDep - from simulations with known
       # soundgen(subDep = ...), mod = nls(subDep ~ exp(b * m + c), data = out1,

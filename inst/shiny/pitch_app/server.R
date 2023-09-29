@@ -113,7 +113,9 @@ server = function(input, output, session) {
       myPars$history = vector('list', length = myPars$nFiles)
       names(myPars$history) = myPars$fileList$name
       for (i in 1:length(myPars$history)) {
-        myPars$history[[i]] = list(manual = NULL, manualUnv = NULL)
+        myPars$history[[i]] = list(
+          detailed = NULL, summary = NULL,
+          manual = NULL, manualUnv = NULL)
       }
     }
 
@@ -381,15 +383,17 @@ server = function(input, output, session) {
 
   # Actuall plotting of the spec / osc
   output$spectrogram = renderPlot({
-    if (!is.null(myPars$spec) && myPars$drawSpec == TRUE) {
+    if (myPars$drawSpec == TRUE) {
       if (myPars$print) print('Drawing spectrogram...')
       par(mar = c(0.2, 2, 0.5, 2))
       # no need to save user's graphical par-s - revert to orig on exit
       if (is.null(myPars$myAudio_trimmed) | is.null(myPars$spec)) {
         plot(1:10, type = 'n', bty = 'n', axes = FALSE, xlab = '', ylab = '')
         text(
-          x = 5, y = 5,
-          labels = 'Upload wav/mp3 file(s) to begin...\nSuggested max duration ~30 s')
+          x = 5, y = 5, cex = 3,
+          labels =
+             'Upload wav/mp3 file(s) to begin...\n
+             Suggested max duration ~10 s')
       } else {
         if (input$specType != 'reassigned') {
           # rasterized spectrogram
@@ -652,8 +656,9 @@ server = function(input, output, session) {
           silence = input$silence,
           entropyThres = input$entropyThres,
           nFormants = 0,     # disable formant tracking
-          SPL_measured = 0,  # disable loudness analysis
+          loudness = NULL,  # disable loudness analysis
           roughness = list(amRes = 0),  # no roughness analysis
+          amRange = NULL,  # no AM analysis
           pitchMethods = input$pitchMethods,
           pitchFloor = input$pitchFloor,
           pitchCeiling = input$pitchCeiling,
@@ -1427,13 +1432,21 @@ server = function(input, output, session) {
     cols_order = c(colnames(myPars$out)[!colnames(myPars$out) %in% c('time', 'pitch')],
                    'time', 'pitch')
     myPars$out = myPars$out[, cols_order]
-    if (!is.null(myPars$out))
-      write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
 
     # add manual corrections to the history list
     if (!is.null(myPars$myAudio_filename)) {
       myPars$history[[myPars$myAudio_filename]]$manual = myPars$manual
       myPars$history[[myPars$myAudio_filename]]$manualUnv = myPars$manualUnv
+    }
+
+    # save a backup
+    if (!is.null(myPars$out)) {
+      write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
+      myPars$result$pitch = myPars$pitch
+      myPars$history[[myPars$myAudio_filename]]$detailed = myPars$result
+      myPars$history[[myPars$myAudio_filename]]$summary = myPars$out
+      myPars$history[[myPars$myAudio_filename]]$pitch = myPars$pitch
+      my_pitch <<- myPars$history
     }
   }
 
@@ -1475,9 +1488,25 @@ server = function(input, output, session) {
     content = function(filename) {
       done()  # finalize the last file
       write.csv(myPars$out, filename, row.names = FALSE)
+      my_pitch <<- myPars$history
       if (file.exists('www/temp.csv')) file.remove('www/temp.csv')
+      # offer to close the app
+      showModal(modalDialog(
+        title = "Terminate the app?",
+        easyClose = TRUE,
+        footer = tagList(
+          actionButton("terminate_no", "Keep working"),
+          actionButton("terminate_yes", "Terminate")
+        )
+      ))
     }
   )
+  observeEvent(input$terminate_no, {
+    removeModal()
+  })
+  observeEvent(input$terminate_yes, {
+    stopApp(returnValue = myPars$history)
+  })
 
   observeEvent(input$about, {
     if (myPars$debugQn) {

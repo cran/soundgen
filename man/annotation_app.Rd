@@ -6,13 +6,19 @@
 \usage{
 annotation_app()
 }
+\value{
+Every time a new annotation is added, the app creates a backup csv
+  file and creates or updates a global object called "my_annot", which
+  contains all the annotations. When the app is terminated, it also returns
+  the results as a dataframe.
+}
 \description{
 Starts a shiny app for annotating audio. This is a simplified and faster
 version of \code{\link{formant_app}} intended only for making annotations.
 }
 \examples{
 \dontrun{
-annotation_app()  # runs in default browser such as Firefox or Chrome
+ann = annotation_app()  # runs in default browser such as Firefox or Chrome
 
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux

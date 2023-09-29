@@ -151,7 +151,10 @@ estimateVTL = function(
     vocalTract = speedSound / 2 / formantDispersion
   }
   if (output == 'detailed') {
-    return(c(list(vocalTract = vocalTract, formantDispersion = formantDispersion)))
+    return(c(list(vocalTract = vocalTract,
+                  vocalTract_95CI = rev(speedSound / 2 / fd$formantDispersion_95CI),
+                  formantDispersion = formantDispersion,
+                  formantDispersion_95CI = fd$formantDispersion_95CI)))
   } else {
     return(vocalTract)
   }
@@ -506,6 +509,7 @@ getFormantDispersion = function(
       mod = suppressWarnings(lm(freq ~ 1 + formantSpacing, fdf))
       formantDispersion = suppressWarnings(summary(mod)$coef[2])
     }
+    ci = formantDispersion + c(-1.96, 1.96) * summary(mod)$coef[2]
 
     if (output == 'detailed') {
       vtl_full = speedSound / 2 / formantDispersion
@@ -581,6 +585,7 @@ getFormantDispersion = function(
     }
     if (output == 'detailed') {
       formantDispersion = list(formantDispersion = formantDispersion,
+                               formantDispersion_95CI = ci,
                                regressionInfo = fdf,
                                vtlPerFormant = vf)
     }

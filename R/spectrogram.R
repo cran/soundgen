@@ -774,7 +774,7 @@ getFrameBank = function(sound,
 #' Internal soundgen function.
 #' @param sound the audio (numeric, any scale)
 #' @inheritParams spectrogram
-#' @param a pre-extracted spectrum in dB with columns "freq" and "ampl"
+#' @param spectrum pre-extracted spectrum in dB with columns "freq" and "ampl"
 #' @param len the desired resolution of the output
 #' @param loessSpan passed to loess to control the amount of smoothing (.01 =
 #'   minimal smoothing, 1 = strong smoothing)

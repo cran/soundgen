@@ -7,10 +7,10 @@
 parabPeakInterpol(threePoints, plot = FALSE)
 }
 \arguments{
-\item{plot}{if TRUE, plot the points and the fit parabola}
-
-\item{points}{the amplitudes of three adjacent points (beta is the
+\item{threePoints}{the amplitudes of three adjacent points (beta is the
 peak), ideally spectrum on a dB scale, obtained with a Gaussian window}
+
+\item{plot}{if TRUE, plot the points and the fit parabola}
 }
 \value{
 Returns a list: $p = the correction coefficient in bins (idx_beta + p

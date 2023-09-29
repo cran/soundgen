@@ -42,7 +42,8 @@
 \item{step}{step, ms (determines time resolution). step = NULL means no
 downsampling at all (ncol of output = length of input audio)}
 
-\item{winSurp}{surprisal analysis window, ms}
+\item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
+point)}
 
 \item{method}{acf = change in maximum autocorrelation after adding the final
 point, np = nonlinear prediction (see \code{\link{nonlinPred}})}

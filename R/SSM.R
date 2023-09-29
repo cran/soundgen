@@ -354,7 +354,7 @@ ssm = function(
     specPars1[['colorTheme']] = NULL
 
     do.call(filled.contour.mod, c(list(
-      x = seq(0, audio$duration, length.out = nrow(spec)),
+      x = seq(audio$timeShift, audio$duration, length.out = nrow(spec)),
       y = seq(
         0,
         (audio$samplingRate / 2) - (audio$samplingRate / windowLength_points),
@@ -376,7 +376,7 @@ ssm = function(
       noveltyPars1[[n]] = noveltyPars[[n]]
     }
     do.call(lines, c(list(
-      x = seq(0, audio$duration, length.out = length(novelty)),
+      x = seq(audio$timeShift, audio$duration, length.out = length(novelty)),
       y = novelty / max(novelty, na.rm = TRUE) * maxFreq / 1000 * .95
     ), noveltyPars1
     ))

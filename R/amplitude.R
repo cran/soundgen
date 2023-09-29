@@ -39,9 +39,10 @@
 #' @examples
 #' s = soundgen() + .25  # with added DC offset
 #' # osc(s)
-#' r = getRMS(s, samplingRate = 16000,
+#' r = getRMS(s, samplingRate = 16000, from = .05,
 #'   windowLength = 40, overlap = 50, killDC = TRUE,
 #'   plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
+#' r
 #' # short window = jagged envelope
 #' r = getRMS(s, samplingRate = 16000,
 #'   windowLength = 5, overlap = 0, killDC = TRUE,
@@ -55,7 +56,8 @@
 #'  getRMS(wave_stereo)$summary
 #'  getRMS(wave_stereo, stereo = 'right')$summary
 #'  getRMS(wave_stereo, stereo = 'average')$summary
-#'  getRMS(wave_stereo, stereo = 'both', plot = TRUE)$summary
+#'  getRMS(wave_stereo, from = .05,
+#'    stereo = 'both', plot = TRUE)$summary
 #'
 #' \dontrun{
 #' r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
@@ -205,7 +207,7 @@ getRMS = function(x,
   r = apply(as.matrix(myseq), 1, function(x) {
     sqrt(mean(audio$sound[x:(windowLength_points + x - 1)] ^ 2))
   })
-  names(r) = myseq / audio$samplingRate * 1000 + windowLength / 2
+  names(r) = myseq / audio$samplingRate * 1000 + windowLength / 2 + audio$timeShift * 1000
   if (normalize) r = r / audio$scale
 
   # same for the right channel
@@ -234,17 +236,13 @@ getRMS = function(x,
         main = audio$filename_noExt
       }
     }
-    time = 1:audio$ls / audio$samplingRate * 1000
+
     if (stereo != 'both') {
-      plot(time, audio$sound, type = 'n', main = main, xlab = xlab, ylab = ylab,
-           xaxt = 'n', ylim = c(-audio$scale, audio$scale), ...)
-      time_location = axTicks(1)
-      time_labels = convert_sec_to_hms(time_location / 1000, 3)
-      axis(side = 1, at = time_location, labels = time_labels)
-      points(time, audio$sound, type = 'l')
+      .osc(audio)
       points(as.numeric(names(r)), r * audio$scale, type = type,
              col = col, lwd = lwd, ...)
     } else if (stereo == 'both' & !is.null(audio$right)) {
+      time = ((1:audio$ls) / audio$samplingRate + audio$timeShift) * 1000
       op = par(c('mar', 'mfrow')) # save user's original pars
       layout(matrix(c(2, 1), nrow = 2, byrow = TRUE))
       par(mfrow = c(2, 1), mar = c(0, par()$mar[2:4]))
@@ -979,8 +977,6 @@ addAM = function(x,
 #' windowLength_points = 50
 #' scale = max(abs(a))
 #' plot(a, type = 'l', ylim = c(-scale, scale))
-#' points(soundgen:::getEnv(a, windowLength_points, 'raw'),
-#'        type = 'l', col = 'brown')
 #' points(soundgen:::getEnv(a, windowLength_points, 'rms'),
 #'        type = 'l', col = 'red')
 #' points(soundgen:::getEnv(a, windowLength_points, 'peak'),
@@ -994,6 +990,8 @@ getEnv = function(
     windowLength_points,
     method = c('rms', 'hil', 'peak', 'raw', 'mean')[1]
 ) {
+  if (!method %in%  c('rms', 'hil', 'peak', 'raw', 'mean'))
+    stop("Valid values for method are c('rms', 'hil', 'peak', 'mean')")
   windowLength_points = round(windowLength_points)
   sound = c(rep(0, windowLength_points),
             sound,
@@ -1001,61 +999,46 @@ getEnv = function(
   len = length(sound)
   if (method == 'peak') sound_abs = abs(sound)  # avoid repeated calculations
 
-  if (method %in% c('peak', 'mean')) {
-    # moving window operations: get per window, then upsample
-    if (windowLength_points >= len / 2) {
-      # short sound relative to window - just take beginning and end (2 points)
-      s = c(1, len)
-    } else {
-      s = c(1,
-            seq(from = floor(windowLength_points / 2),
-                to = length(sound) - floor(windowLength_points / 2),
-                by = windowLength_points),
-            length(sound))
-    }
-    # s is a sequence of starting indices for windows over which we average
-    envShort = rep(NA, length(s) - 1)
-    for (i in 1:(length(s) - 1)) {
-      seg = s[i] : s[i+1]
-      if (method == 'peak') {
-        # get moving peak amplitude
-        envShort[i] = max(sound_abs[seg])
-      } else if (method == 'mean') {
-        envShort[i] = mean(sound[seg])
-      }
-    }
-    # upsample and smooth
-    env = getSmoothContour(
-      anchors = data.frame(time = seq(0, 1, length.out = length(envShort)),
-                           value = envShort),
-      len = length(sound),
-      valueFloor = 0,
-      loessSpan = 1
-    )
-  } else if (method %in% c('rms', 'hil', 'raw')) {
-    # process the entire sound, then low-pass as needed
-    if (method == 'rms') {
-      envLong = sqrt(sound ^ 2)
-    } else if (method == 'hil') {
-      envLong = Mod(seewave::hilbert(sound,
-                                     f = 1,  # not actually needed
-                                     fftw = FALSE))
-    } else if (method == 'raw') {
-      envLong = sound
-    }
-    # plot(envLong, type = 'l')
-    # low-pass
-    env = pitchSmoothPraat(envLong,
-                           bandwidth = 1000 / windowLength_points,
-                           samplingRate = 1000)
-    # NB: at least for long sounds, this is faster than doing window +
-    # upsampling as above (plus we avoid artifacts from spline/loess), and even
-    # a bit faster than filtering with addFormants
+  # moving window operations: get per window, then upsample
+  if (windowLength_points >= len / 2) {
+    # short sound relative to window - just take beginning and end (2 points)
+    s = c(1, len)
   } else {
-    stop("Valid values for method are c('rms', 'hil', 'peak', 'raw', 'mean')")
+    s = c(1,
+          seq(from = floor(windowLength_points / 2),
+              to = length(sound) - floor(windowLength_points / 2),
+              by = windowLength_points),
+          length(sound))
   }
+  # s is a sequence of starting indices for windows over which we average
+  envShort = rep(NA, length(s) - 1)
+  for (i in 1:(length(s) - 1)) {
+    seg = s[i] : s[i+1]
+    if (method == 'peak') {
+      # get moving peak amplitude
+      envShort[i] = max(sound_abs[seg])
+    } else if (method == 'mean' || method == 'raw') {
+      envShort[i] = mean(sound[seg])
+    } else if (method == 'rms') {
+      envShort[i] = mean(sqrt(sound[seg] ^ 2))
+    } else if (method == 'hil') {
+      envShort[i] = mean(Mod(seewave::hilbert(sound[seg],
+                                              f = 1,  # not actually needed
+                                              fftw = FALSE)))
+    }
+  }
+  # upsample and smooth
+  env = getSmoothContour(
+    anchors = data.frame(time = seq(0, 1, length.out = length(envShort)),
+                         value = envShort),
+    len = length(sound),
+    valueFloor = 0,
+    loessSpan = 1
+  )
+
+  # remove the zero-padded regions
   env = env[(windowLength_points + 1):(len - windowLength_points)]
-  # plot(env, type = 'l')
+  # osc(env)
   return(env)
 }
 

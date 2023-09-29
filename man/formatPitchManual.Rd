@@ -20,7 +20,9 @@ Internal soundgen function
 \examples{
 soundgen:::formatPitchManual(c(NA, 120, 180, NA))
 soundgen:::formatPitchManual('NA, 120, 180, NA')
-soundgen:::formatPitchManual(list('myfile.wav' = c(NA, 120, 180, NA)))
+soundgen:::formatPitchManual(list(
+  'myfile.wav' = list(pitch = c(NA, 120, 180, NA))
+))
 soundgen:::formatPitchManual(data.frame(file = c('file1.wav', 'file2.wav'),
                                         pitch = c('NA, 120', '180, NA')))
 soundgen:::formatPitchManual('adja')

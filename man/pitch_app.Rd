@@ -7,11 +7,19 @@
 pitch_app()
 }
 \value{
-The app produces a .csv file with one row per audio file. Apart from
-  the usual descriptives from analyze(), there are two additional columns:
-  "time" with time stamps (the midpoint of each STFT frame, ms) and "pitch"
-  with the manually corrected pitch values for each frame (Hz). To process
-  pitch contours further in R, do something like:
+When proceeding to the next file in the cue, two types of backups are
+  created. (1) A global object called "my_pitch" is created or updated. This
+  list becomes visible when the app is terminated, and it contains the usual
+  outputs of analyze() ($detailed and $summary) plus lists of manually
+  corrected voiced and unvoiced frames. (2) The app saves to disk a .csv file
+  with one row per audio file. Apart from the usual descriptives from
+  analyze(), there are two additional columns: "time" with time stamps (the
+  midpoint of each STFT frame, ms) and "pitch" with the manually corrected
+  pitch values for each frame (Hz). When the orange "Download results" button
+  is clicked, a context menu pops up offering to terminate the app - if that
+  happens, the results are also returned directly into R. To process pitch
+  contours further in R, work directly with my_pitch[[myfile]]$time and
+  my_pitch[[myfile]]$pitch or, if loading the csv file, do something like:
 
 \preformatted{
 a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
@@ -50,11 +58,12 @@ whole or to set a prior based on selected frequency range.
 \bold{Recovering lost data}
 
 Every time you click "next" or "last" to move in between files in the queue,
-the output you've got so far is saved in a backup file called "temp.csv". If
-the app crashes or is closed without saving the results, this backup file
-preserves your data. To recover it, access this file manually on disk or
-simply restart pitch_app() - a dialog box will pop up and ask whether you
-wank to append the old data to the new one. Path to backup file:
+the output you've got so far is saved in a backup file called "temp.csv", and
+the "my_pitch" global object is updated. If the app crashes or is closed
+without saving the results, this backup file preserves your data. To recover
+it, access this file manually on disk or simply restart pitch_app() - a
+dialog box will pop up and ask whether you wank to append the old data to the
+new one. Path to backup file:
 "[R_installation_folder]/soundgen/shiny/pitch_app/www/temp.csv", for example,
 "/home/allgoodguys/R/x86_64-pc-linux-gnu-library/3.6/soundgen/shiny/pitch_app/www/temp.csv"
 }
@@ -71,27 +80,33 @@ can verify the pitch contours first, and then feed them back into
 path_to_audio = '~/Downloads/temp'  # our audio lives here
 
 # STEP 1: extract manually corrected pitch contours
-pitch_app()  # runs in default browser such as Firefox or Chrome
+my_pitch = pitch_app()  # runs in default browser such as Firefox or Chrome
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 
-df1 = read.csv('~/Downloads/output.csv')  # saved output from pitch_app()
-
 # STEP 2: run analyze() with manually corrected pitch contours to obtain
-accurate descriptives like the proportion of energy in harmonics above f0,
-etc. This also gives you formants and loudness estimates (disabled in
-pitch_app to speed things up)
+# accurate descriptives like the proportion of energy in harmonics above f0,
+# etc. This also gives you formants and loudness estimates (disabled in
+# pitch_app to speed things up)
 df2 = analyze(path_to_audio,
   pitchMethods = 'autocor',  # only needed for HNR
   nFormants = 5,        # now we can measure formants as well
-  pitchManual = df1     # df1 contains our manually corrected contours
+  pitchManual = my_pitch
+  # or, if loading the output of pitch_app() from the disk:
+  # pitchManual = '~/Downloads/output.csv'
+  # pitchManual = '~/path_to_some_folder/my_pitch_contours.rds
+  # etc
 )
 
 # STEP 3: add other acoustic descriptors, for ex.
 df3 = segment(path_to_audio)
 
 # STEP 4: merge df2, df3, df4, ... in R or a spreadsheet editor to have all
-acoustic descriptives together
+# acoustic descriptives together
+
+# To verify your pitch contours and/or edit them later, copy output.csv to
+# the folder with your audio, run pitch_app(), and load the audio + csv
+# together. The saved pitch contours are treated as manual anchors
 }
 }
 \seealso{
