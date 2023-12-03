@@ -308,9 +308,9 @@ getPrior = function(priorMean,
 #' @param var_noSummary variables that should not be summarized
 #' @keywords internal
 summarizeAnalyze = function(
-  result,
-  summaryFun = c('mean', 'sd'),
-  var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time', 'epoch')
+    result,
+    summaryFun = c('mean', 'sd'),
+    var_noSummary = c('duration', 'duration_noSilence', 'voiced', 'time', 'epoch')
 ) {
   if (is.character(var_noSummary)) {
     vars = colnames(result)[!colnames(result) %in% var_noSummary]
@@ -383,22 +383,22 @@ summarizeAnalyze = function(
 #' @param varsToUnv set these variables to NA in unvoiced frames
 #' @keywords internal
 updateAnalyze = function(
-  result,
-  pitch_true,
-  pitchCands_list = NULL,
-  spectrogram,
-  freqs = NULL,
-  bin = NULL,
-  samplingRate = NULL,
-  windowLength = NULL,
-  harmHeight_pars = list(),
-  subh_pars = list(),
-  flux_pars = list(),
-  fmRange = NULL,
-  smooth,
-  smoothing_ww,
-  smoothingThres,
-  varsToUnv = NULL
+    result,
+    pitch_true,
+    pitchCands_list = NULL,
+    spectrogram,
+    freqs = NULL,
+    bin = NULL,
+    samplingRate = NULL,
+    windowLength = NULL,
+    harmHeight_pars = list(),
+    subh_pars = list(),
+    flux_pars = list(),
+    fmRange = NULL,
+    smooth,
+    smoothing_ww,
+    smoothingThres,
+    varsToUnv = NULL
 ) {
   # remove all pitch-related columns except dom
   result = result[-which(grepl('pitch', colnames(result)))]
@@ -507,8 +507,8 @@ updateAnalyze = function(
     if (any(!is.na(fm$freq))) {
       # get FM from inflections to evaluate fmDep in semitones
       ps = .bandpass(list(sound = env, samplingRate = 1000/step),
-                    lwr = min(fm$freq), upr = max(fm$freq),
-                    action = 'pass', plot = FALSE)
+                     lwr = min(fm$freq), upr = max(fm$freq),
+                     action = 'pass', plot = FALSE)
       infl = findInflections(ps, thres = 0, plot = FALSE)
       # amFreq = 1000 / (step * diff(infl) * 2)
       # too noisy w/o bandpass, therefore need FFT first
@@ -721,4 +721,147 @@ getSpectralFlux = function(s) {
   for (c in 2:nc) flux[c] = mean(abs(s[, c] - s[, c - 1]))
   # or as.numeric(dist(rbind(s[, c], s[, c - 1])))
   return(flux)
+}
+
+
+#' Get HNR
+#'
+#' Calculates the harmonics-to-noise ratio (HNR) - that is, the ratio between
+#' the intensity (root mean square amplitude) of the harmonic component and the
+#' intensity of the noise component.
+#'
+#' @param x time series (a numeric vector)
+#' @param samplingRate sampling rate
+#' @param acf_x pre-computed autocorrelation function of input \code{x}
+#' @param lag.min,lag.max minimum and maximum lag to consider when looking for
+#'   peaks in the ACF
+#' @param interpol method of improving the frequency resolution by interpolating
+#'   the ACF: "none" = don't interpolate; "parab" = parabolic interpolation on
+#'   three points (local peak and its neighbors); "spline" = spline
+#'   interpolation; "sinc" = sin(x)/x interpolation to a continuous function
+#'   followed by a search for local peaks using Brent's method
+#' @param wn window applied to \code{x} (unless acf_x is provided instead of x)
+#'   as well as to the sinc interpolation
+#' @param idx_max (interal) the index of the peak to investigate, if already
+#'   estimated
+#' @keywords internal
+#'
+#' @examples
+#' signal = sin(2 * pi * 150 * (1:16000)/16000)
+#' signal = signal / sqrt(mean(signal^2))
+#' noise = rnorm(16000)
+#' noise = noise / sqrt(mean(noise^2))
+#' SNR = 40
+#' s = signal + noise * 10^(-SNR/20)
+#' soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
+#' lag.max = 16000/75, interpol = 'none')
+#' soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
+#' lag.max = 16000/75, interpol = 'parab')
+#' soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
+#' lag.max = 16000/75, interpol = 'spline')
+#' soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
+#' lag.max = 16000/75, interpol = 'sinc')
+getHNR = function(x = NULL,
+                  samplingRate = NA,
+                  acf_x = NULL,
+                  lag.min = 2,
+                  lag.max = length(x),
+                  interpol = c('none', 'parab', 'spline', 'sinc')[4],
+                  wn = 'hanning',
+                  idx_max = NULL
+) {
+  if (!is.null(x)) {
+    ## calculate ACF
+    len = length(x)
+    half_len = floor(len / 2)
+    lag.min = round(lag.min)
+    lag.max = round(min(lag.max, half_len))
+    if (lag.min > half_len) stop('lag.min is too small')
+    if (lag.max <= lag.min) stop('lag.max must be > lag.min')
+
+    # prepare a windowing function
+    win = seewave::ftwindow(len, wn = wn)
+
+    # calculate ACF of the windowing function
+    sp_win = fft(win) / half_len
+    powerSpectrum_win = Re(sp_win * Conj(sp_win))
+    acf_win = Re(fft(powerSpectrum_win, inverse = TRUE))[1:half_len]
+    acf_win = acf_win / acf_win[1]
+    # plot(acf_win, type = 'l')
+
+    ## calculate ACF of the windowed signal
+    sp_x = fft(x * win) / half_len
+    powerSpectrum_x = Re(sp_x * Conj(sp_x))
+    acf_x = Re(fft(powerSpectrum_x, inverse = TRUE))[1:half_len] / acf_win
+    acf_x = acf_x / acf_x[1]
+  } else {
+    if (is.null(acf_x))
+      stop('Please provide either signal (x) or its autocorrelation function (acf_x)')
+  }
+  # plot(acf_x[lag.min:lag.max], type = 'b')
+
+  ## find the maximum and interpolate the ACF to improve resolution
+  if (is.null(idx_max)) {
+    idx_max = which.max(acf_x[lag.min:lag.max]) + lag.min - 1
+  }
+  if (acf_x[idx_max] < 0) return(NA)
+  if (interpol == 'none') {
+    max_acf = acf_x[idx_max]
+  } else if (interpol == 'parab') {
+    parabInterp = parabPeakInterpol(acf_x[(idx_max - 1) : (idx_max + 1)])
+    max_acf = parabInterp$ampl_p
+    idx_max = idx_max + parabInterp$p
+  } else if (interpol == 'spline') {
+    idx = max(lag.min, (idx_max - 10)) : min(lag.max, (idx_max + 10))
+    acf_ups = spline(acf_x[idx], n = length(idx) * 100)
+    idx_max_ups = which.max(acf_ups$y)
+    max_acf = acf_ups$y[idx_max_ups]
+    idx_max = idx[1] - 1 + acf_ups$x[idx_max_ups]
+  } else if (interpol == 'sinc') {
+    # apply a gaussian window to the sinc interpolation as a function of the distance from the max
+    half_len = min(250, length(acf_x) / 2)
+    idx_left = max(2, idx_max - half_len) # max(2, idx_max - min(250, floor(length(acf_x) / 4)))
+    if (idx_max > idx_left) {
+      win_left = seewave::ftwindow((idx_max - idx_left) * 2, wn = wn)[1:(idx_max - idx_left)]
+    } else {
+      win_left = numeric(0)
+    }
+    idx_right = min(length(acf_x), idx_max + half_len) #   min(length(acf_x), idx_max + min(250, floor(length(acf_x) / 4)))
+    if (idx_right > idx_max) {
+      win_right = seewave::ftwindow((idx_right - idx_max) * 2, wn = wn)[(idx_right - idx_max):((idx_right - idx_max) * 2)]
+    } else {
+      win_right = numeric(0)
+    }
+    win = c(win_left, win_right)
+    # win = win / sum(win)
+    # plot(win)
+    acf_idx = idx_left:idx_right
+    # length(win)
+    # length(acf_idx)
+
+    if (FALSE) {
+      # visual check of sinc interpolation
+      d_new = data.frame(x = seq(lag.min, lag.max, by = .1))
+      for (i in 1:nrow(d_new)) {
+        d_new$y[i] = sum(acf_x[acf_idx] * sinc(d_new$x[i] - acf_idx) * win)
+      }
+      plot(lag.min:lag.max, acf_x[lag.min:lag.max])
+      points(d_new, type = 'l', col = 'blue')
+    }
+
+    # find max by using the sinc function in optimize (Brent 1973)
+    opt = optimize(function(j) {sum(acf_x[acf_idx] * sinc(j - acf_idx) * win)},
+                   interval = c(idx_max - 2, idx_max + 2), maximum = TRUE)
+    # opt = optimize(function(j) {sum(acf_x[acf_idx] * sinc(j - acf_idx) * win)},
+    #                interval = c(lag.min, lag.max), maximum = TRUE)
+    max_acf = opt$objective
+    idx_max = opt$maximum
+  }
+  if (max_acf > 1) {
+    max_acf = 1 / max_acf
+  }
+  f0 = samplingRate / idx_max
+  return(list(f0 = f0,
+              max_acf = max_acf,
+              HNR = to_dB(max_acf)))
 }

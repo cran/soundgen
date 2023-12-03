@@ -341,7 +341,7 @@ animal or human non-linguistic vocalizations. For more information, see
 
 # Set "playback" to TRUE for default system player or the name of preferred
 # player (eg "aplay") to play back the audio from examples
-playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
+playback = FALSE # or TRUE 'aplay', 'vlc', ...
 
 sound = soundgen(play = playback)
 # spectrogram(sound, 16000, osc = TRUE)

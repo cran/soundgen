@@ -329,7 +329,8 @@ server = function(input, output, session) {
     # this is the new sound file. NB: has to be saved in www/ !!!
     seewave::savewav(myPars$temp_audio,
                      f = myPars$samplingRate * myPars$samplingRate_idx,
-                     filename = paste0('www/', myPars$myfile))
+                     filename = paste0('www/', myPars$myfile),
+                     extensible = FALSE)
     output$htmlAudio = renderUI(
       tags$audio(src = myPars$myfile, type = myPars$myAudio_type,
                  id = 'myAudio',
@@ -1893,7 +1894,8 @@ server = function(input, output, session) {
           # save a temporary file and play with the browser
           seewave::savewav(temp_s,
                            f = 16000 * myPars$samplingRate_idx,
-                           filename = 'www/temp.wav')
+                           filename = 'www/temp.wav',
+                           extensible = FALSE)
           shinyjs::js$play_file(filename = 'temp.wav')
         } else {
           # play directly in R without saving to disk

@@ -40,7 +40,7 @@ phonetics", p. 138}
 \item{plot}{if TRUE, plots vowel quality in speaker-normalized F1-F2 space}
 }
 \value{
-Returns a list with the following components: \itemize{
+Returns a list with the following components: \describe{
   \item{vtl_measured}{VTL as provided by the user, cm}
   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
   provided by the user, cm}

@@ -1,7 +1,7 @@
-# TODO: use data.table::rbindlist in apps instead of soundgen:::rbind_fill; bandpass - occasionally crashes when NAs in input; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?)
+# TODO: change email to yahoo; (Windows) formant_app etc - opaque selection on some systems (Win10?); use data.table::rbindlist in apps instead of soundgen:::rbind_fill; bandpass - occasionally crashes when NAs in input; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?)
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO maybe: try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
@@ -210,7 +210,7 @@ NULL
 #'
 #'# Set "playback" to TRUE for default system player or the name of preferred
 #' # player (eg "aplay") to play back the audio from examples
-#' playback = c(TRUE, FALSE, 'aplay', 'vlc')[2]
+#' playback = FALSE # or TRUE 'aplay', 'vlc', ...
 #'
 #' sound = soundgen(play = playback)
 #' # spectrogram(sound, 16000, osc = TRUE)
@@ -269,79 +269,79 @@ NULL
 #' # on project's homepage: http://cogsci.se/soundgen.html
 #' }
 soundgen = function(
-  repeatBout = 1,
-  nSyl = 1,
-  sylLen = 300,
-  pauseLen = 200,
-  pitch = list(time = c(0, .1, .9, 1),
-               value = c(100, 150, 135, 100)),
-  pitchGlobal = NA,
-  glottis = 0,
-  temperature = 0.025,
-  tempEffects = list(),
-  maleFemale = 0,
-  creakyBreathy = 0,
-  nonlinBalance = 100,
-  nonlinRandomWalk = NULL,
-  subRatio = 2,
-  subFreq = 0,
-  subDep = 0,
-  subWidth = 10000,
-  shortestEpoch = 300,
-  jitterLen = 1,
-  jitterDep = 0,
-  vibratoFreq = 5,
-  vibratoDep = 0,
-  shimmerDep = 0,
-  shimmerLen = 1,
-  attackLen = 50,
-  rolloff = -9,
-  rolloffOct = 0,
-  rolloffKHz = -3,
-  rolloffParab = 0,
-  rolloffParabHarm = 3,
-  rolloffExact = NULL,
-  lipRad = 6,
-  noseRad = 4,
-  mouthOpenThres = 0,
-  formants = c(860, 1430, 2900),
-  formantDep = 1,
-  formantDepStoch = 1,
-  formantWidth = 1,
-  formantCeiling = 2,
-  formantLocking = 0,
-  vocalTract = NA,
-  amDep = 0,
-  amFreq = 30,
-  amType = c('logistic', 'sine')[1],
-  amShape = 0,
-  noise = NULL,
-  formantsNoise = NA,
-  rolloffNoise = -4,
-  noiseFlatSpec = 1200,
-  rolloffNoiseExp = 0,
-  noiseAmpRef = c('f0', 'source', 'filtered')[3],
-  mouth = list(time = c(0, 1),
-               value = c(.5, .5)),
-  ampl = NA,
-  amplGlobal = NA,
-  smoothing = list(interpol = c('approx', 'spline', 'loess')[3],
-                   loessSpan = NULL,
-                   discontThres = .05,
-                   jumpThres = .01),
-  samplingRate = 16000,
-  windowLength = 50,
-  overlap = 75,
-  addSilence = 100,
-  pitchFloor = 1,
-  pitchCeiling = 3500,
-  pitchSamplingRate = 16000,
-  dynamicRange = 80,
-  invalidArgAction = c('adjust', 'abort', 'ignore')[1],
-  plot = FALSE,
-  play = FALSE,
-  saveAudio = NA,
-  ...
+    repeatBout = 1,
+    nSyl = 1,
+    sylLen = 300,
+    pauseLen = 200,
+    pitch = list(time = c(0, .1, .9, 1),
+                 value = c(100, 150, 135, 100)),
+    pitchGlobal = NA,
+    glottis = 0,
+    temperature = 0.025,
+    tempEffects = list(),
+    maleFemale = 0,
+    creakyBreathy = 0,
+    nonlinBalance = 100,
+    nonlinRandomWalk = NULL,
+    subRatio = 2,
+    subFreq = 0,
+    subDep = 0,
+    subWidth = 10000,
+    shortestEpoch = 300,
+    jitterLen = 1,
+    jitterDep = 0,
+    vibratoFreq = 5,
+    vibratoDep = 0,
+    shimmerDep = 0,
+    shimmerLen = 1,
+    attackLen = 50,
+    rolloff = -9,
+    rolloffOct = 0,
+    rolloffKHz = -3,
+    rolloffParab = 0,
+    rolloffParabHarm = 3,
+    rolloffExact = NULL,
+    lipRad = 6,
+    noseRad = 4,
+    mouthOpenThres = 0,
+    formants = c(860, 1430, 2900),
+    formantDep = 1,
+    formantDepStoch = 1,
+    formantWidth = 1,
+    formantCeiling = 2,
+    formantLocking = 0,
+    vocalTract = NA,
+    amDep = 0,
+    amFreq = 30,
+    amType = c('logistic', 'sine')[1],
+    amShape = 0,
+    noise = NULL,
+    formantsNoise = NA,
+    rolloffNoise = -4,
+    noiseFlatSpec = 1200,
+    rolloffNoiseExp = 0,
+    noiseAmpRef = c('f0', 'source', 'filtered')[3],
+    mouth = list(time = c(0, 1),
+                 value = c(.5, .5)),
+    ampl = NA,
+    amplGlobal = NA,
+    smoothing = list(interpol = c('approx', 'spline', 'loess')[3],
+                     loessSpan = NULL,
+                     discontThres = .05,
+                     jumpThres = .01),
+    samplingRate = 16000,
+    windowLength = 50,
+    overlap = 75,
+    addSilence = 100,
+    pitchFloor = 1,
+    pitchCeiling = 3500,
+    pitchSamplingRate = 16000,
+    dynamicRange = 80,
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1],
+    plot = FALSE,
+    play = FALSE,
+    saveAudio = NA,
+    ...
 ) {
   # deprecated pars
   # if (!missing('interpol')) {
@@ -1090,9 +1090,16 @@ soundgen = function(
     # playme(voiced, samplingRate = samplingRate)
     # END OF SYLLABLE GENERATION
 
-    ## Add unvoiced fragments together
+
+    ## Merging voiced and unvoiced components and adding formants
+    # for noiseAmpRef == "filtered", enforce adding formants separately
+    # followed by independent normalization of voiced & unvoiced
+    if (noiseAmpRef == 'filtered' & !is.list(formantsNoise)) {
+      formantsNoise = formants
+    }
     sound_unvoiced = rep(0, length(voiced))
     if (length(unvoiced) > 0) {
+      ## Add unvoiced fragments together
       for (s in 1:length(unvoiced)) {
         # calculate where syllable s begins
         syllableStartIdx = round(syllables[s, 'start'] * samplingRate / 1000)
@@ -1113,18 +1120,15 @@ soundgen = function(
             syllables[, c('start', 'end')] - insertionIdx / samplingRate * 1000
         }
       }
-    }
 
-    ## Merging voiced and unvoiced components and adding formants
-    # for noiseAmpRef == "filtered", enforce adding formants separately
-    # followed by independent normalization of voiced & unvoiced
-    if (noiseAmpRef == 'filtered' & !is.list(formantsNoise)) {
-      formantsNoise = formants
-    }
-
-    if (length(unvoiced) > 0) {
+      # set RMS of both signal and noise to 1 to ensure that their relative
+      # intensities (RMS amplitudes) satisfy the required "noise" parameter
+      # (noise-to-signal ratio)
       if (!is.numeric(formantsNoise) & !is.list(formantsNoise)) {
         # OPTION 1: mix voiced + unvoiced, then apply the same formant filter
+        voiced = voiced / sqrt(mean(voiced ^ 2))
+        sound_unvoiced = sound_unvoiced / sqrt(mean(sound_unvoiced ^ 2)) *
+          10 ^ (max(noise$value) / 20)
         sound = addVectors(
           voiced,
           sound_unvoiced,
@@ -1150,6 +1154,11 @@ soundgen = function(
       } else {
         # OPTION 2: apply different formant filters to voiced and unvoiced, then mix
         # add formants to voiced
+        if (noiseAmpRef == 'source') {
+          voiced = voiced / sqrt(mean(voiced ^ 2))
+          sound_unvoiced = sound_unvoiced / sqrt(mean(sound_unvoiced ^ 2)) *
+            10 ^ (max(noise$value) / 20)
+        }
         if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
           voicedFiltered = do.call(.addFormants, c(
             formantPars,
@@ -1181,9 +1190,12 @@ soundgen = function(
         } else {
           unvoicedFiltered = sound_unvoiced
         }
+
         # mix filtered version of the voiced and unvoiced components
-        if(noiseAmpRef == 'filtered') {
-          unvoicedFiltered = unvoicedFiltered * 10 ^ (max(noise$value) / 20)
+        if (noiseAmpRef == 'filtered') {
+          voicedFiltered = voicedFiltered / sqrt(mean(voicedFiltered ^ 2))
+          unvoicedFiltered = unvoicedFiltered / sqrt(mean(unvoicedFiltered ^ 2)) *
+            10 ^ (max(noise$value) / 20)
         }
         soundFiltered = addVectors(
           voicedFiltered,

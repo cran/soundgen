@@ -907,6 +907,11 @@ generateGC = function(pitch_per_gc,
         sin(2 * pi * pitch_per_gc_adj[i] * times_f0 * idx / samplingRate) *
         rolloff_per_gc_adj[[i]][h]
     }
+    # cycle = cycle / max(abs(cycle))
+    # just use the first, positive half of each glottal cycle
+    # (a hack - should really try more realistic shapes)
+    # cycle[(gc_len_adj[i]/2) : gc_len_adj[i]] = 0
+    # cycle[cycle < 0] = 0
     # plot(cycle, type = 'l')
     # spectrogram(cycle, samplingRate, ylim = c(0, 2))
     # seewave::spec(rep(cycle,10), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
@@ -1004,6 +1009,7 @@ generateEpoch = function(pitch_per_gc,
       # the actual waveform synthesis happens HERE:
       waveform_epoch = waveform_epoch +
         sin(2 * pi * integr_epoch * times_f0) * am_upsampled
+      # plot(waveform_epoch[1000:2000], type = 'l')
     }
     waveform = crossFade(waveform,
                          waveform_epoch,

@@ -1,10 +1,10 @@
 Package: soundgen
 Type: Package
 Title: Sound Synthesis and Acoustic Analysis
-Version: 2.6.1
-Date: 2023-09-29
-Authors@R: person("Andrey", "Anikin", email = "rty.anik@rambler.ru", role = c("aut", "cre"))
-Maintainer: Andrey Anikin <rty.anik@rambler.ru>
+Version: 2.6.2
+Date: 2023-12-03
+Authors@R: person("Andrey", "Anikin", email = "rty_anik@yahoo.com", role = c("aut", "cre"))
+Maintainer: Andrey Anikin <rty_anik@yahoo.com>
 URL: http://cogsci.se/soundgen.html
 Description: Performs parametric synthesis of sounds with harmonic and noise 
     components such as animal vocalizations or human voice. Also offers tools 
@@ -22,7 +22,7 @@ Imports: stats (>= 4.0.0), graphics, utils, tuneR, seewave (>= 2.1.6),
 Depends: R (>= 4.0), shinyBS
 RoxygenNote: 7.2.3
 NeedsCompilation: no
-Packaged: 2023-09-29 13:56:34 UTC; allgoodguys
+Packaged: 2023-12-03 15:02:24 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2023-09-29 15:22:37 UTC
+Date/Publication: 2023-12-03 17:00:02 UTC

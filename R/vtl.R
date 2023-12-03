@@ -197,7 +197,7 @@ estimateVTL = function(
 #'
 #' @seealso \code{\link{estimateVTL}}
 #'
-#' @return Returns a list with the following components: \itemize{
+#' @return Returns a list with the following components: \describe{
 #'   \item{vtl_measured}{VTL as provided by the user, cm}
 #'   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
 #'   provided by the user, cm}

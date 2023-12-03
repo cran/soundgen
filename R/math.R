@@ -308,12 +308,12 @@ ERBToHz = function(e,
 #' Hz to mel
 #'
 #' Internal soundgen function: a temporary fix needed because tuneR::hz2mel
-#' doesn't accept NAs.
+#' doesn't accept NAs or vectors.
 #' @param f frequency, Hz
 #' @param htk algrithm
 #' @keywords internal
 #' @examples
-#' soundgen:::hz2mel(c(440, NA))
+#' soundgen:::hz2mel(c(440, 220, NA))
 hz2mel = function(f, htk = FALSE) {
   # if (!is.numeric(f) || f < 0)
   #     stop("frequencies have to be non-negative")
@@ -1738,3 +1738,15 @@ logistic = function(x) 1 / (1 + exp(-x))
 #' @param x numeric vector
 #' @keywords internal
 logit = function(x) log(x / (1 - x))
+
+#' Sinc
+#' @param x numeric vector
+#' @keywords internal
+#' @examples
+#' x = seq(-5, 5, .01); plot(x, soundgen:::sinc(x))
+sinc = function(x) {
+  out = sin(pi * x) / (pi * x)
+  out[x == 0] = 1
+  return(out)
+}
+#

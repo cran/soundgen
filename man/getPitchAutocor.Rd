@@ -13,7 +13,9 @@ getPitchAutocor(
   autocorUpsample,
   autocorBestPeak,
   pitchFloor,
-  pitchCeiling
+  pitchCeiling,
+  interpol = "sinc",
+  wn = "hanning"
 )
 }
 \arguments{
@@ -38,6 +40,13 @@ accuracy in high frequencies}
 absolute max of the acf}
 
 \item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
+
+\item{interpol}{a list of parameters (currently \code{win, tol, cert}) passed
+to \code{soundgen:::pathfinder} for interpolating missing pitch candidates
+(NULL = no interpolation)}
+
+\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
+gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 }
 \value{
 Returns a list of $HNR (NA or numeric) and $pitchAutocor_array

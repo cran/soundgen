@@ -102,7 +102,8 @@
 #'   (semitones) of gamma distribution describing our prior knowledge about the
 #'   most likely pitch values for this file. For ex., \code{priorMean = 300,
 #'   priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-#'   an octave)
+#'   an octave). To avoid using any priors, set \code{priorMean = NA, priorAdapt
+#'   = FALSE}
 #' @param priorAdapt adaptive second-pass prior: if TRUE, optimal pitch contours
 #'   are estimated first with a prior determined by \code{priorMean,priorSD}, and
 #'   then with a new prior adjusted according to this first-pass pitch contour
@@ -418,7 +419,9 @@ analyze = function(
     pitchAutocor = list(autocorThres = 0.7,
                         autocorSmooth = 7,
                         autocorUpsample = 25,
-                        autocorBestPeak = 0.975),
+                        autocorBestPeak = 0.975,
+                        interpol = 'sinc',
+                        wn = 'hanning'),
     pitchCep = list(cepThres = 0.75,
                     cepZp = 0),
     pitchSpec = list(specThres = 0.05,
@@ -509,7 +512,8 @@ analyze = function(
     harmHeight = c('harmThres', 'harmTol', 'harmPerSel'),
     pitchDom = c('domThres', 'domSmooth'),
     pitchAutocor = c('autocorThres', 'autocorSmooth',
-                     'autocorUpsample', 'autocorBestPeak'),
+                     'autocorUpsample', 'autocorBestPeak',
+                     'interpol', 'wn'),
     pitchCep = c('cepThres', 'cepZp'),
     pitchSpec = c('specSmooth', 'specHNRslope', 'specThres',
                   'specPeak', 'specSinglePeakCert', 'specMerge',
@@ -677,7 +681,7 @@ analyze = function(
       for (i in idx_failed) temp[[i]] = filler
     }
     mysum_all = try(cbind(data.frame(file = pa$input$filenames_base),
-                      data.table::rbindlist(temp, fill = TRUE)))
+                          data.table::rbindlist(temp, fill = TRUE)))
     if (inherits(mysum_all, 'try-error')) mysum_all = NULL
   } else {
     mysum_all = NULL
@@ -952,11 +956,18 @@ analyze = function(
 
   ## ANALYSIS
   # Set up filter for calculating pitchAutocor
-  filter = seewave::ftwindow(2 * windowLength_points, wn = wn) # plot(filter, type='l')
-  powerSpectrum_filter = abs(fft(filter)) ^ 2
-  autoCorrelation_filter = abs(fft(powerSpectrum_filter, inverse = TRUE)) ^ 2
-  autoCorrelation_filter = autoCorrelation_filter[1:windowLength_points]
-  autoCorrelation_filter = autoCorrelation_filter / max(autoCorrelation_filter)
+  # filter = seewave::ftwindow(2 * windowLength_points, wn = wn) # plot(filter, type='l')
+  # powerSpectrum_filter = abs(fft(filter)) ^ 2
+  # autoCorrelation_filter = abs(fft(powerSpectrum_filter, inverse = TRUE)) ^ 2
+  # autoCorrelation_filter = autoCorrelation_filter[1:windowLength_points]
+  # autoCorrelation_filter = autoCorrelation_filter / max(autoCorrelation_filter)
+
+  filter = seewave::ftwindow(windowLength_points, wn = wn) # plot(filter, type='l')
+  sp_filter = fft(filter)
+  powerSpectrum_filter = Re(sp_filter * Conj(sp_filter))
+  autoCorrelation_filter = Re(fft(powerSpectrum_filter, inverse = TRUE))
+  autoCorrelation_filter = autoCorrelation_filter[1:(windowLength_points / 2)]
+  autoCorrelation_filter = autoCorrelation_filter / autoCorrelation_filter[1] # /max(autoCorrelation_filter)
   # plot(autoCorrelation_filter, type = 'l')
 
   ## fft and acf per frame
@@ -1056,17 +1067,29 @@ analyze = function(
   # autocorrelation for each frame
   autocorBank = matrix(NA, nrow = length(autoCorrelation_filter),
                        ncol = ncol(frameBank))
-
   for (i in which(cond_entropy)) {
-    autocorBank[, i] = acf(frameBank[, i],
-                           windowLength_points,
-                           plot = FALSE)$acf / autoCorrelation_filter
+    # acf is ~10 times slower than FFT
+    # autocorBank[, i] = acf(frameBank[, i],  # or frame^2
+    #                        windowLength_points,
+    #                        plot = FALSE)$acf / autoCorrelation_filter
+    sp_fr = fft(frameBank[, i])
+    powerSpectrum_fr = Re(sp_fr * Conj(sp_fr))
+    # Im * conj(Im) is the same as abs(fft())^2, but faster
+    autoCorrelation_fr = Re(fft(powerSpectrum_fr, inverse = TRUE))
+    autoCorrelation_fr = autoCorrelation_fr[1:(windowLength_points/2)]
+    autoCorrelation_fr = autoCorrelation_fr / autoCorrelation_fr[1] # /max(autoCorrelation_fr)
+    # plot(autoCorrelation_fr, type = 'l')
+
+    autocorBank[, i] = autoCorrelation_fr / autoCorrelation_filter
+    # plot(autocorBank[, i], type = 'l')
+    # plot(rownames(autocorBank), autocorBank[, i], type = 'l', log = 'x')
   }
   autocorBank = autocorBank[-1, ]  # b/c it starts with zero lag (identity)
+  rownames(autocorBank) = audio$samplingRate / (1:nrow(autocorBank))
   # plot(rownames(s)[1:50], s[1:50, 8], type = 'l')
   # plot(frameBank[, 8], type = 'l')
-  # plot(names(autocorBank[40:550, 8]), autocorBank[40:550, 8], type = 'l')
-  rownames(autocorBank) = audio$samplingRate / (1:nrow(autocorBank))
+  # plot(names(autocorBank[1:25, 8]), autocorBank[1:25, 8], type = 'l')
+
 
   ## FORMANTS
   fmts = NULL

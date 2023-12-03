@@ -13,9 +13,9 @@ hz2mel(f, htk = FALSE)
 }
 \description{
 Internal soundgen function: a temporary fix needed because tuneR::hz2mel
-doesn't accept NAs.
+doesn't accept NAs or vectors.
 }
 \examples{
-soundgen:::hz2mel(c(440, NA))
+soundgen:::hz2mel(c(440, 220, NA))
 }
 \keyword{internal}

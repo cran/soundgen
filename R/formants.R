@@ -800,7 +800,10 @@ addFormants = function(
     ...
 ) {
   # prepare vocal tract filter (formants + some spectral noise + lip radiation)
-  if (!any(audio$sound != 0)) {
+  if (!any(audio$sound != 0) |
+      (is.na(formants)[1] &
+       is.na(vocalTract)[1] &
+       (is.na(lipRad)[1] | lipRad == 0))) {
     # otherwise fft glitches
     soundFiltered = audio$sound
   } else {
@@ -933,17 +936,17 @@ addFormants = function(
     } else if (normalize == 'orig') {
       soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
     }
-  }
 
-  # remove zero padding
-  l = length(soundFiltered)
-  hl = seewave::env(soundFiltered[(l - windowLength_points + 1):l],
-                    f = audio$samplingRate, envt = 'hil', plot = FALSE)
-  tailIdx = suppressWarnings(min(which(hl < (.01 * max(hl)))))
-  idx = l - windowLength_points + tailIdx
-  if(!is.finite(idx)) idx = l # l - windowLength_points
-  soundFiltered = soundFiltered[(windowLength_points + 1):idx]
-  # osc(soundFiltered, audio$samplingRate)
+    # remove zero padding
+    l = length(soundFiltered)
+    hl = seewave::env(soundFiltered[(l - windowLength_points + 1):l],
+                      f = audio$samplingRate, envt = 'hil', plot = FALSE)
+    tailIdx = suppressWarnings(min(which(hl < (.01 * max(hl)))))
+    idx = l - windowLength_points + tailIdx
+    if(!is.finite(idx)) idx = l # l - windowLength_points
+    soundFiltered = soundFiltered[(windowLength_points + 1):idx]
+    # osc(soundFiltered, audio$samplingRate)
+  }
 
   if (play) playme(soundFiltered, audio$samplingRate)
   if (is.character(audio$saveAudio)) {

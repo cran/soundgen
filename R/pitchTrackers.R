@@ -41,8 +41,8 @@ getDom = function(frame,
                           isCentral.localMax(x, threshold = domThres)
                         })
   idx = zoo::index(temp)[zoo::coredata(temp)]
-  pitchFloor_idx = which(freqs > pitchFloor)[1]
-  pitchCeiling_idx = which(freqs > pitchCeiling)[1]
+  pitchFloor_idx = max(1, which(freqs > pitchFloor)[1], na.rm = TRUE)
+  pitchCeiling_idx = min(length(frame), which(freqs > pitchCeiling)[1], na.rm = TRUE)
   idx_peak = idx[which(idx > pitchFloor_idx & idx < pitchCeiling_idx)[1]]
   # parabolic interpolation to get closer to the true peak
   applyCorrection = !is.na(idx_peak) &&
@@ -86,6 +86,7 @@ getDom = function(frame,
 #' of phonetic sciences (Vol. 17, No. 1193, pp. 97-110).
 #' @inheritParams analyzeFrame
 #' @inheritParams analyze
+#' @inheritParams getHNR
 #' @param autocorThres voicing threshold (unitless, ~0 to 1)
 #' @param autocorSmooth the width of smoothing interval (in bins) for
 #'   finding peaks in the autocorrelation function. Defaults to 7 for sampling
@@ -105,9 +106,12 @@ getPitchAutocor = function(autoCorrelation,
                            autocorUpsample,
                            autocorBestPeak,
                            pitchFloor,
-                           pitchCeiling) {
+                           pitchCeiling,
+                           interpol = 'sinc',
+                           wn = 'hanning') {
   # autoCorrelation = autocorBank[, 13]
   pitchAutocor_array = NULL
+  HNR = NA
 
   # don't consider candidates above nyquist / 2 b/c there's not enough
   # resolution in acf that high up
@@ -118,7 +122,7 @@ getPitchAutocor = function(autoCorrelation,
   rownames(orig) = NULL
   a = orig[orig$freq > pitchFloor &
              orig$freq < pitchCeiling, , drop = FALSE]
-  # plot(a$freq, a$amp, type='b')
+  # plot(a$freq, a$amp, type='b', log = 'x')
 
   # upsample to improve resolution in higher frequencies
   if (autocorUpsample > 0) {
@@ -129,6 +133,8 @@ getPitchAutocor = function(autoCorrelation,
                            autocorUpsample)
     if (!is.na(upsample_len) &&
         pitchCeiling > a$freq[upsample_to_bin] & upsample_len > 1) {
+      # Boersma recommends interpolating with sin(x) / x, but here we simply
+      # call spline() - completely agnostic
       temp = spline(a$amp[upsample_from_bin:upsample_to_bin],
                     n = upsample_len,
                     x = a$freq[upsample_from_bin:upsample_to_bin])
@@ -139,7 +145,7 @@ getPitchAutocor = function(autoCorrelation,
     }
   }
 
-  HNR = max(a$amp) # HNR is here defined as the maximum autocorrelation
+  # HNR = max(a$amp) # HNR is here defined as the maximum autocorrelation
   # within the specified pitch range. It is also measured for the frames which
   # are later classified as unvoiced (i.e. HNR can be <voicedThres)
 
@@ -159,8 +165,9 @@ getPitchAutocor = function(autoCorrelation,
     # if some peaks are found...
     # we are only interested in frequencies above half of the best candidate
     # (b/c otherwise we get false subharmonics)
-    bestFreq = autocorPeaks$freq[which(autocorPeaks$amp >
-                                         autocorBestPeak * max(autocorPeaks$amp))[1]]
+    autocorPeaks$amp[autocorPeaks$amp > 1] = 1
+    idx_bestFreq = which(autocorPeaks$amp > (autocorBestPeak * max(autocorPeaks$amp)))[1]
+    bestFreq = autocorPeaks$freq[idx_bestFreq]
     # bestFreq = autocorPeaks$freq[which.max(autocorPeaks$amp)]
     if (!is.na(bestFreq)) {
       autocorPeaks = try(autocorPeaks[autocorPeaks$freq > bestFreq / 1.8,
@@ -172,23 +179,28 @@ getPitchAutocor = function(autoCorrelation,
     if (!inherits(autocorPeaks, 'try-error')) {
       if (nrow(autocorPeaks) > 0) {
         # if some peaks satisfy all criteria, return them:
-        pitchAutocor_array = data.frame (
-          'pitchCand' = autocorPeaks [1:min(nrow(autocorPeaks), nCands), 1],
-          # save n candidates of pitchAutocor, convert to Hz
-          'pitchCert' = autocorPeaks[1:min(nrow(autocorPeaks), nCands), 2],
-          # save amplitudes corresponding to each pitchAutocor candidate
-          'pitchSource' = 'autocor',
-          stringsAsFactors = FALSE,
-          row.names = NULL
-        )
+        nr_an = min(nrow(autocorPeaks), nCands)
+        for (r in 1:nr_an) {
+          gh_r = getHNR(acf_x = autoCorrelation,
+                        samplingRate = samplingRate,
+                        lag.min = round(samplingRate / pitchCeiling),
+                        lag.max = round(samplingRate / pitchFloor),
+                        idx_max = round(samplingRate / autocorPeaks$freq[r]),
+                        interpol = interpol,
+                        wn = wn)
+          pitchAutocor_array = rbind(
+            pitchAutocor_array,
+            data.frame('pitchCand' = gh_r$f0,
+                       'pitchCert' = gh_r$max_acf,
+                       'pitchSource' = 'autocor',
+                       stringsAsFactors = FALSE,
+                       row.names = NULL)
+          )
+        }
+        HNR = max(pitchAutocor_array$pitchCert)
       }
     }
   }
-  # very occasionally HNR can be calculated as 1.01 etc. To prevent this nonsense:
-  if (!is.na(HNR) & HNR >= 1) {
-    HNR = 1 / HNR  # See Boersma, 1993. Up to soundgen 1.2.1, it was just set to 0.9999 (40 dB)
-  }
-
   return(list(pitchAutocor_array = pitchAutocor_array,
               HNR = HNR))
 }

@@ -1183,10 +1183,10 @@ drawFreqAxis = function(y,
     if (y_Hz) {
       y_lab = round(tuneR::mel2hz(y_at))
       # and back to mel for precise position
-      y_at = tuneR::hz2mel(y_lab)
+      y_at = hz2mel(y_lab)
     } else {
       y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
-      y_at = tuneR::hz2mel(y_lab * 1000)
+      y_at = hz2mel(y_lab * 1000)
     }
   } else if (yScale == 'ERB') {
     # round to pretty labels in Hz or kHz

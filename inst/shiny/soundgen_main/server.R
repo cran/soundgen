@@ -1270,7 +1270,8 @@ server = function(input, output, session) {
       myPars$myfile = paste0(randomID, '.wav')
       # this is the new sound file. NB: has to be saved in www/ !!!
       seewave::savewav(myPars$sound, f = input$samplingRate,
-                       filename = paste0('www/', myPars$myfile))
+                       filename = paste0('www/', myPars$myfile),
+                       extensible = FALSE)
       output$htmlAudio = renderUI(
         tags$audio(src = myPars$myfile, type = "audio/wav", autoplay = NA, controls = NA)
       )
@@ -1280,7 +1281,10 @@ server = function(input, output, session) {
   output$saveAudio = downloadHandler(
     filename = function() as.character(myPars$myfile), # to have '.csv' instead of '.wav'
     content = function(filename) {
-      seewave::savewav(myPars$sound, f = input$samplingRate, filename = filename)
+      seewave::savewav(myPars$sound,
+                       f = input$samplingRate,
+                       filename = filename,
+                       extensible = FALSE)
     }
   )
 

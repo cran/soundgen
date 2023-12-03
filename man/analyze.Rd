@@ -36,7 +36,7 @@ analyze(
   minVoicedCands = NULL,
   pitchDom = list(domThres = 0.1, domSmooth = 220),
   pitchAutocor = list(autocorThres = 0.7, autocorSmooth = 7, autocorUpsample = 25,
-    autocorBestPeak = 0.975),
+    autocorBestPeak = 0.975, interpol = "sinc", wn = "hanning"),
   pitchCep = list(cepThres = 0.75, cepZp = 0),
   pitchSpec = list(specThres = 0.05, specPeak = 0.25, specHNRslope = 0.8, specSmooth =
     150, specMerge = 0.1, specSinglePeakCert = 0.4, specRatios = 3),
@@ -166,7 +166,8 @@ still calculated (NULL = analyze everything)}
 (semitones) of gamma distribution describing our prior knowledge about the
 most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-an octave)}
+an octave). To avoid using any priors, set \code{priorMean = NA, priorAdapt
+= FALSE}}
 
 \item{priorAdapt}{adaptive second-pass prior: if TRUE, optimal pitch contours
 are estimated first with a prior determined by \code{priorMean,priorSD}, and

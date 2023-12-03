@@ -146,7 +146,8 @@ still calculated (NULL = analyze everything)}
 (semitones) of gamma distribution describing our prior knowledge about the
 most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-an octave)}
+an octave). To avoid using any priors, set \code{priorMean = NA, priorAdapt
+= FALSE}}
 
 \item{priorAdapt}{adaptive second-pass prior: if TRUE, optimal pitch contours
 are estimated first with a prior determined by \code{priorMean,priorSD}, and

@@ -61,13 +61,14 @@ playme = function(x,
     # make input i into a Wave object
     if (input$type[i] == 'file') {
       fi = input$filenames[i]
-      ext_i = substr(fi, nchar(fi) - 3, nchar(fi))
-      if (ext_i %in% c('.wav', '.WAV')) {
+      ext_i = substr(fi, nchar(fi) - 2, nchar(fi))
+      if (ext_i %in% c('wav', 'WAV')) {
         sound_wave = try(tuneR::readWave(fi))
       } else if (ext_i %in% c('mp3', 'MP3')) {
         sound_wave = try(tuneR::readMP3(fi))
       } else {
         warning(paste('Input', fi, 'not recognized: expected a wav/mp3 file'))
+        invisible()
       }
     } else if (input$type[i] == 'vector') {
       sound_wave = tuneR::Wave(

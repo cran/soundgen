@@ -1,4 +1,15 @@
-          CHANGES IN SOUNDGEN VERSION 2.6.0.9000 [29-Sep-2023]
+          CHANGES IN SOUNDGEN VERSION 2.6.2 [03-Dec-2023]
+MINOR:
+  * analyze(): more efficient, flexible, and hopefully accurate autocorrelation-based pitch tracking and HNR calculation
+  * soundgen(): noise amplitude refers to the ratio of RMS amplitudes (intensities) of noise to the periodic component, not a ratio of linear amplitudes, as in earlier versions
+
+BUGS FIXED:
+  * spectrogram(yScale = 'mel') doesn't crash
+  * playme() correctly parses file extensions other than "wav"
+  * all shiny apps save non-extensible WAV files with "tuneR::writeWave(extensible=FALSE)", ensuring correct audio playback in Firefox 118-120. Thanks to Uwe Ligges.
+
+
+          CHANGES IN SOUNDGEN VERSION 2.6.1 [29-Sep-2023]
 NEW FUNCTIONS:
   * findJumps(): automatic detetion of apparent discontinuities (jumps) in a provided frequency contour
 

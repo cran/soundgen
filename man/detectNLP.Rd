@@ -86,7 +86,7 @@ and ideally normalize the audio (silent frames are automatically assigned
 to "none")}
 
 \item{pars_phasegram}{arguments passed to \code{\link{phasegram}}. NB: only
-\code{d2} and {nPeaks} are used for NLP detection because they proved
+\code{d2} and \code{nPeaks} are used for NLP detection because they proved
 effective in the training corpus; other nonlinear statistics are not
 calculated to save time.}
 
