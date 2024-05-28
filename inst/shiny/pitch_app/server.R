@@ -402,7 +402,7 @@ server = function(input, output, session) {
             x = as.numeric(colnames(myPars$spec_trimmed)),
             y = as.numeric(rownames(myPars$spec_trimmed)),
             z = t(myPars$spec_trimmed),
-            levels = seq(0, 1, length = 30),
+            levels = seq(0, 1, length = input$nColors),
             color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
             log = '',
             yScale = 'linear',
@@ -417,7 +417,7 @@ server = function(input, output, session) {
           # unrasterized reassigned spectrogram
           soundgen:::plotUnrasterized(
             myPars$reassigned,
-            levels = seq(0, 1, length = 30),
+            levels = seq(0, 1, length = input$nColors),
             color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
             log = '',
             yScale = 'linear',
@@ -674,7 +674,7 @@ server = function(input, output, session) {
           ),
           pitchAutocor = list(
             autocorThres = input$autocorThres,
-            # autocorSmooth = input$autocorSmooth,
+            autocorSmooth = input$autocorSmooth,
             autocorUpsample = input$autocorUpsample,
             autocorBestPeak = input$autocorBestPeak
           ),
@@ -820,7 +820,7 @@ server = function(input, output, session) {
         myPars$unvoiced_frames = (1:ncol(myPars$pitchCands$freq)) [-myPars$voiced_frames]
         # make sure myPars$pitch is the same length as ncol(pitchCands$freq)
         if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) {
-          myPars$pitch = .resample(
+          myPars$pitch = soundgen:::.resample(
             list(sound = myPars$pitch),
             mult = ncol(myPars$pitchCands$freq) / length(myPars$pitch),
             lowPass = FALSE,
@@ -1593,6 +1593,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='nColors', title = 'The number of distinct colors in the spectrogram', placement="below", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
   shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
 

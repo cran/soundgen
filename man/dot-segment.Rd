@@ -55,8 +55,8 @@ Hilbert-transformed amplitude envelope, 'spec' = spectrogram, 'mel' =
 mel-transformed spectrogram (see tuneR::melfcc)}
 
 \item{propNoise}{the proportion of non-zero sound assumed to represent
-background noise (note that complete silence is not considered, so padding
-with silence won't affect the algorithm)}
+background noise, 0 to 1 (note that complete silence is not considered, so
+padding with silence won't affect the algorithm)}
 
 \item{SNR}{expected signal-to-noise ratio (dB above noise), which determines
 the threshold for syllable detection. The meaning of "dB" here is

@@ -48,8 +48,8 @@
 #'   Hilbert-transformed amplitude envelope, 'spec' = spectrogram, 'mel' =
 #'   mel-transformed spectrogram (see tuneR::melfcc)
 #' @param propNoise the proportion of non-zero sound assumed to represent
-#'   background noise (note that complete silence is not considered, so padding
-#'   with silence won't affect the algorithm)
+#'   background noise, 0 to 1 (note that complete silence is not considered, so
+#'   padding with silence won't affect the algorithm)
 #' @param SNR expected signal-to-noise ratio (dB above noise), which determines
 #'   the threshold for syllable detection. The meaning of "dB" here is
 #'   approximate since the "signal" may be different from sound intensity
@@ -283,19 +283,22 @@ segment = function(
     # unlist syllables & bursts
     syllables = pa$result[[1]]$syllables
     bursts = pa$result[[1]]$bursts
+    noise = pa$result[[1]]$noise
   } else {
     for (i in 1:pa$input$n) {
       if (length(pa$result[[i]]) == 0)
-        pa$result[[i]] = list(syllables = NA, bursts = NA)
+        pa$result[[i]] = list(syllables = NA, bursts = NA, noise = NA)
     }
     syllables = lapply(pa$result, function(x) x[['syllables']])
     bursts = lapply(pa$result, function(x) x[['bursts']])
+    noise = lapply(pa$result, function(x) x[['noise']])
   }
 
   output = list(
     syllables = syllables,
     bursts = bursts,
-    summary = mysum_all
+    summary = mysum_all,
+    noise = noise
   )
   invisible(output)
 }
@@ -365,6 +368,7 @@ segment = function(
   analyze_to = min(maxDur * 1000, dur_total_ms)
   stopNextTime = analyze_to >= dur_total_ms
   syllables = bursts = NULL
+  noise_list = list()
   propNoise_user = propNoise
   SNR_user = SNR
   while(analyze_to <= dur_total_ms) {
@@ -541,6 +545,7 @@ segment = function(
         thres_noise = as.numeric(median(cs[col_noise]))
       }
       noise = rowMeans(sp[, col_noise, drop = FALSE])
+      noise_list[[length(noise_list) + 1]] = noise
       # plot(noise, type = 'l')  # the spectrum of background noise, presumably
 
       # some kind of bin-by-bin spectral difference from noise
@@ -836,7 +841,7 @@ segment = function(
       do.call('plot', c(list(x = envelope$time[idx_env],
                              y = envelope$value[idx_env],
                              type = 'l',
-                             xlim = xlim, xaxs = "i", xlab = '',
+                             xaxs = "i", xlab = '',
                              ylab = ylab, main = main, ...),
                         contourPlot))
     }
@@ -872,6 +877,7 @@ segment = function(
 
   result = list(
     syllables = syllables[, c('syllable', 'start', 'end', 'sylLen', 'pauseLen')],
-    bursts = bursts)
+    bursts = bursts,
+    noise = noise_list)
   return(result)
 }

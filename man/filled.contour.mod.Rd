@@ -58,4 +58,9 @@ A bare-bones version of \code{\link[graphics]{filled.contour}} that does not
 plot a legend and accepts some additional graphical parameters like tick
 marks.
 }
+\examples{
+data(sheep, package = 'seewave')
+spec = spectrogram(sheep, from = 0.3, to = 0.6, plot = FALSE)
+soundgen:::filled.contour.mod(z = t(spec))
+}
 \keyword{internal}

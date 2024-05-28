@@ -36,6 +36,7 @@ server = function(input, output, session) {
     cursor = 0,
     play = list(on = FALSE)
   )
+  tooltip_options = list(delay = list(show = 1000, hide = 0))
 
   # NB: using myPars$play$cursor for some reason invalidates the observer,
   # so it keeps executing as fast as it can - no idea why!
@@ -277,9 +278,10 @@ server = function(input, output, session) {
       ))
       if (!inherits(temp_spec, 'try-error') &&
           length(temp_spec) > 0 &&
-          is.matrix(temp_spec$processed))
+          is.matrix(temp_spec$processed)) {
         myPars$spec = temp_spec$processed
-      myPars$reassigned = temp_spec$reassigned
+        myPars$reassigned = temp_spec$reassigned
+      }
     }
   })
 
@@ -416,7 +418,7 @@ server = function(input, output, session) {
           x = as.numeric(colnames(myPars$spec_trimmed)),
           y = as.numeric(rownames(myPars$spec_trimmed)),
           z = t(myPars$spec_trimmed),
-          levels = seq(0, 1, length = 30),
+          levels = seq(0, 1, length = input$nColors),
           color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
           log = if (input$spec_yScale == 'log') 'y' else '',
           yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB')) input$spec_yScale else 'orig',
@@ -431,7 +433,7 @@ server = function(input, output, session) {
         # unrasterized reassigned spectrogram
         soundgen:::plotUnrasterized(
           myPars$reassigned,
-          levels = seq(0, 1, length = 30),
+          levels = seq(0, 1, length = input$nColors),
           color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
           log = if (input$spec_yScale == 'log') 'y' else '',
           yScale = if (input$spec_yScale %in% c('bark', 'mel', 'ERB'))
@@ -451,8 +453,8 @@ server = function(input, output, session) {
         spec_ylim = tuneR::hz2bark(input$spec_ylim * 1000)
         nyquist = tuneR::hz2bark(myPars$samplingRate / 2)
       } else if (input$spec_yScale == 'mel') {
-        spec_ylim = tuneR::hz2mel(input$spec_ylim * 1000)
-        nyquist = tuneR::hz2mel(myPars$samplingRate / 2)
+        spec_ylim = hz2mel(input$spec_ylim * 1000)
+        nyquist = hz2mel(myPars$samplingRate / 2)
       } else if (input$spec_yScale == 'ERB') {
         spec_ylim = HzToERB(input$spec_ylim * 1000)
         nyquist = HzToERB(myPars$samplingRate / 2)
@@ -1085,45 +1087,46 @@ server = function(input, output, session) {
   ### TOOLTIPS - have to be here instead of UI b/c otherwise problems with regulating delay
   # (see https://stackoverflow.com/questions/47477237/delaying-and-expiring-a-shinybsbstooltip)
 
-  shinyBS::addTooltip(session, id='reset_to_def', title = 'Reset all settings to default values', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='reset_to_def', title = 'Reset all settings to default values', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = tooltip_options))
 
   # spectrogram
-  shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram()', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='spec_yScale', title = 'Frequency scale', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='zp', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='spec_maxPoints', title = 'The number of points to plot in the spectrogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window, ms.', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram()', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing pitch candidates", placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='spec_yScale', title = 'Frequency scale', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='nColors', title = 'The number of distinct colors in the spectrogram', placement="below", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='zp', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='spec_maxPoints', title = 'The number of points to plot in the spectrogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = tooltip_options))
 
   # oscillogram
-  shinyBS::addTooltip(session, id='osc', title = 'The type of oscillogram to show', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='osc_maxPoints', title = 'The number of points to plot in the oscillogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='osc', title = 'The type of oscillogram to show', placement="below", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='osc_maxPoints', title = 'The number of points to plot in the oscillogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = tooltip_options))
 
   # action buttons
-  shinyBS:::addTooltip(session, id='lastFile', title='Save and return to the previous file (PageUp)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='nextFile', title='Save and proceed to the next file (PageDown)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_stop', title='Stop playback', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_play', title='Play selection (SPACEBAR)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (A or DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE / BACKSPACE)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS:::addTooltip(session, id='lastFile', title='Save and return to the previous file (PageUp)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS:::addTooltip(session, id='nextFile', title='Save and proceed to the next file (PageDown)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS:::addTooltip(session, id='selection_stop', title='Stop playback', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS:::addTooltip(session, id='selection_play', title='Play selection (SPACEBAR)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (A or DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE / BACKSPACE)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = list(delay = tooltip_options))
 
   # navigation / zoom
-  shinyBS::addTooltip(session, id='zoomIn_freq', title = 'Zoom in frequency (+)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='zoomOut_freq', title = 'Zoom out frequency (-)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='scrollLeft', title = 'Scroll left (arrow LEFT)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='zoomOut', title = 'Zoom out time (arrow DOWN)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='zoomToSel', title = 'Zoom to selection (S)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='zoomIn', title = 'Zoom in time (arrow UP)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
-  shinyBS::addTooltip(session, id='scrollRight', title = 'Scroll right (arrow RIGHT)', placement="right", trigger="hover", options = list(delay = list(show = 1000, hide = 0)))
+  shinyBS::addTooltip(session, id='zoomIn_freq', title = 'Zoom in frequency (+)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='zoomOut_freq', title = 'Zoom out frequency (-)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='scrollLeft', title = 'Scroll left (arrow LEFT)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='zoomOut', title = 'Zoom out time (arrow DOWN)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='zoomToSel', title = 'Zoom to selection (S)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='zoomIn', title = 'Zoom in time (arrow UP)', placement="right", trigger="hover", options = list(delay = tooltip_options))
+  shinyBS::addTooltip(session, id='scrollRight', title = 'Scroll right (arrow RIGHT)', placement="right", trigger="hover", options = list(delay = tooltip_options))
 }

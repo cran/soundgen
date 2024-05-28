@@ -13,7 +13,7 @@ analyze(
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = 25,
+  step = windowLength/2,
   overlap = 50,
   specType = c("spectrum", "reassign", "spectralDerivative")[1],
   wn = "gaussian",
@@ -517,10 +517,16 @@ s = soundgen(sylLen = 100, addSilence = 10,
   pitchSamplingRate = 350000, samplingRate = 350000, windowLength = 5,
   pitchCeiling = 45000, invalidArgAction = 'ignore')
 # s is a bat-like ultrasound inaudible to humans
-a = analyze(s, 350000, plot = TRUE,
-            pitchCeiling = 45000, priorMean = NA,
-            windowLength = 2, overlap = 0,
-            nFormants = 0, loudness = NULL)
+a = analyze(
+  s, 350000, plot = TRUE,
+  pitchFloor = 10000, pitchCeiling = 90000, priorMean = NA,
+  pitchMethods = c('autocor', 'spec'),
+  # probably shouldn't use pitchMethod = "dom" b/c of likely low-freq noise
+  windowLength = 5, step = 2.5,
+  shortestSyl = 10, shortestPause = 10,  # again, very short sounds
+  interpol = list(win = 10),  # again, very short sounds
+  smooth = 0.1,  # might need less smoothing if very rapid f0 changes
+  nFormants = 0, loudness = NULL, roughness = NULL, novelty = NULL)
 # NB: ignore formants and loudness estimates for such non-human sounds
 
 # download 260 sounds from Anikin & Persson (2017)

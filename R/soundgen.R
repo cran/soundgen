@@ -1,7 +1,7 @@
-# TODO: change email to yahoo; (Windows) formant_app etc - opaque selection on some systems (Win10?); use data.table::rbindlist in apps instead of soundgen:::rbind_fill; bandpass - occasionally crashes when NAs in input; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?)
+# TODO: (Windows) formant_app etc - opaque selection on some systems (Win10?); use data.table::rbindlist in apps instead of soundgen:::rbind_fill; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; add plot3D::jet.col - a very nice color palette; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?)
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
+# TODO maybe: segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
@@ -263,6 +263,24 @@ NULL
 #'   vocalTract = 5, formants = NULL,
 #'   play = playback, plot = TRUE)
 #'
+#' # Ultrasound - need to adjust some defaults:
+#'  soundgen(
+#'    sylLen = 10,  # just 10 ms
+#'    attackLen = 1,  # should be very short for short vocalizations
+#'    addSilence = 2,
+#'    pitch = c(45000, 35000, 65000, 60000),  # 35-60 kHz
+#'    rolloff = -12,
+#'    rolloffKHz = 0,  # NB: the default is -3 dB/kHz, which we do NOT want here!
+#'    formants = NA,  # no formants (or set vocal tract length)
+#'    samplingRate = 350000,  # at least ~10 times the max f0
+#'    pitchSamplingRate = 350000,  # the same as samplingRate
+#'    windowLength = .25,  # need very short window lengths for USV
+#'    pitchCeiling = 90000, # max allowed pitch
+#'    invalidArgAction = 'ignore', # override the ranges allowed by default
+#'    temperature = 1e-4,
+#'    plot = TRUE
+#'  )
+#'
 #' # See the vignette on sound generation for more examples and in-depth
 #' # explanation of the arguments to soundgen()
 #' # Examples of code for creating human and animal vocalizations are available
@@ -458,12 +476,12 @@ soundgen = function(
                     'Resetting pitchCeiling to Nyquist frequency (samplingRate / 2).'))
     }
     mp = max(pitch$value)
-    if (mp * 10 > pitchSamplingRate) {
+    if (mp * 10 > pitchSamplingRate & invalidArgAction != 'ignore') {
       pitchSamplingRate = mp * 10
       message(paste0('pitchSampingRate should be much higher than the ',
                      'highest pitch; resetting to ', mp * 10, ' Hz'))
     }
-    if (pitchSamplingRate > samplingRate) {
+    if (pitchSamplingRate > samplingRate & invalidArgAction != 'ignore') {
       samplingRate = pitchSamplingRate
       message(paste0('Resetting samplingRate to ',
                      samplingRate, ' Hz because of high pitch'))
@@ -938,9 +956,9 @@ soundgen = function(
       }
 
       # generate the voiced part only if noise is weaker than 40 dB
-      #   and the voiced part is long enough to bother synthesizing it
+      # and the voiced part is long enough to bother synthesizing it
       generateVoiced = TRUE
-      if (dur_syl < permittedValues['sylLen', 'low'] | !is.list(pitch_per_syl)) {
+      if (invalidArgAction != 'ignore' && dur_syl < permittedValues['sylLen', 'low'] | !is.list(pitch_per_syl)) {
         generateVoiced = FALSE
       }
       if (is.list(noise)) {

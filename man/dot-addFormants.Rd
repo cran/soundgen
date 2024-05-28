@@ -8,8 +8,10 @@
   audio,
   formants,
   spectralEnvelope = NULL,
-  zFun = NULL,
   action = c("add", "remove")[1],
+  dB = NULL,
+  specificity = 1,
+  zFun = NULL,
   vocalTract = NA,
   formantDep = 1,
   formantDepStoch = 1,
@@ -25,6 +27,7 @@
   smoothing = list(),
   windowLength_points = 800,
   overlap = 75,
+  dynamicRange = 120,
   normalize = c("max", "orig", "none")[1],
   play = FALSE,
   ...
@@ -48,12 +51,18 @@ specifying the filter for each STFT step is also accepted. The easiest way
 to create this matrix is to call soundgen:::getSpectralEnvelope or to use
 the spectrum of a recorded sound}
 
+\item{action}{'add' = add formants to the sound, 'remove' = remove formants
+(inverse filtering)}
+
+\item{dB}{if NULL (default), the spectral envelope is applied on the original
+scale; otherwise, it is set to range from 1 to 10 ^ (dB / 20)}
+
+\item{specificity}{a way to sharpen or blur the spectral envelope (spectrum ^
+specificity) : 1 = no change, >1 = sharper, <1 = blurred}
+
 \item{zFun}{(optional) an arbitrary function to apply to the spectrogram
 prior to iSTFT, where "z" is the spectrogram - a matrix of complex values
 (see examples)}
-
-\item{action}{'add' = add formants to the sound, 'remove' = remove formants
-(inverse filtering)}
 
 \item{vocalTract}{the length of vocal tract, cm. Used for calculating formant
 dispersion (for adding extra formants) and formant transitions as the mouth

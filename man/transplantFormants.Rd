@@ -9,6 +9,7 @@ transplantFormants(
   recipient,
   samplingRate = NULL,
   freqWindow = NULL,
+  blur = NULL,
   dynamicRange = 80,
   windowLength = 50,
   step = NULL,
@@ -27,8 +28,17 @@ the desired spectral filter (matrix) as returned by
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{freqWindow}{the width of smoothing window. Defaults to median pitch of
-the donor (or of the recipient if donor is a filter matrix)}
+\item{freqWindow}{the width of smoothing window used to flatten the
+recipient's spectrum per frame. Defaults to median pitch of the donor (or
+of the recipient if donor is a filter matrix). If \code{blur} is NULL,
+\code{freqWindow} also controls the amount of smoothing applied to the
+donor's spectrogram}
+
+\item{blur}{the amount of Gaussian blur applied to the donor's spectrogram as
+a faster and more flexible alternative to smoothing it per bin with
+\code{freqWindow}. Provide two numbers: frequency (Hz, normally
+approximately equal to freqWindow), time (ms) (NA / NULL / 0 means no
+blurring in that dimension). See examples and \code{\link{spectrogram}}}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
@@ -52,17 +62,18 @@ Takes the general spectral envelope of one sound (\code{donor}) and
 "transplants" it onto another sound (\code{recipient}). For biological sounds
 like speech or animal vocalizations, this has the effect of replacing the
 formants in the recipient sound while preserving the original intonation and
-(to some extent) voice quality. Note that \code{freqWindow} is a crucial
-parameter: too narrow, and noise between harmonics will be amplified,
-creasing artifacts; too wide, and formants may be missed. The default is to
-set \code{freqWindow} to the estimated median pitch, but this is
-time-consuming and error-prone, so set it to a reasonable value manually if
-possible. Also ensure that both sounds have the same sampling rate.
+(to some extent) voice quality. Note that the amount of spectral smoothing
+(specified with \code{freqWindow} or \code{blur}) is a crucial parameter: too
+little smoothing, and noise between harmonics will be amplified, creasing
+artifacts; too much, and formants may be missed. The default is to set
+\code{freqWindow} to the estimated median pitch, but this is time-consuming
+and error-prone, so set it to a reasonable value manually if possible. Also
+ensure that both sounds have the same sampling rate.
 }
 \details{
-Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
-donor spectrogram, flattens the recipient spectrogram, multiplies the
-spectrograms, and transforms back into time domain with inverse STFT.
+Algorithm: makes spectrograms of both sounds, interpolates and smooths or
+blurs the donor spectrogram, flattens the recipient spectrogram, multiplies
+the spectrograms, and transforms back into time domain with inverse STFT.
 }
 \examples{
 \dontrun{
@@ -103,6 +114,20 @@ s2 = transplantEnv(donor = sheep, samplingRateD = sheep@samp.rate,
 playme(s2, sheep@samp.rate)
 spectrogram(s2, sheep@samp.rate, osc = TRUE)
 
+# using "blur" to apply Gaussian blur to the donor's spectrogram instead of
+# smoothing per frame with "freqWindow" (~2.5 times faster)
+spectrogram(sheep, blur = c(150, 0))  # preview to select the amount of blur
+s1b = transplantFormants(
+  donor = sheep,
+  recipient = recipient,
+  samplingRate = sheep@samp.rate,
+  freqWindow = 150,
+  blur = c(150, 0))
+  # blur: 150 = SD of 150 Hz along the frequency axis,
+  #      0 = no smoothing along the time axis
+playme(s1b, sheep@samp.rate)
+spectrogram(s1b, sheep@samp.rate, osc = TRUE)
+
 # Now we use human formants on sheep source: the sheep asks "why?"
 s3 = transplantFormants(
   donor = getSpectralEnvelope(
@@ -117,5 +142,5 @@ spectrogram(s3, sheep@samp.rate, osc = TRUE)
 }
 \seealso{
 \code{\link{transplantEnv}} \code{\link{getSpectralEnvelope}}
-  \code{\link{addFormants}} \code{\link{soundgen}}
+  \code{\link{addFormants}} \code{\link{spectrogram}} \code{\link{soundgen}}
 }

@@ -100,7 +100,8 @@ ui = fluidPage(
                 textInput(
                   'coeffs',
                   'Number of LPC coefficients',
-                  value = ''),
+                  value = '',
+                  placeholder = 'round(samplingRate/1000) + 3'),
                 sliderInput(
                   'minformant',
                   'Minimum formant frequency',
@@ -247,6 +248,13 @@ ui = fluidPage(
                               "Heat" = "heat.colors",
                               "Black & white" = "bw"),
                   selected = 'bw', inline = TRUE, width = NULL),
+                numericInput(
+                  'nColors',
+                  'Number of colors in the palette',
+                  value = defaults_analyze['nColors', 'default'],
+                  min = defaults_analyze['nColors', 'low'],
+                  max = defaults_analyze['nColors', 'high'],
+                  step = defaults_analyze['nColors', 'step']),
                 sliderInput(
                   'specContrast',
                   'Contrast',
@@ -339,6 +347,14 @@ ui = fluidPage(
               tabPanel(
                 "Spectrum",
                 sliderInput(
+                  'spectrum_smooth',
+                  'Smoothing',
+                  value = def_form['spectrum_smooth', 'default'],
+                  min = def_form['spectrum_smooth', 'low'],
+                  max = def_form['spectrum_smooth', 'high'],
+                  step = def_form['spectrum_smooth', 'step'],
+                  width = '200px'),
+                sliderInput(
                   'spectrum_xlim',
                   'Frequency range, kHz',
                   value = c(0, def_form['spectrum_xlim', 'default']),
@@ -351,7 +367,11 @@ ui = fluidPage(
                   value = def_form['spectrum_len', 'default'],
                   min = def_form['spectrum_len', 'low'],
                   max = def_form['spectrum_len', 'high'],
-                  step = def_form['spectrum_len', 'step'])
+                  step = def_form['spectrum_len', 'step']),
+                checkboxInput(
+                  'spectrum_plotSynth',
+                  'Plot the spectrum of the synthetic vowel',
+                  value = TRUE)
               )
             )
           )
@@ -531,18 +551,7 @@ ui = fluidPage(
             height = "300px",
             click = "spectrum_click",
             dblclick = dblclickOpts(id = "spectrum_dblclick"),
-            hover = hoverOpts(id = "spectrum_hover")),
-          tags$div(
-            id = 'spectrum_smoothDiv',
-            sliderInput(
-              'spectrum_smooth',
-              'Smoothing',
-              value = def_form['spectrum_smooth', 'default'],
-              min = def_form['spectrum_smooth', 'low'],
-              max = def_form['spectrum_smooth', 'high'],
-              step = def_form['spectrum_smooth', 'step'],
-              width = '200px')
-          )
+            hover = hoverOpts(id = "spectrum_hover"))
         )
       ),
 

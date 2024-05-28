@@ -804,7 +804,7 @@ getHNR = function(x = NULL,
   if (is.null(idx_max)) {
     idx_max = which.max(acf_x[lag.min:lag.max]) + lag.min - 1
   }
-  if (acf_x[idx_max] < 0) return(NA)
+  # if (acf_x[idx_max] < 0) return(NA)  # causes problems in getPitchAutocor()
   if (interpol == 'none') {
     max_acf = acf_x[idx_max]
   } else if (interpol == 'parab') {
@@ -818,15 +818,18 @@ getHNR = function(x = NULL,
     max_acf = acf_ups$y[idx_max_ups]
     idx_max = idx[1] - 1 + acf_ups$x[idx_max_ups]
   } else if (interpol == 'sinc') {
-    # apply a gaussian window to the sinc interpolation as a function of the distance from the max
+    # apply a gaussian window to the sinc interpolation as a function of the
+    # distance from the max
     half_len = min(250, length(acf_x) / 2)
-    idx_left = max(2, idx_max - half_len) # max(2, idx_max - min(250, floor(length(acf_x) / 4)))
+    idx_left = max(2, idx_max - half_len)
+    # max(2, idx_max - min(250, floor(length(acf_x) / 4)))
     if (idx_max > idx_left) {
       win_left = seewave::ftwindow((idx_max - idx_left) * 2, wn = wn)[1:(idx_max - idx_left)]
     } else {
       win_left = numeric(0)
     }
-    idx_right = min(length(acf_x), idx_max + half_len) #   min(length(acf_x), idx_max + min(250, floor(length(acf_x) / 4)))
+    idx_right = min(length(acf_x), idx_max + half_len)
+    #   min(length(acf_x), idx_max + min(250, floor(length(acf_x) / 4)))
     if (idx_right > idx_max) {
       win_right = seewave::ftwindow((idx_right - idx_max) * 2, wn = wn)[(idx_right - idx_max):((idx_right - idx_max) * 2)]
     } else {

@@ -1,3 +1,18 @@
+          CHANGES IN SOUNDGEN VERSION 2.6.3 [27-May-2024]
+NEW FUNCTIONS:
+  * noiseRemoval(): noise removal by spectral subtraction
+
+MINOR:
+  * formant_app(): spectral plot cleared each trial and shows the spectrum of synthesized sound, shortcut for synthesize-and-play (P), default number of LPC coefficients shown (grayed out), synthetic sampling rate identical to that of input
+  * transplantFormants(): "blur" as an alternative way to specify the amount of spectral smoothing (and optionally smoothing in the time domain) to apply to the donor sound
+  * apps: new parameter "nColors"" to customize the spectrogram's palette
+
+BUGS FIXED:
+  * segment(): correct plotting with method = 'env'
+  * annotation_app(): correct plotting with yScale = 'mel'
+  * spectrogram(): png with reassigned spectrograms saved correctly
+
+
           CHANGES IN SOUNDGEN VERSION 2.6.2 [03-Dec-2023]
 MINOR:
   * analyze(): more efficient, flexible, and hopefully accurate autocorrelation-based pitch tracking and HNR calculation

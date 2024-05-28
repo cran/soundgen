@@ -188,14 +188,16 @@ getPitchAutocor = function(autoCorrelation,
                         idx_max = round(samplingRate / autocorPeaks$freq[r]),
                         interpol = interpol,
                         wn = wn)
-          pitchAutocor_array = rbind(
+          paa = try(rbind(
             pitchAutocor_array,
             data.frame('pitchCand' = gh_r$f0,
                        'pitchCert' = gh_r$max_acf,
                        'pitchSource' = 'autocor',
                        stringsAsFactors = FALSE,
                        row.names = NULL)
-          )
+          ))
+          if (!inherits(paa, 'try-error'))
+            pitchAutocor_array = paa
         }
         HNR = max(pitchAutocor_array$pitchCert)
       }

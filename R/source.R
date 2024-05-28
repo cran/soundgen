@@ -793,7 +793,7 @@ generateHarmonics = function(pitch,
   }
 
   # pitch drift is accompanied by amplitude drift
-  if (temperature > 0 & amplDriftDep > 0) {
+  if (temperature > 0 & amplDriftDep > 0 && diff(range(drift)) != 0) {
     drift_ampl = zeroOne(drift) * temperature
     drift_ampl = drift_ampl - mean(drift_ampl) + 1  # hist(drift_ampl)
     gc_upsampled = upsampleGC(pitch_per_gc, samplingRate = samplingRate)$gc

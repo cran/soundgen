@@ -102,6 +102,13 @@ ui = fluidPage(
                             "Heat" = "heat.colors",
                             "Black & white" = "bw"),
                 selected = 'bw', inline = TRUE, width = NULL),
+              numericInput(
+                'nColors',
+                'Number of colors in the palette',
+                value = defaults_analyze['nColors', 'default'],
+                min = defaults_analyze['nColors', 'low'],
+                max = defaults_analyze['nColors', 'high'],
+                step = defaults_analyze['nColors', 'step']),
               radioButtons(
                 inputId = 'spec_yScale',
                 label = 'Frequency scale',

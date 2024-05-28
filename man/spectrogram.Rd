@@ -148,7 +148,7 @@ sharpness}
 
 \item{blur}{apply a Gaussian filter to blur or sharpen the image, two
 numbers: frequency (Hz), time (ms). A single number is interpreted as
-frequency, and a square filter is applied. NA / NULL / 0 means to blurring
+frequency, and a square filter is applied. NA / NULL / 0 means no blurring
 in that dimension. Negative numbers mean un-blurring (sharpening) the image
 by dividing instead of multiplying by the filter during convolution}
 

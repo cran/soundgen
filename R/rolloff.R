@@ -173,7 +173,7 @@ getRolloff = function(pitch_per_gc = c(440),
   # plot(r[, 1], type = 'b')
 
   ## QUADRATIC term affecting the first rolloffParabHarm harmonics only
-  if (any(rolloffParab != 0)) {
+  if (any(rolloffParab != 0) & nrow(r) >= 3) {
     if (!is.null(rolloffParabCeiling)) {
       rolloffParabHarm = round(rolloffParabCeiling / pitch_per_gc)  # vector of
       # length pitch_per_gc specifying the number of harmonics whose amplitude

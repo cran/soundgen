@@ -394,6 +394,24 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
   vocalTract = 5, formants = NULL,
   play = playback, plot = TRUE)
 
+# Ultrasound - need to adjust some defaults:
+ soundgen(
+   sylLen = 10,  # just 10 ms
+   attackLen = 1,  # should be very short for short vocalizations
+   addSilence = 2,
+   pitch = c(45000, 35000, 65000, 60000),  # 35-60 kHz
+   rolloff = -12,
+   rolloffKHz = 0,  # NB: the default is -3 dB/kHz, which we do NOT want here!
+   formants = NA,  # no formants (or set vocal tract length)
+   samplingRate = 350000,  # at least ~10 times the max f0
+   pitchSamplingRate = 350000,  # the same as samplingRate
+   windowLength = .25,  # need very short window lengths for USV
+   pitchCeiling = 90000, # max allowed pitch
+   invalidArgAction = 'ignore', # override the ranges allowed by default
+   temperature = 1e-4,
+   plot = TRUE
+ )
+
 # See the vignette on sound generation for more examples and in-depth
 # explanation of the arguments to soundgen()
 # Examples of code for creating human and animal vocalizations are available

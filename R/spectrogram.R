@@ -61,7 +61,7 @@
 #' @param brightness how much to "lighten" the image (>0 = lighter, <0 = darker)
 #' @param blur apply a Gaussian filter to blur or sharpen the image, two
 #'   numbers: frequency (Hz), time (ms). A single number is interpreted as
-#'   frequency, and a square filter is applied. NA / NULL / 0 means to blurring
+#'   frequency, and a square filter is applied. NA / NULL / 0 means no blurring
 #'   in that dimension. Negative numbers mean un-blurring (sharpening) the image
 #'   by dividing instead of multiplying by the filter during convolution
 #' @param maxPoints the maximum number of "pixels" in the oscillogram (if any)
@@ -506,6 +506,7 @@ spectrogram = function(
         units = units, res = res,
         ...
       )
+      dev.off()
       return(invisible(list(
         original = t(Z),
         processed = t(Z),
@@ -656,7 +657,8 @@ spectrogram = function(
     Z1[idx_pos] = Z1[idx_pos] / max(Z1[idx_pos]) * old_max
   }
 
-  # plot
+
+  ## plot
   if (plot) {
     # produce a spectrogram of the modified fft
     plotSpec(
@@ -1056,6 +1058,10 @@ plotSpec = function(
 #' @param axisX,axisY plot the axis or not (logical)
 #' @param log log = 'y' log-transforms the y axis
 #' @keywords internal
+#' @examples
+#' data(sheep, package = 'seewave')
+#' spec = spectrogram(sheep, from = 0.3, to = 0.6, plot = FALSE)
+#' soundgen:::filled.contour.mod(z = t(spec))
 filled.contour.mod = function(
     x = seq(0, 1, len = nrow(z)),
     y = seq(0, 1, len = ncol(z)),

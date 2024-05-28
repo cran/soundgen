@@ -564,7 +564,8 @@ getSpectralEnvelope = function(
       formantSummary = NULL
     }
     invisible(list(formantSummary = formantSummary,
-                   specEnv = spectralEnvelope_lin))
+                   specEnv = spectralEnvelope_lin,
+                   specEnv_dB = spectralEnvelope))
   } else {
     invisible(spectralEnvelope_lin)
   }
@@ -596,6 +597,10 @@ getSpectralEnvelope = function(
 #' @inheritParams addAM
 #' @param action 'add' = add formants to the sound, 'remove' = remove formants
 #'   (inverse filtering)
+#' @param dB if NULL (default), the spectral envelope is applied on the original
+#'   scale; otherwise, it is set to range from 1 to 10 ^ (dB / 20)
+#' @param specificity a way to sharpen or blur the spectral envelope (spectrum ^
+#'   specificity) : 1 = no change, >1 = sharper, <1 = blurred
 #' @param spectralEnvelope (optional): as an alternative to specifying formant
 #'   frequencies, we can provide the exact filter - a vector of non-negative
 #'   numbers specifying the power in each frequency bin on a linear scale
@@ -715,8 +720,10 @@ addFormants = function(
     samplingRate = NULL,
     formants = NULL,
     spectralEnvelope = NULL,
-    zFun = NULL,
     action = c('add', 'remove')[1],
+    dB = NULL,
+    specificity = 1,
+    zFun = NULL,
     vocalTract = NA,
     formantDep = 1,
     formantDepStoch = 1,
@@ -778,8 +785,10 @@ addFormants = function(
     audio,
     formants,
     spectralEnvelope = NULL,
-    zFun = NULL,
     action = c('add', 'remove')[1],
+    dB = NULL,
+    specificity = 1,
+    zFun = NULL,
     vocalTract = NA,
     formantDep = 1,
     formantDepStoch = 1,
@@ -795,10 +804,12 @@ addFormants = function(
     smoothing = list(),
     windowLength_points = 800,
     overlap = 75,
+    dynamicRange = 120,
     normalize = c('max', 'orig', 'none')[1],
     play = FALSE,
     ...
 ) {
+  dynamicRange_lin = 10 ^ (-dynamicRange / 20)
   # prepare vocal tract filter (formants + some spectral noise + lip radiation)
   if (!any(audio$sound != 0) |
       (is.na(formants)[1] &
@@ -818,8 +829,19 @@ addFormants = function(
     step = seq(1,
                max(1, (length(sound) - windowLength_points)),
                windowLength_points - (overlap * windowLength_points / 100))
-    nc = length(step) # number of windows for fft
-    nr = windowLength_points / 2 # number of frequency bins for fft
+    z = seewave::stdft(
+      wave = as.matrix(sound),
+      f = audio$samplingRate,
+      wl = windowLength_points,
+      zp = 0,
+      step = step,
+      wn = 'hamming',
+      fftw = FALSE,
+      scale = TRUE,
+      complex = TRUE
+    )
+    nc = ncol(z)  # length(step) # number of windows for fft
+    nr = nrow(z)  # windowLength_points / 2 # number of frequency bins for fft
 
     # are formants moving or stationary?
     # (basically always moving, unless temperature = 0 and nothing else changes)
@@ -884,19 +906,22 @@ addFormants = function(
     }
     # image(t(spectralEnvelope))
 
-    # fft and filtering
-    z = seewave::stdft(
-      wave = as.matrix(sound),
-      f = audio$samplingRate,
-      wl = windowLength_points,
-      zp = 0,
-      step = step,
-      wn = 'hamming',
-      fftw = FALSE,
-      scale = TRUE,
-      complex = TRUE
-    )
+    # filtering
+    if (!is.null(dB) & is.numeric(dB)) {
+      spectralEnvelope = spectralEnvelope ^ specificity
+      # range(spectralEnvelope)
+      spectralEnvelope = spectralEnvelope / max(spectralEnvelope) * max(abs(z)) * 10 ^ (dB / 20)
+      spectralEnvelope[spectralEnvelope < 1] = 1
 
+      # ran_orig = 20 * log10(range(spectralEnvelope) + 1e-4)
+      # spectralEnvelope = (spectralEnvelope / max(spectralEnvelope) *
+      #                       10 ^ (dB / 20)) ^ (dB / diff(ran_orig))
+
+      # ran_orig = diff(20 * log10(range(spectralEnvelope)))
+      # spectralEnvelope = spectralEnvelope ^ (dB / ran_orig)
+    } else {
+      spectralEnvelope = spectralEnvelope ^ specificity
+    }
     if (action == 'add') {
       if (movingFormants) {
         z = z * spectralEnvelope
@@ -918,6 +943,7 @@ addFormants = function(
       z = do.call(zFun, list(z = z, ...))
 
     # inverse fft
+    z[abs(z) <= dynamicRange_lin] = 0  # anything under dynamicRange becomes 0
     soundFiltered = as.numeric(
       seewave::istft(
         z,
@@ -931,10 +957,16 @@ addFormants = function(
 
     # normalize
     if (normalize == 'max' | normalize == TRUE) {
-      # soundFiltered = soundFiltered - mean(soundFiltered)
-      soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale
+      ms = try(max(abs(soundFiltered)))
+      if (!inherits(ms, 'try-error')) {
+        # soundFiltered = soundFiltered - mean(soundFiltered)
+        soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale
+      }
     } else if (normalize == 'orig') {
-      soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
+      ms = try(max(abs(soundFiltered)))
+      if (!inherits(ms, 'try-error')) {
+        soundFiltered = soundFiltered / max(abs(soundFiltered)) * audio$scale_used
+      }
     }
 
     # remove zero padding
@@ -966,27 +998,36 @@ addFormants = function(
 #' "transplants" it onto another sound (\code{recipient}). For biological sounds
 #' like speech or animal vocalizations, this has the effect of replacing the
 #' formants in the recipient sound while preserving the original intonation and
-#' (to some extent) voice quality. Note that \code{freqWindow} is a crucial
-#' parameter: too narrow, and noise between harmonics will be amplified,
-#' creasing artifacts; too wide, and formants may be missed. The default is to
-#' set \code{freqWindow} to the estimated median pitch, but this is
-#' time-consuming and error-prone, so set it to a reasonable value manually if
-#' possible. Also ensure that both sounds have the same sampling rate.
+#' (to some extent) voice quality. Note that the amount of spectral smoothing
+#' (specified with \code{freqWindow} or \code{blur}) is a crucial parameter: too
+#' little smoothing, and noise between harmonics will be amplified, creasing
+#' artifacts; too much, and formants may be missed. The default is to set
+#' \code{freqWindow} to the estimated median pitch, but this is time-consuming
+#' and error-prone, so set it to a reasonable value manually if possible. Also
+#' ensure that both sounds have the same sampling rate.
 #'
-#' Algorithm: makes spectrograms of both sounds, interpolates and smoothes the
-#' donor spectrogram, flattens the recipient spectrogram, multiplies the
-#' spectrograms, and transforms back into time domain with inverse STFT.
+#' Algorithm: makes spectrograms of both sounds, interpolates and smooths or
+#' blurs the donor spectrogram, flattens the recipient spectrogram, multiplies
+#' the spectrograms, and transforms back into time domain with inverse STFT.
 #'
 #' @seealso \code{\link{transplantEnv}} \code{\link{getSpectralEnvelope}}
-#'   \code{\link{addFormants}} \code{\link{soundgen}}
+#'   \code{\link{addFormants}} \code{\link{spectrogram}} \code{\link{soundgen}}
 #'
 #' @inheritParams spectrogram
 #' @param donor the sound that provides the formants (vector, Wave, or file) or
 #'   the desired spectral filter (matrix) as returned by
 #'   \code{\link{getSpectralEnvelope}}
 #' @param recipient the sound that receives the formants (vector, Wave, or file)
-#' @param freqWindow the width of smoothing window. Defaults to median pitch of
-#'   the donor (or of the recipient if donor is a filter matrix)
+#' @param freqWindow the width of smoothing window used to flatten the
+#'   recipient's spectrum per frame. Defaults to median pitch of the donor (or
+#'   of the recipient if donor is a filter matrix). If \code{blur} is NULL,
+#'   \code{freqWindow} also controls the amount of smoothing applied to the
+#'   donor's spectrogram
+#' @param blur the amount of Gaussian blur applied to the donor's spectrogram as
+#'   a faster and more flexible alternative to smoothing it per bin with
+#'   \code{freqWindow}. Provide two numbers: frequency (Hz, normally
+#'   approximately equal to freqWindow), time (ms) (NA / NULL / 0 means no
+#'   blurring in that dimension). See examples and \code{\link{spectrogram}}
 #' @export
 #' @examples
 #' \dontrun{
@@ -1027,6 +1068,20 @@ addFormants = function(
 #' playme(s2, sheep@samp.rate)
 #' spectrogram(s2, sheep@samp.rate, osc = TRUE)
 #'
+#' # using "blur" to apply Gaussian blur to the donor's spectrogram instead of
+#' # smoothing per frame with "freqWindow" (~2.5 times faster)
+#' spectrogram(sheep, blur = c(150, 0))  # preview to select the amount of blur
+#' s1b = transplantFormants(
+#'   donor = sheep,
+#'   recipient = recipient,
+#'   samplingRate = sheep@samp.rate,
+#'   freqWindow = 150,
+#'   blur = c(150, 0))
+#'   # blur: 150 = SD of 150 Hz along the frequency axis,
+#'   #      0 = no smoothing along the time axis
+#' playme(s1b, sheep@samp.rate)
+#' spectrogram(s1b, sheep@samp.rate, osc = TRUE)
+#'
 #' # Now we use human formants on sheep source: the sheep asks "why?"
 #' s3 = transplantFormants(
 #'   donor = getSpectralEnvelope(
@@ -1042,6 +1097,7 @@ transplantFormants = function(donor,
                               recipient,
                               samplingRate = NULL,
                               freqWindow = NULL,
+                              blur = NULL,
                               dynamicRange = 80,
                               windowLength = 50,
                               step = NULL,
@@ -1050,6 +1106,8 @@ transplantFormants = function(donor,
                               zp = 0) {
   if (!is.null(step)) {
     overlap = (1 - step / windowLength) * 100  # for istft
+  } else {
+    step = windowLength * (1 - overlap / 100)
   }
 
   # Read inputs
@@ -1115,14 +1173,19 @@ transplantFormants = function(donor,
 
   # Flatten the recipient spectrogram
   if (!is.numeric(freqWindow)) {
-    if (is.matrix(donor)) {
-      # set freqWindow to the median pitch of recipient
-      anal_recipient = analyze(recipient$sound, samplingRate, plot = FALSE)
-      freqWindow = median(anal_recipient$detailed$pitch, na.rm = TRUE)
+    if (!is.null(blur) && is.finite(blur)) {
+      # set freqWindow to the amount of "blur" along the frequency axis
+      freqWindow = blur[1]
     } else {
-      # set freqWindow to the median pitch of donor
-      anal_donor = analyze(donor$sound, samplingRate, plot = FALSE)
-      freqWindow = median(anal_donor$detailed$pitch, na.rm = TRUE)
+      if (is.matrix(donor)) {
+        # set freqWindow to the median pitch of recipient
+        anal_recipient = analyze(recipient$sound, samplingRate, plot = FALSE)
+        freqWindow = median(anal_recipient$detailed$pitch, na.rm = TRUE)
+      } else {
+        # set freqWindow to the median pitch of donor
+        anal_donor = analyze(donor$sound, samplingRate, plot = FALSE)
+        freqWindow = median(anal_donor$detailed$pitch, na.rm = TRUE)
+      }
     }
   }
   if (!is.finite(freqWindow)) {
@@ -1155,13 +1218,28 @@ transplantFormants = function(donor,
   }
 
   # Smooth the donor spectrogram
-  # plot(spec_donor_rightDim[, 10], type = 'l')
-  for (i in 1:ncol(spec_donor_rightDim)) {
-    spec_donor_rightDim[, i] = getEnv(
-      sound = spec_donor_rightDim[, i],
-      windowLength_points = freqWindow_bins,
-      method = 'peak'
-    )
+  if (is.null(blur)) {
+    # method 1: extract smooth spectral envelope per frame
+    # plot(spec_donor_rightDim[, 10], type = 'l')
+    # image(t(log(spec_donor_rightDim + 1)))
+    for (i in 1:ncol(spec_donor_rightDim)) {
+      spec_donor_rightDim[, i] = getEnv(
+        sound = spec_donor_rightDim[, i],
+        windowLength_points = freqWindow_bins,
+        method = 'peak'
+      )
+    }
+  } else {
+    # method 2: apply a Gaussian blur to the entire spectrogram
+    bin_width = samplingRate / windowLength_points
+    filt_dim = c(
+        round(blur[1] / bin_width) * 2 + 1,  # frequency
+        round(blur[2] / step) * 2 + 1  # time
+      )
+    spec_donor_rightDim = gaussianSmooth2D(
+      spec_donor_rightDim,
+      kernelSize = filt_dim,
+      action = 'blur')
   }
 
   # Multiply the spectrograms and reconstruct the audio

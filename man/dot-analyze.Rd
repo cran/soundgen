@@ -9,7 +9,7 @@
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = 25,
+  step = windowLength/2,
   overlap = 50,
   specType = c("spectrum", "reassign", "spectralDerivative")[1],
   wn = "gaussian",

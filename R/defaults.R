@@ -253,6 +253,7 @@ defaults_analyze = matrix(c(
   'specBrightness', 0, -1, 1, .05,
   'blur_freq', 0, -1000, 1000, 10,
   'blur_time', 0, -100, 100, 1,
+  'nColors', 30, 10, 1000, 10,
   'reass_cex', .5, .05, 2, .05,
   'reass_windowLength', 15, 1, 200, 1,
   'reass_step', 5, 1, 100, 1,
