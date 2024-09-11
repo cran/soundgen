@@ -37,7 +37,7 @@ because digital audio is sampled at discrete time intervals of
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
 \item{specType}{the scale of target spectroram: 'abs' = absolute, 'log' =
 log-transformed, 'dB' = in decibels}
@@ -87,11 +87,11 @@ on Griffin & Lim (1984).
 samplingRate = 16000
 windowLength = 40
 overlap = 75
-wn = 'hanning'
+wn = 'gaussian'
 
 s = soundgen(samplingRate = samplingRate, addSilence = 100)
 spec = spectrogram(s, samplingRate = samplingRate,
-  wn = wn, windowLength = windowLength, overlap = overlap,
+  wn = wn, windowLength = windowLength, step = NULL, overlap = overlap,
   padWithSilence = FALSE, output = 'original')
 
 # Invert the spectrogram, attempting to guess the phase
@@ -99,14 +99,10 @@ spec = spectrogram(s, samplingRate = samplingRate,
 # in the original (ie you have to know how the spectrogram was created)
 s_new = invertSpectrogram(spec, samplingRate = samplingRate,
   windowLength = windowLength, overlap = overlap, wn = wn,
-  initialPhase = 'spsi', nIter = 10, specType = 'abs', play = FALSE)
+  initialPhase = 'spsi', nIter = 100, specType = 'abs', play = FALSE)
 
-\dontrun{
 # Verify the quality of audio reconstruction
 # playme(s, samplingRate); playme(s_new, samplingRate)
-spectrogram(s, samplingRate, osc = TRUE)
-spectrogram(s_new, samplingRate, osc = TRUE)
-}
 }
 \references{
 \itemize{

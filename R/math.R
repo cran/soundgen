@@ -1428,11 +1428,32 @@ switchColorTheme = function(colorTheme) {
     color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
   } else if (colorTheme == 'seewave') {
     color.palette = seewave::spectro.colors
+  } else if (colorTheme == 'matlab') {
+    color.palette = jet.col
   } else {
     colFun = match.fun(colorTheme)
     color.palette = function(x) rev(colFun(x))
   }
   return(color.palette)
+}
+
+
+#' Matlab colors
+#'
+#' Internal soundgen function for generating a Matlab-like palette
+#' (=plot3D::jet.col).
+#' @param n number of colors
+#' @param alpha transparency
+#' @keywords internal
+jet.col = function(n = 100, alpha = 1) {
+  red = c(0, 0, 0, 255, 255, 128)
+  green = c(0, 0, 255, 255, 0, 0)
+  blue = c(143, 255, 255, 0, 0, 0)
+  x.from = c(0, seq(0.125, 1, by = 0.25), 1)
+  x.to = seq(0, 1, length.out = n)
+  expand = function(col) approx(x = x.from, y = col, xout = x.to)$y
+  return(rgb(expand(red), expand(green), expand(blue), maxColorValue = 255,
+             alpha = alpha * 255))
 }
 
 
@@ -1749,4 +1770,37 @@ sinc = function(x) {
   out[x == 0] = 1
   return(out)
 }
-#
+
+
+#' Average matrices
+#'
+#' Internal soundgen function.
+#'
+#' Takes a list of matrices (normally modulation spectra), interpolates them to
+#' have the same size, and then reduces them (eg takes the average).
+#' @param mat_list a list of matrices to aggregate (eg spectrograms or
+#'   modulation spectra)
+#' @param rFun, cFun functions used to determine the number of rows and columns
+#'   in the result
+#' @param reduceFun function used to aggregate
+#' @keywords internal
+#' @examples
+#' mat_list = list(
+#'   matrix(1:30, nrow = 5),
+#'   matrix(80:17, nrow = 8)
+#' )
+#' soundgen:::averageMatrices(mat_list)
+#' soundgen:::averageMatrices(mat_list, cFun = 'max', reduceFun = '*')
+averageMatrices = function(mat_list,
+                           rFun = 'max',
+                           cFun = 'median',
+                           reduceFun = '+') {
+  # normally same samplingRate, but in case not, upsample frequency resolution
+  nr = round(do.call(rFun, list(unlist(lapply(mat_list, nrow)))))
+  # take typical ncol (depends on sound dur)
+  nc = round(do.call(cFun, list(unlist(lapply(mat_list, ncol)))))
+  mat_list_sameDim = lapply(mat_list, function(x) interpolMatrix(x, nr = nr, nc = nc))
+  agg = Reduce(reduceFun, mat_list_sameDim) / length(mat_list)
+  return(agg)
+}
+

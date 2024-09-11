@@ -100,7 +100,7 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 ('reassigned'), or spectral derivative ('spectralDerivative')}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
 \item{zp}{window length after zero padding, points}
 

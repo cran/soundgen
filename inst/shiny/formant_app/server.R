@@ -23,7 +23,7 @@ server = function(input, output, session) {
 
   myPars = reactiveValues(
     print = FALSE,          # if TRUE, some functions print a meassage to the console when called
-    debugQn = TRUE,            # for debugging - click "?" to step into the code
+    debugQn = FALSE,        # for debugging - click "?" to step into the code
     zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
     drawSpec = TRUE,

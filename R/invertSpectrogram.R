@@ -51,11 +51,11 @@
 #' samplingRate = 16000
 #' windowLength = 40
 #' overlap = 75
-#' wn = 'hanning'
+#' wn = 'gaussian'
 #'
 #' s = soundgen(samplingRate = samplingRate, addSilence = 100)
 #' spec = spectrogram(s, samplingRate = samplingRate,
-#'   wn = wn, windowLength = windowLength, overlap = overlap,
+#'   wn = wn, windowLength = windowLength, step = NULL, overlap = overlap,
 #'   padWithSilence = FALSE, output = 'original')
 #'
 #' # Invert the spectrogram, attempting to guess the phase
@@ -63,28 +63,24 @@
 #' # in the original (ie you have to know how the spectrogram was created)
 #' s_new = invertSpectrogram(spec, samplingRate = samplingRate,
 #'   windowLength = windowLength, overlap = overlap, wn = wn,
-#'   initialPhase = 'spsi', nIter = 10, specType = 'abs', play = FALSE)
+#'   initialPhase = 'spsi', nIter = 100, specType = 'abs', play = FALSE)
 #'
-#' \dontrun{
 #' # Verify the quality of audio reconstruction
 #' # playme(s, samplingRate); playme(s_new, samplingRate)
-#' spectrogram(s, samplingRate, osc = TRUE)
-#' spectrogram(s_new, samplingRate, osc = TRUE)
-#' }
 invertSpectrogram = function(
-  spec,
-  samplingRate,
-  windowLength,
-  overlap,
-  step = NULL,
-  wn = 'hanning',
-  specType = c('abs', 'log', 'dB')[1],
-  initialPhase = c('zero', 'random', 'spsi')[3],
-  nIter = 50,
-  normalize = TRUE,
-  play = TRUE,
-  verbose = FALSE,
-  plotError = TRUE) {
+    spec,
+    samplingRate,
+    windowLength,
+    overlap,
+    step = NULL,
+    wn = 'hanning',
+    specType = c('abs', 'log', 'dB')[1],
+    initialPhase = c('zero', 'random', 'spsi')[3],
+    nIter = 50,
+    normalize = TRUE,
+    play = TRUE,
+    verbose = FALSE,
+    plotError = TRUE) {
   nr = nrow(spec)  # frequency bins
   nc = ncol(spec)  # time frames
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
@@ -133,7 +129,7 @@ invertSpectrogram = function(
                                   f = samplingRate,
                                   ovlp = overlap,
                                   wn = wn,
-                                  wl = nrow(spec_complex) * 2,
+                                  wl = windowLength_points, # nrow(spec_complex) * 2,
                                   output = 'matrix'))
   if (normalize) out = out / max(abs(out))
 
@@ -143,6 +139,17 @@ invertSpectrogram = function(
   }
   if (is.character(play)) {
     playme(out, samplingRate = samplingRate, player = play)
+  }
+
+  # Show the error
+  if (plotError) {
+    spec_new = spectrogram(
+      out, samplingRate = samplingRate, wn = wn,
+      windowLength = windowLength, step = NULL, overlap = overlap,
+      padWithSilence = FALSE, plot = FALSE, output = 'original') # abs(spec_complex)
+    m = min(ncol(spec), ncol(spec_new))
+    err = sum((spec[, 1:m] - spec_new[, 1:m])^2) / sum(spec[, 1:m]^2) * 100
+    print(paste0('Square error for input vs reconstructed spectrogram = ', round(err, 1), '%'))
   }
 
   invisible(out)

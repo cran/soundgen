@@ -82,8 +82,8 @@ TRUE, rasterizes the phasegram matrix and plots it with more graphical
 parameters}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}

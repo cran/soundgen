@@ -33,19 +33,12 @@
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
 
-\item{windowLength}{length of FFT window, ms}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
+\code{specType = 'STFT'}. Window length and step are specified in ms (see
+\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
+have no effect}
 
 \item{overlap}{overlap between successive FFT frames, \%}
-
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
-
-\item{zp}{window length after zero padding, points}
 
 \item{amCond, fmCond}{character strings with valid conditions on amplitude and
 frequency modulation (see examples)}

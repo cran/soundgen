@@ -6,14 +6,9 @@
 \usage{
 .getSurprisal(
   audio,
-  step,
   winSurp,
+  audSpec_pars = list(filterType = "butterworth", nFilters = 64, step = 20),
   method = c("acf", "np")[1],
-  yScale = c("bark", "mel", "log")[1],
-  nFilters = 64,
-  dynamicRange = 80,
-  minFreq = 20,
-  maxFreq = audio$samplingRate/2,
   plot = TRUE,
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
@@ -39,26 +34,14 @@
 )
 }
 \arguments{
-\item{step}{step, ms (determines time resolution). step = NULL means no
-downsampling at all (ncol of output = length of input audio)}
-
 \item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
 point)}
 
+\item{audSpec_pars}{a list of parameters passed to
+\code{\link{audSpectrogram}}}
+
 \item{method}{acf = change in maximum autocorrelation after adding the final
 point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
-
-\item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
-logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
-Rectangular Bandwidths with \code{\link{HzToERB}}}
-
-\item{nFilters}{the number of filters (determines frequency resolution)}
-
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
-
-\item{minFreq, maxFreq}{the range of frequencies to analyze}
 
 \item{plot}{if TRUE, plots the auditory spectrogram and the
 \code{suprisalLoudness} contour}
@@ -87,8 +70,8 @@ resolve the edges properly (only the original region is plotted, so the
 apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}

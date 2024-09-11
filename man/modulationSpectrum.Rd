@@ -10,17 +10,25 @@ modulationSpectrum(
   scale = NULL,
   from = NULL,
   to = NULL,
-  amRes = 5,
-  maxDur = 5,
-  logSpec = FALSE,
+  msType = c("1D", "2D")[2],
+  specSource = c("STFT", "audSpec")[1],
   windowLength = 15,
-  step = NULL,
-  overlap = 80,
+  step = 1,
   wn = "hanning",
   zp = 0,
+  audSpec_pars = list(filterType = "butterworth", nFilters = 32, bandwidth = 1/24, yScale
+    = "bark", dynamicRange = 120),
+  amRes = 5,
+  maxDur = 5,
+  specMethod = c("spec", "meanspec")[2],
+  logSpec = FALSE,
+  logMPS = FALSE,
   power = 1,
   normalize = TRUE,
   roughRange = c(30, 150),
+  roughMean = NULL,
+  roughSD = NULL,
+  roughMinFreq = 1,
   amRange = c(10, 200),
   returnMS = TRUE,
   returnComplex = FALSE,
@@ -39,7 +47,7 @@ modulationSpectrum(
   col = NULL,
   main = NULL,
   xlab = "Hz",
-  ylab = "1/KHz",
+  ylab = NULL,
   xlim = NULL,
   ylim = NULL,
   width = 900,
@@ -63,6 +71,21 @@ input vector (only needed if \code{x} is a numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
+\item{msType}{'2D' = two-dimensional Fourier transform of a spectrogram; '1D'
+= separately calculated spectrum of each frequency band}
+
+\item{specSource}{'STFT' = Short-Time Fourier Transform; 'audSpec' = a bank
+of bandpass filters (see \code{\link{audSpectrogram}})}
+
+\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
+\code{specType = 'STFT'}. Window length and step are specified in ms (see
+\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
+have no effect}
+
+\item{audSpec_pars}{parameters for extracting an auditory spectrogram if
+\code{specType = 'audSpec'}. If \code{specType = 'STFT'}, these settings
+have no effect}
+
 \item{amRes}{target resolution of amplitude modulation, Hz. If \code{NULL},
 the entire sound is analyzed at once, resulting in a single roughness value
 (unless it is longer than \code{maxDur}, in which case it is analyzed in
@@ -74,22 +97,15 @@ frames). \code{amRes} also affects the amount of smoothing when calculating
 \item{maxDur}{sounds longer than \code{maxDur} s are split into fragments,
 and the modulation spectra of all fragments are averaged}
 
+\item{specMethod}{the function to call when calculating the spectrum of each
+frequency band (only used when \code{msType = '1D'}); 'meanspec' is faster
+and less noisy, whereas 'spec' produces higher resolution}
+
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
 
-\item{windowLength}{length of FFT window, ms}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
-
-\item{overlap}{overlap between successive FFT frames, \%}
-
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
-
-\item{zp}{window length after zero padding, points}
+\item{logMPS}{if TRUE, the modulation spectrum is log-transformed prior to
+calculating roughness}
 
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}
@@ -100,10 +116,24 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 \item{roughRange}{the range of temporal modulation frequencies that
 constitute the "roughness" zone, Hz}
 
+\item{roughMean, roughSD}{the mean (Hz) and standard deviation (semitones) of
+a lognormal distribution used to weight roughness estimates. If either is
+null, roughness is calculated simply as the proportion of spectrum within
+\code{roughRange}. If both \code{roughMean} and \code{roughRange} are
+defined, weights outside \code{roughRange} are set to 0; a very large SD (a
+flat weighting function) gives the same result as just \code{roughRange}
+without any weighting (see examples)}
+
+\item{roughMinFreq}{frequencies below roughMinFreq (Hz) are ignored when
+calculating roughness (ie the estimated roughness increases if we disregard
+very low-frequency modulation, which is often strong)}
+
 \item{amRange}{the range of temporal modulation frequencies that we are
 interested in as "amplitude modulation" (AM), Hz}
 
-\item{returnMS}{if FALSE, only roughness is returned (much faster)}
+\item{returnMS}{if FALSE, only roughness is returned (much faster). Careful
+with exporting the modulation spectra of a lot of sounds at once as this
+requires a lot of RAM}
 
 \item{returnComplex}{if TRUE, returns a complex modulation spectrum (without
 normalization and warping)}
@@ -121,7 +151,8 @@ left every ... iterations (NULL = default, NA = don't report)}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{if TRUE, plots the modulation spectrum of each sound}
+\item{plot}{if TRUE, plots the modulation spectrum of each sound (see
+\code{\link{plotMS}})}
 
 \item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
@@ -140,8 +171,8 @@ smoothing)}
 size}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}
@@ -159,15 +190,19 @@ Returns a list with the following components:
 \itemize{
 \item \code{$original} modulation spectrum prior to blurring and log-warping,
 but after squaring if \code{power = TRUE}, a matrix of nonnegative values.
-Rownames are spectral modulation frequencies (cycles/KHz), and colnames are
-temporal modulation frequencies (Hz).
+Colnames are temporal modulation frequencies (Hz). Rownames are spectral
+modulation frequencies (cycles/kHz) if \code{msType = '2D'} and frequencies
+of filters or spectrograms bands (kHz) if \code{msType = '1D'}.
 \item \code{$processed} modulation spectrum after blurring and log-warping
 \item \code{$complex} untransformed complex modulation spectrum (returned
 only if returnComplex = TRUE)
-\item \code{$roughness} proportion of energy / amplitude of the modulation
-spectrum within \code{roughRange} of temporal modulation frequencies, \% - a
-vector if amRes is numeric and the sound is long enough, a single number
-otherwise
+\item \code{$roughness} proportion of the modulation spectrum within
+\code{roughRange} of temporal modulation frequencies or a weighted average
+thereof if \code{roughMean} and \code{roughSD} are defined, \% - a vector if
+amRes is numeric and the sound is long enough, otherwise a single number
+\item \code{$roughness_list} a list containing frequencies, amplitudes, and
+roughness values for each analyzed frequency band (1D) or frequency
+modulation band (2D)
 \item \code{$amMsFreq} frequency of the highest peak, within \code{amRange}, of
 the folded AM function (average AM across all FM bins for both negative and
 positive AM frequencies), where a peak is a local maximum over \code{amRes}
@@ -181,42 +216,41 @@ amMsPurity
 }
 }
 \description{
-Produces a modulation spectrum of waveform(s) or audio file(s), with temporal
-modulation along the X axis (Hz) and spectral modulation (1/KHz) along the Y
-axis. A good visual analogy is decomposing the spectrogram into a sum of
-ripples of various frequencies and directions. Roughness is calculated as the
-proportion of energy / amplitude of the modulation spectrum within
-\code{roughRange} of temporal modulation frequencies. The frequency of
-amplitude modulation (amMsFreq, Hz) is calculated as the highest peak in the
-smoothed AM function, and its purity (amMsPurity, dB) as the ratio of this
-peak to the median AM over \code{amRange}. For relatively short and steady
-sounds, set \code{amRes = NULL} and analyze the entire sound. For longer
-sounds and when roughness or AM vary over time, set \code{amRes} to get
-multiple measurements over time (see examples).
-}
-\details{
-Algorithm: prepare a spectrogram, take its logarithm (if \code{logSpec =
-TRUE}), center, perform a 2D Fourier transform (see also
-spectral::spec.fft()), take the upper half of the resulting symmetric matrix,
-and raise it to \code{power}. The result is returned as \code{$original}. For
-plotting purposes, the modulation matrix can be smoothed with Gaussian blur
-(see \code{\link{gaussianSmooth2D}}) and log-warped (if \code{logWarp} is a
-positive number). This processed modulation spectrum is returned as
-\code{$processed}. If the audio is long enough, multiple windows are
-analyzed, resulting in a vector of roughness values. For multiple inputs,
-such as a list of waveforms or path to a folder with audio files, the
-ensemble of modulation spectra can be interpolated to the same spectral and
-temporal resolution and averaged (if \code{averageMS}).
+Produces a modulation spectrum of waveform(s) or audio file(s). It begins
+with some spectrogram-like time-frequency representation and analyzes the
+modulation of the envelope in each frequency band. if \code{specSource =
+'audSpec'}, the sound is passed through a bank of bandpass filters with
+\code{\link{audSpectrogram}}. If \code{specSource = 'STFT'}, we begin with an
+ordinary spectrogram produced with a Short-Time Fourier Transform. If
+\code{msType = '2D'}, the modulation spectrum is a 2D Fourier transform of
+the spectrogram-like representation, with temporal modulation along the X
+axis and spectral modulation along the Y axis. A good visual analogy is
+decomposing the spectrogram into a sum of ripples of various frequencies and
+directions. If \code{msType = '1D'}, the modulation spectrum is a matrix
+containing 1D Fourier transforms of each frequency band in the spectrogram,
+so the result again has modulation frequencies along the X axis, but the Y
+axis now shows the frequency of each analyzed band. Roughness is calculated
+as the proportion of the modulation spectrum within \code{roughRange} of
+temporal modulation frequencies or some weighted version thereof. The
+frequency of amplitude modulation (amMsFreq, Hz) is calculated as the highest
+peak in the smoothed AM function, and its purity (amMsPurity, dB) as the
+ratio of this peak to the median AM over \code{amRange}. For relatively short
+and steady sounds, set \code{amRes = NULL} and analyze the entire sound. For
+longer sounds and when roughness or AM vary over time, set \code{amRes} to
+get multiple measurements over time (see examples). For multiple inputs, such
+as a list of waveforms or path to a folder with audio files, the ensemble of
+modulation spectra can be interpolated to the same spectral and temporal
+resolution and averaged (if \code{averageMS = TRUE}).
 }
 \examples{
 # White noise
-ms = modulationSpectrum(runif(16000), samplingRate = 16000,
+ms = modulationSpectrum(rnorm(16000), samplingRate = 16000,
   logSpec = FALSE, power = TRUE,
   amRes = NULL)  # analyze the entire sound, giving a single roughness value
 str(ms)
 
 # Harmonic sound
-s = soundgen(amFreq = 25, amDep = 50)
+s = soundgen(pitch = 440, amFreq = 100, amDep = 50)
 ms = modulationSpectrum(s, samplingRate = 16000, amRes = NULL)
 ms[c('roughness', 'amMsFreq', 'amMsPurity')]  # a single value for each
 ms1 = modulationSpectrum(s, samplingRate = 16000, amRes = 5)
@@ -225,9 +259,12 @@ ms1[c('roughness', 'amMsFreq', 'amMsPurity')]
 # longer segments and get fewer values per sound)
 
 # Embellish
-ms = modulationSpectrum(s, samplingRate = 16000,
-  xlab = 'Temporal modulation, Hz', ylab = 'Spectral modulation, 1/KHz',
-  colorTheme = 'heat.colors', main = 'Modulation spectrum', lty = 3)
+ms = modulationSpectrum(s, samplingRate = 16000, logMPS = TRUE,
+  xlab = 'Temporal modulation, Hz', ylab = 'Spectral modulation, 1/kHz',
+  colorTheme = 'matlab', main = 'Modulation spectrum', lty = 3)
+
+# 1D instead of 2D
+modulationSpectrum(s, 16000, msType = '1D')
 
 \dontrun{
 # A long sound with varying AM and a bit of chaos at the end
@@ -244,7 +281,7 @@ spectrogram(s_long, 16000, ylim = c(0, 4),
   extraContour = list(ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
 
 # As with spectrograms, there is a tradeoff in time-frequency resolution
-s = soundgen(pitch = 500, amFreq = 50, amDep = 100,
+s = soundgen(pitch = 500, amFreq = 50, amDep = 100, sylLen = 500,
              samplingRate = 44100, plot = TRUE)
 # playme(s, samplingRate = 44100)
 ms = modulationSpectrum(s, samplingRate = 44100,
@@ -254,6 +291,12 @@ ms = modulationSpectrum(s, samplingRate = 44100,
 ms = modulationSpectrum(s, samplingRate = 44100,
   windowLength = 15, step = 3, amRes = NULL)  # a reasonable compromise
 
+# Start with an auditory spectrogram instead of STFT
+modulationSpectrum(s, 44100, specSource = 'audSpec', xlim = c(-100, 100))
+modulationSpectrum(s, 44100, specSource = 'audSpec',
+  logWarpX = c(10, 2), xlim = c(-500, 500),
+  audSpec_pars = list(nFilters = 32, filterType = 'gammatone', bandwidth = NULL))
+
 # customize the plot
 ms = modulationSpectrum(s, samplingRate = 44100,
   windowLength = 15, overlap = 80, amRes = NULL,
@@ -261,8 +304,9 @@ ms = modulationSpectrum(s, samplingRate = 44100,
   xlim = c(-70, 70), ylim = c(0, 4),  # zoom in on the central region
   quantiles = c(.25, .5, .8),  # customize contour lines
   col = rev(rainbow(100)),  # alternative palette
+  logWarpX = c(10, 2),  # pseudo-log transform
   power = 2)                   # ^2
-# Note the peaks at FM = 2/KHz (from "pitch = 500") and AM = 50 Hz (from
+# Note the peaks at FM = 2/kHz (from "pitch = 500") and AM = 50 Hz (from
 # "amFreq = 50")
 
 # Input can be a wav/mp3 file
@@ -324,6 +368,18 @@ modulationSpectrum(s, samplingRate = 16000, kernelSize = 17)$roughness
 modulationSpectrum(s, samplingRate = 16000, logSpec = FALSE)$roughness
 modulationSpectrum(s, samplingRate = 16000, logSpec = TRUE)$roughness
 
+# Use a lognormal weighting function to calculate roughness
+# (instead of just \% in roughRange)
+modulationSpectrum(s, 16000, roughRange = NULL,
+  roughMean = 75, roughSD = 3)$roughness
+modulationSpectrum(s, 16000, roughRange = NULL,
+  roughMean = 100, roughSD = 12)$roughness
+# truncate weights outside roughRange
+modulationSpectrum(s, 16000, roughRange = c(30, 150),
+  roughMean = 100, roughSD = 1000)$roughness  # very large SD
+modulationSpectrum(s, 16000, roughRange = c(30, 150),
+  roughMean = NULL)$roughness  # same as above b/c SD --> Inf
+
 # Complex modulation spectrum with phase preserved
 ms = modulationSpectrum(soundgen(), samplingRate = 16000,
                         returnComplex = TRUE)
@@ -340,5 +396,6 @@ plotMS(ms$original)
 }
 }
 \seealso{
-\code{\link{plotMS}} \code{\link{spectrogram}} \code{\link{analyze}}
+\code{\link{plotMS}} \code{\link{spectrogram}}
+  \code{\link{audSpectrogram}} \code{\link{analyze}}
 }

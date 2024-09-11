@@ -26,7 +26,7 @@ numeric vector)}
 \item{windowLength_points}{length of fft window (points)}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
 \item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
 because digital audio is sampled at discrete time intervals of

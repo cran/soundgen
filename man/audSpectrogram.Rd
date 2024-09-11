@@ -12,14 +12,21 @@ audSpectrogram(
   to = NULL,
   step = 1,
   dynamicRange = 80,
+  filterType = c("butterworth", "chebyshev", "gammatone")[1],
   nFilters = 128,
+  nFilters_oct = NULL,
+  filterOrder = if (filterType == "gammatone") 4 else 3,
+  bandwidth = NULL,
+  bandwidthMult = 1,
   minFreq = 20,
   maxFreq = samplingRate/2,
   minBandwidth = 10,
+  output = c("audSpec", "audSpec_processed", "filterbank", "filterbank_env", "roughness"),
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
   savePlots = NULL,
+  plotFilters = FALSE,
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
   ylim = NULL,
@@ -58,18 +65,41 @@ input vector (only needed if \code{x} is a numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{step}{step, ms (determines time resolution). step = NULL means no
-downsampling at all (ncol of output = length of input audio)}
+\item{step}{step, ms (determines time resolution of the plot, but not of the
+returned envelopes per channel). step = NULL means no downsampling at all
+(ncol of output = length of input audio)}
 
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
-\item{nFilters}{the number of filters (determines frequency resolution)}
+\item{filterType}{"butterworth" = Butterworth filter
+\code{\link[signal]{butter}}, "chebyshev" = Chebyshev filter
+\code{\link[signal]{butter}}, "gammatone" =
+\code{\link[seewave]{gammatone}}}
+
+\item{nFilters}{the number of filters between \code{minFreq} and
+\code{maxFreq} (determines frequency resolution, while \code{yScale}
+determines the location of center frequencies)}
+
+\item{nFilters_oct}{an alternative way to specify frequency resolution: the
+number of filters per octave}
+
+\item{filterOrder}{filter order (defaults to 4 for gammatones, 3 otherwise)}
+
+\item{bandwidth}{filter bandwidth, octaves. If NULL, defaults to ERB
+bandwidths as in \code{\link[seewave]{gammatone}}}
+
+\item{bandwidthMult}{a scaling factor for all bandwidths (1 = no effect)}
 
 \item{minFreq, maxFreq}{the range of frequencies to analyze}
 
 \item{minBandwidth}{minimum filter bandwidth, Hz (otherwise filters may
-become too narrow when nFilters is high)}
+become too narrow when nFilters is high; has no effect if filterType =
+'gammatone')}
+
+\item{output}{a list of measures to return. Defaults to everything, but this
+takes a lot of RAM, so shorten to what's needed if analyzing many files at
+once}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
@@ -81,6 +111,9 @@ left every ... iterations (NULL = default, NA = don't report)}
 \item{savePlots}{full path to the folder in which to save the plots (NULL =
 don't save, '' = same folder as audio)}
 
+\item{plotFilters}{if TRUE, plots the filters as central frequencies ±
+bandwidth/2}
+
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
 in decibels}
 
@@ -90,10 +123,7 @@ spectrogram and the oscillogram (including time axes labels)}
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
-\item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
-logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
-Rectangular Bandwidths with \code{\link{HzToERB}}}
+\item{yScale}{determines the location of center frequencies of the filters}
 
 \item{contrast}{spectrum is exponentiated by contrast (any real number,
 recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
@@ -110,8 +140,8 @@ resolve the edges properly (only the original region is plotted, so the
 apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}
@@ -130,14 +160,25 @@ examples)}
 
 \item{...}{other graphical parameters}
 }
+\value{
+Returns a list for each analyzed file, including:
+  \describe{\item{audSpec}{auditory spectrogram with frequencies in rows and
+  time in columns} \item{audSpec_processed}{same but rescaled for plotting}
+  \item{filterbank}{raw output of the filters} \item{roughness}{roughness per
+  channel (as many as \code{nFilters})}}
+}
 \description{
-Produces an auditory spectrogram by extracting a bank of bandpass filters
-(work in progress). While tuneR::audspec is based on FFT, here we convolve
-the sound with a bank of filters. The main difference is that we don't window
-the signal and de facto get variable temporal resolution in different
-frequency channels, as with a wavelet transform. The filters are currently
-third-order Butterworth bandpass filters implemented in
-\code{\link[signal]{butter}}.
+Produces an auditory spectrogram by convolving the sound with a bank of
+bandpass filters. The main difference from STFT is that we don't window the
+signal and de facto get variable temporal resolution in different frequency
+channels, as with a wavelet transform. The key settings are
+\code{filterType}, \code{nFilters}, and \code{yScale}, which determine the
+type, number, and spacing of the filters, respectively. Gammatone filters
+were designed as a simple approximation of human perception - see
+\code{\link[seewave]{gammatone}} and Slaney 1993 "An Efficient Implementation
+of the Patterson–Holdsworth Auditory Filter Bank". Butterworth or Chebyshev
+filters are not meant to model perception, but can be useful for quickly
+plotting a sound.
 }
 \examples{
 # synthesize a sound with gradually increasing hissing noise
@@ -159,22 +200,30 @@ dim(fs)
 \dontrun{
 # add bells and whistles
 audSpectrogram(sound, samplingRate = 16000,
+  filterType = 'gammatone',
+  nFilters = 50,
   yScale = 'ERB',
+  bandwidth = 1/12,
+  dynamicRange = 150,
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
+  contrast = .2,  # increase contrast
   brightness = -.1,  # reduce brightness
   # colorTheme = 'heat.colors',  # pick color theme...
-  col = hcl.colors(30, palette = 'Plasma'),  # ...or specify the colors
+  col = hcl.colors(100, palette = 'Plasma'),  # ...or specify the colors
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
   grid = 5,  # to customize, add manually with graphics::grid()
-  ylim = c(0.1, 5),  # always in kHz
+  ylim = c(0.05, 8),  # always in kHz
   main = 'My auditory spectrogram' # title
   # + axis labels, etc
 )
 
-# change dynamic range
-audSpectrogram(sound, samplingRate = 16000, dynamicRange = 40)
-audSpectrogram(sound, samplingRate = 16000, dynamicRange = 120)
+# NB: frequency resolution is controlled by both nFilters and bandwidth
+audSpectrogram(sound, 16000, nFilters = 15, bandwidth = 1/2)
+audSpectrogram(sound, 16000, nFilters = 15, bandwidth = 1/10)
+audSpectrogram(sound, 16000, nFilters = 100, bandwidth = 1/2)
+audSpectrogram(sound, 16000, nFilters = 100, bandwidth = 1/10)
+audSpectrogram(sound, 16000, nFilters_oct = 5, bandwidth = 1/10)
 
 # remove the oscillogram
 audSpectrogram(sound, samplingRate = 16000, osc = 'none')

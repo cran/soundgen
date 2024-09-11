@@ -72,7 +72,7 @@ density per time-frequency bins with the same resolution as an ordinary
 spectrogram}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
 \item{zp}{window length after zero padding, points}
 
@@ -136,8 +136,8 @@ resolve the edges properly (only the original region is plotted, so the
 apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}

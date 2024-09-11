@@ -6,17 +6,25 @@
 \usage{
 .modulationSpectrum(
   audio,
-  amRes = 5,
-  maxDur = 5,
-  logSpec = FALSE,
+  specSource = c("STFT", "audSpec")[1],
   windowLength = 15,
-  step = NULL,
-  overlap = 80,
+  step = 1,
   wn = "hanning",
   zp = 0,
+  audSpec_pars = list(filterType = "butterworth", nFilters = 32, bandwidth = 1/24, yScale
+    = "bark", dynamicRange = 120),
+  msType = c("1D", "2D")[2],
+  amRes = 5,
+  maxDur = 5,
+  specMethod = c("spec", "meanspec")[2],
+  logSpec = FALSE,
+  logMPS = FALSE,
   power = 1,
   normalize = TRUE,
   roughRange = c(30, 150),
+  roughMean = NULL,
+  roughSD = NULL,
+  roughMinFreq = 1,
   amRange = c(10, 200),
   returnMS = TRUE,
   returnComplex = FALSE,
@@ -31,7 +39,7 @@
   col = NULL,
   main = NULL,
   xlab = "Hz",
-  ylab = "1/KHz",
+  ylab = "1/kHz",
   xlim = NULL,
   ylim = NULL,
   width = 900,
@@ -44,6 +52,21 @@
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
+\item{specSource}{'STFT' = Short-Time Fourier Transform; 'audSpec' = a bank
+of bandpass filters (see \code{\link{audSpectrogram}})}
+
+\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
+\code{specType = 'STFT'}. Window length and step are specified in ms (see
+\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
+have no effect}
+
+\item{audSpec_pars}{parameters for extracting an auditory spectrogram if
+\code{specType = 'audSpec'}. If \code{specType = 'STFT'}, these settings
+have no effect}
+
+\item{msType}{'2D' = two-dimensional Fourier transform of a spectrogram; '1D'
+= separately calculated spectrum of each frequency band}
+
 \item{amRes}{target resolution of amplitude modulation, Hz. If \code{NULL},
 the entire sound is analyzed at once, resulting in a single roughness value
 (unless it is longer than \code{maxDur}, in which case it is analyzed in
@@ -55,22 +78,15 @@ frames). \code{amRes} also affects the amount of smoothing when calculating
 \item{maxDur}{sounds longer than \code{maxDur} s are split into fragments,
 and the modulation spectra of all fragments are averaged}
 
+\item{specMethod}{the function to call when calculating the spectrum of each
+frequency band (only used when \code{msType = '1D'}); 'meanspec' is faster
+and less noisy, whereas 'spec' produces higher resolution}
+
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
 
-\item{windowLength}{length of FFT window, ms}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
-
-\item{overlap}{overlap between successive FFT frames, \%}
-
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
-
-\item{zp}{window length after zero padding, points}
+\item{logMPS}{if TRUE, the modulation spectrum is log-transformed prior to
+calculating roughness}
 
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}
@@ -81,15 +97,30 @@ gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
 \item{roughRange}{the range of temporal modulation frequencies that
 constitute the "roughness" zone, Hz}
 
+\item{roughMean, roughSD}{the mean (Hz) and standard deviation (semitones) of
+a lognormal distribution used to weight roughness estimates. If either is
+null, roughness is calculated simply as the proportion of spectrum within
+\code{roughRange}. If both \code{roughMean} and \code{roughRange} are
+defined, weights outside \code{roughRange} are set to 0; a very large SD (a
+flat weighting function) gives the same result as just \code{roughRange}
+without any weighting (see examples)}
+
+\item{roughMinFreq}{frequencies below roughMinFreq (Hz) are ignored when
+calculating roughness (ie the estimated roughness increases if we disregard
+very low-frequency modulation, which is often strong)}
+
 \item{amRange}{the range of temporal modulation frequencies that we are
 interested in as "amplitude modulation" (AM), Hz}
 
-\item{returnMS}{if FALSE, only roughness is returned (much faster)}
+\item{returnMS}{if FALSE, only roughness is returned (much faster). Careful
+with exporting the modulation spectra of a lot of sounds at once as this
+requires a lot of RAM}
 
 \item{returnComplex}{if TRUE, returns a complex modulation spectrum (without
 normalization and warping)}
 
-\item{plot}{if TRUE, plots the modulation spectrum of each sound}
+\item{plot}{if TRUE, plots the modulation spectrum of each sound (see
+\code{\link{plotMS}})}
 
 \item{savePlots}{if a valid path is specified, a plot is saved in this folder
 (defaults to NA)}
@@ -108,8 +139,8 @@ smoothing)}
 size}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}

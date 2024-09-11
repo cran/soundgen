@@ -302,7 +302,7 @@
 #' s2$summary[, 1:5]
 #'
 #' # Different options for summarizing the output
-#' a = analyze(sound1, 44100,
+#' a = analyze(sound2, 44100,
 #'             summaryFun = c('mean', 'range'))
 #' a$summary  # one row per sound
 #' # ...with custom summaryFun, eg time of peak relative to duration (0 to 1)
@@ -408,7 +408,7 @@ analyze = function(
     nFormants = 3,
     formants = list(),
     loudness = list(SPL_measured = 70),
-    roughness = list(windowLength =  15, step = 3, amRes = 10),
+    roughness = list(msType = '1D', windowLength = 25, step = 2, amRes = 5),
     novelty = list(input = 'melspec', kernelLen = 100),
     pitchMethods = c('dom', 'autocor'),
     pitchManual = NULL,
@@ -426,8 +426,7 @@ analyze = function(
                         autocorSmooth = 7,
                         autocorUpsample = 25,
                         autocorBestPeak = 0.975,
-                        interpol = 'sinc',
-                        wn = 'hanning'),
+                        interpol = 'sinc'),
     pitchCep = list(cepThres = 0.75,
                     cepZp = 0),
     pitchSpec = list(specThres = 0.05,
@@ -518,8 +517,7 @@ analyze = function(
     harmHeight = c('harmThres', 'harmTol', 'harmPerSel'),
     pitchDom = c('domThres', 'domSmooth'),
     pitchAutocor = c('autocorThres', 'autocorSmooth',
-                     'autocorUpsample', 'autocorBestPeak',
-                     'interpol', 'wn'),
+                     'autocorUpsample', 'autocorBestPeak', 'interpol'),
     pitchCep = c('cepThres', 'cepZp'),
     pitchSpec = c('specSmooth', 'specHNRslope', 'specThres',
                   'specPeak', 'specSinglePeakCert', 'specMerge',
@@ -553,6 +551,8 @@ analyze = function(
   rm('parsToValidate', 'parGroup_user', 'parGroup_def', 'p', 'i',
      'harmHeight_plotPars')
   if (is.na(pitchSpec$specMethod)) pitchSpec$specMethod = 'commonFactor'
+  if (is.na(pitchAutocor$interpol)) pitchAutocor$interpol = 'sinc'
+
 
   # Check defaults that depend on other pars or require customized warnings
   if (is.character(pitchMethods) && pitchMethods[1] != '') {

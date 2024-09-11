@@ -33,7 +33,8 @@
 #' # Filter
 #' s_filt = filterSoundByMS(s, samplingRate = 16000,
 #'   amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
-#'   action = 'remove', nIter = 10, plot = TRUE)
+#'   nIter = 10,  # increase nIter for best results!
+#'   action = 'remove', plot = TRUE)
 #' # playme(s_filt, samplingRate = 16000)
 #'
 #' \dontrun{
@@ -75,10 +76,10 @@
 #' # than with the filterMS() function called by filterSoundByMS()
 #'
 #' # (optional) Check that the target spectrogram can be successfully inverted
-#' spec = spectrogram(s, 16000, windowLength = 25, overlap = 80,
+#' spec = spectrogram(s, 16000, windowLength = 50, step = NULL, overlap = 80,
 #'   wn = 'hanning', osc = TRUE, padWithSilence = FALSE)
 #' s_rev = invertSpectrogram(spec, samplingRate = 16000,
-#'   windowLength = 25, overlap = 80, wn = 'hamming', play = FALSE)
+#'   windowLength = 50, overlap = 80, wn = 'hamming', play = FALSE)
 #' # playme(s_rev, 16000)  # should be close to the original
 #' spectrogram(s_rev, 16000, osc = TRUE)
 #'
@@ -88,8 +89,7 @@
 #'   power = NA, returnComplex = TRUE, plot = FALSE)$complex
 #' # ... or starting from the spectrogram:
 #' # ms = specToMS(spec)
-#' image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-#'   z = t(log(abs(ms))))  # this is the original MS
+#' plotMS(abs(ms))  # this is the original MS
 #'
 #' # Filter as needed - for ex., remove AM > 10 Hz and FM > 3 cycles/kHz
 #' # (removes f0, preserves formants)
@@ -100,8 +100,7 @@
 #' ms_filt = ms
 #' ms_filt[idx_row, ] = 0
 #' ms_filt[, idx_col] = 0
-#' image(x = as.numeric(colnames(ms_filt)), y = as.numeric(rownames(ms_filt)),
-#'   t(log(abs(ms_filt))))  # this is the filtered MS
+#' plotMS(abs(ms_filt))  # this is the filtered MS
 #'
 #' # Convert back to a spectrogram
 #' spec_filt = msToSpec(ms_filt)
@@ -130,32 +129,32 @@
 #' # AM peaks at 25 Hz are removed, but inverting the spectrogram adds a lot of noise
 #' }
 filterSoundByMS = function(
-  x,
-  samplingRate = NULL,
-  from = NULL,
-  to = NULL,
-  logSpec = FALSE,
-  windowLength = 25,
-  step = NULL,
-  overlap = 80,
-  wn = 'hamming',
-  zp = 0,
-  amCond = NULL,
-  fmCond = NULL,
-  jointCond = NULL,
-  action = c('remove', 'preserve')[1],
-  initialPhase = c('zero', 'random', 'spsi')[3],
-  nIter = 50,
-  reportEvery = NULL,
-  cores = 1,
-  play = FALSE,
-  saveAudio = NULL,
-  plot = TRUE,
-  savePlots = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA) {
+    x,
+    samplingRate = NULL,
+    from = NULL,
+    to = NULL,
+    logSpec = FALSE,
+    windowLength = 25,
+    step = NULL,
+    overlap = 80,
+    wn = 'hamming',
+    zp = 0,
+    amCond = NULL,
+    fmCond = NULL,
+    jointCond = NULL,
+    action = c('remove', 'preserve')[1],
+    initialPhase = c('zero', 'random', 'spsi')[3],
+    nIter = 50,
+    reportEvery = NULL,
+    cores = 1,
+    play = FALSE,
+    saveAudio = NULL,
+    plot = TRUE,
+    savePlots = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA) {
   ## Prepare a list of arguments to pass to .filterSoundByMS()
   myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude unnecessary args
@@ -197,26 +196,26 @@ filterSoundByMS = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .filterSoundByMS = function(
-  audio,
-  logSpec = FALSE,
-  windowLength = 25,
-  step = NULL,
-  overlap = 80,
-  wn = 'hamming',
-  zp = 0,
-  amCond = NULL,
-  fmCond = NULL,
-  jointCond = NULL,
-  action = c('remove', 'preserve')[1],
-  initialPhase = c('zero', 'random', 'spsi')[3],
-  nIter = 50,
-  play = FALSE,
-  plot = TRUE,
-  savePlots = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA) {
+    audio,
+    logSpec = FALSE,
+    windowLength = 25,
+    step = NULL,
+    overlap = 80,
+    wn = 'hamming',
+    zp = 0,
+    amCond = NULL,
+    fmCond = NULL,
+    jointCond = NULL,
+    action = c('remove', 'preserve')[1],
+    initialPhase = c('zero', 'random', 'spsi')[3],
+    nIter = 50,
+    play = FALSE,
+    plot = TRUE,
+    savePlots = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA) {
   # make sure windowLength_points and step_points are not fractions
   if (is.null(step)) step = windowLength * (1 - overlap / 100)
   step_points = round(step / 1000 * audio$samplingRate)
@@ -243,12 +242,12 @@ filterSoundByMS = function(
                      action = action, plot = FALSE)
 
   # Convert back to a spectrogram
-  spec_filt = msToSpec(ms_filt, windowLength = windowLength, step = step)
+  spec_filt = abs(msToSpec(ms_filt, windowLength = windowLength, step = step))
   # image(x = as.numeric(colnames(spec_filt)), y = as.numeric(rownames(spec_filt)), z = t(log(abs(spec_filt))))
 
   # Invert the spectrogram
   s_new = invertSpectrogram(
-    abs(spec_filt), samplingRate = audio$samplingRate,
+    spec_filt, samplingRate = audio$samplingRate,
     windowLength = windowLength, wn = wn,
     overlap = overlap, step = step,
     specType = ifelse(logSpec, 'log', 'abs'),
@@ -289,6 +288,13 @@ filterSoundByMS = function(
       plot = FALSE
     )$complex
 
+    # Calculate the error based on target vs reconstructed MS
+    ms_nr = min(nrow(ms_filt), nrow(ms_actual))
+    ms_nc = min(ncol(ms_filt), ncol(ms_actual))
+    m1 = abs(ms_filt[1:ms_nr, 1:ms_nc])
+    m2 = abs(ms_actual[1:ms_nr, 1:ms_nc])
+    err = sum((m1 - m2)^2) / sum(m1^2) * 100
+
     par(mfrow = c(1, 3))
     image(x = as.numeric(colnames(ms)),
           y = as.numeric(rownames(ms)),
@@ -303,7 +309,7 @@ filterSoundByMS = function(
     image(x = as.numeric(colnames(ms_actual)),
           y = as.numeric(rownames(ms_actual)),
           z = t(log(abs(ms_actual))),
-          main = 'Achieved MS',
+          main = paste0('Achieved MS \nSquared error = ', round(err, 1), '%'),
           xlab = '', ylab = '')
     par(mfrow = c(1, 1))
     if (is.character(audio$saveAudio)) dev.off()
@@ -430,125 +436,5 @@ filterMS = function(ms,
           z = t(log(out_plot)))
   }
   invisible(out)
-}
-
-
-#' Spectrogram to modulation spectrum
-#'
-#' Takes a spectrogram (either complex or magnitude) and returns a MS with
-#' proper row and column labels.
-#' @return Returns a MS - matrix of complex values of the same dimension as
-#'   spec, with AM in rows and FM in columns.
-#' @param spec target spectrogram (numeric matrix, frequency in rows, time in
-#'   columns)
-#' @inheritParams spectrogram
-#' @export
-#' @examples
-#' s = soundgen(sylLen = 500, amFreq = 25, amDep = 50,
-#'              pitch = 250, samplingRate = 16000)
-#' spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5)
-#' ms = specToMS(spec)
-#' image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-#'       z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
-#'       ylab = 'Frequency modulation, cycles/kHz')
-#' abline(h = 0, lty = 3); abline(v = 0, lty = 3)
-specToMS = function(spec, windowLength = NULL, step = NULL) {
-  if ((is.null(colnames(spec)) & is.null(step)) |
-      (is.null(rownames(spec)) & is.null(windowLength))) {
-    addNames = FALSE
-    message(paste("If spec doesn't have rownames/colnames,",
-                  "you have to specify STFT step and samplingRate,",
-                  "otherwise AM and FM stamps can't be",
-                  "added to the modulation spectrum"))
-  } else {
-    addNames = TRUE
-  }
-
-  # Center - see spec.fft function in "spectral" package
-  spec_centered = spec * (-1)^(row(spec) + col(spec))  # *checkerboard of ±1
-
-  # 2D fft
-  ms = fft(spec_centered, inverse = FALSE) / length(spec_centered)
-
-  # Add labels
-  if (addNames) {
-    if (is.null(step)) step = diff(as.numeric(colnames(spec)))[1]
-    # AM
-    nc = ncol(ms)
-    bin_width = 1000 / step / nc
-    colnames(ms) = ((0:(nc - 1)) - nc / 2) * bin_width
-
-    # FM
-    nr = nrow(ms)
-    if (is.null(windowLength)) {
-      samplingRate = (max(abs(as.numeric(rownames(spec)))) +  # middle of top bin
-                        min(abs(as.numeric(rownames(spec))))) *  # bin/2
-        1000 * 2
-      windowLength = nr * 2 / (samplingRate / 1000)
-    }
-    max_fm = windowLength / 2
-    rownames(ms) = seq(-max_fm, max_fm, length.out = nr)
-  }
-  return(ms)
-}
-
-
-#' Modulation spectrum to spectrogram
-#'
-#' Takes a complex MS and transforms it to a complex spectrogram with proper row
-#' (frequency) and column (time) labels.
-#' @return Returns a spectrogram - a numeric matrix of complex numbers of
-#'   the same dimensions as ms.
-#' @param ms target modulation spectrum (matrix of complex numbers)
-#' @inheritParams spectrogram
-#' @export
-#' @examples
-#' s = soundgen(sylLen = 250, amFreq = 25, amDep = 50,
-#'              pitch = 250, samplingRate = 16000)
-#' spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5)
-#' ms = specToMS(spec)
-#' image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-#'       z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
-#'       ylab = 'Frequency modulation, cycles/kHz')
-#' spec_new = msToSpec(ms)
-#' image(x = as.numeric(colnames(spec_new)), y = as.numeric(rownames(spec_new)),
-#'       z = t(log(abs(spec_new))), xlab = 'Time, ms',
-#'       ylab = 'Frequency, kHz')
-msToSpec = function(ms, windowLength = NULL, step = NULL) {
-  addNames = TRUE
-  if ((is.null(colnames(ms)) & is.null(step)) |
-      (is.null(rownames(ms)) & is.null(windowLength))) {
-    addNames = FALSE
-    message(paste("If ms doesn't have rownames/colnames,",
-                  "you have to specify windowLength and step,",
-                  "otherwise frequency and time stamps can't be",
-                  "added to the spectrogram"))
-  }
-
-  # Inverse FFT
-  s1 = fft(ms, inverse = TRUE) / length(ms)
-
-  # Undo centering
-  s2 = s1 / (-1)^(row(s1) + col(s1))
-
-  # Add rownames & colnames
-  if (addNames) {
-    if (is.null(step)) {
-      max_am = abs(as.numeric(colnames(ms)[1]))
-      step = 1000 / 2 / max_am
-    }
-    if (is.null(windowLength)) {
-      max_fm = max(abs(as.numeric(rownames(ms))))
-      windowLength = max_fm * 2
-    }
-    # From the def in spectrogram():
-    windowLength_points = nrow(s2) * 2
-    samplingRate = windowLength_points / windowLength * 1000
-    # frequency stamps
-    rownames(s2) = (0:(nrow(s2) - 1)) * samplingRate / windowLength_points / 1000
-    # time stamps
-    colnames(s2) = windowLength / 2 + (0:(ncol(s2) - 1)) * step
-  }
-  return(s2)
 }
 

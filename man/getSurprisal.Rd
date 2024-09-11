@@ -10,14 +10,10 @@ getSurprisal(
   scale = NULL,
   from = NULL,
   to = NULL,
-  step = 20,
   winSurp = 2000,
+  audSpec_pars = list(filterType = "butterworth", nFilters = 64, step = 20, yScale =
+    "bark"),
   method = c("acf", "np")[1],
-  yScale = c("bark", "mel", "log")[1],
-  nFilters = 64,
-  dynamicRange = 80,
-  minFreq = 20,
-  maxFreq = samplingRate/2,
   summaryFun = "mean",
   reportEvery = NULL,
   cores = 1,
@@ -60,26 +56,14 @@ input vector (only needed if \code{x} is a numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{step}{step, ms (determines time resolution). step = NULL means no
-downsampling at all (ncol of output = length of input audio)}
-
 \item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
 point)}
 
+\item{audSpec_pars}{a list of parameters passed to
+\code{\link{audSpectrogram}}}
+
 \item{method}{acf = change in maximum autocorrelation after adding the final
 point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
-
-\item{yScale}{scale of the frequency axis: 'linear' = linear, 'log' =
-logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
-'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
-Rectangular Bandwidths with \code{\link{HzToERB}}}
-
-\item{nFilters}{the number of filters (determines frequency resolution)}
-
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
-
-\item{minFreq, maxFreq}{the range of frequencies to analyze}
 
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
 eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
@@ -121,8 +105,8 @@ resolve the edges properly (only the original region is plotted, so the
 apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-'cm.colors', etc}
+matlab-type palette ('matlab'), or any palette from
+\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
 
 \item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 in base R (overrides colorTheme)}
@@ -189,8 +173,11 @@ surp = getSurprisal(sound, samplingRate = 16000,
   yScale = 'bark', method = 'acf')
 surp = getSurprisal(sound, samplingRate = 16000,
   yScale = 'bark', method = 'np')  # very slow
+surp = getSurprisal(sound, samplingRate = 16000,
+  yScale = 'bark', method = 'acf', audSpec_pars = list(
+  nFilters = 128, yScale = 'ERB', bandwidth = 1/12))
 
-# short window = amnesia (every even is equally surprising)
+# short window = amnesia (every event is equally surprising)
 getSurprisal(sound, samplingRate = 16000, winSurp = 250)
 # long window - remembers further into the past, Inf = from the beginning
 surp = getSurprisal(sound, samplingRate = 16000, winSurp = Inf)

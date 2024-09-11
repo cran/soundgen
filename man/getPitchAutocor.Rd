@@ -46,7 +46,7 @@ to \code{soundgen:::pathfinder} for interpolating missing pitch candidates
 (NULL = no interpolation)}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 }
 \value{
 Returns a list of $HNR (NA or numeric) and $pitchAutocor_array

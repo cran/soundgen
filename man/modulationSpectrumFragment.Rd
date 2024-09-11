@@ -7,13 +7,19 @@
 modulationSpectrumFragment(
   sound,
   samplingRate,
+  specSource = "STFT",
+  audSpec_pars = NULL,
+  msType = c("2D", "1D")[1],
   windowLength,
   windowLength_points,
   step,
   step_points,
+  lowestFreq,
   wn = "hanning",
   zp = 0,
+  specMethod = c("spec", "meanspec")[2],
   logSpec = FALSE,
+  logMPS = FALSE,
   power = 1,
   normalize = TRUE
 )
@@ -24,20 +30,30 @@ modulationSpectrumFragment(
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{windowLength}{length of FFT window, ms}
+\item{specSource}{'STFT' = Short-Time Fourier Transform; 'audSpec' = a bank
+of bandpass filters (see \code{\link{audSpectrogram}})}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{audSpec_pars}{parameters for extracting an auditory spectrogram if
+\code{specType = 'audSpec'}. If \code{specType = 'STFT'}, these settings
+have no effect}
 
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+\item{msType}{'2D' = two-dimensional Fourier transform of a spectrogram; '1D'
+= separately calculated spectrum of each frequency band}
 
-\item{zp}{window length after zero padding, points}
+\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
+\code{specType = 'STFT'}. Window length and step are specified in ms (see
+\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
+have no effect}
+
+\item{specMethod}{the function to call when calculating the spectrum of each
+frequency band (only used when \code{msType = '1D'}); 'meanspec' is faster
+and less noisy, whereas 'spec' produces higher resolution}
 
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
+
+\item{logMPS}{if TRUE, the modulation spectrum is log-transformed prior to
+calculating roughness}
 
 \item{power}{raise modulation spectrum to this power (eg power = 2 for ^2, or
 "power spectrum")}

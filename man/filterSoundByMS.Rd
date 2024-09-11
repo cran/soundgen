@@ -47,19 +47,12 @@ from...to (s)}
 \item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
 FFT}
 
-\item{windowLength}{length of FFT window, ms}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
+\code{specType = 'STFT'}. Window length and step are specified in ms (see
+\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
+have no effect}
 
 \item{overlap}{overlap between successive FFT frames, \%}
-
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
-
-\item{zp}{window length after zero padding, points}
 
 \item{amCond, fmCond}{character strings with valid conditions on amplitude and
 frequency modulation (see examples)}
@@ -123,7 +116,8 @@ s = soundgen(pitch = rnorm(n = 20, mean = 200, sd = 25),
 # Filter
 s_filt = filterSoundByMS(s, samplingRate = 16000,
   amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
-  action = 'remove', nIter = 10, plot = TRUE)
+  nIter = 10,  # increase nIter for best results!
+  action = 'remove', plot = TRUE)
 # playme(s_filt, samplingRate = 16000)
 
 \dontrun{
@@ -165,10 +159,10 @@ spectrogram(s_filt3, samplingRate = samplingRate, osc = TRUE)
 # than with the filterMS() function called by filterSoundByMS()
 
 # (optional) Check that the target spectrogram can be successfully inverted
-spec = spectrogram(s, 16000, windowLength = 25, overlap = 80,
+spec = spectrogram(s, 16000, windowLength = 50, step = NULL, overlap = 80,
   wn = 'hanning', osc = TRUE, padWithSilence = FALSE)
 s_rev = invertSpectrogram(spec, samplingRate = 16000,
-  windowLength = 25, overlap = 80, wn = 'hamming', play = FALSE)
+  windowLength = 50, overlap = 80, wn = 'hamming', play = FALSE)
 # playme(s_rev, 16000)  # should be close to the original
 spectrogram(s_rev, 16000, osc = TRUE)
 
@@ -178,8 +172,7 @@ ms = modulationSpectrum(s, samplingRate = 16000, windowLength = 25,
   power = NA, returnComplex = TRUE, plot = FALSE)$complex
 # ... or starting from the spectrogram:
 # ms = specToMS(spec)
-image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-  z = t(log(abs(ms))))  # this is the original MS
+plotMS(abs(ms))  # this is the original MS
 
 # Filter as needed - for ex., remove AM > 10 Hz and FM > 3 cycles/kHz
 # (removes f0, preserves formants)
@@ -190,8 +183,7 @@ idx_col = which(abs(am) > 10)
 ms_filt = ms
 ms_filt[idx_row, ] = 0
 ms_filt[, idx_col] = 0
-image(x = as.numeric(colnames(ms_filt)), y = as.numeric(rownames(ms_filt)),
-  t(log(abs(ms_filt))))  # this is the filtered MS
+plotMS(abs(ms_filt))  # this is the filtered MS
 
 # Convert back to a spectrogram
 spec_filt = msToSpec(ms_filt)

@@ -27,7 +27,7 @@ because digital audio is sampled at discrete time intervals of
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
 
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop}
+gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
 \item{zp}{window length after zero padding, points}
 

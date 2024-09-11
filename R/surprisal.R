@@ -33,6 +33,8 @@
 #' @inheritParams analyze
 #' @param winSurp surprisal analysis window, ms (Inf = from sound onset to each
 #'   point)
+#' @param audSpec_pars a list of parameters passed to
+#'   \code{\link{audSpectrogram}}
 #' @param method acf = change in maximum autocorrelation after adding the final
 #'   point, np = nonlinear prediction (see \code{\link{nonlinPred}})
 #' @param plot if TRUE, plots the auditory spectrogram and the
@@ -54,8 +56,11 @@
 #'   yScale = 'bark', method = 'acf')
 #' surp = getSurprisal(sound, samplingRate = 16000,
 #'   yScale = 'bark', method = 'np')  # very slow
+#' surp = getSurprisal(sound, samplingRate = 16000,
+#'   yScale = 'bark', method = 'acf', audSpec_pars = list(
+#'   nFilters = 128, yScale = 'ERB', bandwidth = 1/12))
 #'
-#' # short window = amnesia (every even is equally surprising)
+#' # short window = amnesia (every event is equally surprising)
 #' getSurprisal(sound, samplingRate = 16000, winSurp = 250)
 #' # long window - remembers further into the past, Inf = from the beginning
 #' surp = getSurprisal(sound, samplingRate = 16000, winSurp = Inf)
@@ -92,14 +97,9 @@ getSurprisal = function(
     scale = NULL,
     from = NULL,
     to = NULL,
-    step = 20,
     winSurp = 2000,
+    audSpec_pars = list(filterType = 'butterworth', nFilters = 64, step = 20, yScale = 'bark'),
     method = c('acf', 'np')[1],
-    yScale = c('bark', 'mel', 'log')[1],
-    nFilters = 64,
-    dynamicRange = 80,
-    minFreq = 20,
-    maxFreq = samplingRate / 2,
     summaryFun = 'mean',
     reportEvery = NULL,
     cores = 1,
@@ -126,13 +126,20 @@ getSurprisal = function(
     units = 'px',
     res = NA,
     ...) {
+  # fill in defaults
+  if (is.null(audSpec_pars$filterType)) audSpec_pars$filterType = 'butterworth'
+  if (is.null(audSpec_pars$nFilters)) audSpec_pars$nFilters = 64
+  if (is.null(audSpec_pars$step)) audSpec_pars$step = 20
+  if (is.null(audSpec_pars$yScale)) audSpec_pars$yScale = 'bark'
+
   # match args
   myPars = as.list(environment())
   # myPars = mget(names(formals()), sys.frame(sys.nframe()))
   # exclude some args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'scale', 'from', 'to',
-    'reportEvery', 'cores', 'summaryFun', 'savePlots')]
+    'reportEvery', 'cores', 'summaryFun', 'savePlots', 'audSpec_pars')]
+  myPars$audSpec_pars = audSpec_pars
 
   # call .getSurprisal
   pa = processAudio(
@@ -198,14 +205,9 @@ getSurprisal = function(
 #' @keywords internal
 .getSurprisal = function(
     audio,
-    step,
     winSurp,
+    audSpec_pars = list(filterType = 'butterworth', nFilters = 64, step = 20),
     method = c('acf', 'np')[1],
-    yScale = c('bark', 'mel', 'log')[1],
-    nFilters = 64,
-    dynamicRange = 80,
-    minFreq = 20,
-    maxFreq = audio$samplingRate / 2,
     plot = TRUE,
     osc = c('none', 'linear', 'dB')[2],
     heights = c(3, 1),
@@ -228,7 +230,12 @@ getSurprisal = function(
     units = 'px',
     res = NA,
     ...) {
-  if (is.null(maxFreq) | length(maxFreq) < 1) maxFreq = audio$samplingRate / 2
+  if (is.null(audSpec_pars$maxFreq)) {
+    maxFreq = audio$samplingRate / 2
+  } else {
+    maxFreq = audSpec_pars$maxFreq
+  }
+  if (is.null(step)) step = 1000 / audio$samplingRate else step = audSpec_pars$step
   if (!is.finite(winSurp)) winSurp = length(audio$sound) / audio$samplingRate * 1000
   # sp = getMelSpec(audio$sound, samplingRate = audio$samplingRate,
   #                 windowLength = windowLength, step = step,
@@ -243,17 +250,13 @@ getSurprisal = function(
   # audio$sound[env < thres] = 0
 
   # get auditory spectrogram
-  sp_list = .audSpectrogram(
-    audio[names(audio) != 'savePlots'],
-    step = step, nFilters = nFilters,
-    yScale = yScale, dynamicRange = dynamicRange,
-    minFreq = minFreq, maxFreq = maxFreq, plot = FALSE)
+  sp_list = do.call(.audSpectrogram, c(audSpec_pars, list(
+    audio = audio[names(audio) != 'savePlots'], plot = FALSE)))
   sp = sp_list$audSpec_processed
-  if (is.null(step)) step = 1000 / audio$samplingRate
 
-  # set quiet sections below dynamicRange to zero
-  thres = 10 ^ (-dynamicRange / 20)
-  sp[sp < thres] = 0
+  # # set quiet sections below dynamicRange to zero
+  # thres = 10 ^ (-dynamicRange / 20)
+  # sp[sp < thres] = 0
 
   # get surprisal
   surprisal = getSurprisal_matrix(sp, win = floor(winSurp / step), method = method)
@@ -298,9 +301,9 @@ getSurprisal = function(
       X = as.numeric(colnames(sp)),  # time
       Y = as.numeric(rownames(sp)),  # freq
       Z = t(sp_list$audSpec_processed),
-      audio = audio, internal = NULL, dynamicRange = dynamicRange,
+      audio = audio, internal = NULL,
       osc = osc, heights = heights, ylim = ylim,
-      yScale = yScale,
+      yScale = audSpec_pars$yScale,
       contrast = contrast, brightness = brightness,
       maxPoints = maxPoints, colorTheme = colorTheme, col = col,
       extraContour = c(list(x = sl_norm), extraContour),

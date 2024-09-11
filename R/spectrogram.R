@@ -40,7 +40,7 @@
 #'   density per time-frequency bins with the same resolution as an ordinary
 #'   spectrogram
 #' @param wn window type accepted by \code{\link[seewave]{ftwindow}}, currently
-#'   gaussian, hanning, hamming, bartlett, rectangular, blackman, flattop
+#'   gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle
 #' @param normalize if TRUE, scales input prior to FFT
 #' @param zp window length after zero padding, points
 #' @param smoothFreq,smoothTime length of the window for median smoothing in
@@ -91,8 +91,8 @@
 #'   resolve the edges properly (only the original region is plotted, so the
 #'   apparent duration doesn't change)
 #' @param colorTheme black and white ('bw'), as in seewave package ('seewave'),
-#'   or any palette from \code{\link[grDevices]{palette}} such as 'heat.colors',
-#'   'cm.colors', etc
+#'   matlab-type palette ('matlab'), or any palette from
+#'   \code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc
 #' @param col actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 #'   in base R (overrides colorTheme)
 #' @param extraContour a vector of arbitrary length scaled in Hz (regardless of
@@ -506,7 +506,7 @@ spectrogram = function(
         units = units, res = res,
         ...
       )
-      dev.off()
+      if (is.character(audio$savePlots)) dev.off()
       return(invisible(list(
         original = t(Z),
         processed = t(Z),
@@ -674,9 +674,7 @@ spectrogram = function(
       ...
     )
   }
-  if (is.character(audio$savePlots)) {
-    dev.off()
-  }
+  if (is.character(audio$savePlots)) dev.off()
 
   if (output == 'original') {
     out = t(Z)  # before denoising, contrast, etc., but after reassignment
