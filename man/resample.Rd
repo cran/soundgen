@@ -66,14 +66,16 @@ don't save, '' = same folder as audio)}
 \item{...}{other graphical parameters}
 }
 \description{
-Changes the sampling rate without introducing artefacts like aliasing.
-Algorithm: to downsample, applies a low-pass filter, then decimates with
-\code{approx}; to upsample, performs linear interpolation with \code{approx},
-then applies a low-pass filter. NAs can be interpolated or preserved in the
-output. The length of output is determined, in order of precedence, by
-\code{len / mult / samplingRate_new}. For simple vector operations, this is
-very similar to approx, but the leading and trailing NAs are also preserved
-(see examples).
+Changes the sampling rate without introducing artefacts like aliasing. Best
+for relatively short vectors that require special care (eg pitch contours
+that contain NAs, which need to be dropped or preserved) as the algorithm is
+too slow for long sounds. Algorithm: to downsample, applies a low-pass
+filter, then decimates with \code{approx}; to upsample, performs linear
+interpolation with \code{approx}, then applies a low-pass filter. NAs can be
+interpolated or preserved in the output. The length of output is determined,
+in order of precedence, by \code{len / mult / samplingRate_new}. For simple
+vector operations, this is very similar to approx, but the leading and
+trailing NAs are also preserved (see examples).
 }
 \examples{
 ## Example 1: a short vector with NAs

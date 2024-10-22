@@ -181,19 +181,16 @@ guessPhase_spsi = function(spec,
   for (i in 1:nc) {
     spec_i = spec[, i]  # magnitude spectrum of frame i
     # plot(spec_i, type = 'b')
-    for (j in 2:(nr - 1)) {  # for all freq bins except firts and last
-      is_peak = spec_i[j] > spec_i[j - 1] & spec_i[j] > spec_i[j + 1]
+    for (j in 2:(nr - 1)) {  # for all freq bins except first and last
+      is_peak = .subset2(spec_i, j) > .subset2(spec_i, j - 1) &
+        .subset2(spec_i, j) > .subset2(spec_i, j + 1)
       if (is_peak) {
         # find the true freq of the peak (may be b/w bins)
-        alpha = spec_i[j - 1]
-        beta = spec_i[j]
-        gamma = spec_i[j + 1]
+        alpha = .subset2(spec_i, j - 1)
+        beta = .subset2(spec_i, j)
+        gamma = .subset2(spec_i, j + 1)
         denom = alpha - 2 * beta + gamma
-        if(denom != 0) {
-          p = 0.5 * (alpha - gamma) / denom
-        } else {
-          p = 0
-        }
+        p = ifelse(denom == 0, 0, 0.5 * (alpha - gamma) / denom)
         # p is the estimated true peak frequency
         adjustedPhaseRate = 2 * pi * (j + p) / windowLength_points
         phaseAccumulator[j] = phaseAccumulator[j] + step_points * adjustedPhaseRate
@@ -205,7 +202,7 @@ guessPhase_spsi = function(spec,
 
           # Bins to the left have shift of pi
           bin = j - 1
-          while ((bin > 2) && (spec_i[bin] < spec_i[bin + 1])) {
+          while ((bin > 2) && (.subset2(spec_i, bin) < .subset2(spec_i, bin + 1))) {
             # until the first trough
             phaseAccumulator[bin] = peakPhase + pi
             bin = bin - 1
@@ -213,7 +210,7 @@ guessPhase_spsi = function(spec,
 
           # Bins to the right (beyond the first) have 0 shift
           bin = j + 2
-          while ((bin < nr) && (spec_i[bin] < spec_i[bin - 1])) {
+          while ((bin < nr) && (.subset2(spec_i, bin) < .subset2(spec_i, bin - 1))) {
             phaseAccumulator[bin] = peakPhase
             bin = bin + 1
           }
@@ -224,14 +221,14 @@ guessPhase_spsi = function(spec,
 
           # same for bins to the right
           bin = j + 1
-          while ((bin < nr) && (spec_i[bin] < spec_i[bin - 1])) {
+          while ((bin < nr) && (.subset2(spec_i, bin) < .subset2(spec_i, bin - 1))) {
             phaseAccumulator[bin] = peakPhase + pi
             bin = bin + 1
           }
 
           # Bins further to the left have zero shift
           bin = j - 2
-          while ((bin > 2) && (spec_i[bin] < spec_i[bin + 1])) {  # until trough
+          while ((bin > 2) && (.subset2(spec_i, bin) < .subset2(spec_i, bin + 1))) {  # until trough
             phaseAccumulator[bin] = peakPhase
             bin = bin - 1
           }
@@ -243,7 +240,7 @@ guessPhase_spsi = function(spec,
     spec_complex[c(1, nr)] = 0  #  remove dc and nyquist
     phase[, i] = Arg(spec_complex)
   }
-  return(phase)
+  phase
 }
 
 
@@ -319,5 +316,5 @@ guessPhase_GL = function(spec,
          xlab = 'GL iteration', ylab = 'Square error',
          main = 'Improvement in fit')
   }
-  return(list(phase = phase, squareError = squareError))
+  list(phase = phase, squareError = squareError)
 }

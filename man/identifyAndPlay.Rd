@@ -32,7 +32,8 @@ called "file"}
 \item{...}{other arguments passed to \code{identify()}}
 }
 \description{
-Internal soundgen function
+Internal soundgen function. NB: even built-in examples of identify() not
+working in R 4.4.1 (points not identified).
 }
 \details{
 A wrapper around \code{identify()} intended to play the sound corresponding
@@ -43,18 +44,18 @@ to a clicked point.
 msf = modulationSpectrum('~/Downloads/temp', plot = FALSE)
 
 # Method 1: provide path to folder, leave data = NULL
-plot(msf$summary$amFreq_median, msf$summary$amDep_median)
-identifyPch(msf$summary$amFreq_median, msf$summary$amDep_median,
+plot(msf$summary$amMsFreq_median, msf$summary$amMsDep_median)
+soundgen:::identifyAndPlay(msf$summary$amFreq_median, msf$summary$amDep_median,
   audioFolder = '~/Downloads/temp',
   to = 2,
  plot = TRUE,
  pch = 19)
 
 # Method 2:
-plot(msf$summary$amFreq_median, msf$summary$amDep_median)
-x = msf$summary$amFreq_median
-y = msf$summary$amDep_median
-identifyPch(x, y, data = msf$summary,
+x = msf$summary$amMsFreq_median
+y = msf$summary$amMsDep_median
+plot(x, y)
+soundgen:::identifyAndPlay(x, y, data = msf$summary,
   audioFolder = '~/Downloads/temp',
   to = 2,
   plot = FALSE,

@@ -392,7 +392,7 @@ dPhase = function(phase,
 
   }
   # image(phase_new)
-  return(phase_new)
+  phase_new
 }
 
 
@@ -403,7 +403,7 @@ dPhase = function(phase,
 #' done right".
 #' @inheritParams dPhase
 #' @param i analyzed frame
-#' @param dp_hor,dp_ver time and frequency partical derivatives of phase
+#' @param dp_hor,dp_ver time and frequency partial derivatives of phase
 #' @param phase_new matrix for storing the new phase
 #' @param bin_width width of frequency bin, Hz
 #' @keywords internal
@@ -427,26 +427,29 @@ phasePropagate = function(i,
     maxHeap = maxHeap[-row_max, ]
     h = top$bin  # bin at top of the heap
     if (top$frame == i - 1) {
-      if (h %in% bins_cur) {
-        out[h] = phase_new[h, i - 1] + alpha * (dp_hor[h, i - 1] + dp_hor[h, i]) / 2
+      if (any(bins_cur == h)) {
+        out[h] = .subset(phase_new, h, i - 1) +
+          alpha * (.subset(dp_hor, h, i - 1) + .subset(dp_hor, h, i)) / 2
         bins_cur = bins_cur[bins_cur != h]
         maxHeap = rbind(maxHeap, data.frame(
-          frame = i, bin = h, magn = magn[h, i]
+          frame = i, bin = h, magn = .subset(magn, h, i)
         ))
       }
     } else if (top$frame == i) {
-      if ((h + 1) %in% bins_cur) {
-        out[h + 1] = out[h] + bin_width_new * (dp_ver[h] + dp_ver[h + 1]) / 2
+      if (any(bins_cur == (h + 1))) {
+        out[h + 1] = .subset2(out, h) +
+          bin_width_new * (.subset2(dp_ver, h) + .subset2(dp_ver, h + 1)) / 2
         bins_cur = bins_cur[bins_cur != (h + 1)]
         maxHeap = rbind(maxHeap, data.frame(
-          frame = i, bin = h + 1, magn = magn[h + 1, i]
+          frame = i, bin = h + 1, magn = .subset(magn, h + 1, i)
         ))
       }
-      if ((h - 1) %in% bins_cur) {
-        out[h - 1] = out[h] - bin_width_new * (dp_ver[h - 1] + dp_ver[h]) / 2
+      if (any(bins_cur == (h - 1))) {
+        out[h - 1] = .subset2(out, h) -
+          bin_width_new * (.subset2(dp_ver, h - 1) + .subset2(dp_ver, h)) / 2
         bins_cur = bins_cur[bins_cur != (h - 1)]
         maxHeap = rbind(maxHeap, data.frame(
-          frame = i, bin = h - 1, magn = magn[h - 1, i]
+          frame = i, bin = h - 1, magn = .subset(magn, h - 1, i)
         ))
       }
     }
@@ -476,7 +479,7 @@ istft_mod = function (stft, f, wl, ovlp = 75, wn = "hanning",
   xlen = ceiling(wl / min(mult_long)) + sum(h)
   x = rep(0, xlen)
   start_seq = c(0, cumsum(h))
-  for (i in 1:length(start_seq)) {
+  for (i in seq_along(start_seq)) {
     b = start_seq[i]
     X = stft[, i]
     mirror = rev(X[-1])
@@ -495,7 +498,5 @@ istft_mod = function (stft, f, wl, ovlp = 75, wn = "hanning",
     # x <- addVectors(x, xprim * win, insertionPoint = b + 1, normalize = FALSE)
   }
   W0 = sum(win^2)
-  x = x * mean(h)/W0
-  return(x)
+  x * mean(h) / W0
 }
-

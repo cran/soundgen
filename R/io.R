@@ -57,7 +57,7 @@ playme = function(x,
   if (!is.list(x)) x = list(x)
 
   # play each input
-  for (i in 1:length(x)) {
+  for (i in seq_along(x)) {
     # make input i into a Wave object
     if (input$type[i] == 'file') {
       fi = input$filenames[i]
@@ -121,17 +121,18 @@ playme = function(x,
 #'   representing the waveform with specified samplingRate
 #' @keywords internal
 checkInputType = function(x) {
+  file_sep = .Platform$file.sep
   if (is.character(x)) {
     # character means file or folder
     if (length(x) == 1 && dir.exists(x)) {
       # input is a folder
-      x = dirname(paste0(x, '/arbitrary'))  # strips terminal '/', if any
+      x = dirname(paste0(x, file_sep, 'arbitrary'))  # strips terminal file_sep, if any
       filenames = list.files(x, pattern = "*.wav|.mp3|.WAV|.MP3", full.names = TRUE)
       if (length(filenames) < 1)
         stop(paste('No wav/mp3 files found in', x))
     } else {
       # input is one or more audio files
-      for (f in 1:length(x)) {
+      for (f in seq_along(x)) {
         if (!file.exists(x[f]) ||
             !substr(x[f], nchar(x[f]) - 3, nchar(x[f])) %in% c('.wav', '.mp3', '.WAV', '.MP3')) {
           stop('Input not recognized - must be a folder, wav/mp3 file(s), or numeric vector(s)')
@@ -173,14 +174,14 @@ checkInputType = function(x) {
       }
     }
   }
-  return(list(
+  list(
     type = type,
     n = n,
     filenames = filenames,
     filenames_base = filenames_base,
     filenames_noExt = filenames_noExt,
     filesizes = filesizes
-  ))
+  )
 }
 
 
@@ -278,7 +279,7 @@ readAudio = function(x,
   }
   duration = ls / samplingRate
 
-  return(list(
+  list(
     sound = sound,
     right = right,
     samplingRate = samplingRate,
@@ -292,7 +293,7 @@ readAudio = function(x,
     filename = input$filenames[i],
     filename_base = input$filenames_base[i],
     filename_noExt = input$filenames_noExt[i]
-  ))
+  )
 }
 
 
@@ -361,21 +362,22 @@ processAudio = function(x,
                         cores = 1) {
   input = checkInputType(x)
   input$failed = rep(FALSE, input$n)
+  file_sep = .Platform$file.sep
 
   # savePlots
   if (is.character(savePlots)) {
     if (savePlots == '') {
       # same as the folder where the audio input lives
       if (input$type[1] == 'file') {
-        savePlots = paste0(dirname(input$filenames[1]), '/')
+        savePlots = paste0(dirname(input$filenames[1]), file_sep)
       } else {
-        savePlots = paste0(getwd(), '/')
+        savePlots = paste0(getwd(), file_sep)
       }
     } else {
       # make sure the last character of savePath is "/" and expand ~
       savePlots = paste0(
-        dirname(paste0(savePlots, '/arbitrary')),
-        '/'
+        dirname(paste0(savePlots, file_sep, 'arbitrary')),
+        file_sep
       )
     }
     if (!dir.exists(savePlots)) dir.create(savePlots)
@@ -392,15 +394,15 @@ processAudio = function(x,
         "NB: saveAudio='' will overwrite the originals. Proceed? (yes/no) "))
       if (substr(keypr, 1, 1) != 'y') stop('Aborting...')
       if (input$type[1] == 'file') {
-        saveAudio = paste0(dirname(input$filenames[1]), '/')
+        saveAudio = paste0(dirname(input$filenames[1]), file_sep)
       } else {
-        saveAudio = paste0(getwd(), '/')
+        saveAudio = paste0(getwd(), file_sep)
       }
     } else {
       # make sure the last character of savePath is "/" and expand ~
       saveAudio = paste0(
-        dirname(paste0(saveAudio, '/arbitrary')),
-        '/'
+        dirname(paste0(saveAudio, file_sep, 'arbitrary')),
+        file_sep
       )
     }
     if (!dir.exists(saveAudio)) dir.create(saveAudio)
@@ -420,7 +422,7 @@ processAudio = function(x,
     # foreach::getDoParWorkers()
     time_start_global = proc.time()
     chunks = splitIntoChunks(1:input$n, cores)
-    result = foreach::foreach(i = 1:length(chunks), .combine = 'c') %dopar% {
+    result = foreach::foreach(i = seq_along(chunks), .combine = 'c') %dopar% {
       # lapply(1:i, sqrt)  # fine unless we also need to report time
       time_start = proc.time()
       chunk = chunks[[i]]
@@ -509,7 +511,7 @@ processAudio = function(x,
       result[[i]] = an_i
 
       # garbage collection to free RAM (doesn't really work, though, session still bloated)
-      gc()
+      # gc()
 
       # report time
       if ((is.null(reportEvery) || is.finite(reportEvery)) & input$n > 1) {
@@ -568,6 +570,7 @@ htmlPlots = function(x,
                      extension = 'png',
                      width = "900px") {
   htmlFile = paste0(x$savePlots, '00_clickablePlots', '_', suffix, '.html')
+  file_sep = .Platform$file.sep
 
   if (changesAudio) {
     # functions that modify and save audio shouldn't overwrite the original,
@@ -582,7 +585,7 @@ htmlPlots = function(x,
       } else {
         # absolute paths for both audio and plots
         audioFiles = normalizePath(x$filenames)
-        plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+        plotFiles = normalizePath(paste0(x$savePlots, file_sep, x$filenames_noExt,
                                          '_', suffix, '.', extension))
       }
     } else {
@@ -595,7 +598,7 @@ htmlPlots = function(x,
       } else {
         # absolute paths for both audio and plots (different folders)
         audioFiles = normalizePath(paste0(x$saveAudio, x$filenames_noExt, '.wav'))
-        plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+        plotFiles = normalizePath(paste0(x$savePlots, file_sep, x$filenames_noExt,
                                          '_', suffix, '.', extension))
       }
     }
@@ -609,7 +612,7 @@ htmlPlots = function(x,
       audioFiles = x$filenames_base
     } else {
       # absolute paths for plots
-      plotFiles = normalizePath(paste0(x$savePlots, '/', x$filenames_noExt,
+      plotFiles = normalizePath(paste0(x$savePlots, file_sep, x$filenames_noExt,
                                        '_', suffix, '.', extension))
       audioFiles = normalizePath(x$filenames)
     }

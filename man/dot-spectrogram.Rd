@@ -11,6 +11,7 @@
   step = windowLength/2,
   overlap = NULL,
   specType = c("spectrum", "reassigned", "spectralDerivative")[1],
+  logSpec = TRUE,
   rasterize = FALSE,
   wn = "gaussian",
   zp = 0,
@@ -21,6 +22,7 @@
   percentNoise = 10,
   noiseReduction = 0,
   output = c("original", "processed", "complex", "all")[1],
+  specManual = NULL,
   plot = TRUE,
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
@@ -66,6 +68,8 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 \item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
 ('reassigned'), or spectral derivative ('spectralDerivative')}
 
+\item{logSpec}{if TRUE, log-transforms the spectrogram}
+
 \item{rasterize}{(only applies if specType = 'reassigned') if TRUE, the
 reassigned spectrogram is plotted after rasterizing it: that is, showing
 density per time-frequency bins with the same resolution as an ordinary
@@ -99,6 +103,10 @@ spectrogram ('original'), denoised and/or smoothed spectrogram
 ('processed'), or unmodified spectrogram with the imaginary part giving
 phase ('complex')}
 
+\item{specManual}{manually calculated spectrogram-like representation in the
+same format as the output of spectrogram(): rows = frequency in kHz,
+columns = time in ms}
+
 \item{plot}{should a spectrogram be plotted? TRUE / FALSE}
 
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
@@ -115,9 +123,9 @@ logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
 'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
 Rectangular Bandwidths with \code{\link{HzToERB}}}
 
-\item{contrast}{spectrum is exponentiated by contrast (any real number,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
+\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
+raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
+sharpness, <0 decreases sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 

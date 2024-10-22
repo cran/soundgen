@@ -1,4 +1,4 @@
-# TODO: (Windows) formant_app etc - opaque selection on some systems (Win10?); use data.table::rbindlist in apps instead of soundgen:::rbind_fill; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?)
+# TODO: (Windows) formant_app etc - opaque selection on some systems (Win10?); use data.table::rbindlist in apps instead of soundgen:::rbind_fill; pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?); check or remove identifyAndPlay - not working
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
 # TODO maybe: segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png(); automatic addition of pitch jumps at high temp in soundgen() (?)
@@ -109,12 +109,12 @@ NULL
 #'   dB/oct (the alternative to \code{lipRad} when the mouth is closed)
 #' @param mouthOpenThres open the lips (switch from nose radiation to lip
 #'   radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1
-#' @param formants either a character string like "aaui" referring to default
-#'   presets for speaker "M1" or a list of formant times, frequencies,
-#'   amplitudes, and bandwidths (see ex. below). \code{formants = NA} defaults
-#'   to schwa. Time stamps for formants and mouthOpening can be specified in ms
-#'   or an any other arbitrary scale. See \code{\link{getSpectralEnvelope}} for
-#'   more details
+#' @param formants either a character string referring to default presets for
+#'   speaker "M1" (implemented: "aoieu0") or a list of formant times,
+#'   frequencies, amplitudes, and bandwidths (see examples). NA or NULL means no
+#'   formants, only lip radiation. Time stamps for formants and mouthOpening can
+#'   be specified in ms relative to \code{sylLen} or on a scale of [0, 1]. See
+#'   \code{\link{getSpectralEnvelope}} for more details
 #' @param formantDep scale factor of formant amplitude (1 = no change relative
 #'   to amplitudes in \code{formants})
 #' @param formantDepStoch the amplitude of additional stochastic formants added
@@ -232,6 +232,11 @@ NULL
 #' # playme(s1)
 #' s2 = eval(parse(text = presets$F1$Scream))  # screaming woman
 #' # playme(s2, 18320)
+#'
+#' # presets of some vowels and consonants
+#' names(presets$M1$Formants$vowels)
+#' soundgen(sylLen = 500, formants = 'aoieu0', play = playback)
+#'
 #' \dontrun{
 #' # unless temperature is 0, the sound is different every time
 #' for (i in 1:3) sound = soundgen(play = playback, temperature = .2)
@@ -248,8 +253,8 @@ NULL
 #'   pitchGlobal = list(time = c(0, .5, 1), value = c(-6, 7, 0)),
 #'   play = playback, plot = TRUE)
 #'
-#' # Subharmonics / sidebands (noisy scream)
-#' sound = soundgen(subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
+#' # Amplitude modulation
+#' sound = soundgen(amFreq = 75, amDep = runif(10, 0, 60),
 #'   pitch = list(
 #'     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
 #'   sylLen = 800,
@@ -257,7 +262,7 @@ NULL
 #'
 #' # Jitter and mouth opening (bark, dog-like)
 #' sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
-#'   subFreq = 100, subDep = 100, subWidth = 60, jitterDep = 1,
+#'   jitterDep = 1,
 #'   pitch = c(559, 785, 557),
 #'   mouth = c(0, 0.5, 0),
 #'   vocalTract = 5, formants = NULL,
@@ -366,6 +371,7 @@ soundgen = function(
   #   smoothing$interpol = interpol
   #   message('interpol is deprecated; use "smoothing" instead')
   # }
+
   if (FALSE) shinyjs::info('adja')  # to avoid a NOTE on CRAN
 
   # check that values of numeric arguments are valid and within range
@@ -412,8 +418,30 @@ soundgen = function(
       rbinom(1, 1, repeatBout - floor(repeatBout))
   }
 
-  # reset nSyl from sylLen
-  if (length(sylLen) > 1 & nSyl == 1) nSyl = length(sylLen)
+  # make sure sylLen and pauseLen are vectors of appropriate length
+  len_sylLen = length(sylLen)
+  if (len_sylLen > 1 | nSyl > 1) {
+    if (nSyl == 1) nSyl = len_sylLen
+    if (len_sylLen != nSyl) {
+      if (len_sylLen == 1) {
+        sylLen = rep(sylLen, nSyl)
+      } else {
+        sylLen = approx(sylLen, n = nSyl)$y
+      }
+      len_sylLen = nSyl
+    }
+    if (length(pauseLen) != len_sylLen - 1) {
+      if (len_sylLen == 2) {
+        pauseLen = pauseLen[1]
+      } else {
+        if (length(pauseLen) == 1) {
+          pauseLen = rep(pauseLen, nSyl = 1)
+        } else {
+          pauseLen = approx(pauseLen, n = nSyl - 1)$y
+        }
+      }
+    }
+  }
 
   # deal with NAs in pitch contour: save NA location, then interpolate
   if (nSyl == 1 && is.numeric(pitch) && any(is.na(pitch))) {
@@ -503,13 +531,6 @@ soundgen = function(
       amplGlobal$value = amplGlobal$value - amplGlobal$value[1]
     }
   }
-
-  # make sure sylLen and pauseLen are vectors of appropriate length
-  sylLen = getSmoothContour(anchors = sylLen, len = nSyl)
-  if (nSyl > 1) {
-    pauseLen = getSmoothContour(anchors = pauseLen, len = nSyl - 1)
-  }
-
   windowLength_points = floor(windowLength / 1000 * samplingRate / 2) * 2
 
   # # preliminary glottis contour
@@ -533,7 +554,7 @@ soundgen = function(
       tempEffects[[e]] = defaults[[e]] * tempEffects[[e]]
     }
   }
-  for (s in 1:length(es)) {
+  for (s in seq_along(es)) {
     name_s = names(tempEffects)[s]
     if (!name_s %in% es) {
       message(paste0('"', name_s, '" is not among valid temEffects parameters (',
@@ -544,7 +565,7 @@ soundgen = function(
 
   # Validate smoothing par-s
   sm = c('discontThres', 'jumpThres', 'loessSpan', 'interpol')
-  for (s in 1:length(smoothing)) {
+  for (s in seq_along(smoothing)) {
     name_s = names(smoothing)[s]
     if (!name_s %in% sm) {
       message(paste0('"', name_s, '" is not among valid smoothing parameters (',
@@ -617,7 +638,7 @@ soundgen = function(
       permittedValues['noiseAmpl', 'high']
     # increase formant bandwidths by up to 100%
     if (is.list(formants)) {
-      for (f in 1:length(formants)) {
+      for (f in seq_along(formants)) {
         formants[[f]]$width = formants[[f]]$width * (creakyBreathy + 1)
       }
     }
@@ -652,7 +673,7 @@ soundgen = function(
       pitch$value = pitch$value * 2 ^ maleFemale
     }
     if (is.list(formants)) {
-      for (f in 1:length(formants)) {
+      for (f in seq_along(formants)) {
         # formants vary by 25% up or down:
         #   see http://www.santiagobarreda.com/vignettes/v1/v1.html)
         if (!is.null(formants[[f]]$freq)) {
@@ -863,12 +884,12 @@ soundgen = function(
       if (temperature > 0) {
         # OR if (temperature>0 & nrow(syllables)>1)
         # if you don't want to mess with single-syllable vocalizations
-        for (p in 1:length(pars_to_vary)) {
+        for (p in seq_along(pars_to_vary)) {
           par_value = as.numeric(unlist(pars_list[pars_to_vary[p]]))
           l = permittedValues[pars_to_vary[p], 'low']
           h = permittedValues[pars_to_vary[p], 'high']
           sd = (h - l) * temperature * tempEffects$specDep
-          pars_syllable[[pars_to_vary[p]]] = rnorm_truncated(
+          pars_syllable[[pars_to_vary[p]]] = rnorm_truncated2(
             n = length(par_value),
             mean = par_value,
             low = l,
@@ -932,7 +953,7 @@ soundgen = function(
             high = c(1, h),
             temp_coef = tempEffects$specDep,
             sd_values = (h - l) * temperature * tempEffects$specDep,
-            roundToInteger = (anchor %in% pars_to_round),
+            roundToInteger = (any(pars_to_round == anchor)),
             invalidArgAction = invalidArgAction
           )
           # assign(anchor_per_syl, anchor_new)
@@ -972,6 +993,7 @@ soundgen = function(
       } else {
         # ***THE ACTUAL SYNTHESIS IS HERE***
         # print(pars_syllable)
+        # plot(pitchContour_syl, type = 'l')
         syllable = try(do.call(generateHarmonics, c(
           pars_syllable,
           list(pitch = pitchContour_syl,
@@ -1052,7 +1074,7 @@ soundgen = function(
               invalidArgAction = invalidArgAction
             )
           } else {
-            rolloffNoise_syl = rnorm_truncated(
+            rolloffNoise_syl = rnorm_truncated2(
               n = length(rolloffNoise),
               mean = rolloffNoise,
               sd = abs(rolloffNoise) * temperature * tempEffects$specDep,
@@ -1073,7 +1095,7 @@ soundgen = function(
               invalidArgAction = invalidArgAction
             )
           } else {
-            rolloffNoiseExp_syl = rnorm_truncated(
+            rolloffNoiseExp_syl = rnorm_truncated2(
               n = length(rolloffNoiseExp),
               mean = rolloffNoiseExp,
               sd = abs(rolloffNoiseExp) * temperature * tempEffects$specDep,
@@ -1108,17 +1130,19 @@ soundgen = function(
     # playme(voiced, samplingRate = samplingRate)
     # END OF SYLLABLE GENERATION
 
-
     ## Merging voiced and unvoiced components and adding formants
     # for noiseAmpRef == "filtered", enforce adding formants separately
     # followed by independent normalization of voiced & unvoiced
+    any_voiced = any(voiced != 0)
+    if (!any_voiced) voiced = 0
+
     if (noiseAmpRef == 'filtered' & !is.list(formantsNoise)) {
       formantsNoise = formants
     }
     sound_unvoiced = rep(0, length(voiced))
     if (length(unvoiced) > 0) {
       ## Add unvoiced fragments together
-      for (s in 1:length(unvoiced)) {
+      for (s in seq_along(unvoiced)) {
         # calculate where syllable s begins
         syllableStartIdx = round(syllables[s, 'start'] * samplingRate / 1000)
         if (s == 1) syllableStartIdx = 1  # instead of 0
@@ -1138,15 +1162,18 @@ soundgen = function(
             syllables[, c('start', 'end')] - insertionIdx / samplingRate * 1000
         }
       }
+      any_unvoiced = any(sound_unvoiced != 0)
+      if (!any_unvoiced) sound_unvoiced = 0
 
       # set RMS of both signal and noise to 1 to ensure that their relative
       # intensities (RMS amplitudes) satisfy the required "noise" parameter
       # (noise-to-signal ratio)
-      if (!is.numeric(formantsNoise) & !is.list(formantsNoise)) {
+      if (identical(formants,formantsNoise) || (
+        !is.numeric(formantsNoise) & !is.list(formantsNoise))) {
         # OPTION 1: mix voiced + unvoiced, then apply the same formant filter
-        voiced = voiced / sqrt(mean(voiced ^ 2))
-        sound_unvoiced = sound_unvoiced / sqrt(mean(sound_unvoiced ^ 2)) *
-          10 ^ (max(noise$value) / 20)
+        if (any_voiced) voiced = voiced / sqrt(mean(voiced ^ 2))
+        if (any_unvoiced) sound_unvoiced = sound_unvoiced /
+            sqrt(mean(sound_unvoiced ^ 2)) * 10 ^ (max(noise$value) / 20)
         sound = addVectors(
           voiced,
           sound_unvoiced,
@@ -1173,11 +1200,12 @@ soundgen = function(
         # OPTION 2: apply different formant filters to voiced and unvoiced, then mix
         # add formants to voiced
         if (noiseAmpRef == 'source') {
-          voiced = voiced / sqrt(mean(voiced ^ 2))
-          sound_unvoiced = sound_unvoiced / sqrt(mean(sound_unvoiced ^ 2)) *
-            10 ^ (max(noise$value) / 20)
+          if (any_voiced) voiced = voiced / sqrt(mean(voiced ^ 2))
+          if (any_unvoiced) sound_unvoiced = sound_unvoiced /
+              sqrt(mean(sound_unvoiced ^ 2)) * 10 ^ (max(noise$value) / 20)
         }
-        if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+        if (any_voiced &&
+            length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
           voicedFiltered = do.call(.addFormants, c(
             formantPars,
             list(audio = list(
@@ -1193,7 +1221,8 @@ soundgen = function(
           voicedFiltered = voiced
         }
         # add formants to unvoiced
-        if (length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+        if (any_unvoiced &&
+            length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
           unvoicedFiltered = do.call(.addFormants, c(
             formantPars,
             list(audio = list(
@@ -1211,9 +1240,11 @@ soundgen = function(
 
         # mix filtered version of the voiced and unvoiced components
         if (noiseAmpRef == 'filtered') {
-          voicedFiltered = voicedFiltered / sqrt(mean(voicedFiltered ^ 2))
-          unvoicedFiltered = unvoicedFiltered / sqrt(mean(unvoicedFiltered ^ 2)) *
-            10 ^ (max(noise$value) / 20)
+          if (any_voiced) voicedFiltered = voicedFiltered /
+              sqrt(mean(voicedFiltered ^ 2))
+          if (any_unvoiced) unvoicedFiltered = unvoicedFiltered /
+              sqrt(mean(unvoicedFiltered ^ 2)) *
+              10 ^ (max(noise$value) / 20)
         }
         soundFiltered = addVectors(
           voicedFiltered,
@@ -1225,7 +1256,8 @@ soundgen = function(
     } else {
       # no unvoiced component - just add formants to voiced
       # plot(voiced, type = 'l')
-      if (length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+      if (any_voiced &&
+          length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
         soundFiltered = do.call(.addFormants, c(
           formantPars,
           list(audio = list(
@@ -1278,6 +1310,7 @@ soundgen = function(
   }
 
   # normalize
+  if (any(is.na(bout))) browser()
   m = max(abs(bout))
   if (m != 0) bout = bout / m
 

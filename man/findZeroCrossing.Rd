@@ -30,7 +30,7 @@ ampl = sin(1:100/2)
 plot(ampl, type = 'b')
 lines(1:100, rep(0,100), lty = 2)
 zc = vector()
-for (i in 1:length(ampl)){
+for (i in seq_along(ampl)){
   zc[i] = soundgen:::findZeroCrossing (ampl, i)
   # find zc closest to each of 100 points
 }

@@ -289,7 +289,7 @@ getLoudness = function(x,
     # dB SPL to phons (8 barks ~= 1 kHz, reference value for equal loudness curves)
     n_phonCurve = which.min(abs(y[8] - as.numeric(names(phonCurves))))
     # correction curve for frame i
-    curve = phonCurves[[n_phonCurve]][1:length(y), ]
+    curve = phonCurves[[n_phonCurve]][seq_along(y), ]
     y_phon = y + curve$spl[8] - curve$spl
     # plot(y_phon, type = 'b')
 
@@ -301,7 +301,7 @@ getLoudness = function(x,
     # plot(specSone[, i], type = 'b')
   }
   # image(t(specSone))
-  loudness = apply(specSone, 2, sum)
+  loudness = colSums(specSone)
 
   # empirical normalization (see commented-out code below the function)
   loudness = loudness / (5.73 +  6.56 * windowLength ^ .35) /
@@ -328,7 +328,7 @@ getLoudness = function(x,
       ...)
     if (is.character(audio$savePlots)) dev.off()
   }
-  invisible(list(specSone = specSone, loudness = loudness))
+  list(specSone = specSone, loudness = loudness)
 }
 
 

@@ -26,15 +26,17 @@ in ms)}
 \code{\link[seewave]{spec}}}
 }
 \value{
-Returns a MS - a matrix of real values, with center frequencies of
-  original filters in rows and modulation frequencies in columns.
+Returns a modulation spectrum - a matrix of real values, with center
+  frequencies of original filters in rows and modulation frequencies in
+  columns.
 }
 \description{
-Takes a spectrogram and returns a MS - that is, the spectrum of each channel. The input can be an ordinary
-STFT spectrogram or an auditory spectrogram (a signal convolved with a bank
-of bandpass filters). The difference from \code{\link{specToMS}} is that,
-instead of taking a two-dimensional transform of the spectrogram, here the
-spectra are calculated independently for each frequency bin.
+Takes a spectrogram and returns the spectrum of each channel. The input can
+be an ordinary STFT spectrogram or an auditory spectrogram (a signal
+convolved with a bank of bandpass filters). The difference from
+\code{\link{specToMS}} is that, instead of taking a two-dimensional transform
+of the spectrogram, here the spectra are calculated independently for each
+frequency bin.
 }
 \examples{
 data(sheep, package = 'seewave')

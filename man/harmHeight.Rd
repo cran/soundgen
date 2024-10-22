@@ -48,5 +48,6 @@ s = soundgen(sylLen = 400, addSilence = 0, pitch = 400, noise = -10,
 sp = spectrogram(s, samplingRate = 16000)
 hh = soundgen:::harmHeight(sp[, 5], pitch = 400,
   freqs = as.numeric(rownames(sp)) * 1000, bin = 16000 / 2 / nrow(sp))
+hh
 }
 \keyword{internal}

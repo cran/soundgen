@@ -132,7 +132,7 @@
 #'   harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}
 #' @param subh a list of control parameters for estimating the strength of
 #'   subharmonics per frame - that is, spectral energy at integer ratios of f0:
-#'   see \code{?soundgen:::subhToHarm}
+#'   see \code{?soundgen:::getSHR}
 #' @param flux a list of control parameters for calculating feature-based flux
 #'   (not spectral flux) passed to \code{\link{getFeatureFlux}}
 #' @param amRange target range of frequencies for amplitude modulation, Hz: a
@@ -298,7 +298,8 @@
 #'   savePlots = '',  # save in the same folder as audio
 #'   showLegend = TRUE, yScale = 'bark',
 #'   width = 20, height = 12,
-#'   units = 'cm', res = 300, ylim = c(0, 5))
+#'   units = 'cm', res = 300, ylim = c(0, 5),
+#'   cores = 4)  # use multiple cores to speed up processing
 #' s2$summary[, 1:5]
 #'
 #' # Different options for summarizing the output
@@ -350,7 +351,8 @@
 #'   pitch = c(25000, 35000, 30000),
 #'   formants = NA, rolloff = -12, rolloffKHz = 0,
 #'   pitchSamplingRate = 350000, samplingRate = 350000, windowLength = 5,
-#'   pitchCeiling = 45000, invalidArgAction = 'ignore')
+#'   pitchCeiling = 45000, invalidArgAction = 'ignore',
+#'   plot = TRUE)
 #' # s is a bat-like ultrasound inaudible to humans
 #' a = analyze(
 #'   s, 350000, plot = TRUE,
@@ -525,7 +527,7 @@ analyze = function(
     pitchHps = c('hpsNum', 'hpsThres', 'hpsNorm', 'hpsPenalty'),
     pitchZc = c('zcThres', 'zcWin')
   )
-  for (i in 1:length(parsToValidate)) {
+  for (i in seq_along(parsToValidate)) {
     parGroup_user = get(names(parsToValidate)[i])
     # whatever is not in parsToValidate is interpreted as plotting options
     assign(paste0(names(parsToValidate)[i], '_plotPars'),
@@ -922,11 +924,9 @@ analyze = function(
   # calculate scaling coefficient for loudness calculation, but don't convert
   # yet, since most routines in analyze() require scale [-1, 1]
   if (!is.null(loudness)) {
-    scaleCorrection = max(abs(scaleSPL(
-      audio$sound,
-      scale = audio$scale,
-      SPL_measured = loudness$SPL_measured,
-      Pref = loudness$Pref)))
+    ldns = try(do.call(.getLoudness, c(list(
+      audio = audio, windowLength = windowLength, step = step, plot = FALSE),
+      loudness))$loudness)
   } else {
     scaleCorrection = NA
   }
@@ -950,14 +950,8 @@ analyze = function(
   }
 
   # normalize to range from no less than -1 to no more than +1
-  if (any(audio$sound > 0)) {
-    # center first
-    mean_s = mean(audio$sound)
-    audio$sound = audio$sound - mean(audio$sound)
-    audio$sound = audio$sound / max(abs(audio$sound))
-  } else {
-    audio$sound = audio$sound / m
-  }
+  audio$sound = audio$sound - mean(audio$sound)
+  audio$sound = audio$sound / max(abs(audio$sound))
 
 
   ## ANALYSIS
@@ -972,7 +966,7 @@ analyze = function(
   sp_filter = fft(filter)
   powerSpectrum_filter = Re(sp_filter * Conj(sp_filter))
   autoCorrelation_filter = Re(fft(powerSpectrum_filter, inverse = TRUE))
-  autoCorrelation_filter = autoCorrelation_filter[1:(windowLength_points / 2)]
+  autoCorrelation_filter = autoCorrelation_filter[seq_len(windowLength_points / 2)]
   autoCorrelation_filter = autoCorrelation_filter / autoCorrelation_filter[1] # /max(autoCorrelation_filter)
   # plot(autoCorrelation_filter, type = 'l')
 
@@ -1024,12 +1018,12 @@ analyze = function(
   myseq[1] = 1  # just in case of rounding errors
   l = length(myseq)
   myseq[l] = min(myseq[l], audio$ls - windowLength_points)
-  ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
-    # perceived intensity - root mean square of amplitude
-    # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
-    sqrt(mean((audio$sound[myseq[x]:(myseq[x] + windowLength_points - 1)] *
+  # perceived intensity - root mean square of amplitude
+  # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
+  ampl = vapply(myseq, function(x) {
+    sqrt(mean((audio$sound[x:(x + windowLength_points - 1)] *
                  m / audio$scale) ^ 2, na.rm = TRUE))
-  })
+  }, numeric(1))
 
   # calculate entropy of each frame within the most relevant
   # vocal range only (up to to cutFreq Hz)
@@ -1040,15 +1034,11 @@ analyze = function(
     rowHigh = nrow(s)
   }
   if (length(rowHigh) < 1 | !is.finite(rowHigh)) rowHigh = nrow(s)
-  entropy = apply(as.matrix(1:ncol(s)), 1, function(x) {
-    getEntropy(s[rowLow:rowHigh, x], type = 'weiner')
-  })
-  entropySh = apply(as.matrix(1:ncol(s)), 1, function(x) {
-    getEntropy(s[rowLow:rowHigh, x], type = 'shannon', normalize = TRUE)
-  })
+  entropy = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'weiner')
+  entropySh = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'weiner', normalize = TRUE)
   # if the frame is too quiet or too noisy, we will not analyze it
-  cond_silence = ampl >= silence &
-    as.logical(apply(s, 2, sum) > 0)  # b/c s frames are not 100% synchronized with ampl frames
+  cond_silence = ampl >= silence & colSums(s) > 0
+  # (need both b/c s frames are not 100% synchronized with ampl frames)
   # cond_silence[is.na(cond_silence)] = FALSE  # just in case of weird NAs
   framesToAnalyze = which(cond_silence)
   if (!is.numeric(entropyThres)) entropyThres = Inf
@@ -1082,7 +1072,7 @@ analyze = function(
     powerSpectrum_fr = Re(sp_fr * Conj(sp_fr))
     # Im * conj(Im) is the same as abs(fft())^2, but faster
     autoCorrelation_fr = Re(fft(powerSpectrum_fr, inverse = TRUE))
-    autoCorrelation_fr = autoCorrelation_fr[1:(windowLength_points/2)]
+    autoCorrelation_fr = autoCorrelation_fr[seq_len(windowLength_points/2)]
     autoCorrelation_fr = autoCorrelation_fr / autoCorrelation_fr[1] # /max(autoCorrelation_fr)
     # plot(autoCorrelation_fr, type = 'l')
 
@@ -1091,7 +1081,7 @@ analyze = function(
     # plot(rownames(autocorBank), autocorBank[, i], type = 'l', log = 'x')
   }
   autocorBank = autocorBank[-1, ]  # b/c it starts with zero lag (identity)
-  rownames(autocorBank) = audio$samplingRate / (1:nrow(autocorBank))
+  rownames(autocorBank) = audio$samplingRate / (seq_len(nrow(autocorBank)))
   # plot(rownames(s)[1:50], s[1:50, 8], type = 'l')
   # plot(frameBank[, 8], type = 'l')
   # plot(names(autocorBank[1:25, 8]), autocorBank[1:25, 8], type = 'l')
@@ -1106,7 +1096,7 @@ analyze = function(
   if (nFormants > 0 & nf > 0) {
     # we don't really know how many formants will be returned by phonTools, so
     # we save everything at first, and then trim to nFormants
-    for (i in 1:nf) {
+    for (i in seq_len(nf)) {
       fmts_list[[i]] = try(suppressWarnings(do.call(
         phonTools::findformants,
         c(list(frameBank[, framesToAnalyze[i]],
@@ -1118,15 +1108,15 @@ analyze = function(
       }
     }
     # check how many formants we will/can save
-    nFormants_avail = min(nFormants, max(unlist(lapply(fmts_list, nrow))))
+    nFormants_avail = min(nFormants, max(sapply(fmts_list, nrow)))
     if (nFormants_avail > 0) {
       nFormants = nFormants_avail
-      availableRows = 1:nFormants
+      availableRows = seq_len(nFormants)
       fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
       colnames(fmts) = paste0('f', rep(availableRows, each = 2),
                               rep(c('_freq', '_width'), nFormants))
       # iterate through the full formant list and save what's needed
-      for (i in 1:nf) {
+      for (i in seq_len(nf)) {
         ff = fmts_list[[i]]
         if (is.list(ff)) {
           nr = nrow(ff)
@@ -1146,7 +1136,7 @@ analyze = function(
   }
   if (no_formants) {
     # no formant analysis
-    availableRows = 1:nFormants
+    availableRows = seq_len(nFormants)
     fmts = matrix(NA, nrow = ncol(frameBank), ncol = nFormants * 2)
     colnames(fmts) = paste0('f', rep(availableRows, each = 2),
                             rep(c('_freq', '_width'), nFormants))
@@ -1165,7 +1155,6 @@ analyze = function(
       row.names = NULL
     ),
     'summaries' = data.frame(
-      'loudness' = NA,
       'HNR' = NA,
       'dom' = NA,
       'specCentroid' = NA,
@@ -1186,8 +1175,6 @@ analyze = function(
       bin = bin, freqs = freqs,  # prepared in analyze() to save time
       autoCorrelation = autocorBank[, i],
       samplingRate = audio$samplingRate,
-      scaleCorrection = scaleCorrection,
-      loudness = loudness,
       cutFreq = cutFreq,
       trackPitch = cond_entropy[i],
       pitchMethods = pitchMethods,
@@ -1215,6 +1202,13 @@ analyze = function(
   result$duration_noSilence = duration_noSilence
   result$duration = audio$duration
   nc = ncol(result); nr = nrow(result)
+
+  # add loudness
+  if (exists('ldns') && !inherits(ldns, 'try-error')) {
+    result$loudness = ldns
+  } else {
+    result$loudness = NA
+  }
 
   # change the order of columns
   first_three = c('duration', 'duration_noSilence', 'time')
@@ -1279,16 +1273,17 @@ analyze = function(
       NA,
       nrow = max_cands,
       ncol = length(frameInfo),
-      dimnames = list(1:max_cands, result$time)
+      dimnames = list(seq_len(max_cands), result$time)
     )), 3)
     names(pitchCands_list) = c('freq', 'cert', 'source')
-    for (i in 1:length(frameInfo)) {
+    for (i in seq_along(frameInfo)) {
       temp = frameInfo[[i]]$pitchCands_frame
       n = nrow(temp)
       if (n > 0) {
-        pitchCands_list[[1]][1:n, i] = temp[, 1]
-        pitchCands_list[[2]][1:n, i] = temp[, 2]
-        pitchCands_list[[3]][1:n, i] = temp[, 3]
+        seqn = seq_len(n)
+        pitchCands_list[[1]][seqn, i] = temp[, 1]
+        pitchCands_list[[2]][seqn, i] = temp[, 2]
+        pitchCands_list[[3]][seqn, i] = temp[, 3]
       }
     }
 
@@ -1318,7 +1313,7 @@ analyze = function(
     pitchFinal = rep(NA, ncol(pitchCands_list$freq))
     if (nrow(voicedSegments) > 0) {
       # if we have found at least one putatively voiced syllable
-      for (syl in 1:nrow(voicedSegments)) {
+      for (syl in seq_len(nrow(voicedSegments))) {
         myseq = voicedSegments$segmentStart[syl]:voicedSegments$segmentEnd[syl]
         # compute the optimal path through pitch candidates
         pitchFinal[myseq] = pathfinder(
@@ -1361,7 +1356,7 @@ analyze = function(
       pitchFinal = rep(NA, ncol(pitchCands_list$freq))
       if (nrow(voicedSegments) > 0) {
         # if we have found at least one putatively voiced syllable
-        for (syl in 1:nrow(voicedSegments)) {
+        for (syl in seq_len(nrow(voicedSegments))) {
           myseq = voicedSegments$segmentStart[syl]:voicedSegments$segmentEnd[syl]
           # compute the optimal path through pitch candidates
           pitchFinal[myseq] = pathfinder(
@@ -1386,7 +1381,7 @@ analyze = function(
     # each pitch tracking method
     result$pitch = pitchFinal # optimal pitch track
     if (!is.null(pitchNames$pitchMethod)) {
-      for (p in 1:nrow(pitchNames)) {
+      for (p in seq_len(nrow(pitchNames))) {
         result[pitchNames$pitchName[p]] =  as.numeric(lapply(frameInfo, function(x) {
           idx_method = which(x$pitchCands_frame$pitchSource == pitchNames$pitchMethod[p])
           idx_maxCert = which.max(x$pitchCands_frame$pitchCert[idx_method])
@@ -1537,7 +1532,7 @@ analyze = function(
         col_non_Hz = c(
           'amEnvDep', 'amMsPurity', 'ampl, amplVoiced',
           'entropy', 'entropyVoiced', 'entropySh', 'entropyShVoiced',
-          paste0('f', 1:10, '_width'), 'flux', 'fmDep',
+          paste0('f', seq_len(10), '_width'), 'flux', 'fmDep',
           'harmEnergy', 'harmSlope', 'HNR', 'HNR_voiced', 'CPP',
           'loudness', 'loudnessVoiced', 'roughness', 'roughnessVoiced',
           'novelty', 'noveltyVoiced', 'specSlope', 'specSlopeVoiced',

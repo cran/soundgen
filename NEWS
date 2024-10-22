@@ -1,3 +1,18 @@
+          CHANGES IN SOUNDGEN VERSION 2.7.1 [22-Oct-2024]
+NEW FUNCTIONS:
+  * findPeaks(): a bare-bones, very fast function to find peaks in a numeric vector
+  * getHNR(): finds the peak of the autocorrelation function and its amplitude as an estimate of the harmonics-to-noise ratio (HNR) of a time series
+
+MINOR:
+  * optimized code, especially soundgen() and analyze() ~1.5x faster
+  * spectrogram(): new arguments "logSpec" for toggling the log-transformation and "specManual" for plotting manually prepared spectrogram-like matrices
+
+BUGS FIXED:
+  * plotMS(): logWarpY with correct labels
+  * phasegram(), detectNLP(): ignores silent frames
+  * reverb(): fixed incorrect input checking with changing echoDelay etc.
+
+
           CHANGES IN SOUNDGEN VERSION 2.7.0 [11-Sep-2024]
 MAJOR:
   * audSpectrogram(): Butterworth, Chebyshev, and gammatone filters implemented; default ERB bandwidths or specified constant-Q bandwidths; number of filters specified overall or per octave

@@ -145,13 +145,13 @@ getSpectralEnvelope = function(
 ) {
   # standard formatting
   formants = reformatFormants(formants)
-  if (is.list(formants)) {
-    bandwidth_specified = as.numeric(which(unlist(
-      lapply(formants, function(x) 'width' %in% names(x))
-    )))
-  } else {
-    bandwidth_specified = numeric(0)
-  }
+  # if (is.list(formants)) {
+  #   bandwidth_specified = as.numeric(which(unlist(
+  #     lapply(formants, function(x) any(names(x) == 'width'))
+  #   )))
+  # } else {
+  #   bandwidth_specified = numeric(0)
+  # }
 
   if (!is.null(vocalTract)) {
     if (!any(is.na(vocalTract))) {
@@ -198,7 +198,7 @@ getSpectralEnvelope = function(
   if (is.list(formants)) {
     ## Upsample to the length of fft steps
     formants_upsampled = vector('list', length = length(formants))
-    for (f in 1:length(formants)) {
+    for (f in seq_along(formants)) {
       formant_f = data.frame(time = seq(0, 1, length.out = nc))
       for (v in c('freq', 'amp', 'width')) {
         if (length(formants[[f]][, v]) > 1 & !any(is.na(formants[[f]][, v]))) {
@@ -226,9 +226,9 @@ getSpectralEnvelope = function(
         }
       }
       formant_f$freq = formant_f$freq * vocalTract[1] / vocalTract
-      if (!f %in% bandwidth_specified) {
-        formant_f$width = getBandwidth(formant_f$freq)
-      }
+      # if (!any(bandwidth_specified == f)) {
+      #   formant_f$width = getBandwidth(formant_f$freq)
+      # }
       formants_upsampled[[f]] = formant_f
     }
     names(formants_upsampled) = names(formants)
@@ -240,15 +240,12 @@ getSpectralEnvelope = function(
       if (formDisp == 0) formDisp = 1e-6  # otherwise division by 0
       # non-integer formants like "f1.4" refer to extra zero-pole pairs.
       # They should not be considered for VTL estimation or for adding formants
-      non_integer_formants = apply(
-        as.matrix(names(formants_upsampled)), 1, function(x) {
-          grepl('.', x, fixed = TRUE)
-        })
+      non_integer_formants = grepl('.', names(formants_upsampled), fixed = TRUE)
       # create a few new, relatively high-frequency extra formants
       if(!is.numeric(formantDepStoch)) formantDepStoch = 1
       if (!is.numeric(vocalTract) & length(formants) > 1 &
           formantDepStoch > 0 & formantDep > 0) {
-        ff = unlist(lapply(formants[!non_integer_formants], function(x) x$freq[1]))
+        ff = sapply(formants[!non_integer_formants], function(x) x$freq[1])
         formantDispersion = getFormantDispersion(ff,
                                                  speedSound = speedSound,
                                                  method = 'regression')
@@ -331,7 +328,7 @@ getSpectralEnvelope = function(
     # convert formant freqs and widths from Hz to bins
     bin_width = samplingRate / 2 / nr # Hz
     bin_freqs = seq(bin_width / 2, samplingRate / 2, length.out = nr) # Hz
-    for (f in 1:length(formants_upsampled)) {
+    for (f in seq_along(formants_upsampled)) {
       formants_upsampled[[f]][, 'freq'] =
         (formants_upsampled[[f]][, 'freq'] - bin_width / 2) / bin_width + 1
       # frequencies expressed in bin indices (how many bin widths above the
@@ -442,29 +439,29 @@ getSpectralEnvelope = function(
     }
     s = complex(real = 0, imaginary = 2 * pi * freqs_bins)
     for (f in 1:nFormants) {
-      pf = 2 * pi * formants_upsampled[[f]][, 'freq']
-      bp = -formants_upsampled[[f]][, 'width'] * pi
+      pf = 2 * pi * formants_upsampled[[f]]$freq
+      bp = -formants_upsampled[[f]]$width * pi
       sf = complex(real = bp, imaginary = pf)
       sfc = Conj(sf)
       formant = matrix(0, nrow = nr, ncol = nc)
       for (c in 1:nc) {
-        pole = (f %in% poles)
-        numerator = sf[c] * sfc[c]
-        denominator = (s - sf[c]) * (s - sfc[c])
+        pole = any(poles == f)
+        numerator = .subset2(sf, c) * .subset2(sfc, c)
+        denominator = (s - .subset2(sf, c)) * (s - .subset2(sfc, c))
         if (pole) {
           tns =  numerator / denominator  # pole
         } else {
           tns = denominator / numerator   # zero
         }
         formant[, c] = log10(abs(tns))
-        if (is.na(formants_upsampled[[f]][c, 'amp'])) {
+        if (is.na(formants_upsampled[[f]]$amp[c])) {
           # just convert to dB
           formant[, c] = formant[, c] * 20 * amplScaleFactor[f]
         } else {
           # normalize ampl to be exactly as specified in dB
-          if (pole) m = max(formant[, c]) else m = -min(formant[, c])
+          m = ifelse(pole, max(formant[, c]), -min(formant[, c]))
           formant[, c] = formant[, c] / m *
-            formants_upsampled[[f]][c, 'amp'] * amplScaleFactor[f]
+            formants_upsampled[[f]]$amp[c] * amplScaleFactor[f]
           # amplScaleFactor is 1 for user-specified and formantDepStoch otherwise
         }
       }
@@ -783,7 +780,7 @@ addFormants = function(
 #' @keywords internal
 .addFormants = function(
     audio,
-    formants,
+    formants = NULL,
     spectralEnvelope = NULL,
     action = c('add', 'remove')[1],
     dB = NULL,
@@ -975,7 +972,7 @@ addFormants = function(
                       f = audio$samplingRate, envt = 'hil', plot = FALSE)
     tailIdx = suppressWarnings(min(which(hl < (.01 * max(hl)))))
     idx = l - windowLength_points + tailIdx
-    if(!is.finite(idx)) idx = l # l - windowLength_points
+    if (!is.finite(idx)) idx = l # l - windowLength_points
     soundFiltered = soundFiltered[(windowLength_points + 1):idx]
     # osc(soundFiltered, audio$samplingRate)
   }
@@ -1233,9 +1230,9 @@ transplantFormants = function(donor,
     # method 2: apply a Gaussian blur to the entire spectrogram
     bin_width = samplingRate / windowLength_points
     filt_dim = c(
-        round(blur[1] / bin_width) * 2 + 1,  # frequency
-        round(blur[2] / step) * 2 + 1  # time
-      )
+      round(blur[1] / bin_width) * 2 + 1,  # frequency
+      round(blur[2] / step) * 2 + 1  # time
+    )
     spec_donor_rightDim = gaussianSmooth2D(
       spec_donor_rightDim,
       kernelSize = filt_dim,

@@ -13,7 +13,8 @@ Mode(x)
 Internal soundgen function
 }
 \details{
-Internal helper function for spectral (~BaNa) pitch tracker. NOT quite the same as simply mode(x).
+Internal helper function for spectral (~BaNa) pitch tracker. NOT quite the
+same as simply mode(x).
 }
 \examples{
 soundgen:::Mode(c(1, 2, 3))  # if every element is unique, return the smallest

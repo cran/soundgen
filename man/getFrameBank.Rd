@@ -59,5 +59,6 @@ spacing. Handy for further processing.
 }
 \examples{
 a = soundgen:::getFrameBank(sin(1:1000), 16000, 512, 'gaussian', 15, 0)
+str(a)
 }
 \keyword{internal}

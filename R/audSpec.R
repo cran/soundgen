@@ -29,7 +29,9 @@
 #' @param bandwidth filter bandwidth, octaves. If NULL, defaults to ERB
 #'   bandwidths as in \code{\link[seewave]{gammatone}}
 #' @param bandwidthMult a scaling factor for all bandwidths (1 = no effect)
-#' @param minFreq,maxFreq the range of frequencies to analyze
+#' @param minFreq,maxFreq the range of frequencies to analyze. If the
+#'   spectrogram looks empty, try increasing minFreq - the lowest filters are
+#'   prone to returning very large values
 #' @param minBandwidth minimum filter bandwidth, Hz (otherwise filters may
 #'   become too narrow when nFilters is high; has no effect if filterType =
 #'   'gammatone')
@@ -67,15 +69,15 @@
 #' \dontrun{
 #' # add bells and whistles
 #' audSpectrogram(sound, samplingRate = 16000,
-#'   filterType = 'gammatone',
-#'   nFilters = 50,
+#'   filterType = 'butterworth',
+#'   nFilters = 128,
 #'   yScale = 'ERB',
-#'   bandwidth = 1/12,
+#'   bandwidth = 1/6,
 #'   dynamicRange = 150,
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
-#'   contrast = .2,  # increase contrast
-#'   brightness = -.1,  # reduce brightness
+#'   contrast = .4,  # increase contrast
+#'   brightness = -.2,  # reduce brightness
 #'   # colorTheme = 'heat.colors',  # pick color theme...
 #'   col = hcl.colors(100, palette = 'Plasma'),  # ...or specify the colors
 #'   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
@@ -259,17 +261,16 @@ audSpectrogram = function(
   }
   filters = data.frame(cf = cf)
   if (is.null(bandwidth)) {
-    # default bandwidths from Staney 1993
+    # default bandwidths from Slaney 1993
     filters$bandwidth = 24.7 * (4.37 * filters$cf/1000 + 1) * bandwidthMult
-    filters$from = filters$cf - filters$bandwidth/2
-    filters$to = filters$cf + filters$bandwidth/2
   } else {
     # user-specified bandwidths in octaves
-    bandwidth = bandwidth * bandwidthMult
-    filters$from = filters$cf / 2^bandwidth
-    filters$to = filters$cf * 2^bandwidth
-    filters$bandwidth = filters$to - filters$from
+    # (cf + half_bw_Hz) / (cf - half_bw_Hz) = 2^bw_oct  - solving for bw gives:
+    #  half_bw_Hz = cf * (2^bw_oct - 1) / (2^bw_oct + 1)
+    filters$bandwidth = 2 * cf * (2^bandwidth - 1) / (2^bandwidth + 1) * bandwidthMult
   }
+  filters$from = filters$cf - filters$bandwidth/2
+  filters$to = filters$cf + filters$bandwidth/2
 
   if (filterType != 'gammatone') {
     # make sure the bandwidth in Hz (!) is always wide enough to avoid crashing
@@ -343,7 +344,8 @@ audSpectrogram = function(
       # plot(fb_env, type = 'l')
       if (!is.null(len)) {
         # downsample
-        fb_env_i = .resample(list(sound = fb_env_i), len = len, lowPass = FALSE)
+        # fb_env_i = .resample(list(sound = fb_env_i), len = len, lowPass = FALSE)
+        fb_env_i = approx(fb_env_i, n = len)$y
       }
       sp[[i]] = matrix(fb_env_i, nrow = 1)
     } else {

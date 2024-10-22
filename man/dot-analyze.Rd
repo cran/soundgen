@@ -187,7 +187,7 @@ harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 
 \item{subh}{a list of control parameters for estimating the strength of
 subharmonics per frame - that is, spectral energy at integer ratios of f0:
-see \code{?soundgen:::subhToHarm}}
+see \code{?soundgen:::getSHR}}
 
 \item{flux}{a list of control parameters for calculating feature-based flux
 (not spectral flux) passed to \code{\link{getFeatureFlux}}}

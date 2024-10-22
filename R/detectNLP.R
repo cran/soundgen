@@ -64,19 +64,24 @@
 #' @examples
 #'
 #' \dontrun{
-#' target = soundgen(sylLen = 1600, addSilence = 0, temperature = 1e-6,
+#' target = soundgen(sylLen = 2000, addSilence = 0, temperature = 1e-2,
 #'   pitch = c(380, 550, 500, 220), subDep = c(0, 0, 40, 0, 0, 0, 0, 0),
 #'   amDep = c(0, 0, 0, 0, 80, 0, 0, 0), amFreq = 80,
 #'   noise = c(-10, rep(-40, 5)),
-#'   jitterDep = c(0, 0, 0, 0, 0, 3))
+#'   jitterDep = c(0, 0, 0, 0, 0, 3),
+#'   plot = TRUE, play = TRUE)
 #'
 #' # classifier trained on manually annotated recordings of human nonverbal
 #' # vocalizations
-#' nlp = detectNLP(target, 16000, plot = TRUE, ylim = c(0, 4))
+#' nlp = detectNLP(target, 16000,
+#'   predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
+#'   plot = TRUE, ylim = c(0, 4))
 #'
 #' # classifier trained on synthetic, soundgen()-generated sounds
-#' nlp = detectNLP(target, 16000, train = soundgen::detectNLP_training_synth,
-#'                 plot = TRUE, ylim = c(0, 4))
+#' nlp = detectNLP(target, 16000,
+#'   train = soundgen::detectNLP_training_synth,
+#'   predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
+#'   plot = TRUE, ylim = c(0, 4))
 #' head(nlp[, c('time', 'pr')])
 #' table(nlp$pr)
 #' plot(nlp$amEnvDep, type = 'l')
@@ -92,7 +97,9 @@
 #'   time = c(0, 350, 351, 890, 891, 1200),
 #'   value = c(140, 230, 460, 330, 220, 200)))
 #' playme(s1, 16000)
-#' detectNLP(s1, 16000, plot = TRUE, ylim = c(0, 3))
+#' nlp1 = detectNLP(s1, 16000, plot = TRUE, ylim = c(0, 3),
+#'   predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
+#'   train = soundgen::detectNLP_training_synth)
 #'
 #' # process all files in a folder
 #' nlp = detectNLP('/home/allgoodguys/Downloads/temp260/',
@@ -102,7 +109,7 @@
 detectNLP = function(
     x,
     samplingRate = NULL,
-    predictors = c('nPeaks', 'd2', 'subDep', 'amEnvDep',
+    predictors = c('d2', 'subDep', 'amEnvDep', 'amMsPurity',
                    'entropy', 'HNR', 'CPP', 'roughness'),
     thresProb = 0.4,
     unvoicedToNone = FALSE,
@@ -278,6 +285,7 @@ detectNLP = function(
 
   # set frames with sub-threshold NLP probability to "none"
   max_nlp_prob = apply(df[, c('sb', 'sh', 'chaos')], 1, max)
+  df$pr = as.character(df$pr) # in case 'none' is not already a valid level
   df$pr[which(max_nlp_prob < thresProb)] = 'none'
   # same for very quiet frames and unvoiced frames
   if (nr_an != nrow(df))
@@ -447,16 +455,16 @@ findJumps = function(pitch,
   }
 
   if (plot) {
-    plot(step * (1:length(pitch)), pitch, type = 'b',
+    plot(step * (seq_along(pitch)), pitch, type = 'b',
          pch = 16, xlab = xlab, ylab = ylab)
     pj_idx = which(pitchJumps)
     pj_times = pj_idx * step - step / 2
     if (length(pj_idx) > 0) {
-      for (i in 1:length(pj_idx))
+      for (i in seq_along(pj_idx))
         arrows(x0 = pj_times[i], x1 = pj_times[i],
                y0 = 0, y1 = pitch[pj_idx[i]],
                lwd = 2, length = .05, col = 'blue')
     }
   }
-  return(pitchJumps)
+  pitchJumps
 }

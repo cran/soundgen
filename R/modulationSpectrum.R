@@ -115,6 +115,8 @@
 #' Colnames are temporal modulation frequencies (Hz). Rownames are spectral
 #' modulation frequencies (cycles/kHz) if \code{msType = '2D'} and frequencies
 #' of filters or spectrograms bands (kHz) if \code{msType = '1D'}.
+#' \item \code{$original_list} a list of modulation spectra for each analyzed
+#' fragment (is \code{amRes} is not NULL)
 #' \item \code{$processed} modulation spectrum after blurring and log-warping
 #' \item \code{$complex} untransformed complex modulation spectrum (returned
 #' only if returnComplex = TRUE)
@@ -159,7 +161,8 @@
 #'   colorTheme = 'matlab', main = 'Modulation spectrum', lty = 3)
 #'
 #' # 1D instead of 2D
-#' modulationSpectrum(s, 16000, msType = '1D')
+#' modulationSpectrum(s, 16000, msType = '1D', quantiles = NULL,
+#'   colorTheme = 'matlab')
 #'
 #' \dontrun{
 #' # A long sound with varying AM and a bit of chaos at the end
@@ -221,7 +224,7 @@
 #'
 #' # Input can also be a list of waveforms (numeric vectors)
 #' ss = vector('list', 10)
-#' for (i in 1:length(ss)) {
+#' for (i in seq_along(ss)) {
 #'   ss[[i]] = soundgen(sylLen = runif(1, 100, 1000), temperature = .4,
 #'     pitch = runif(3, 400, 600))
 #' }
@@ -412,10 +415,12 @@ modulationSpectrum = function(
     original = NULL, processed = NULL, complex = NULL,
     roughness = NULL, amMsFreq = NULL, amMsPurity = NULL
   )
-  original = processed = complex = roughness = roughness_list =
+  original = original_list = processed = complex = roughness = roughness_list =
+    modulation_spectrogram = roughness_spectrogram =
     amMsFreq = amMsPurity = ampl = NULL
   # (otherwise note about no visible binding)
-  out_prep = c('original', 'processed', 'complex', 'roughness',
+  out_prep = c('original', 'original_list', 'modulation_spectrogram',
+               'processed', 'complex', 'roughness', 'roughness_spectrogram',
                'roughness_list', 'amMsFreq', 'amMsPurity', 'ampl')
   if (pa$input$n == 1) {
     # unlist
@@ -445,10 +450,13 @@ modulationSpectrum = function(
   }
 
   invisible(list(original = original,
+                 original_list = original_list,
+                 modulation_spectrogram = modulation_spectrogram,
                  processed = processed,
                  complex = complex,
                  roughness = roughness,
                  roughness_list = roughness_list,
+                 roughness_spectrogram = roughness_spectrogram,
                  amMsFreq = amMsFreq,
                  amMsPurity = amMsPurity,
                  ampl = ampl,
@@ -549,7 +557,8 @@ modulationSpectrum = function(
   }
 
   if (splitInto > 1) {
-    myseq = floor(seq(1, length(audio$sound), length.out = splitInto + 1))
+    myseq = floor(seq(1, audio$ls, length.out = splitInto + 1))
+    midpoints = myseq[1:splitInto] + (myseq[2] - myseq[1]) / 2
     myInput = vector('list', splitInto)
     for (i in 1:splitInto) {
       idx = myseq[i]:(myseq[i + 1])
@@ -562,6 +571,7 @@ modulationSpectrum = function(
   # extract modulation spectrum per fragment
   ampl = rep(NA, splitInto)
   out = vector('list', splitInto)
+  if (splitInto > 1) names(out) = midpoints / audio$ls * audio$dur
   if (returnComplex) {
     out_complex = out
   } else {
@@ -598,12 +608,35 @@ modulationSpectrum = function(
   if (length(out) < 1) {
     warning('The sound is too short or windowLength too long. Need at least 3 frames')
     return(list('original' = NA,
+                'original_list' = NA,
+                'modulation_spectrogram' = NA,
                 'processed' = NA,
                 'complex' = NA,
                 'roughness' = NA,
+                'roughness_list' = NA,
+                'roughness_spectrogram' = NA,
                 'amMsFreq' = NA,
                 'amMsPurity' = NA,
                 'ampl' = NA))
+  }
+
+  # standardize the size of matrices for ease of processing
+  if (length(out) > 1) {
+    ncs = unlist(lapply(out, ncol))
+    nc_max = max(ncs)
+    for (i in seq_along(out)) {
+      if (ncol(out[[i]]) != nc_max)
+        out[[i]] = interpolMatrix(out[[i]], nc = nc_max)
+    }
+  }
+
+  # concatenate freq-averaged modulation spectra into a modulation spectrogram
+  if (length(out) < 2) {
+    mg = NA
+  } else {
+    mg = do.call(cbind, lapply(out, colSums))
+    colnames(mg) = as.numeric(names(out)) * 1000 # time in ms
+    rownames(mg) = as.numeric(colnames(out[[1]])) / 1000 # modulation frequency in kHz
   }
 
   # extract a measure of roughness
@@ -623,6 +656,11 @@ modulationSpectrum = function(
   }
   roughness = unlist(lapply(roughness_list, function(x) sum(x$roughness, na.rm = TRUE)))
 
+  # concatenate roughness per frequency bin over time into a roughness spectrogram
+  rg = do.call(cbind, lapply(roughness_list, function(x) x$roughness))
+  colnames(rg) = as.numeric(names(out)) * 1000  # time in ms
+  rownames(rg) = rownames(out[[1]])  # frequency in kHz
+
   # detect systematic amplitude modulation at the same frequency
   am_list = lapply(out, function(x)
     getAM(x, amRange = amRange, amRes = amRes))
@@ -632,10 +670,13 @@ modulationSpectrum = function(
   # average modulation spectra across all sounds
   if (!returnMS) {
     result = list('original' = NULL,
+                  'original_list' = NULL,
+                  'modulation_spectrogram' = NULL,
                   'processed' = NULL,
                   'complex' = NULL,
                   'roughness' = roughness,
                   'roughness_list' = roughness_list,
+                  'roughness_spectrogram' = NULL,
                   'amMsFreq' = amMsFreq,
                   'amMsPurity' = amMsPurity,
                   'ampl' = ampl / audio$scale)
@@ -664,10 +705,13 @@ modulationSpectrum = function(
                                   kernelSize = kernelSize,
                                   kernelSD = kernelSD)
     result = list('original' = out_aggreg,
+                  'original_list' = out,
+                  'modulation_spectrogram' = mg,
                   'processed' = out_transf,
                   'complex' = out_aggreg_complex,
                   'roughness' = roughness,
                   'roughness_list' = roughness_list,
+                  'roughness_spectrogram' = rg,
                   'amMsFreq' = amMsFreq,
                   'amMsPurity' = amMsPurity,
                   'ampl' = ampl / audio$scale)
@@ -719,6 +763,7 @@ modulationSpectrum = function(
 #' ms = soundgen:::modulationSpectrumFragment(s, 16000,
 #'   windowLength = 50, windowLength_points = .05 * 16000,
 #'   step = 5, step_points = .005 * 16000)
+#' plotMS(ms$ms_half)
 #' image(as.numeric(colnames(ms$ms_half)), as.numeric(rownames(ms$ms_half)),
 #'       t(log(ms$ms_half)))
 modulationSpectrumFragment = function(sound,
@@ -822,10 +867,9 @@ modulationSpectrumFragment = function(sound,
   }
   # image(x = as.numeric(colnames(ms_half)), z = t(log(ms_half)))
   # plotMS(log(ms_half + 1e-6), quantiles = NULL, colorTheme = 'matlab', logWarpX = c(10, 2))
-  return(list(
+  list(
     ms_half = ms_half,
     ms_complex = ms_complex,
     ampl = sqrt(mean(sound^2))
-  ))
+  )
 }
-

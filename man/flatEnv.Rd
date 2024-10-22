@@ -136,10 +136,10 @@ s2 = flatEnv(s1, 16000, plot = TRUE, windowLength_points = 50, killDC = FALSE)
 s3 = flatEnv(s1, 16000, plot = TRUE, windowLength_points = 50, killDC = TRUE)
 
 # Compress and save all audio files in a folder
-s4 = flatEnv('~/Downloads/temp2',
+s4 = flatEnv('~/Downloads/temp',
              method = 'peak', compression = .5,
-             saveAudio = '~/Downloads/temp2/compressed',
-             savePlots = '~/Downloads/temp2/compressed',
+             saveAudio = '~/Downloads/temp/compressed',
+             savePlots = '~/Downloads/temp/compressed',
              col = 'green', lwd = 5)
 osc(s4[[1]])
 }

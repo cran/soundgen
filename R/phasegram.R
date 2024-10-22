@@ -279,7 +279,7 @@ phasegram = function(
   frame_starts = frame_starts[frame_starts < (len - windowLength_points + 1)]
   n_frames = length(frame_starts)
   out_pg = out_stats = out_ns = vector('list', n_frames)
-  for (f in 1:n_frames) {
+  for (f in seq_len(n_frames)) {
     ## grab a frame (without windowing)
     frame = audio$sound[frame_starts[f]:(frame_starts[f] + windowLength_points - 1)]
     # plot(frame, type = 'l')
@@ -297,52 +297,53 @@ phasegram = function(
       plot(pp, type = 'l')
     }
 
-    pc = suppressMessages(suppressWarnings(try(
-      nonlinearTseries::poincareMap(frame, time.lag = t, embedding.dim = 2),
-      silent = TRUE
-    )))
-    # plot(pc$pm)
-    # hist(pc$pm[, 1], breaks = 100)
-    # h = hist(pc$pm[, 1], breaks = breaks, plot = FALSE)
-    # d = data.frame(x = h$mids, y = h$counts / max(h$counts))
-    # try kernel smoothing instead of a histogram
-    # plot(density(pc$pm[, 1], bw = .005))  # bw = 'SJ-ste'
-    if (!inherits(pc, 'try-error')) {
-      pm = pc$pm[, 1]
-      if (length(pm) > 1) {
-        # NB: the audio is normalized, so pm is always on the same scale of [-1,
-        # 1]. Thus, bw can be specified in absolute units
-        d = density(pm, bw = bw)
+    if (!flat) {
+      pc = suppressMessages(suppressWarnings(try(
+        nonlinearTseries::poincareMap(frame, time.lag = t, embedding.dim = 2),
+        silent = TRUE
+      )))
+      # plot(pc$pm)
+      # hist(pc$pm[, 1], breaks = 100)
+      # h = hist(pc$pm[, 1], breaks = breaks, plot = FALSE)
+      # d = data.frame(x = h$mids, y = h$counts / max(h$counts))
+      # try kernel smoothing instead of a histogram
+      # plot(density(pc$pm[, 1], bw = .005))  # bw = 'SJ-ste'
+      if (!inherits(pc, 'try-error')) {
+        pm = pc$pm[, 1]
+        if (length(pm) > 1) {
+          # NB: the audio is normalized, so pm is always on the same scale of [-1,
+          # 1]. Thus, bw can be specified in absolute units
+          d = density(pm, bw = bw)
+          out_pg[[f]] = data.frame(
+            time = frame_starts[f] + windowLength_points / 2,
+            x = d$x, y = d$y)
+        }
+      } else {
         out_pg[[f]] = data.frame(
           time = frame_starts[f] + windowLength_points / 2,
-          x = d$x, y = d$y)
+          x = NA, y = NA)
       }
-    } else {
-      out_pg[[f]] = data.frame(
-        time = frame_starts[f] + windowLength_points / 2,
-        x = NA, y = NA)
+
+      # stats per frame derived from the Poincare section
+      out_stats[[f]] = data.frame(time = out_pg[[f]]$time[1],
+                                  shannon = NA, nPeaks = NA)
+
+      if (exists('d')) {
+        # Entropy and nPeaks in poincare sections
+        out_stats[[f]]$shannon = getEntropy(d$y, type = 'shannon', normalize = TRUE)
+
+        # normalize nPeaks - at most, every other point can be a peak; log2(x+1)
+        # means it will range from 0 to 1
+        out_stats[[f]]$nPeaks = log2(1 + length(which(diff(diff(d$y) > 0) == -1)) /
+                                       ceiling(length(d$y) / 2))
+      }
+
+
+      ## Other nonlinear stats per frame
+      if (!is.null(nonlinStats)) out_ns[[f]] = nonlinStats(
+        frame, t = t, pars_ed = pars_ed, pars_d2 = pars_d2,
+        pars_ml = pars_ml, pars_sur = pars_sur, nonlinStats = nonlinStats)
     }
-
-    # stats per frame derived from the Poincare section
-    out_stats[[f]] = data.frame(time = out_pg[[f]]$time[1],
-                                shannon = NA, nPeaks = NA)
-
-    if (exists('d')) {
-      # Entropy and nPeaks in poincare sections
-      out_stats[[f]]$shannon = getEntropy(d$y, type = 'shannon', normalize = TRUE)
-
-      # normalize nPeaks - at most, every other point can be a peak; log2(x+1)
-      # means it will range from 0 to 1
-      out_stats[[f]]$nPeaks = log2(1 + length(which(diff(diff(d$y) > 0) == -1)) /
-                                     ceiling(length(d$y) / 2))
-    }
-
-
-    ## Other nonlinear stats per frame
-    if (!is.null(nonlinStats)) out_ns[[f]] = nonlinStats(
-      frame, t = t, pars_ed = pars_ed, pars_d2 = pars_d2,
-      pars_ml = pars_ml, pars_sur = pars_sur, nonlinStats = nonlinStats)
-
     # end of for-loop processing each frame
   }
 
@@ -567,6 +568,5 @@ nonlinStats = function(
     # 0 = deterministic (scrambling ruins time symmetry)
     # 1 = stochastic (scrambling the phase has little effect on time symmetry)
   }
-
-  return(out)
+  out
 }

@@ -101,7 +101,7 @@ NAs back in.
 }
 \examples{
 # Filter white noise
-s1 = fade(c(runif(2000, -1, 1)), samplingRate = 16000)
+s1 = fade(c(rnorm(2000, 0, 1)), samplingRate = 16000)
 
 # low-pass
 bandpass(s1, 16000, upr = 2000, plot = TRUE)
@@ -120,13 +120,13 @@ s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE)
 
 # low-pass and interpolate a short vector with some NAs
 x = rnorm(150, 10) + 3 * sin((1:50) / 5)
-x[sample(1:length(x), 50)] = NA
+x[sample(seq_along(x), 50)] = NA
 plot(x, type = 'l')
 x_bandp = bandpass(x, samplingRate = 100, upr = 10)
 points(x_bandp, type = 'l', col = 'blue')
 
 \dontrun{
-# add 200 dB with a Gaussian-shaped filter instead of step function
+# add 20 dB with a Gaussian-shaped filter instead of step function
 s3 = bandpass(s1, 16000, lwr = 1700, upr = 2100, bw = 200,
   dB = 20, plot = TRUE)
 spectrogram(s3, 16000)

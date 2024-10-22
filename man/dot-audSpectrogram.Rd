@@ -73,7 +73,9 @@ bandwidths as in \code{\link[seewave]{gammatone}}}
 
 \item{bandwidthMult}{a scaling factor for all bandwidths (1 = no effect)}
 
-\item{minFreq, maxFreq}{the range of frequencies to analyze}
+\item{minFreq, maxFreq}{the range of frequencies to analyze. If the
+spectrogram looks empty, try increasing minFreq - the lowest filters are
+prone to returning very large values}
 
 \item{minBandwidth}{minimum filter bandwidth, Hz (otherwise filters may
 become too narrow when nFilters is high; has no effect if filterType =
@@ -99,9 +101,9 @@ frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{yScale}{determines the location of center frequencies of the filters}
 
-\item{contrast}{spectrum is exponentiated by contrast (any real number,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
+\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
+raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
+sharpness, <0 decreases sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 

@@ -69,6 +69,7 @@ s = soundgen(amFreq = 25, amDep = 100)
 ms = soundgen:::modulationSpectrumFragment(s, 16000,
   windowLength = 50, windowLength_points = .05 * 16000,
   step = 5, step_points = .005 * 16000)
+plotMS(ms$ms_half)
 image(as.numeric(colnames(ms$ms_half)), as.numeric(rownames(ms$ms_half)),
       t(log(ms$ms_half)))
 }

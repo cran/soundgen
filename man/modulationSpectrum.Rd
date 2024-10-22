@@ -193,6 +193,8 @@ but after squaring if \code{power = TRUE}, a matrix of nonnegative values.
 Colnames are temporal modulation frequencies (Hz). Rownames are spectral
 modulation frequencies (cycles/kHz) if \code{msType = '2D'} and frequencies
 of filters or spectrograms bands (kHz) if \code{msType = '1D'}.
+\item \code{$original_list} a list of modulation spectra for each analyzed
+fragment (is \code{amRes} is not NULL)
 \item \code{$processed} modulation spectrum after blurring and log-warping
 \item \code{$complex} untransformed complex modulation spectrum (returned
 only if returnComplex = TRUE)
@@ -264,7 +266,8 @@ ms = modulationSpectrum(s, samplingRate = 16000, logMPS = TRUE,
   colorTheme = 'matlab', main = 'Modulation spectrum', lty = 3)
 
 # 1D instead of 2D
-modulationSpectrum(s, 16000, msType = '1D')
+modulationSpectrum(s, 16000, msType = '1D', quantiles = NULL,
+  colorTheme = 'matlab')
 
 \dontrun{
 # A long sound with varying AM and a bit of chaos at the end
@@ -326,7 +329,7 @@ ms2$summary
 
 # Input can also be a list of waveforms (numeric vectors)
 ss = vector('list', 10)
-for (i in 1:length(ss)) {
+for (i in seq_along(ss)) {
   ss[[i]] = soundgen(sylLen = runif(1, 100, 1000), temperature = .4,
     pitch = runif(3, 400, 600))
 }

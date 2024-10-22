@@ -126,9 +126,9 @@ estimateVTL = function(
     formant_freqs = unlist(sapply(formants, function(f) mean(f$freq)))
     nf = length(formant_freqs)
     if (tube %in% c('closed-open', 'open-closed')) {
-      vtls = (2 * (1:nf) - 1) * speedSound / 4 / formant_freqs
+      vtls = (2 * (seq_len(nf)) - 1) * speedSound / 4 / formant_freqs
     } else if (tube %in% c('open-open', 'closed-closed')) {
-      vtls = 1:nf * speedSound / 2 / formant_freqs
+      vtls = seq_len(nf) * speedSound / 2 / formant_freqs
     } else {
       stop('the tube can be closed-open or open-open')
     }
@@ -349,9 +349,9 @@ schwa = function(formants = NULL,
 
     # calculate relative formant frequencies
     if (is.null(formants)) {
-      idx = 1:nForm
+      idx = seq_len(nForm)
     } else {
-      idx = 1:length(formants)
+      idx = seq_along(formants)
     }
     if (tube %in% c('closed-open', 'open-closed')) {
       ff_schwa = (2 * idx - 1) / 2 * formantDispersion
@@ -375,7 +375,7 @@ schwa = function(formants = NULL,
 
     # calculate formants in Hz
     formantDispersion = speedSound / (2 * vocalTract)
-    idx = 1:length(formants_relative)
+    idx = seq_along(formants_relative)
     if (tube %in% c('closed-open', 'open-closed')) {
       ff_schwa = (2 * idx - 1) / 2 * formantDispersion
     } else if (tube %in% c('open-open', 'closed-closed')) {
@@ -427,8 +427,7 @@ schwa = function(formants = NULL,
   }
 
   # do not return empty elements
-  out = out[lapply(out, length) > 0]
-  return(out)
+  out[lapply(out, length) > 0]
 }
 
 
@@ -479,7 +478,7 @@ getFormantDispersion = function(
     fdf = NULL
     if (tube %in% c('closed-open', 'open-closed')) {
       # have to loop because there may be multiple measuremets per formant
-      for (i in 1:length(formants)) {
+      for (i in seq_along(formants)) {
         temp = data.frame(
           formant_idx = i,
           formant = paste0('F', i),
@@ -489,7 +488,7 @@ getFormantDispersion = function(
         if (is.null(fdf)) fdf = temp else fdf = rbind(fdf, temp)
       }
     } else if (tube %in% c('open-open', 'closed-closed')) {
-      for (i in 1:length(formants)) {
+      for (i in seq_along(formants)) {
         temp = data.frame(
           formant_idx = i,
           formant = paste0('F', i),
@@ -514,8 +513,8 @@ getFormantDispersion = function(
     if (output == 'detailed') {
       vtl_full = speedSound / 2 / formantDispersion
       # calculate VTL for the first 1:f formants
-      vf = data.frame(nFormants = 1:length(unique(fdf$formant)), vtl = NA)
-      for (i in 1:nrow(vf)) {
+      vf = data.frame(nFormants = seq_along(unique(fdf$formant)), vtl = NA)
+      for (i in seq_len(nrow(vf))) {
         fdf_i = fdf[fdf$formant_idx <= i, ]
         if (any(!is.na(fdf_i$freq))) {
           if (interceptZero) {
@@ -530,7 +529,7 @@ getFormantDispersion = function(
 
       # calculate the influence of each observation on the VTL estimate based on
       # all formants
-      for (i in 1:nrow(fdf)) {
+      for (i in seq_len(nrow(fdf))) {
         fdf_i = fdf[-i, ]
         if (any(!is.na(fdf$freq[i])) & any(!is.na(fdf_i$freq))) {
           if (interceptZero) {
@@ -590,5 +589,5 @@ getFormantDispersion = function(
                                vtlPerFormant = vf)
     }
   }
-  return(formantDispersion)
+  formantDispersion
 }

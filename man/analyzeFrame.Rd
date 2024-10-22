@@ -10,8 +10,6 @@ analyzeFrame(
   freqs,
   autoCorrelation = NULL,
   samplingRate,
-  scaleCorrection,
-  loudness,
   cutFreq,
   trackPitch = TRUE,
   pitchMethods = c("dom", "autocor"),
@@ -37,10 +35,6 @@ analyzeFrame(
 (computationally more efficient than to do it here)}
 
 \item{samplingRate}{sampling rate (Hz)}
-
-\item{loudness}{a list of parameters passed to \code{\link{getLoudness}} for
-measuring subjective loudness, namely \code{SPL_measured, Pref,
-spreadSpectrum}. NULL = skip loudness analysis}
 
 \item{cutFreq}{if specified, spectral descriptives (peakFreq, specCentroid,
 specSlope, and quartiles) are calculated only between \code{cutFreq[1]} and

@@ -43,9 +43,9 @@ reformatFormants = function(formants,
     # expand to full format from e.g. "formants = c(500, 1500, 2500)"
     freqs = formants
     formants = vector('list', length(freqs))
-    names(formants) = paste0('f', 1:length(freqs))
+    names(formants) = paste0('f', seq_along(freqs))
     if (output == 'all') {
-      for (f in 1:length(freqs)) {
+      for (f in seq_along(freqs)) {
         formants[[f]] = data.frame(time = 0,
                                    freq = freqs[f],
                                    amp = NA,
@@ -53,20 +53,20 @@ reformatFormants = function(formants,
       }
     } else {
       # just the frequencies
-      for (f in 1:length(freqs)) {
+      for (f in seq_along(freqs)) {
         formants[[f]] = data.frame(freq = freqs[f])
       }
     }
   }
   if (is.list(formants)) {
     if (is.null(names(formants))) {
-      names(formants) = paste0('f', 1:length(formants))
+      names(formants) = paste0('f', seq_along(formants))
     }
-    for (f in 1:length(formants)) {
+    for (f in seq_along(formants)) {
       formant = as.data.frame(formants[[f, drop = FALSE]])
       if (ncol(formant) == 1) colnames(formant) = 'freq'
       if (is.list(formant)) {
-        if ('freq' %in% names(formant)) {
+        if (any(names(formant) == 'freq')) {
           if (output == 'all') {
             # expand to full format from e.g. f1 = list(freq = 550, amp = 30)
             if (is.null(formant$time)) {
@@ -112,17 +112,10 @@ reformatFormants = function(formants,
 
   if (!keepNonInteger) {
     # remove non-integer (anti)formants, if any
-    non_integer_formants = apply(as.matrix(names(formants)),
-                                 1,
-                                 function(x) {
-                                   grepl('.', x, fixed = TRUE)
-                                 })
-    if (any(non_integer_formants)) formants =  formants[!non_integer_formants]
+    formants = formants[!grepl('.', names(formants), fixed = TRUE)]
   }
-
-  return(formants)
+  formants
 }
-
 
 
 #' Get bandwidth
@@ -151,10 +144,10 @@ getBandwidth = function(f) {
   # apart from elephant rumbles etc.
   b[f1] = 26.38541 - .042 * f[f1] + .0011 * f[f1] ^ 2
   # see Khodai-Joopari & Clermont 2002
-  b[f2] =  52.08333 * (1 + (f[f2]-500) ^ 2/ 10 ^ 5)
+  b[f2] =  52.08333 * (1 + (f[f2] - 500) ^ 2/ 10 ^ 5)
   b[f3] = 50 * (1 + f[f3] ^ 2 / 6 / 10 ^ 6)
   # plot(f, b, type = 'l')
-  return(b)
+  b
 }
 
 
@@ -172,12 +165,12 @@ getBandwidth = function(f) {
 #'   \code{\link{getSpectralEnvelope}}
 #' @keywords internal
 #' @examples
-#' formants = soundgen:::convertStringToFormants(phonemeString = 'a')
-#' formants = soundgen:::convertStringToFormants(
+#' soundgen:::convertStringToFormants(phonemeString = 'a')
+#' soundgen:::convertStringToFormants(
 #'   phonemeString = 'au', speaker = 'M1')
-#' formants = soundgen:::convertStringToFormants(
+#' soundgen:::convertStringToFormants(
 #'   phonemeString = 'aeui', speaker = 'F1')
-#' formants = soundgen:::convertStringToFormants(
+#' soundgen:::convertStringToFormants(
 #'   phonemeString = 'aaeuiiiii', speaker = 'Chimpanzee')
 convertStringToFormants = function(phonemeString, speaker = 'M1') {
   availablePresets = names(presets[[speaker]]$Formants$vowels)
@@ -197,7 +190,7 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
   # in the presets dictionary and append to formants
   vowels = list()
   formantNames = character()
-  for (v in 1:length(unique_phonemes)) {
+  for (v in seq_along(unique_phonemes)) {
     vowels[[v]] = presets[[speaker]]$Formants$vowels[unique_phonemes[v]][[1]]
     formantNames = c(formantNames, names(vowels[[v]]))
   }
@@ -206,7 +199,7 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
 
   # make sure we have filled in info on all formants from the entire
   # sequence of vowels for each individual vowel
-  for (v in 1:length(vowels)) {
+  for (v in seq_along(vowels)) {
     absentFormants = formantNames[!formantNames %in% names(vowels[[v]])]
     for (f in absentFormants) {
       closestFreq = unlist(sapply(vowels, function(x) x[f]))
@@ -227,15 +220,14 @@ convertStringToFormants = function(phonemeString, speaker = 'M1') {
   names(formants) = formantNames
 
   # for each vowel, append its formants to the common list
-  for (v in 1:length(valid_phonemes)) {
+  for (v in seq_along(valid_phonemes)) {
     vowel = vowels[[valid_phonemes[v]]]
-    for (f in 1:length(vowel)) {
+    for (f in seq_along(vowel)) {
       formantName = names(vowel)[f]
       formants[[formantName]] = c(formants[[formantName]], vowel[[f]])
     }
   }
-
-  return(formants)
+  formants
 }
 
 
@@ -329,7 +321,8 @@ lockToFormants = function(pitch,
       idx_cur = which.min(abs(freqs - pitch[i] * h))
       amp_gain = nearest_formant_amp / specEnv[idx_cur, i]
       # amp_gain ~ how much E can be gained if locked to nearest formant
-      dist_to_nearest_formant = max(1, 12 * abs(log2(pitch[i] * h) - log2(formants[nearest_formant, i])))
+      dist_to_nearest_formant = max(1, 12 * abs(log2(pitch[i] * h) -
+                                                  log2(formants[nearest_formant, i])))
       # in semitones (anything closer than 1 semitone counts as 1 semitone to
       # standardize penalization, otherwise we divide by very small numbers and
       # thus inflate apparent gain)
@@ -389,12 +382,11 @@ lockToFormants = function(pitch,
     plot(d$pitch, type = 'l', lty = 2, col = 'red', ylim = c(y_min, y_max))
     points(d$pitch1, type = 'l', lty =3, col = 'blue')
     points(d$pitch2, type = 'l')
-    # for (f in 1:length(formants)) {
+    # for (f in seq_along(formants)) {
     #   abline(h = formants[[f]]$freq, lty = 3)
     # }
   }
-
-  invisible(d$pitch2)
+  d$pitch2
 }
 
 
@@ -445,7 +437,7 @@ getFormants = function(
   m = max(abs(audio$sound))
   m_to_scale = m / audio$scale
   silence = silence * m / m_to_scale
-  ampl = apply(as.matrix(1:length(myseq)), 1, function(x) {
+  ampl = apply(as.matrix(seq_along(myseq)), 1, function(x) {
     # perceived intensity - root mean square of amplitude
     # (NB: m / scale corrects the scale back to original, otherwise sound is [-1, 1])
     sqrt(mean((audio$sound[myseq[x]:(myseq[x] + windowLength_points - 1)]) ^ 2, na.rm = TRUE))
@@ -508,9 +500,71 @@ getFormants = function(
     colnames(fmts) = paste0('f', rep(availableRows, each = 2),
                             rep(c('_freq', '_width'), nFormants))
   }
-  out = cbind(
+  cbind(
     data.frame(time = timestamps),
     as.data.frame(fmts)
   )
-  return(out)
+}
+
+
+#' Get smooth spectrum
+#'
+#' Internal soundgen function for getting a smoothed spectrum. Called by
+#' formant_app().
+#'
+#' @param sound the audio (numeric, any scale)
+#' @inheritParams spectrogram
+#' @param spectrum pre-extracted spectrum in dB with columns "freq" and "ampl"
+#' @param len the desired resolution of the output
+#' @param loessSpan passed to loess to control the amount of smoothing (.01 =
+#'   minimal smoothing, 1 = strong smoothing)
+#' @keywords internal
+#' @examples
+#' s = soundgen(sylLen = 100, pitch = 500, addSilence = FALSE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .01, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .1, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = .5, plot = TRUE)
+#' soundgen:::getSmoothSpectrum(s, 16000, len = 500, loessSpan = 1, plot = TRUE)
+#'
+#' sp = seewave::meanspec(s, f = 16000, dB = 'max0')
+#' colnames(sp) = c('freq', 'ampl')
+#' soundgen:::getSmoothSpectrum(spectrum = sp, len = 500, loessSpan = .1, plot = TRUE)
+getSmoothSpectrum = function(sound,
+                             samplingRate = NULL,
+                             spectrum = NULL,
+                             len,
+                             loessSpan,
+                             windowLength = 100,
+                             overlap = 0,
+                             plot = FALSE,
+                             xlab = 'Frequency, kHz',
+                             ylab = 'dB',
+                             type = 'l',
+                             ...) {
+  if (is.null(spectrum)) {
+    # assume that input is a sound
+    # Get high-res mean spectrum with seewave
+    # (faster than smoothing the raw, super-long spectrum)
+    if (is.null(samplingRate)) stop('Please provide samplingRate')
+    wl = round(min(windowLength / 1000 * samplingRate, length(sound) - 1) / 2) * 2
+    # must be even, otherwise seewave complains
+    spectrum = as.data.frame(seewave::meanspec(
+      sound, f = samplingRate, wl = wl, ovlp = overlap,
+      dB = 'max0', plot = FALSE))
+    colnames(spectrum) = c('freq', 'ampl')
+    # plot(spectrum, type = 'l')
+  } else {
+    spectrum = as.data.frame(spectrum)
+  }
+
+  # Smooth this mean spectrum with loess and upsample to /len/
+  l = suppressWarnings(loess(spectrum$ampl ~ spectrum$freq, span = loessSpan))
+  # plot(spectrum$freq, predict(l), type = 'l')
+  freq_loess = seq(spectrum$freq[1], spectrum$freq[nrow(spectrum)], length.out = len)
+  ampl_loess = try(predict(l, freq_loess, silent = TRUE))
+  out = data.frame(freq = freq_loess, ampl = ampl_loess)
+
+  if (plot) plot(out, type = type, xlab = xlab, ylab = ylab, ...)
+
+  out
 }

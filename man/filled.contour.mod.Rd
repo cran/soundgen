@@ -25,6 +25,7 @@ filled.contour.mod(
   axisX = TRUE,
   axisY = TRUE,
   maxPoints = 5e+05,
+  y_Hz = NULL,
   ...
 )
 }
@@ -49,6 +50,8 @@ axis()}
 \item{log}{log = 'y' log-transforms the y axis}
 
 \item{axisX, axisY}{plot the axis or not (logical)}
+
+\item{y_Hz}{Y-labels in Hz or kHz (rescales by *1000 if kHz and max < 1 kHz)}
 }
 \description{
 Internal soundgen function

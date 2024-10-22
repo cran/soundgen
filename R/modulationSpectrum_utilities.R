@@ -82,8 +82,8 @@ plotMS = function(
     if (is.numeric(logWarpY)) {
       Y1 = pseudoLog(Y, sigma = logWarpY[1], base = logWarpY[2])
       lab_y = pretty(Y)
-      at_y = pseudoLog(lab_y, sigma = logWarpY[2], base = logWarpY[2])
-      if (!is.null(ylim)) ylim = pseudoLog(ylim, sigma = logWarpX[1], base = logWarpX[2])
+      at_y = pseudoLog(lab_y, sigma = logWarpY[1], base = logWarpY[2])
+      if (!is.null(ylim)) ylim = pseudoLog(ylim, sigma = logWarpY[1], base = logWarpY[2])
     } else {
       lab_y = at_y = pretty(Y)
     }
@@ -95,15 +95,18 @@ plotMS = function(
                        bty = 'n',
                        main = main, xaxt = 'n', yaxt = 'n',
                        xlim = xlim, ylim = ylim,
+                       axisX = FALSE, axisY = FALSE,
+                       y_Hz = FALSE,
                        ...)
 
     # add nicely labeled axes
     axis(1, at = at_x, labels = lab_x, ...)  # xpd = TRUE to extend beyond the plot
     axis(2, at = at_y, labels = lab_y, ...)
-
-    lbl_Hz_pos = pretty(Y1)
-    lbls_Hz = round(1000 / lbl_Hz_pos)
-    if (extraY) axis(4, at = lbl_Hz_pos, labels = lbls_Hz, ...)
+    if (extraY) {
+      lbl_Hz_pos = pretty(Y1)
+      lbls_Hz = round(1000 / lbl_Hz_pos)
+      axis(4, at = lbl_Hz_pos, labels = lbls_Hz, ...)
+    }
   } else {
     # no log-warping
     filled.contour.mod(X1, Y1, t(ms),
@@ -114,10 +117,13 @@ plotMS = function(
                        bty = 'n',
                        main = main,
                        xlim = xlim, ylim = ylim,
+                       y_Hz = FALSE,
                        ...)
-    lbls = round(1000 / pretty(Y1))
-    lbl_pos = 1000 / lbls
-    if (extraY) axis(4, at = lbl_pos, labels = lbls, ...)
+    if (extraY) {
+      lbls = round(1000 / pretty(Y1))
+      lbl_pos = 1000 / lbls
+      axis(4, at = lbl_pos, labels = lbls, ...)
+    }
   }
   abline(v = 0, lty = 3)
 
@@ -152,6 +158,10 @@ plotMS = function(
 #' @return Returns a list with the frequency (Hz) and depth of amplitude
 #'   modulation (dB relative to global max, normally at 0 Hz).
 #' @keywords internal
+#' @examples
+#' s = soundgen(pitch = 400, amFreq = 75, amDep = 50)
+#' m = modulationSpectrum(s, 16000)
+#' soundgen:::getAM(m$original)
 getAM = function(m,
                  amRange = c(10, 100),
                  amRes = NULL) {
@@ -188,15 +198,12 @@ getAM = function(m,
   # plot(am_smRan, type = 'l')
   wl = max(3, round(amRes / (colNames[2] - colNames[1])))
   # eg if amRes = 10, we look for a local maximum within ±5 Hz
-  temp = zoo::rollapply(
-    zoo::as.zoo(am_smRan$amp),
-    width = wl,  # width 10 Hz, ie ±5 Hz
-    align = 'center',
-    function(x) {
-      middle = ceiling(length(x) / 2)
-      return(which.max(x) == middle)
-    })
-  idx = zoo::index(temp)[zoo::coredata(temp)]
+  hb = floor(wl / 2)
+  idx = which(vapply(
+    (hb + 1):(length(am_smRan$amp) - hb), function(x) {
+      frx = am_smRan$amp[(x - hb):(x + hb)]
+      am_smRan$amp[x] == max(frx)
+    }, logical(1))) + hb
 
   if (length(idx) > 0) {
     peaks = am_smRan[idx, ]
@@ -206,7 +213,7 @@ getAM = function(m,
       out$amMsPurity = log10(peaks$amp / max(am_sm$amp)) * 20
     }
   }
-  return(out)
+  out
 }
 
 
@@ -231,7 +238,7 @@ logWarpMS = function(x, logWarp) {
   # NB: flip the left half!
   m_right = logMatrix(x[, pos_col], base = logWarp)
   x_transf = cbind(m_left[, ncol(m_left):1], x[, zero_col, drop = FALSE], m_right)
-  return(x_transf)
+  x_transf
 }
 
 
@@ -314,11 +321,11 @@ getRough = function(m,
   # set amps + labels per channel, if available
   amp = as.numeric(rowMeans(m))
   amp = amp / max(amp)
-  return(data.frame(
+  data.frame(
     roughness = as.numeric(roughness) / sum(m) * 100,
     freq = if (!is.null(rownames(m))) as.numeric(rownames(m)) else NA,
     amp = amp
-  ) [, c(2, 1, 3)])
+  ) [, c(2, 1, 3)]
 }
 
 
@@ -335,12 +342,17 @@ getRough = function(m,
 #' @examples
 #' s = soundgen(sylLen = 500, amFreq = 25, amDep = 50,
 #'              pitch = 250, samplingRate = 16000)
-#' spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5, plot = FALSE)
+#' spec = spectrogram(s, samplingRate = 16000, windowLength = 25,
+#'   step = 5, plot = FALSE)
 #' ms = specToMS(spec)
+#' plotMS(log(Mod(ms)), quantiles = NULL, col = soundgen:::jet.col(100))
+#' \dontrun{
+#' # or plot manually
 #' image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
 #'       z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
 #'       ylab = 'Frequency modulation, cycles/kHz')
 #' abline(h = 0, lty = 3); abline(v = 0, lty = 3)
+#' }
 specToMS = function(spec, windowLength = NULL, step = NULL) {
   if ((is.null(colnames(spec)) & is.null(step)) |
       (is.null(rownames(spec)) & is.null(windowLength))) {
@@ -381,8 +393,7 @@ specToMS = function(spec, windowLength = NULL, step = NULL) {
     max_fm = windowLength / 2
     rownames(ms) = seq(-max_fm, max_fm, length.out = nr)
   }
-
-  return(ms)
+  ms
 }
 
 
@@ -400,13 +411,15 @@ specToMS = function(spec, windowLength = NULL, step = NULL) {
 #'              pitch = 250, samplingRate = 16000)
 #' spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5)
 #' ms = specToMS(spec)
-#' image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-#'       z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
-#'       ylab = 'Frequency modulation, cycles/kHz')
+#' plotMS(log(Mod(ms)), quantiles = NULL, col = soundgen:::jet.col(100))
 #' spec_new = msToSpec(ms)
+#' spectrogram(s, specManual = Mod(spec_new))
+#' \dontrun{
+#' # or plot manually
 #' image(x = as.numeric(colnames(spec_new)), y = as.numeric(rownames(spec_new)),
 #'       z = t(log(abs(spec_new))), xlab = 'Time, ms',
 #'       ylab = 'Frequency, kHz')
+#' }
 msToSpec = function(ms, windowLength = NULL, step = NULL) {
   addNames = TRUE
   if ((is.null(colnames(ms)) & is.null(step)) |
@@ -442,17 +455,18 @@ msToSpec = function(ms, windowLength = NULL, step = NULL) {
     # time stamps
     colnames(s2) = windowLength / 2 + (0:(ncol(s2) - 1)) * step
   }
-  return(s2)
+  s2
 }
 
 
 #' Spectrogram to modulation spectrum 1D
 #'
-#' Takes a spectrogram and returns a MS - that is, the spectrum of each channel. The input can be an ordinary
-#' STFT spectrogram or an auditory spectrogram (a signal convolved with a bank
-#' of bandpass filters). The difference from \code{\link{specToMS}} is that,
-#' instead of taking a two-dimensional transform of the spectrogram, here the
-#' spectra are calculated independently for each frequency bin.
+#' Takes a spectrogram and returns the spectrum of each channel. The input can
+#' be an ordinary STFT spectrogram or an auditory spectrogram (a signal
+#' convolved with a bank of bandpass filters). The difference from
+#' \code{\link{specToMS}} is that, instead of taking a two-dimensional transform
+#' of the spectrogram, here the spectra are calculated independently for each
+#' frequency bin.
 #'
 #' @param fb input spectrogram (numeric matrix with frequency in rows and time
 #'   in columns)
@@ -463,8 +477,9 @@ msToSpec = function(ms, windowLength = NULL, step = NULL) {
 #' @param method calls either \code{\link[seewave]{meanspec}} or
 #'   \code{\link[seewave]{spec}}
 #'
-#' @return Returns a MS - a matrix of real values, with center frequencies of
-#'   original filters in rows and modulation frequencies in columns.
+#' @return Returns a modulation spectrum - a matrix of real values, with center
+#'   frequencies of original filters in rows and modulation frequencies in
+#'   columns.
 
 #' @export
 #' @examples
@@ -518,5 +533,5 @@ specToMS_1D = function(fb,
   colnames(ms) = si[, 1] * 1000
   rownames(ms) = rownames(fb)
   # plotMS(ms, logWarpX = c(10, 2), quantile = NULL, ylab = '')
-  return(ms)
+  ms
 }

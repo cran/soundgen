@@ -28,4 +28,9 @@ spectrum. Algorithm: averages AM across all FM bins in the positive half of
 the modulation spectrum and looks for a peak in the specified AM frequency
 range.
 }
+\examples{
+s = soundgen(pitch = 400, amFreq = 75, amDep = 50)
+m = modulationSpectrum(s, 16000)
+soundgen:::getAM(m$original)
+}
 \keyword{internal}

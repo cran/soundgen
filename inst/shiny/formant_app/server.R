@@ -895,7 +895,7 @@ server = function(input, output, session) {
       }
 
       if (length(ff) > 0) {
-        for (i in 1:length(ff)) {
+        for (i in seq_along(ff)) {
           f = ff[i] / 1000
           if (is.numeric(f) & any(!is.na(f))) {
             idx_f = which.min(abs(myPars$spectrum$freq - f))

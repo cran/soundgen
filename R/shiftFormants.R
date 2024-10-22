@@ -232,5 +232,5 @@ shiftFormants = function(
     writeAudio(soundFiltered, audio = audio, filename = filename)
   }
 
-  return(soundFiltered)
+  soundFiltered
 }

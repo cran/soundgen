@@ -136,7 +136,7 @@ generateNoise = function(
   play = FALSE) {
   # wiggle pars
   if (temperature > 0) {  # set to 0 when called internally by soundgen()
-    # len = rnorm_truncated(n = 1,
+    # len = rnorm_truncated2(n = 1,
     #                       mean = len,
     #                       sd = len * temperature * .5,
     #                       low = 0, high = len * 2,  # max 2 * original length
@@ -153,7 +153,7 @@ generateNoise = function(
         wiggleAllRows = TRUE
       )
     } else {
-      rolloffNoise = rnorm_truncated(
+      rolloffNoise = rnorm_truncated2(
         n = length(rolloffNoise),
         mean = rolloffNoise,
         sd = abs(rolloffNoise) * temperature * .5,
@@ -162,7 +162,7 @@ generateNoise = function(
         invalidArgAction = invalidArgAction
       )
     }
-    noiseFlatSpec = rnorm_truncated(
+    noiseFlatSpec = rnorm_truncated2(
       n = 1,
       mean = noiseFlatSpec,
       sd = noiseFlatSpec * temperature * .5,
@@ -182,7 +182,7 @@ generateNoise = function(
         wiggleAllRows = TRUE
       )
     } else {
-      rolloffNoiseExp = rnorm_truncated(
+      rolloffNoiseExp = rnorm_truncated2(
         n = length(rolloffNoise),
         mean = rolloffNoiseExp,
         sd = abs(rolloffNoiseExp) * temperature * .5,
@@ -192,7 +192,7 @@ generateNoise = function(
       )
     }
 
-    attackLen = rnorm_truncated(
+    attackLen = rnorm_truncated2(
       n = length(attackLen),
       mean = attackLen,
       sd = attackLen * temperature * .5,
@@ -210,7 +210,7 @@ generateNoise = function(
       wiggleAllRows = TRUE
     )
     if (is.vector(spectralEnvelope)) {
-      spectralEnvelope = rnorm_truncated(
+      spectralEnvelope = rnorm_truncated2(
         n = length(spectralEnvelope),
         mean = spectralEnvelope + .1,  # to wiggle zeros
         sd = spectralEnvelope * temperature * .5,
@@ -267,7 +267,7 @@ generateNoise = function(
         valueCeiling = permittedValues['rolloffNoise', 'high']
       )))
       spectralEnvelope = matrix(1, nrow = nr, ncol = nc)
-      for (c in 1:nc) {
+      for (c in seq_len(nc)) {
         spectralEnvelope[idx, c] = 10 ^ (rolloffNoise[c] / 20 * (idx - flatBins) / binsPerKHz)
       }
     } else {
@@ -287,13 +287,13 @@ generateNoise = function(
           valueFloor = permittedValues['rolloffNoiseExp', 'low'],
           valueCeiling = permittedValues['rolloffNoiseExp', 'high']
         )))
-        for (c in 1:nc) {
+        for (c in seq_len(nc)) {
           spectralEnvelope[, c] = spectralEnvelope[, c] *
-            10 ^ (log2(1:nr) * rolloffNoiseExp[c] / 20)
+            10 ^ (log2(seq_len(nr)) * rolloffNoiseExp[c] / 20)
         }
       } else {
-        r_exp = 10 ^ (log2(1:nr) * rolloffNoiseExp / 20)
-        for (c in 1:nc) {
+        r_exp = 10 ^ (log2(seq_len(nr)) * rolloffNoiseExp / 20)
+        for (c in seq_len(nc)) {
           spectralEnvelope[, c] = spectralEnvelope[, c] * r_exp
         }
       }
@@ -558,13 +558,13 @@ generateHarmonics = function(pitch,
       rw_bin = approx(nonlinRandomWalk, n = nGC, method = 'constant')$y
       # plot(rw_bin)
     }
-    vocalFry_on = (rw_bin > 0) # when is vocal fry on? For ex., rw_bin==1
-    #   sets vocal fry on only in regime 1, while rw_bin>0 sets vocal fry on
+    subh_on = (rw_bin > 0) # when are subh on? For ex., rw_bin==1
+    #   turs on subh only in regime 1, while rw_bin>0 turns on subh
     #   in regimes 1 and 2 (i.e. together with jitter)
     jitter_on = shimmer_on = (rw_bin == 2)
   } else {
     rw = rep(1, nGC)
-    vocalFry_on = jitter_on = shimmer_on = rep(TRUE, nGC)
+    subh_on = jitter_on = shimmer_on = rep(TRUE, nGC)
   }
 
 
@@ -595,7 +595,7 @@ generateHarmonics = function(pitch,
       nc = nGC,                 # interpolate over time
       interpol = 'approx'
     )
-    rownames(rolloff_source) = 1:nrow(rolloff_source)
+    rownames(rolloff_source) = seq_len(nrow(rolloff_source))
   }
   # NB: rolloff_source at this stage should be a matrix WITH NUMBERED ROWS
 
@@ -655,7 +655,7 @@ generateHarmonics = function(pitch,
     )
     drift_centered = drift - mean(drift)
     drift = 2 ^ drift_centered
-    # plot (drift, type = 'l')
+    # plot(drift, type = 'l')
     drift_pitch = 2 ^ (drift_centered * pitchDriftDep)
     pitch_per_gc = pitch_per_gc * drift_pitch
     # plot(pitch_per_gc, type = 'l')
@@ -668,7 +668,7 @@ generateHarmonics = function(pitch,
   # make sure we don't have harmonics above Nyquist with the changed pitch
   nHarmonics = floor(samplingRate / 2 / pitch_per_gc)
   nr = nrow(rolloff_source)
-  for (c in 1:ncol(rolloff_source)) {
+  for (c in seq_len(ncol(rolloff_source))) {
     if (nHarmonics[c] < nr) {
       rolloff_source[nHarmonics[c]:nr] = 0
     }
@@ -699,24 +699,24 @@ generateHarmonics = function(pitch,
     }
   }
 
-  # add vocal fry (subharmonics)
+  # add subharmonics
   if (!synthesize_per_gc &  # can't add subharmonics if doing one gc
       # at a time (one f0 period)
-      any(subDep > 0) & any(vocalFry_on)) {
-    vocalFry = getVocalFry(
+      any(subDep > 0) & any(subh_on)) {
+    subh = addSubh(
       rolloff = rolloff_source,
       pitch_per_gc = pitch_per_gc,
       subRatio = subRatio,
       subFreq = subFreq * rw ^ subDriftDep,
-      subDep = subDep * rw ^ subDriftDep * vocalFry_on,
+      subDep = subDep * rw ^ subDriftDep * subh_on,
       subWidth = subWidth * rw ^ subDriftDep,
       shortestEpoch = shortestEpoch,
       dynamicRange = dynamicRange
     )
-    rolloff_source = vocalFry$rolloff # list of matrices
-    epochs = vocalFry$epochs # dataframe
+    rolloff_source = subh$rolloff # list of matrices
+    epochs = subh$epochs # dataframe
   } else {
-    # if we don't need to add vocal fry
+    # if we don't need to add subharmonics
     rolloff_source = list(rolloff_source)
     epochs = data.frame ('start' = 1, 'end' = length(pitch_per_gc))
   }
@@ -725,10 +725,10 @@ generateHarmonics = function(pitch,
   if (synthesize_per_gc) {
     # synthesize one glottal cycle at a time
     rolSrc = rolloff_source
-    for (e in 1:length(rolloff_source)) {
+    for (e in seq_along(rolloff_source)) {
       rolSrc[[e]] = rolloff_source[[e]]
       rolSrc[[e]] = as.list(as.data.frame(rolSrc[[e]]))
-      for (i in 1:length(rolSrc[[e]])) {
+      for (i in seq_along(rolSrc[[e]])) {
         rolSrc[[e]][[i]] = matrix(rolSrc[[e]][[i]],
                                   ncol = 1,
                                   dimnames = list(rownames(rolloff_source[[e]])))
@@ -742,7 +742,7 @@ generateHarmonics = function(pitch,
     )))
     # warp glottis anchors to ensure that their timing is not affected by the delay
     # of adding extra silence between glottal cycles when glottis > 0
-    warpRows = (1:nrow(glottis))[-c(1, nrow(glottis))]
+    warpRows = seq_len(nrow(glottis)) [-c(1, nrow(glottis))]
     # except for first and last row (time = 0 or 1 - nowhere to move)
     if (length(warpRows) > 0) {
       # calculate the dur of each glottal cylce + pause, in ms
@@ -796,7 +796,8 @@ generateHarmonics = function(pitch,
   if (temperature > 0 & amplDriftDep > 0 && diff(range(drift)) != 0) {
     drift_ampl = zeroOne(drift) * temperature
     drift_ampl = drift_ampl - mean(drift_ampl) + 1  # hist(drift_ampl)
-    gc_upsampled = upsampleGC(pitch_per_gc, samplingRate = samplingRate)$gc
+    # gc_upsampled = upsampleGC(pitch_per_gc, samplingRate = samplingRate)$gc
+    gc_upsampled = c(1, cumsum(round(samplingRate / pitch_per_gc)))
     drift_upsampled = approx(drift_ampl,  # otherwise pitchDriftDep scales amplDriftDep
                              n = length(waveform),
                              x = gc_upsampled[-length(gc_upsampled)])$y
@@ -880,10 +881,11 @@ generateGC = function(pitch_per_gc,
   nGC = round(dur_target / dur_with_closed * length(pitch_per_gc))
   if (interpol == 'approx') {
     # use splines to reduce the number of gc's in a smart way
-    idx_orig = 1:nGC_orig
+    idx_orig = seq_len(nGC_orig)
     idx = seq(1, nGC_orig, length.out = nGC)
     pitch_per_gc_adj = spline(x = idx_orig, y = pitch_per_gc, xout = idx)$y
-    glottisClosed_per_gc_adj = approx(x = idx_orig, y = glottisClosed_per_gc, xout = idx)$y
+    glottisClosed_per_gc_adj = approx(x = idx_orig,
+                                      y = glottisClosed_per_gc, xout = idx)$y
     rolloff_per_gc_adj = rolloff_per_gc[round(idx)]  # too big for spline
   } else {
     # just pick enough gc's
@@ -898,13 +900,13 @@ generateGC = function(pitch_per_gc,
 
   # synthesize one glottal cycle at a time
   waveform = 0
-  for (i in 1:nGC) {
+  for (i in seq_len(nGC)) {
     cycle = 0
     idx = 0:(gc_len_adj[i] - 1)  # count from zero, ensuring the gc starts at sin(0) = 0
-    for (h in 1:nrow(rolloff_per_gc_adj[[i]])) {
+    for (h in seq_len(nrow(rolloff_per_gc_adj[[i]]))) {
       times_f0 = as.numeric(rownames(rolloff_per_gc_adj[[i]])[h]) # freq of harmonic h
       cycle = cycle +
-        sin(2 * pi * pitch_per_gc_adj[i] * times_f0 * idx / samplingRate) *
+        sin(2 * pi * .subset2(pitch_per_gc_adj, i) * times_f0 * idx / samplingRate) *
         rolloff_per_gc_adj[[i]][h]
     }
     # cycle = cycle / max(abs(cycle))
@@ -991,20 +993,22 @@ generateEpoch = function(pitch_per_gc,
   for (e in 1:nrow(epochs)) {
     idx_gc_up = gc_upsampled[epochs$start[e]:(epochs$end[e] + 1)]
     idx_up = min(idx_gc_up):max(idx_gc_up)
+    len_idx_up = length(idx_up)
+    idx_gc_up_nolast = idx_gc_up[-length(idx_gc_up)]
     waveform_epoch = 0
     integr_epoch = integr[idx_up]
     rolloff_epoch = rolloff_per_epoch[[e]]  # rolloff_source MUST be a list!
+    times_f0_vector = as.numeric(rownames(rolloff_epoch))
 
-    for (h in 1:nrow(rolloff_epoch)) {
-      # NB: rolloff_source can have fewer
-      # harmonics that nHarmonics, since weak harmonics are discarded for
-      # computational efficiency. Or it can have a lot more than nHarmonics,
-      # if we add vocal fry
-      times_f0 = as.numeric(rownames(rolloff_epoch)[h]) # freq of harmonic h
+    for (h in seq_len(nrow(rolloff_epoch))) {
+      # NB: rolloff_source can have fewer harmonics that nHarmonics since weak
+      # harmonics are discarded for computational efficiency. Or it can have a
+      # lot more than nHarmonics if we add subharmonics
+      times_f0 = .subset2(times_f0_vector, h) # freq of harmonic h
       # as a multiple of f0
       am_upsampled = approx(rolloff_epoch[h, ],
-                            n = length(idx_up),
-                            x = idx_gc_up[-length(idx_gc_up)])$y
+                            n = len_idx_up,
+                            x = idx_gc_up_nolast)$y
       # plot(am_upsampled, type = 'l')
       # the actual waveform synthesis happens HERE:
       waveform_epoch = waveform_epoch +
@@ -1021,8 +1025,9 @@ generateEpoch = function(pitch_per_gc,
   }
   # plot(waveform, type = 'l')
   # playme(waveform, samplingRate)
-  return(waveform)
+  waveform
 }
+
 
 #' Fart
 #'
@@ -1065,11 +1070,11 @@ fart = function(glottis = c(50, 200),
 
   # wiggle pars
   if (temperature > 0) {
-    rolloff = rnorm_truncated(n = 1,
+    rolloff = rnorm_truncated2(n = 1,
                               mean = rolloff,
-                              sd = rolloff * temperature * .5,
+                              sd = abs(rolloff) * temperature * .5,
                               low = -50, high = 10)
-    sylLen = rnorm_truncated(n = 1,
+    sylLen = rnorm_truncated2(n = 1,
                              mean = sylLen,
                              sd = sylLen * temperature * .5,
                              low = 0, high = 10000)
@@ -1123,10 +1128,10 @@ fart = function(glottis = c(50, 200),
     playme(s, samplingRate = samplingRate, player = play)
   }
   if (plot) {
-    time = (1:length(s)) / samplingRate * 1000
+    time = (seq_along(s)) / samplingRate * 1000
     plot(time, s, type = 'l', xlab = 'Time, ms')
   }
-  return(s)
+  invisible(s)
 }
 
 

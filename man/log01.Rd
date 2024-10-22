@@ -17,7 +17,6 @@ Normalizes, log-transforms, and re-normalizes an input vector, so it ranges
 from 0 to 1
 }
 \examples{
-v = exp(1:10)
-soundgen:::log01(v)
+soundgen:::log01(exp(1:10))
 }
 \keyword{internal}

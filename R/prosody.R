@@ -1,4 +1,3 @@
-
 #' Prosody
 #'
 #' Exaggerates or flattens the intonation by performing a dynamic pitch shift,
@@ -43,7 +42,7 @@
 #' # Flat intonation - remove all frequency modulation
 #' s2 = prosody(s, 16000, multProsody = 0,
 #'   analyze_pars = list(windowLength = 30, step = 15),
-#'   shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
+#'   shiftPitch_pars = list(windowLength = 20, step = 1, freqWindow = 500),
 #'   plot = TRUE)
 #' playme(s2)
 #' spectrogram(s2, 16000, yScale = 'log')
@@ -210,6 +209,5 @@ prosody = function(
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
     writeAudio(out, audio = audio, filename = filename)
   }
-
-  return(out)
+  out
 }

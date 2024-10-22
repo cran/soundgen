@@ -14,8 +14,8 @@ contours can be fed into this function at once to speed things up)}
 
 \item{smoothingThres}{tolerated deviance from moving median (semitones)}
 
-\item{inviolable}{a vector of indices of the rows rows of df that should not
-be modified (meant for manual pitch values)}
+\item{inviolable}{a vector of indices of the rows of df that should not be
+modified (meant for manual pitch values)}
 }
 \value{
 Returns a dataframe of the same dimensions as df.
@@ -29,11 +29,10 @@ outliers are modified, so it's not like smoothing with a kernel. NB: the
 expected input is pitch, so deviance is calculated on a log-scale.
 }
 \examples{
-df = data.frame(a = rnorm(20, mean = 100, sd = 20),
-                b = rnorm(20, mean = 100, sd = 10))
+df = data.frame(a = rnorm(40, mean = 100, sd = 20),
+                b = rnorm(40, mean = 100, sd = 10))
 df1 = soundgen:::medianSmoother(df, smoothing_ww = 5,
-      smoothingThres = 1,
-      inviolable = c(rep(TRUE, 10), rep(FALSE, 10)))
+      smoothingThres = 1, inviolable = 1:10)
 plot(df[, 2], type='b')
 lines(df1[, 2], type='b', col='blue', pch=3)
 }

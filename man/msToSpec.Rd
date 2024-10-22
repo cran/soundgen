@@ -29,11 +29,13 @@ s = soundgen(sylLen = 250, amFreq = 25, amDep = 50,
              pitch = 250, samplingRate = 16000)
 spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5)
 ms = specToMS(spec)
-image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-      z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
-      ylab = 'Frequency modulation, cycles/kHz')
+plotMS(log(Mod(ms)), quantiles = NULL, col = soundgen:::jet.col(100))
 spec_new = msToSpec(ms)
+spectrogram(s, specManual = Mod(spec_new))
+\dontrun{
+# or plot manually
 image(x = as.numeric(colnames(spec_new)), y = as.numeric(rownames(spec_new)),
       z = t(log(abs(spec_new))), xlab = 'Time, ms',
       ylab = 'Frequency, kHz')
+}
 }

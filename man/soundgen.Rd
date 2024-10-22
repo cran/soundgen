@@ -212,12 +212,12 @@ dB/oct (the alternative to \code{lipRad} when the mouth is closed)}
 \item{mouthOpenThres}{open the lips (switch from nose radiation to lip
 radiation) when the mouth is open \code{>mouthOpenThres}, 0 to 1}
 
-\item{formants}{either a character string like "aaui" referring to default
-presets for speaker "M1" or a list of formant times, frequencies,
-amplitudes, and bandwidths (see ex. below). \code{formants = NA} defaults
-to schwa. Time stamps for formants and mouthOpening can be specified in ms
-or an any other arbitrary scale. See \code{\link{getSpectralEnvelope}} for
-more details}
+\item{formants}{either a character string referring to default presets for
+speaker "M1" (implemented: "aoieu0") or a list of formant times,
+frequencies, amplitudes, and bandwidths (see examples). NA or NULL means no
+formants, only lip radiation. Time stamps for formants and mouthOpening can
+be specified in ms relative to \code{sylLen} or on a scale of [0, 1]. See
+\code{\link{getSpectralEnvelope}} for more details}
 
 \item{formantDep}{scale factor of formant amplitude (1 = no change relative
 to amplitudes in \code{formants})}
@@ -363,6 +363,11 @@ s1 = eval(parse(text = presets$Chimpanzee$Scream_conflict))  # screaming chimp
 # playme(s1)
 s2 = eval(parse(text = presets$F1$Scream))  # screaming woman
 # playme(s2, 18320)
+
+# presets of some vowels and consonants
+names(presets$M1$Formants$vowels)
+soundgen(sylLen = 500, formants = 'aoieu0', play = playback)
+
 \dontrun{
 # unless temperature is 0, the sound is different every time
 for (i in 1:3) sound = soundgen(play = playback, temperature = .2)
@@ -379,8 +384,8 @@ sound = soundgen(nSyl = 5, sylLen = 200, pauseLen = 140,
   pitchGlobal = list(time = c(0, .5, 1), value = c(-6, 7, 0)),
   play = playback, plot = TRUE)
 
-# Subharmonics / sidebands (noisy scream)
-sound = soundgen(subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
+# Amplitude modulation
+sound = soundgen(amFreq = 75, amDep = runif(10, 0, 60),
   pitch = list(
     time = c(0, .3, .9, 1), value = c(1200, 1547, 1487, 1154)),
   sylLen = 800,
@@ -388,7 +393,7 @@ sound = soundgen(subFreq = 75, subDep = runif(10, 0, 60), subWidth = 130,
 
 # Jitter and mouth opening (bark, dog-like)
 sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
-  subFreq = 100, subDep = 100, subWidth = 60, jitterDep = 1,
+  jitterDep = 1,
   pitch = c(559, 785, 557),
   mouth = c(0, 0.5, 0),
   vocalTract = 5, formants = NULL,

@@ -18,7 +18,7 @@ spline)}
 Internal soundgen function
 }
 \details{
-Performs a chosen type of interpolation (linear or smooth) across both rows
+Performs a chosen type of interpolation (bilinear or spline) across both rows
 and columns of a matrix, in effect up- or downsampling a matrix to required
 dimensions. Rownames and colnames are also interpolated as needed.
 }

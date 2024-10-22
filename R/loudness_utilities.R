@@ -1,48 +1,3 @@
-#' Get loudness per frame
-#'
-#' Internal soundgen function
-#'
-#' Takes as input the absolute (not power) spectrum of a single STFT frame and
-#' estimates its loudness in sone. See \code{\link{getLoudness}} for details.
-#' @inheritParams getLoudness
-#' @keywords internal
-#' @examples
-#' sound = sin(2*pi*1000/16000*(1:1000))
-#' sound_scaled = soundgen:::scaleSPL(sound, SPL_measured = 40)
-#' spec = spectrogram(
-#'   sound_scaled, samplingRate = 16000, windowLength = 10,
-#'   normalize = FALSE, output = 'original')[, 10]
-#' # plot(spec, type = 'l')
-#' soundgen:::getLoudnessPerFrame(spec, samplingRate = 16000)  # 1 sone
-getLoudnessPerFrame = function(spec,
-                               samplingRate,
-                               spreadSpectrum = TRUE) {
-  if (samplingRate < 2000) return(NA)  # need at least 8 barks (1 kHz) Niquist
-  powerSpec_scaled = matrix(spec ^ 2 / length(spec), ncol = 1)
-  audSpec = tuneR::audspec(powerSpec_scaled, sr = samplingRate,
-                           fbtype = 'bark')$aspectrum  # plot(audSpec, type = 'l')
-  # throw away very high frequencies
-  if (samplingRate > 44100) {
-    audSpec = audSpec[1:27, ]  # max 27 barks
-  }
-  if (spreadSpectrum) audSpec = spreadSpec(audSpec)
-  audSpec_dB = 10 * log10(audSpec)
-  n_phonCurve = which.min(abs(
-    audSpec_dB[8] - as.numeric(names(phonCurves))))  # 8 barks = 1 kHz
-  curve = phonCurves[[n_phonCurve]][1:length(audSpec_dB), ]
-  audSpec_phon = audSpec_dB + curve$spl[8] - curve$spl
-  audSpec_phon[audSpec_phon < curve$hearingThres_dB | audSpec_phon < 0] = 0
-  # plot(audSpec_phon, type = 'l')
-  audSpec_sone = phon2sone(audSpec_phon)
-  # plot(audSpec_sone, type = 'l')
-  loudness = sum(audSpec_sone)
-  windowLength = length(spec) * 2 / samplingRate * 1000
-  loudness_corrected = loudness / (5.73 +  6.56 * windowLength ^ .35) /
-    (.0357 + .0345 * samplingRate ^ .3113)
-  return(loudness_corrected)
-}
-
-
 #' Scale SPL
 #'
 #' Internal soundgen function
@@ -73,12 +28,11 @@ scaleSPL = function(x, scale = NULL, SPL_measured = 70, Pref = 2e-5) {
   if (is.numeric(scale)) {
     c = c * max(abs(x)) / scale
   }
-  x_scaled = c * x_refScaled  # range(x_scaled)
+  # x_scaled = c * x_refScaled  # range(x_scaled)
   # plot(x_scaled[5000:6000], type = 'l')
   # check that the new RMS is SPL_measured:
   # 20 * log10(sqrt(mean(x_scaled^2))) should be ~SPL_measured
-
-  return(x_scaled)
+  c * x_refScaled
 }
 
 
@@ -145,10 +99,10 @@ iso226 = function(phon, nBarks = 22) {
     b$spl[i] = ups$spl[which.min(abs(ups$freq - barkFreqs_hz[i]))]
   }
 
-  return(list(
+  list(
     curve29 = data.frame(freq = f, spl = Lp),
     curveBark = b
-  ))
+  )
 }
 
 
@@ -173,7 +127,7 @@ phon2sone = function(phon) {
   # alternative formula http://www.sengpielaudio.com/calculatorSonephon.htm
   # sone[idx1] = (phon[idx1] / 40) ^ 2.86 - .005
   sone[idx2] = 2 ^ ((phon[idx2] - 40) / 10)
-  return(sone)
+  sone
 }
 
 
@@ -197,5 +151,5 @@ spreadSpec = function(barkSpec) {
   for (i in 1:n) {
     barkSpec_spread[i] = sum(spreadSpecCoef[i, 1:n] * barkSpec)
   }
-  return(barkSpec_spread)
+  barkSpec_spread
 }

@@ -104,7 +104,8 @@ getRolloff = function(pitch_per_gc = c(440),
                       samplingRate = 16000,
                       plot = FALSE) {
   # Don't need extra harmonics above Nyquist
-  nHarmonics = min(nHarmonics, floor(samplingRate / 2 / min(pitch_per_gc)))
+  nyquist = samplingRate / 2
+  nHarmonics = min(nHarmonics, floor(nyquist / min(pitch_per_gc)))
 
   ## Convert rolloff pars from df to a single number (if static)
   #  or to a vector of length nGC (if dynamic)
@@ -120,7 +121,7 @@ getRolloff = function(pitch_per_gc = c(440),
     if (is.numeric(get(x))) length(get(x)) else 1
   }))
   if (max_length > nGC) {
-    pitch_per_gc = spline(pitch_per_gc, n = max_length)$y
+    pitch_per_gc = approx(pitch_per_gc, n = max_length)$y
     nGC = length(pitch_per_gc)
   }
 
@@ -156,19 +157,19 @@ getRolloff = function(pitch_per_gc = c(440),
 
   # adjust rolloff by rolloffOct per octave for each octave above H2
   deltas_oct = matrix(0, nrow = nHarmonics, ncol = nGC)
-  if (sum(rolloffOct != 0) > 0 & nHarmonics > 1) {
+  if (nHarmonics > 1 && any(rolloffOct != 0)) {
     for (h in 2:nHarmonics) {
       deltas_oct[h, ] = rolloffOct * (log2(h) - 1)
     }
   }
-  # plot(deltas[, 1], type = 'b')
+  # image(deltas_oct)
 
   # create rolloff matrix
   r = matrix(0, nrow = nHarmonics, ncol = nGC)
   for (h in 1:nHarmonics) {
     r[h, ] = (rolloff + deltas_kHz + deltas_oct[h, ]) * log2(h)
     # to avoid aliasing, we discard all harmonics above Nyquist frequency
-    r[h, which(h * pitch_per_gc >= samplingRate / 2)] = -Inf
+    r[h, which(h * pitch_per_gc >= nyquist)] = -Inf
   }
   # plot(r[, 1], type = 'b')
 
@@ -200,9 +201,9 @@ getRolloff = function(pitch_per_gc = c(440),
     r[1, ph_idx] = r[1, ph_idx] + rolloffParab[ph_idx]
     # if at least 2 harmonics are to be adjusted, calculate a parabola
     for (i in which(rolloffParabHarm >= 3)) {
-      rowIdx = 1:rolloffParabHarm[i]
-      r[rowIdx, i] = r[rowIdx, i] + a[i] * rowIdx ^ 2 +
-        b[i] * rowIdx + c[i]   # plot (r[, 1])
+      rowIdx = seq_len(.subset2(rolloffParabHarm, i))
+      r[rowIdx, i] = r[rowIdx, i] + .subset2(a, i) * rowIdx ^ 2 +
+        .subset2(b, i) * rowIdx + .subset2(c, i)   # plot (r[, 1])
     }
   }
 
@@ -215,13 +216,13 @@ getRolloff = function(pitch_per_gc = c(440),
   }
 
   # normalize so the amplitude of F0 is always 0
-  for (i in 1:ncol(r)) {  # apply drops dimensions if nHarm == 1, so using a for loop
+  for (i in seq_len(nGC)) {  # apply drops dimensions if nHarm == 1, so using a for loop
     r[, i] = r[, i] - max(r[, i])
   }
 
   # plotting
   if (plot) {
-    x_max = samplingRate / 2 / 1000
+    x_max = nyquist / 1000
     if (nGC == 1 | var(pitch_per_gc) == 0) {
       idx = which(r[, 1] > -Inf)
       plot ( idx * pitch_per_gc[1] / 1000, r[idx, 1],
@@ -258,8 +259,7 @@ getRolloff = function(pitch_per_gc = c(440),
   r[is.nan(r)] = 0  # in case of -Inf problems
 
   # shorten by discarding harmonics that are 0 throughout the sound
-  r = r[which(apply(r, 1, sum) > 0), , drop = FALSE]
-  rownames(r) = 1:nrow(r) # helpful for adding vocal fry
-
-  return(r)
+  r = r[which(rowSums(r) > 0), , drop = FALSE]
+  rownames(r) = seq_len(nrow(r)) # helpful for adding vocal fry
+  r
 }

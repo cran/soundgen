@@ -91,7 +91,9 @@ bandwidths as in \code{\link[seewave]{gammatone}}}
 
 \item{bandwidthMult}{a scaling factor for all bandwidths (1 = no effect)}
 
-\item{minFreq, maxFreq}{the range of frequencies to analyze}
+\item{minFreq, maxFreq}{the range of frequencies to analyze. If the
+spectrogram looks empty, try increasing minFreq - the lowest filters are
+prone to returning very large values}
 
 \item{minBandwidth}{minimum filter bandwidth, Hz (otherwise filters may
 become too narrow when nFilters is high; has no effect if filterType =
@@ -125,9 +127,9 @@ frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{yScale}{determines the location of center frequencies of the filters}
 
-\item{contrast}{spectrum is exponentiated by contrast (any real number,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
+\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
+raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
+sharpness, <0 decreases sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 
@@ -200,15 +202,15 @@ dim(fs)
 \dontrun{
 # add bells and whistles
 audSpectrogram(sound, samplingRate = 16000,
-  filterType = 'gammatone',
-  nFilters = 50,
+  filterType = 'butterworth',
+  nFilters = 128,
   yScale = 'ERB',
-  bandwidth = 1/12,
+  bandwidth = 1/6,
   dynamicRange = 150,
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
-  contrast = .2,  # increase contrast
-  brightness = -.1,  # reduce brightness
+  contrast = .4,  # increase contrast
+  brightness = -.2,  # reduce brightness
   # colorTheme = 'heat.colors',  # pick color theme...
   col = hcl.colors(100, palette = 'Plasma'),  # ...or specify the colors
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars

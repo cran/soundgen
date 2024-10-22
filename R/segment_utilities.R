@@ -24,7 +24,6 @@ findSyllables = function(ampl,
   # the greatest number of sub-threshold values that we tolerate before we say a
   # new syllable begins
   toleratedGap = floor(shortestPause / step)
-
   aboveThres = ampl > threshold
 
   # find and save separately all supra-threshold segments
@@ -61,7 +60,7 @@ findSyllables = function(ampl,
 
   if (length(start) > 0) {
     syllables = data.frame(
-      syllable = 1:length(start),
+      syllable = seq_along(start),
       start_idx = start,
       end_idx = end,
       start = (start - 1) * step + windowLength / 2,
@@ -80,10 +79,8 @@ findSyllables = function(ampl,
                            start = NA, end = NA,
                            sylLen = NA, pauseLen = NA)
   }
-
-  return(syllables)
+  syllables
 }
-
 
 
 #' Find bursts
@@ -185,6 +182,5 @@ findBursts = function(ampl,
   } else {
     bursts = data.frame(time = NA, ampl = NA, interburst = NA)
   }
-
-  return (bursts)
+  bursts
 }

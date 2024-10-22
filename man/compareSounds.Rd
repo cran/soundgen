@@ -156,7 +156,7 @@ parsToTry = list(
 )
 
 sounds = list()
-for (s in 1:length(parsToTry)) {
+for (s in seq_along(parsToTry)) {
   sounds[[length(sounds) + 1]] =  do.call(soundgen,
     c(parsToTry[[s]], list(temperature = 0.001, sylLen = 500)))
 }

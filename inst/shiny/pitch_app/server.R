@@ -112,7 +112,7 @@ server = function(input, output, session) {
       # set up a list for storing manual anchors for each of uploaded files
       myPars$history = vector('list', length = myPars$nFiles)
       names(myPars$history) = myPars$fileList$name
-      for (i in 1:length(myPars$history)) {
+      for (i in seq_along(myPars$history)) {
         myPars$history[[i]] = list(
           detailed = NULL, summary = NULL,
           manual = NULL, manualUnv = NULL)

@@ -55,7 +55,7 @@ time_start = proc.time()
 filenames = list.files('~/Downloads/temp', pattern = "*.wav|.mp3",
   full.names = TRUE)
 filesizes = file.info(filenames)$size
-for (i in 1:length(filenames)) {
+for (i in seq_along(filenames)) {
   # ...do what you have to do with each file...
   reportTime(i = i, nIter = length(filenames),
              time_start = time_start, jobs = filesizes)

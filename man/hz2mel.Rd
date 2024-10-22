@@ -17,5 +17,7 @@ doesn't accept NAs or vectors.
 }
 \examples{
 soundgen:::hz2mel(c(440, 220, NA))
+freq = 1:10000
+plot(freq, soundgen:::hz2mel(freq), type = 'l')
 }
 \keyword{internal}

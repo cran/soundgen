@@ -164,7 +164,7 @@ getSurprisal = function(
   # prepare output
   if (!is.null(summaryFun) && any(!is.na(summaryFun))) {
     temp = vector('list', pa$input$n)
-    for (i in 1:pa$input$n) {
+    for (i in seq_len(pa$input$n)) {
       if (!pa$input$failed[i]) {
         temp[[i]] = summarizeAnalyze(
           data.frame(loudness = pa$result[[i]]$loudness,
@@ -191,10 +191,10 @@ getSurprisal = function(
     mysum_all = NULL
   }
   if (pa$input$n == 1) pa$result = pa$result[[1]]
-  invisible(list(
+  list(
     detailed = pa$result,
     summary = mysum_all
-  ))
+  )
 }
 
 
@@ -351,7 +351,7 @@ getSurprisal_matrix = function(x,
     }
     # image(t(log(win_i)))
     surp_i = rep(NA, nr)
-    for (r in 1:nr) {  # for each freq bin
+    for (r in seq_len(nr)) {  # for each freq bin
       surp_i[r] = getSurprisal_vector(as.numeric(win_i[r, ]), method = method)
     }
     weights = as.numeric(rowSums(win_i))
@@ -359,7 +359,7 @@ getSurprisal_matrix = function(x,
     surprisal[c] = sum(surp_i * weights, na.rm = TRUE)
   }
   # plot(surprisal, type = 'b')
-  return(surprisal)
+  surprisal
 }
 
 
@@ -385,11 +385,13 @@ getSurprisal_vector = function(x, method = c('acf', 'np')[1]) {
   if (ran_x == 0) return(0)
   # plot(x, type = 'b')
   len = length(x)
-  x1 = x[1:(len - 1)]
-  ran_x1 = diff(range(x1))
+  x1 = x[seq_len(len - 1)]
+  first = .subset(x, 1)
+  last = .subset(x, len)
+  ran_x1 = diff(range(c(ran_x, last)))
   if (ran_x1 == 0) {
     # completely stationary until the analyzed point
-    surprisal = abs(x[len] - x[1]) / x[1]
+    surprisal = abs(last - first) / first
     if (!is.finite(surprisal)) {
       out = 1
     } else if (surprisal < 1) {
@@ -425,15 +427,14 @@ getSurprisal_vector = function(x, method = c('acf', 'np')[1]) {
     # as window length increases
   } else if (method == 'np') {
     # predict the last point and get residual
-
     pr = try(nonlinPred(x1, nPoints = 1), silent = TRUE)
     if (inherits(pr, 'try-error')) pr = NA
-    surprisal = abs(x[len] - pr) / ran_x1
+    surprisal = abs(last - pr) / ran_x1
 
     # rescale from [0, Inf) to [0, 1)
     if (FALSE) {
       a = c(seq(0, 1, .01), seq(1.1, 10, .1))
-      for (i in 1:length(a)) {
+      for (i in seq_along(a)) {
         if (a[i] < 1) {
           b[i] = a[i] / 2
         } else {
@@ -456,5 +457,5 @@ getSurprisal_vector = function(x, method = c('acf', 'np')[1]) {
   } else {
     stop('method not recognized')
   }
-  return(out)
+  out
 }

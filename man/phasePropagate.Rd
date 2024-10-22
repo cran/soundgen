@@ -9,7 +9,7 @@ phasePropagate(i, dp_hor, dp_ver, magn, phase_new, tol, bin_width, alpha)
 \arguments{
 \item{i}{analyzed frame}
 
-\item{dp_hor, dp_ver}{time and frequency partical derivatives of phase}
+\item{dp_hor, dp_ver}{time and frequency partial derivatives of phase}
 
 \item{phase_new}{matrix for storing the new phase}
 

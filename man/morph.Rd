@@ -44,7 +44,7 @@ equal steps. Normally you will want to set \code{temperature} very low; the
 \examples{
 \dontrun{
 # write two formulas or copy-paste them from soundgen_app() or presets:
-playback = c(TRUE, FALSE)[2]
+playback = c(TRUE, FALSE)[1]
 # [a] to barking
 m = morph(formula1 = list(repeatBout = 2),
           # equivalently: formula1 = 'soundgen(repeatBout = 2)',

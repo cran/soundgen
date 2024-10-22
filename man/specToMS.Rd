@@ -28,10 +28,15 @@ proper row and column labels.
 \examples{
 s = soundgen(sylLen = 500, amFreq = 25, amDep = 50,
              pitch = 250, samplingRate = 16000)
-spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5, plot = FALSE)
+spec = spectrogram(s, samplingRate = 16000, windowLength = 25,
+  step = 5, plot = FALSE)
 ms = specToMS(spec)
+plotMS(log(Mod(ms)), quantiles = NULL, col = soundgen:::jet.col(100))
+\dontrun{
+# or plot manually
 image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
       z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
       ylab = 'Frequency modulation, cycles/kHz')
 abline(h = 0, lty = 3); abline(v = 0, lty = 3)
+}
 }

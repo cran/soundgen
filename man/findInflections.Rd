@@ -47,3 +47,6 @@ for (i in 1:10) {
   invisible(readline(prompt="Press [enter] to continue"))
 }
 }
+\seealso{
+\code{\link{findPeaks}}
+}

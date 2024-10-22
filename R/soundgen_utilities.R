@@ -20,7 +20,7 @@
 #' plot(ampl, type = 'b')
 #' lines(1:100, rep(0,100), lty = 2)
 #' zc = vector()
-#' for (i in 1:length(ampl)){
+#' for (i in seq_along(ampl)){
 #'   zc[i] = soundgen:::findZeroCrossing (ampl, i)
 #'   # find zc closest to each of 100 points
 #' }
@@ -32,16 +32,16 @@
 findZeroCrossing = function(ampl, location) {
   len = length(ampl)
   if (len < 1 | location < 1 | location > len)
-    return (NA)
+    return(NA)
   if (len == 1 & location == 1)
-    return(location)
+    return(1)
   zc_left = zc_right = NA
 
   # left of location
   if (location > 1) {
     i = location
     while (i > 1) {
-      if (ampl[i] > 0 & ampl[i - 1] < 0) {
+      if (.subset2(ampl, i) > 0 & .subset2(ampl, i - 1) < 0) {
         zc_left = i - 1
         break
       }
@@ -53,7 +53,7 @@ findZeroCrossing = function(ampl, location) {
   if (location < len)
     i = location
   while (i < (len - 1)) {
-    if (ampl[i + 1] > 0 & ampl[i] < 0) {
+    if (.subset2(ampl, i + 1) > 0 & .subset2(ampl, i) < 0) {
       zc_right = i
       break
     }
@@ -61,13 +61,13 @@ findZeroCrossing = function(ampl, location) {
   }
 
   if (is.na(zc_left) & is.na(zc_right)) return (NA)
-  zc_nearest = which.min(c(abs(zc_left - location), abs(zc_right - location)))
+  zc_nearest = which.min(abs(location - c(zc_left, zc_right)))
   if (zc_nearest == 1) {
-    return (zc_left)
+    return(zc_left)
   } else if (zc_nearest == 2) {
-    return (zc_right)
+    return(zc_right)
   } else {
-    return (NA) # zc not found
+    return(NA) # zc not found
   }
 }
 
@@ -95,11 +95,11 @@ upsampleGC = function(pitch_per_gc, samplingRate = 16000) {
   if (l == 1) {
     pitch_upsampled = rep(pitch_per_gc, gccrossLenPoints)
   } else if (l == 2) {
-    pitch_upsampled = seq(pitch_per_gc[1], pitch_per_gc[2], length.out = sum(gccrossLenPoints))
+    pitch_upsampled = seq(pitch_per_gc[1], pitch_per_gc[2],
+                          length.out = sum(gccrossLenPoints))
   } else {
     # find time stamps (in gc) corresponding to centers of each pitch value
-    t = rep(1, l)
-    t[1] = 1  # start at 1
+    t = rep(1, l) # start at 1
     t[l] = sum(gccrossLenPoints)  # end at total number of gc
     for (i in 2:(l - 1)) {
       t[i] = c[i - 1] + round(gccrossLenPoints[i] / 2)
@@ -109,7 +109,7 @@ upsampleGC = function(pitch_per_gc, samplingRate = 16000) {
                              n = tail(c, 1))$y
   }
   # plot(pitch_upsampled, type = 'l')
-  return (list(pitch = pitch_upsampled, gc = gc_upsampled))
+  list(pitch = pitch_upsampled, gc = gc_upsampled)
 }
 
 
@@ -136,7 +136,7 @@ getGlottalCycles = function (pitch, samplingRate) {
     # take steps proportionate to the current F0
     i = i + max(2, floor(samplingRate / pitch[i]))
   }
-  return(glottalCycles)
+  glottalCycles
 }
 
 
@@ -145,7 +145,7 @@ getGlottalCycles = function (pitch, samplingRate) {
 #' Internal soundgen function.
 #'
 #' Stochastic generation of syllable structure of a bout. Calls
-#' \code{\link{rnorm_truncated}} to vary the duration of each new syllable and of
+#' \code{\link{rnorm_truncated2}} to vary the duration of each new syllable and of
 #' pauses between syllables. Total bout duration will also vary, unless
 #' temperature is zero. However, the output will always contain exactly
 #' \code{nSyl} syllables.
@@ -164,27 +164,28 @@ getGlottalCycles = function (pitch, samplingRate) {
 #' @return Returns a matrix with a list of start-end points for syllables
 #' @keywords internal
 #' @examples
-#' soundgen:::divideIntoSyllables (nSyl = 1, sylLen = 180)
-#' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
+#' soundgen:::divideIntoSyllables(nSyl = 1, sylLen = 180)
+#' soundgen:::divideIntoSyllables(nSyl = 5, sylLen = 180,
 #'   pauseLen = 55, temperature = 0.2, plot = TRUE)
-#' soundgen:::divideIntoSyllables (nSyl = 5, sylLen = 180,
+#' soundgen:::divideIntoSyllables(nSyl = 5, sylLen = 180,
 #'   pauseLen = 55, temperature = 0)
-#' soundgen:::divideIntoSyllables (nSyl = 3, sylLen = 100,
+#' soundgen:::divideIntoSyllables(nSyl = 3, sylLen = 100,
 #'   pauseLen = 25, temperature = 0.5)
 #'
 #' # sylLen and pauseLen are vectorized:
-#' soundgen:::divideIntoSyllables (nSyl = 15, sylLen = 100:200,
+#' soundgen:::divideIntoSyllables(nSyl = 15, sylLen = 100:200,
 #'   pauseLen = c(80, 25, 80), temperature = 0.05, plot = TRUE)
-divideIntoSyllables = function (nSyl,
-                                sylLen,
-                                pauseLen,
-                                sylDur_min = 20,
-                                sylDur_max = 10000,
-                                pauseDur_min = 20,
-                                pauseDur_max = 1000,
-                                temperature = 0.025,
-                                invalidArgAction = c('adjust', 'abort', 'ignore')[1],
-                                plot = FALSE) {
+divideIntoSyllables = function(
+    nSyl,
+    sylLen,
+    pauseLen,
+    sylDur_min = 20,
+    sylDur_max = 10000,
+    pauseDur_min = 20,
+    pauseDur_max = 1000,
+    temperature = 0.025,
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1],
+    plot = FALSE) {
   if (nSyl == 1) {
     # no variation for a single syllable
     out = data.frame(start = 0, end = sylLen)
@@ -197,8 +198,8 @@ divideIntoSyllables = function (nSyl,
       pauseLen = getSmoothContour(anchors = pauseLen, len = nSyl - 1)
     }
 
-    # generate random lengths of syllabels and pauses under constraints
-    syls = rnorm_truncated(
+    # generate random lengths of syllables and pauses under constraints
+    syls = rnorm_truncated2(
       n = nSyl,
       mean = sylLen,
       low = sylDur_min,
@@ -206,7 +207,7 @@ divideIntoSyllables = function (nSyl,
       sd = sylLen * temperature,
       invalidArgAction = invalidArgAction
     )
-    pauses = rnorm_truncated(
+    pauses = rnorm_truncated2(
       n = nSyl - 1,
       mean = pauseLen,
       low = pauseDur_min,
@@ -239,7 +240,7 @@ divideIntoSyllables = function (nSyl,
            col = 'yellow', cex = 5, labels = i)
     }
   }
-  return(out)
+  out
 }
 
 
@@ -265,7 +266,7 @@ divideIntoSyllables = function (nSyl,
 #'   bound on "time"=0, low bound on "value"=1
 #' @param wiggleAllRows should the first and last time anchors be wiggled? (TRUE
 #'   for breathing, FALSE for other anchors)
-#' @param sd_values (optional) the exact value of sd used by rnorm_truncated in
+#' @param sd_values (optional) the exact value of sd used by rnorm_truncated2 in
 #'   columns 2 and beyond
 #' @param roundToInteger if TRUE, rounds the values (not time points)
 #' @inheritParams soundgen
@@ -288,7 +289,7 @@ divideIntoSyllables = function (nSyl,
 #' formants = list(f1 = list(time = 0, freq = 860, amp = 30, width = 120),
 #'                 f2 = list(time = c(0,1), freq = 1280,
 #'                 amp = c(10,40), width = 120))
-#' for (f in 1:length(formants)) {
+#' for (f in seq_along(formants)) {
 #'   formants[[f]] = soundgen:::wiggleAnchors(
 #'     df = formants[[f]],
 #'     temperature = .4, temp_coef = .5,
@@ -315,9 +316,10 @@ wiggleAnchors = function(df,
   if (temperature == 0 | temp_coef == 0) return(df)
   if (any(is.na(df))) return(NA)
   if (!is.data.frame(df)) df = as.data.frame(df)
-
-  if (ncol(df) != length(low) |
-      ncol(df) != length(high) |
+  nc = ncol(df)
+  nr = nrow(df)
+  if (nc != length(low) |
+      nc != length(high) |
       length(low) != length(high)) {
     warning('Vectors "low" and "high" should be the same length as ncol(df)')
   }
@@ -325,13 +327,14 @@ wiggleAnchors = function(df,
   # should we add a new anchor or remove one?
   action = sample(c('nothing', 'remove', 'add'),
                   size = 1,
-                  prob = c(1 - temperature, temperature / 2, temperature / 2))
+                  prob = c(1 - temperature, rep(temperature / 2, 2)))
   if (action == 'add') {  # add an anchor
-    if (nrow(df) == 1) {
+    # print('adding an anchor')
+    if (nr == 1) {
       # the first anchor is the original, the second random
-      idx = 2:ncol(df)
+      idx = 2:nc
       newAnchor = try(rnorm_truncated(
-        n = ncol(df) - 1,
+        n = nc - 1,
         mean = as.numeric(df[1, idx]),
         sd = ifelse(is.numeric(sd_values),
                     sd_values,
@@ -361,9 +364,10 @@ wiggleAnchors = function(df,
                  df[i2:nrow(df), ])
     }
   } else if (action == 'remove') {
+    # print('removing an anchor')
     if (wiggleAllRows) {
       # we can remove any anchor
-      idx = sample(1:nrow(df), 1)
+      idx = sample(seq_len(nrow(df)), 1)
       df = df[-idx, ]
     } else {
       # we don't touch the first and last anchors
@@ -374,7 +378,7 @@ wiggleAnchors = function(df,
       }
     }
   }
-  rownames(df) = 1:nrow(df)  # in case we added / removed an anchor
+  rownames(df) = seq_len(nrow(df))  # in case we added / removed an anchor
 
   # wiggle anchors
   if (wiggleAllRows) {
@@ -391,13 +395,12 @@ wiggleAnchors = function(df,
     z = which(ranges == 0)
     ranges[z] = abs(as.numeric(df[1, z]))
   }
-  for (i in 1:ncol(df)) {
-    w = try(rnorm_truncated(
+  for (i in seq_len(ncol(df))) {
+    w = try(rnorm_truncated2(
       n = nrow(df),
       mean = as.numeric(df[, i]),
-      sd = ifelse(i > 1 & !is.null(sd_values),
-                  sd_values,
-                  as.numeric(ranges[i] * temperature * temp_coef)),
+      sd = if (i > 1 & !is.null(sd_values)) sd_values else
+        as.numeric(ranges[i] * temperature * temp_coef),
       low = low[i],
       high = high[i],
       roundToInteger = roundToInteger,
@@ -415,9 +418,7 @@ wiggleAnchors = function(df,
   }
 
   # make sure the anchors are still in the right time order
-  df = df[order(df$time), ]
-
-  return(df)
+  df[order(df$time), ]
 }
 
 
@@ -448,7 +449,7 @@ scaleNoiseAnchors = function(noiseTime, sylLen_old, sylLen_new) {
   idx_after = which(noiseTime >= sylLen_old)  # after syl
   noiseTime[idx_mid] = noiseTime[idx_mid] * sylLen_new / sylLen_old
   noiseTime[idx_after] = noiseTime[idx_after] - sylLen_old + sylLen_new
-  return(noiseTime)
+  noiseTime
 }
 
 
@@ -516,8 +517,9 @@ wiggleGC = function(dep, len, nGC, pitch_per_gc, rw, effect_on) {
   # upsample to length nGC
   effect_per_gc = spline(effect, n = nGC, x = idx)$y
   # plot(effect_per_gc, type = 'b')
-  return(effect_per_gc)
+  effect_per_gc
 }
+
 
 #' Validate parameters
 #'
@@ -557,8 +559,9 @@ validatePars = function(p, gp, def,
         ". Use invalidArgAction = 'ignore' to override"))
     }
   }
-  return(gp)
+  gp
 }
+
 
 #' Object to string
 #'
@@ -584,7 +587,7 @@ objectToString = function(x) {
     if (length(cp) > 1) cp = paste(cp, collapse = '')
     # deparse1 comes close, but it require R 4.0 and mishandles strings
   }
-  return(cp)
+  cp
 }
 
 
@@ -606,10 +609,10 @@ objectToString = function(x) {
 #'        attackLen = c(5, 15))
 #' osc(s1)
 silenceSegments = function(
-  x,
-  samplingRate,
-  na_seg,
-  attackLen = 50
+    x,
+    samplingRate,
+    na_seg,
+    attackLen = 50
 ) {
   ls = length(x)
   l = floor(attackLen * samplingRate / 1000)
@@ -641,5 +644,107 @@ silenceSegments = function(
     }
     # spectrogram(x, samplingRate)
   }
-  return(x)
+  x
+}
+
+
+#' Wiggle parameters
+#'
+#' Internal soundgen function
+#'
+#' Helper function for \code{\link{matchPars}}. Takes a list of control
+#' parameters for \code{\link{soundgen}} and introduces some random variation in
+#' their values.
+#' @param parList full list of considered parameters
+#' @param parsToWiggle a list of the names of pars that might be mutated
+#' @inheritParams matchPars
+#' @keywords internal
+#' @examples
+#' soundgen:::wigglePars(
+#'   parList = list(
+#'     sylLen = 250,
+#'     pitch = data.frame(time = c(0, 1), value = c(200, 300))
+#'   ),
+#'   parsToWiggle = c('sylLen', 'pitch'),
+#'   probMutation = .75,
+#'   stepVariance = .5
+#' )
+wigglePars = function(parList,
+                      parsToWiggle,
+                      probMutation,
+                      stepVariance) {
+  parsToRound = c('repeatBout', 'nSyl', 'rolloffParabHarm')
+
+  # choose pars to mutate
+  if (length(parsToWiggle) > 1) {
+    idx_mut = rbinom(n = length(parsToWiggle),
+                     size = 1,
+                     prob = probMutation)
+    idx_mut_bin = which(idx_mut == 1)
+    parsToMutate = parsToWiggle[idx_mut_bin]
+    if (length(parsToMutate) == 0) {
+      # need to mutate at least one par
+      parsToMutate = sample(parsToWiggle, size = 1)
+    }
+  } else {
+    parsToMutate = parsToWiggle
+  }
+
+  # prepare a list of mutated par values to feed to the sound generator
+  for (p in parsToMutate) {
+    if (is.numeric(parList[[p]])) {  # continuous pars
+      l = permittedValues[p, 'low']
+      h = permittedValues[p, 'high']
+      r = ifelse(parList[[p]] != 0,  # if par = 0, we wiggle based on its range
+                 abs(parList[[p]]),  # otherwise based on its current value
+                 h - l)
+      parList[[p]] = rnorm_truncated2(
+        n = 1,
+        mean = parList[[p]],
+        low = l,
+        high = h,
+        sd = r * stepVariance,
+        roundToInteger = (p %in% parsToRound)
+      )
+    } else if (is.list(parList[[p]])) {  # anchors
+      if (p == 'formants' | p == 'formantsNoise') {  # formants
+        for (f in seq_along(parList[[p]])) {
+          parList[[p]][[f]] = wiggleAnchors(
+            df = parList[[p]][[f]],
+            temperature = stepVariance,
+            temp_coef = 1,
+            low = c(0, 50, -120, 1),  # time freq amp width
+            high = c(1, 8000, 120, 2000),
+            wiggleAllRows = FALSE
+          )
+        }
+      } else {  # pitch / ampl / etc
+        wiggleAllRows = FALSE
+        if (p == 'pitch') {
+          low = c(0, permittedValues['pitchFloor', 'default'])
+          high = c(1, permittedValues['pitchCeiling', 'default'])
+        } else if (p == 'pitchGlobal') {
+          low = c(0, permittedValues['pitchDeltas', 'low'])
+          high = c(1, permittedValues['pitchDeltas', 'high'])
+        } else if (p == 'ampl' |
+                   p == 'amplGlobal') {
+          low = c(0, 0)
+          high = c(1, permittedValues['dynamicRange', 'default'])
+        } else if (p == 'noise') {
+          low = c(-Inf, -permittedValues['dynamicRange', 'default'])
+          high = c(+Inf, 40)
+          wiggleAllRows = TRUE
+        }
+        parList[[p]] = wiggleAnchors(
+          df = parList[[p]],
+          temperature = stepVariance,
+          temp_coef = 1,
+          low = low,  # time, value
+          high = high,
+          wiggleAllRows = wiggleAllRows
+        )
+      }
+    }
+  }
+  parList
 }

@@ -384,7 +384,7 @@ filterMS = function(ms,
     affectedRegion = matrix(FALSE, nrow = nr, ncol = nc)
     for (i in 1:nr) {
       for (j in 1:nc) {
-        affectedRegion[i, j] = myf(am = am[j], fm = fm[i])
+        affectedRegion[i, j] = myf(am = .subset2(am, j), fm = .subset2(fm, i))
       }
     }
     if (action == 'remove') {

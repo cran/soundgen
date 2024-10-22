@@ -55,9 +55,9 @@ spectrogram and the oscillogram (including time axes labels)}
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
-\item{contrast}{spectrum is exponentiated by contrast (any real number,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
+\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
+raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
+sharpness, <0 decreases sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 

@@ -36,7 +36,7 @@
 #' filenames = list.files('~/Downloads/temp', pattern = "*.wav|.mp3",
 #'   full.names = TRUE)
 #' filesizes = file.info(filenames)$size
-#' for (i in 1:length(filenames)) {
+#' for (i in seq_along(filenames)) {
 #'   # ...do what you have to do with each file...
 #'   reportTime(i = i, nIter = length(filenames),
 #'              time_start = time_start, jobs = filesizes)
@@ -136,8 +136,7 @@ convert_sec_to_hms = function(time_s, digits = 0) {
                          minutes_string, seconds_string, ms_string)
     }
   }
-  output = trimws(output)
-  return(output)
+  trimws(output)
 }
 
 
@@ -162,7 +161,7 @@ convert_sec_to_hms = function(time_s, digits = 0) {
 #' HzToSemitones(440, ref = 16.35)
 #' # TIP: see notesDict for a table of Hz frequencies to musical notation
 HzToSemitones = function(h, ref = 0.5109875) {
-  return(log2(h / ref) * 12)
+  log2(h / ref) * 12
 }
 
 #' Convert semitones to Hz
@@ -175,8 +174,10 @@ HzToSemitones = function(h, ref = 0.5109875) {
 #' @param s vector or matrix of frequencies (semitones above C0)
 #' @param ref frequency of the reference value (defaults to C-5, 0.51 Hz)
 #' @export
+#' @examples
+#' semitonesToHz(c(117, 105, 60))
 semitonesToHz = function(s, ref = 0.5109875) {
-  return(ref * 2 ^ (s / 12))
+  ref * 2 ^ (s / 12)
 }
 
 
@@ -213,7 +214,7 @@ HzToNotes = function(h, showCents = FALSE, A4 = 440) {
     cents[cents == ' 0'] = ''
     nearest_note = paste0(nearest_note, cents)
   }
-  return(nearest_note)
+  nearest_note
 }
 
 
@@ -271,7 +272,7 @@ HzToERB = function(h,
     # erb = 11.17 * log( (h + 312) / (h + 14675)) + 43
     erb = 11.17268 * log(1 + (46.06538 * h) / (h + 14678.49))
   }
-  return(erb)
+  erb
 }
 
 
@@ -301,7 +302,7 @@ ERBToHz = function(e,
   } else if (method == 'quadratic') {
     h = 676170.4 / (47.06538 - exp(e * 0.08950404)) - 14678.49
   }
-  return(h)
+  h
 }
 
 
@@ -314,27 +315,79 @@ ERBToHz = function(e,
 #' @keywords internal
 #' @examples
 #' soundgen:::hz2mel(c(440, 220, NA))
+#' freq = 1:10000
+#' plot(freq, soundgen:::hz2mel(freq), type = 'l')
 hz2mel = function(f, htk = FALSE) {
   # if (!is.numeric(f) || f < 0)
   #     stop("frequencies have to be non-negative")
   idx_nonFinite = which(!is.finite(f))
   f[idx_nonFinite] = 0
   if (htk) {
-    z <- 2595 * log10(1 + f/700)
+    z = 2595 * log10(1 + f/700)
   }
   else {
-    f_0 <- 0
-    f_sp <- 200/3
-    brkfrq <- 1000
-    brkpt <- (brkfrq - f_0)/f_sp
-    logstep <- exp(log(6.4)/27)
-    linpts <- (f < brkfrq)
-    z <- 0 * f
-    z[linpts] <- (f[linpts] - f_0)/f_sp
-    z[!linpts] <- brkpt + (log(f[!linpts]/brkfrq))/log(logstep)
+    f_0 = 0
+    f_sp = 200/3
+    brkfrq = 1000
+    brkpt = (brkfrq - f_0) / f_sp
+    logstep = exp(log(6.4) / 27)
+    linpts = (f < brkfrq)
+    z = 0 * f
+    z[linpts] = (f[linpts] - f_0) / f_sp
+    z[!linpts] = brkpt + (log(f[!linpts] / brkfrq)) / log(logstep)
   }
   z[idx_nonFinite] = NA
-  return(z)
+  z
+}
+
+
+#' Find peaks
+#'
+#' A bare-bones, very fast function to find local maxima (peaks) in a numeric
+#' vector.
+#'
+#' @seealso \code{\link{findInflections}}
+#'
+#' @param x numeric vector
+#' @param wl rolling window over which we look for maxima: central value ±
+#'   floor(wl/2), eg ±1 if wl=3
+#' @param thres required absolute value of each peak
+#' @return Returns a vector with indices of local maxima
+#' @export
+#' @examples
+#' x = rnorm(100)
+#' findPeaks(x, wl = 3)
+#' findPeaks(x, wl = 3, thres = 1)
+#' findPeaks(x, wl = 5)
+#' idx = findPeaks(x, wl = 5, thres = 1)
+#' plot(x, type = 'b'); abline(h = 1, lty = 3)
+#' points(idx, x[idx], col = 'blue', pch = 8)
+findPeaks = function(x, wl = 3, thres = NULL) {
+  halfwl = floor(wl / 2)
+  if (halfwl == 1) {
+    if (is.null(thres)) {
+      which(diff(diff(x) > 0) == -1) + 1
+    } else {
+      idx = which(diff(diff(x) > 0) == -1) + 1
+      idx[which(x[idx] > thres)]
+    }
+  } else if (halfwl > 1) {
+    if (is.null(thres)) {
+      which(vapply(
+        (halfwl + 1):(length(x) - halfwl), function(i) {
+          frx = x[(i - halfwl):(i + halfwl)]
+          x[i] == max(frx)
+        }, logical(1))) + halfwl
+    } else {
+      which(vapply(
+        (halfwl + 1):(length(x) - halfwl), function(i) {
+          frx = x[(i - halfwl):(i + halfwl)]
+          x[i] > thres && x[i] == max(frx)
+        }, logical(1))) + halfwl
+    }
+  } else {
+    numeric(0)
+  }
 }
 
 
@@ -346,7 +399,7 @@ hz2mel = function(f, htk = FALSE) {
 #' @examples
 #' soundgen:::to_dB(c(.1, .5, .75, .9, .95, .99, .999, .9999))
 to_dB = function(x) {
-  return(10 * log10(x / (1 - x)))
+  10 * log10(x / (1 - x))
 }
 
 #' List depth
@@ -371,8 +424,7 @@ listDepth = function(x) ifelse(is.list(x), 1L + max(sapply(x, listDepth)), 0L)
 zeroOne = function(x, na.rm = FALSE, xmin = NULL, xmax = NULL) {
   if (is.null(xmin)) xmin = min(x, na.rm = na.rm)
   if (is.null(xmax)) xmax = max(x, na.rm = na.rm)
-  x = (x - xmin) / (xmax - xmin)
-  return(x)
+  (x - xmin) / (xmax - xmin)
 }
 
 
@@ -385,13 +437,11 @@ zeroOne = function(x, na.rm = FALSE, xmin = NULL, xmax = NULL) {
 #' @param v numeric vector
 #' @keywords internal
 #' @examples
-#' v = exp(1:10)
-#' soundgen:::log01(v)
+#' soundgen:::log01(exp(1:10))
 log01 = function(v) {
   v = v - min(v) + 1
   v = log(v)
-  v = zeroOne(v)
-  return(v)
+  zeroOne(v)
 }
 
 
@@ -432,14 +482,15 @@ getEntropy = function(x,
                       type = c('weiner', 'shannon')[1],
                       normalize = FALSE,
                       convertNonPositive = 1e-10) {
-  if (sum(x) == 0) return (NA)  # empty frames
-  x = ifelse(x <= 0, convertNonPositive, x)  # otherwise log0 gives NaN
+  sum_x = sum(x)
+  if (sum_x == 0) return (NA)  # empty frames
+  x[x <= 0] = convertNonPositive  # otherwise log0 gives NaN
   if (type == 'weiner') {
     geom_mean = exp(mean(log(x)))
-    ar_mean = mean(x)
+    ar_mean = sum_x / length(x)
     entropy = geom_mean / ar_mean
   } else if (type == 'shannon') {
-    p = x / sum(x)
+    p = x / sum_x
     if (normalize) {
       entropy = -sum(p * log2(p) / log(length(p)) * log(2))
     } else {  # unnormalized
@@ -448,7 +499,7 @@ getEntropy = function(x,
   } else {
     stop('Implemented entropy types: "shannon" or "weiner"')
   }
-  return (entropy)
+  entropy
 }
 
 
@@ -458,7 +509,8 @@ getEntropy = function(x,
 #' using rnorm(), but forced to remain within the specified low/high bounds. All
 #' proposals outside the boundaries (exclusive) are discarded, and the sampling
 #' is repeated until there are enough values within the specified range. Fully
-#' vectorized.
+#' vectorized. Note: "truncnorm::truncnorm" is much faster, but it only accepts
+#' static low/high boundaries.
 #'
 #' @param n the number of values to return
 #' @param mean the mean of the normal distribution from which values are
@@ -468,7 +520,6 @@ getEntropy = function(x,
 #' @param low,high exclusive lower and upper bounds ((vectors of length 1 or n))
 #' @param roundToInteger boolean vector of length 1 or n. If TRUE, the
 #'   corresponding value is rounded to the nearest integer.
-#' @inheritParams soundgen
 #' @return A vector of length n.
 #' @keywords internal
 #' @examples
@@ -482,28 +533,45 @@ getEntropy = function(x,
 #' #... or ignore the boundaries
 #' soundgen:::rnorm_truncated(n = 3, mean = 10, sd = .1,
 #'   low = c(15, 0, 0), high = c(100, 100, 8), invalidArgAction = 'ignore')
-rnorm_truncated = function(n = 1,
-                           mean = 0,
-                           sd = 1,
-                           low = NULL,
-                           high = NULL,
-                           roundToInteger = FALSE,
-                           invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
-  if (length(mean) < n) mean = spline(mean, n = n)$y
-  if (length(sd) < n) sd = spline(sd, n = n)$y
-  if (any(!is.finite(sd))) sd = mean / 10
+rnorm_truncated = function(
+    n = 1,
+    mean = 0,
+    sd = 1,
+    low = NULL,
+    high = NULL,
+    roundToInteger = FALSE,
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
+  len_mean = length(mean)
+  if (len_mean == 1) {
+    mean = rep(mean, n)
+  } else {
+    mean = approx(mean, n = n)$y
+  }
+
+  if (any(!is.finite(sd))) {
+    sd = mean / 10
+  } else {
+    len_sd = length(sd)
+    if (len_sd < n) {
+      if (len_sd == 1) {
+        sd = rep(sd, n)
+      } else {
+        sd = approx(sd, n = n)$y
+      }
+    }
+  }
   sd[sd < 0] = 0
 
-  if (sum(sd != 0) == 0) {
+  if (sum(sd) == 0) {
     out = mean
     out[roundToInteger] = round(out[roundToInteger], 0)
-    return (out)
+    return(out)
   }
 
   if (is.null(low) & is.null(high)) {
     out = rnorm(n, mean, sd)
-    out[roundToInteger] = round (out[roundToInteger], 0)
-    return (out)
+    out[roundToInteger] = round(out[roundToInteger], 0)
+    return(out)
   }
 
   if (is.null(low)) low = rep(-Inf, n)
@@ -514,9 +582,9 @@ rnorm_truncated = function(n = 1,
 
   if (any(mean > high | mean < low)) {
     warning(paste('Some of the specified means are outside the low/high bounds!',
-                  'Mean =', paste(head(mean, 3), collapse = ', '),
-                  'Low =', paste(head(low, 3), collapse = ', '),
-                  'High = ', paste(head(high, 3), collapse = ', ')))
+                  'Mean =', paste(head(mean, 3), collapse = ', '), '...',
+                  'Low =', paste(head(low, 3), collapse = ', '), '...',
+                  'High = ', paste(head(high, 3), collapse = ', '),  '...'))
     if (invalidArgAction == 'abort') {
       stop('Aborting rnorm_truncated()')
     } else if (invalidArgAction == 'adjust') {
@@ -530,13 +598,80 @@ rnorm_truncated = function(n = 1,
 
   out = rnorm(n, mean, sd)
   out[roundToInteger] = round(out[roundToInteger], 0)
-  for (i in 1:n) {
+  for (i in seq_len(n)) {
     while (out[i] < low[i] | out[i] > high[i]) {
       out[i] = rnorm(1, mean[i], sd[i]) # repeat until a suitable value is generated
       out[roundToInteger] = round(out[roundToInteger], 0)
     }
   }
-  return(out)
+  out
+}
+
+
+#' Random draw from a truncated normal distribution
+#'
+#' A simplified version of \code{rnorm_truncated}, in which values outside the
+#' bounds are simply reset to the low/high bounds. The shape of the resulting
+#' distribution is no longer Gaussian, but this is obviously much faster. Unlike
+#' in \code{rnorm_truncated}, "low" and "high" should be scalars, not vectors
+#' (ie static boundaries).
+#'
+#' @param n the number of values to return
+#' @param mean the mean of the normal distribution from which values are
+#'   generated (vector of length 1 or n)
+#' @param sd the standard deviation of the normal distribution from which values
+#'   are generated (vector of length 1 or n)
+#' @param low,high exclusive lower and upper bounds (both of length 1)
+#' @param roundToInteger boolean vector of length 1 or n. If TRUE, the
+#'   corresponding value is rounded to the nearest integer.
+#' @return A vector of length n.
+#' @keywords internal
+#' @examples
+#' hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = 5, low = 7, high = NULL,
+#'   roundToInteger = c(TRUE, FALSE, FALSE)))
+#' hist(soundgen:::rnorm_truncated2(n = 100, mean = c(10, 50, 100), sd = c(5, 0, 20),
+#'   roundToInteger = TRUE)) # vectorized
+#' # in case of conflicts between mean and bounds, either sample at random
+#' # between the boundaries...
+#' hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = .1,
+#'   low = 10, high = 15, invalidArgAction = 'adjust'))
+#' #... or ignore the boundaries
+#' hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = .1,
+#'   low = 15, high = 100, invalidArgAction = 'ignore'))
+#' soundgen:::rnorm_truncated2(n = 6, mean = c(0, 0, 0, 0, 0, 3),
+#'   sd = .05, low = 0, high = 6)
+rnorm_truncated2 = function(
+    n = 1,
+    mean = 0,
+    sd = 1,
+    low = NULL,
+    high = NULL,
+    roundToInteger = FALSE,
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1]) {
+  len_mean = length(mean)
+  len_sd = length(sd)
+
+  if (len_mean != n)
+    mean = if (len_mean == 1) rep(mean, n) else approx(mean, n = n)$y
+  if (len_sd != n)
+    sd = if (len_sd == 1) rep(sd, n) else approx(sd, n = n)$y
+  sd[sd < 0] = 0
+  out = rnorm(n, mean, sd)
+
+  if (invalidArgAction != 'ignore' && (!is.null(low) | !is.null(high))) {
+    if (is.null(low)) low = -1e6
+    if (is.null(high)) high = 1e6
+    if (invalidArgAction == 'abort') {
+      if (any(mean > high | mean < low)) {
+        stop('Some of the specified means are outside the low/high bounds; aborting...')
+      }
+    } else if (invalidArgAction == 'adjust') {
+      out[out <= low] = low
+      out[out >= high] = high
+    }
+  }
+  out[roundToInteger] = round(out[roundToInteger], 0)
+  out
 }
 
 
@@ -544,7 +679,8 @@ rnorm_truncated = function(n = 1,
 #'
 #' Internal soundgen function
 #'
-#' Internal helper function for spectral (~BaNa) pitch tracker. NOT quite the same as simply mode(x).
+#' Internal helper function for spectral (~BaNa) pitch tracker. NOT quite the
+#' same as simply mode(x).
 #' @param x numeric vector
 #' @keywords internal
 #' @examples
@@ -634,8 +770,7 @@ getRandomWalk = function(len,
 
   # normalize
   rw_normalized = rw_long - min(rw_long)
-  rw_normalized = rw_normalized / max(abs(rw_normalized)) * rw_range
-  return(rw_normalized)
+  rw_normalized / max(abs(rw_normalized)) * rw_range
 }
 
 
@@ -706,9 +841,8 @@ getIntegerRandomWalk = function(rw,
     lines(x = c(0, 100), y = c(q2, q2), lty = 3, lwd = 2, col = 'red')
     text(x = 0, y = q2 + 2, labels = 'subh + jitter', pos = 4)
   }
-  return(rw_bin)
+  rw_bin
 }
-
 
 
 #' Resize vector to required length
@@ -727,7 +861,8 @@ getIntegerRandomWalk = function(rw,
 #' @return Returns the modified vector of the required length.
 #' @keywords internal
 #' @examples
-#' soundgen:::matchLengths(c(1, 2, 3), len = 5)
+#' soundgen:::matchLengths(1:3, len = 5)
+#' soundgen:::matchLengths(1:3, len = 15, padWith = NA)
 #' soundgen:::matchLengths(3:7, len = 3)
 #' # trimmed on the left
 #' soundgen:::matchLengths(3:7, len = 3, padDir = 'left')
@@ -741,33 +876,35 @@ matchLengths = function(myseq,
                         len,
                         padDir = c('left', 'right', 'central')[3],
                         padWith = 0) {
-  #  padDir specifies where to cut/add zeros ('left' / 'right' / 'central')
-  if (length(myseq) == len) return(myseq)
+  len_seq = length(myseq)
+  if (len_seq == len) return(myseq)
 
   if (padDir == 'central') {
-    if (length(myseq) < len) {
-      myseq = c(rep(padWith, len), myseq, rep(padWith, len))
-      # for padding, first add a whole lot of zeros and then trim using the same
-      # algorithm as for trimming
-    }
-    halflen = len / 2
-    center = (1 + length(myseq)) / 2
-    start = ceiling(center - halflen)
-    myseq = myseq[start:(start + len - 1)]
-  } else if (padDir == 'left') {
-    if (length(myseq) > len) {
-      myseq = myseq [(length(myseq) - len + 1):length(myseq)]
+    if (len_seq < len) {
+      half_len = (len - len_seq) / 2
+      myseq = c(rep(padWith, floor(half_len)),
+                myseq,
+                rep(padWith, ceiling(half_len)))
     } else {
-      myseq = c(rep(padWith, (len - length(myseq))), myseq)
+      half_chop = (len_seq - len) / 2
+      left = seq_len(floor(half_chop))
+      right = (len_seq - ceiling(half_chop) + 1) : len_seq
+      myseq = myseq[-c(left, right)]
+    }
+  } else if (padDir == 'left') {
+    if (len_seq > len) {
+      myseq = myseq[(len_seq - len + 1):len_seq]
+    } else {
+      myseq = c(rep(padWith, (len - len_seq)), myseq)
     }
   } else if (padDir == 'right') {
-    if (length(myseq) > len) {
-      myseq = myseq [1:len]
+    if (len_seq > len) {
+      myseq = myseq[1:len]
     } else {
-      myseq = c(myseq, rep(padWith, (len - length(myseq))))
+      myseq = c(myseq, rep(padWith, (len - len_seq)))
     }
   }
-  return (myseq)
+  myseq
 }
 
 
@@ -813,7 +950,7 @@ matchColumns = function (matrix_short,
     # paste the old matrix where it belongs
     new[, !is.na(colnames(new))] = matrix_short
   }
-  return(new)
+  new
 }
 
 
@@ -836,41 +973,77 @@ matchColumns = function (matrix_short,
 #' v2 = rep(100, 3)
 #' addVectors(v1, v2, insertionPoint = 5, normalize = FALSE)
 #' addVectors(v1, v2, insertionPoint = -4, normalize = FALSE)
+#' addVectors(v1, rep(100, 15), insertionPoint = -4, normalize = FALSE)
 #' # note the asymmetry: insertionPoint refers to the first arg
 #' addVectors(v2, v1, insertionPoint = -4, normalize = FALSE)
 #'
 #' v3 = rep(100, 15)
 #' addVectors(v1, v3, insertionPoint = -4, normalize = FALSE)
 #' addVectors(v2, v3, insertionPoint = 7, normalize = FALSE)
-addVectors = function(v1, v2, insertionPoint = 1, normalize = TRUE) {
+#' addVectors(1:6, 3:6, insertionPoint = 3, normalize = FALSE)
+addVectors = function(v1, v2, insertionPoint = 1L, normalize = TRUE) {
   if (!is.numeric(v1)) stop(paste('Non-numeric v1:', head(v1)))
   if (!is.numeric(v2)) stop(paste('Non-numeric v2:', head(v2)))
-  v1[is.na(v1)] = 0
-  v2[is.na(v2)] = 0
+  # v1[is.na(v1)] = 0
+  # v2[is.na(v2)] = 0
+  insertionPoint = round(insertionPoint)
 
-  # align left ends
-  if (insertionPoint > 1) {
-    pad_left = insertionPoint - 1
-    v2 = c(rep(0, insertionPoint), v2)
-  } else if (insertionPoint < 1) {
-    pad_left = 1 - insertionPoint
-    v1 = c(rep(0, pad_left), v1)
+  if (insertionPoint < 1) {
+    # negative indices - v2 starts before v1: simply swap v1/v2
+    temp = v1
+    v1 = v2
+    v2 = temp
+    if (insertionPoint == 0) {
+      insertionPoint = 2
+    } else {
+      insertionPoint = 1 - insertionPoint
+    }
   }
-
-  # equalize lengths
   l1 = length(v1)
   l2 = length(v2)
-  len_dif = l2 - l1
-  if (len_dif > 0) {
-    v1 = c(v1, rep(0, len_dif))
-  } else if (len_dif < 0) {
-    v2 = c(v2, rep(0, -len_dif))
+
+
+  if (insertionPoint == 1) {
+    # left-aligned already
+    if (l1 == l2) {
+      out = v1 + v2
+    } else if (l1 > l2) {
+      out = c(v1[1:l2] + v2, v1[(l2 + 1):l1])
+    } else {
+      out = c(v1 + v2[1:l1], v2[(l1 + 1):l2])
+    }
+  } else if (insertionPoint > l1) {
+    # v2 starts after the end of v1
+    out = c(v1, rep(0, insertionPoint - l1 - 1), v2)
+  } else {
+    # insertionPoint inside v1
+    a = l1 - insertionPoint + 1
+    if (a == l2) {
+      # v1 and v2 end at the same spot
+      out = c(
+        v1[1:(insertionPoint - 1)],
+        v1[insertionPoint:(insertionPoint + l2 - 1)] + v2)
+    } else if (a > l2) {
+      # v2 fully contained within v1
+      b = insertionPoint + l2
+      out = c(
+        v1[1:(insertionPoint - 1)],
+        v1[insertionPoint:(b - 1)] + v2,
+        v1[b:l1]
+      )
+    } else {
+      # v1 and v2 overlap only partially
+      out = c(
+        v1[1:(insertionPoint - 1)],
+        v1[insertionPoint:l1] + v2[1:a],
+        v2[(a + 1):l2]
+      )
+    }
   }
 
-  # add and normalize
-  out = v1 + v2
   if (normalize) out = out / max(abs(out))
-  return(out)
+  # if (any(is.na(out))) browser()
+  out
 }
 
 
@@ -879,11 +1052,11 @@ addVectors = function(v1, v2, insertionPoint = 1, normalize = TRUE) {
 #' Internal soundgen function.
 #'
 #' \code{clumper} makes sure each homogeneous segment in a sequence is at least
-#' minLength long. Called by getIntegerRandomWalk(), getVocalFry(),
-#' naiveBayes(), etc. Algorithm: find the epochs shorter than minLength, merge
-#' max 1/4 of them with the largest neighbor, and repeat recursively until all
-#' epochs are at least minLength long. minLength can be a vector, in which case
-#' it is assumed to change over time.
+#' minLength long. Called by getIntegerRandomWalk(), addSubh(), naiveBayes(),
+#' etc. Algorithm: find the epochs shorter than minLength, merge max 1/4 of them
+#' with the largest neighbor, and repeat recursively until all epochs are at
+#' least minLength long. minLength can be a vector, in which case it is assumed
+#' to change over time.
 #' @keywords internal
 #' @param x a vector: anything that can be converted into an integer to call
 #'   diff(): factors, integers, characters, booleans
@@ -965,22 +1138,7 @@ clumper = function(x, minLength, n = length(x)) {
     # call clumper() recursively until no short epochs are left
     x = clumper(x, minLength, n = n)  # just to avoid recalculating n every time
   }
-  return(x)
-}
-
-
-#' Simple peak detection
-#'
-#' Internal soundgen function.
-#'
-#' @param x input vector
-#' @param threshold threshold for peak detection
-#' @keywords internal
-#' @examples
-#' soundgen:::isCentral.localMax(c(1,1,3,2,1), 2.5)
-isCentral.localMax = function(x, threshold) {
-  middle = ceiling(length(x) / 2)
-  return(x[middle] > threshold && which.max(x) == middle)
+  x
 }
 
 
@@ -1001,25 +1159,35 @@ isCentral.localMax = function(x, threshold) {
 #'   numeric vector of length 1 or the same length as \code{freq}
 #' @keywords internal
 #' @examples
-#' for (shape in c(0, -.1, .1, -1, 1)) {
+#' par(mfrow = c(3, 2))
+#' for (shape in c(0, -.1, .1, .5, -1, 1)) {
 #'   s = soundgen:::getSigmoid(shape = shape, len = 1000, samplingRate = 500, freq = 2)
 #'   plot(s, type = 'l', main = paste('shape =', shape), xlab = '', ylab = '')
 #' }
+#' par(mfrow = c(1, 1))
+#'
+#' par(mfrow = c(3, 2))
+#' for (shape in c(0, -.1, .1, .5, -1, 1)) {
+#'   s = soundgen:::getSigmoid(shape = shape, len = 1000, samplingRate = 500, freq = 2,
+#'     spikiness = 3)
+#'   plot(s, type = 'l', main = paste('shape =', shape), xlab = '', ylab = '')
+#' }
+#' par(mfrow = c(1, 1))
 getSigmoid = function(len,
                       samplingRate = 16000,
                       freq = 5,
                       shape = 0,
                       spikiness = 1) {
   # print(c(len, freq))
-  if (length(freq) > 1 | length(shape) > 1 | length(spikiness) > 1) {
+  len_freq = length(freq)
+  if (len_freq > 1 | length(shape) > 1 | length(spikiness) > 1) {
     # get preliminary frequency contour to estimate how many cycles are needed
-    if (length(freq) != len) {
-      freqContour_prelim = getSmoothContour(
-        anchors = freq,
-        len = 100,
-        valueFloor = 0.001,
-        method = 'spline'
-      )
+    if (len_freq != len) {
+      if (len_freq == 1) {
+        freqContour_prelim = rep(freq, 100)
+      } else {
+        freqContour_prelim = approx(freq, n = 100)$y
+      }
     } else {
       freqContour_prelim = freq
     }
@@ -1027,12 +1195,10 @@ getSigmoid = function(len,
     n = ceiling(len / samplingRate / mean(1 / freqContour_prelim))
 
     # get actual contours
-    freqContour = getSmoothContour(anchors = freq, len = n,
-                                   valueFloor = 0.001, method = 'spline')
-    shapeContour = getSmoothContour(anchors = shape, len = n,
-                                    method = 'spline')
-    spikinessContour = getSmoothContour(anchors = spikiness,
-                                        len = n, method = 'spline')
+    freqContour = spline(freq, n = n)$y
+    freqContour[freqContour < 0.001] = 0.001
+    shapeContour = spline(shape, n = n)$y
+    spikinessContour = spline(spikiness, n = n)$y
 
     # set up par vectors
     from = -exp(-shapeContour * spikinessContour)
@@ -1040,17 +1206,28 @@ getSigmoid = function(len,
     slope = exp(abs(shapeContour)) * 5  # close to sine
 
     # create one cycle at a time
-    out = vector()
+    out = vector('numeric', len)
     i = 1
-    while (length(out) < len) {
-      a = seq(from = from[i], to = to[i],
-              length.out = samplingRate / freqContour[i] / 2)
+    idx = 1
+    while (TRUE) {
+      len_i = round(samplingRate / freqContour[i] / 2) * 2
+      a = seq(from = from[i], to = to[i], length.out = len_i / 2)
       b = 1 / (1 + exp(-a * slope[i]))
-      b = zeroOne(b)  # plot(b, type = 'l')
-      out = c(out, b, rev(b))
+      b = zeroOne(b)
+      new_cycle = c(b, rev(b)) # plot(new_cycle, type = 'l')
+      idx_end = idx + len_i - 1
+      if (idx_end <= len) {
+        out[idx:idx_end] = new_cycle
+      } else {
+        idx_end = len
+        out[idx:idx_end] = new_cycle[1:(idx_end - idx + 1)]
+        break
+      }
       i = ifelse(i + 1 > n, n, i + 1)  # repeat the last value if we run out of cycles
+      idx = idx + len_i
     }
-    out = out[1:len]
+    if (length(out) > len) out = out[seq_len(len)]
+    # can happen if the last cycle ends exactly at n
   } else {
     # if pars are static, we can take a shortcut (~50 times faster)
     from = -exp(-shape * spikiness)
@@ -1062,7 +1239,7 @@ getSigmoid = function(len,
     out = rep(c(b, rev(b)), length.out = len)
   }
   # plot(out, type = 'l')
-  return(out)
+  out
 }
 
 
@@ -1106,7 +1283,7 @@ reportCI = function(n, digits = 2, suffix = NULL) {
 #'
 #' Internal soundgen function
 #'
-#' Performs a chosen type of interpolation (linear or smooth) across both rows
+#' Performs a chosen type of interpolation (bilinear or spline) across both rows
 #' and columns of a matrix, in effect up- or downsampling a matrix to required
 #' dimensions. Rownames and colnames are also interpolated as needed.
 #' @param m input matrix of numeric values
@@ -1210,7 +1387,7 @@ interpolMatrix = function(m,
     colnames(out) = colnames(temp)
   }
   rownames(out) = rownames(temp)
-  return(out)
+  out
 }
 
 
@@ -1226,7 +1403,7 @@ interpolMatrix = function(m,
 #' @keywords internal
 #' @examples
 #' soundgen:::sampleModif(x = 3, n = 1)
-#' # never returns 1 or 2: cf. sample(x = 3, n = 1)
+#' # never returns 1 or 2: cf. sample(x = 3, size = 1)
 sampleModif = function(x, ...) x[sample.int(length(x), ...)]
 
 
@@ -1313,19 +1490,25 @@ gaussianSmooth2D = function(m,
   if (action == 'blur') {
     for (i in 1:nr) {
       for (j in 1:nc) {
-        out[i, j] = sum(m_padded[i : (i + 2 * idx_row - 2), j : (j + 2 * idx_col - 2)] * kernel)
+        out[i, j] = sum(
+          # m_padded[i:(i + 2 * idx_row - 2), j:(j + 2 * idx_col - 2)] * kernel
+          .subset(m_padded, i:(i + 2 * idx_row - 2), j:(j + 2 * idx_col - 2)) * kernel
+        )
       }
     }
   } else if (action == 'unblur') {
     for (i in 1:nr) {
       for (j in 1:nc) {
-        out[i, j] = m[i, j] - sum(m_padded[i : (i + 2 * idx_row - 2), j : (j + 2 * idx_col - 2)] * kernel)
+        out[i, j] = .subset2(m, i, j) - sum(
+          # m_padded[i:(i + 2 * idx_row - 2), j:(j + 2 * idx_col - 2)] * kernel
+          .subset(m_padded, i:(i + 2 * idx_row - 2), j:(j + 2 * idx_col - 2)) * kernel
+        )
       }
     }
   }
   if (!is.null(rownames(m))) rownames(out) = rownames(m)
   if (!is.null(colnames(m))) colnames(out) = colnames(m)
-  return(out)
+  out
 }
 
 
@@ -1351,10 +1534,10 @@ pDistr = function(x, quantiles) {
   total = sum(x)
   out = rep(NA, length(quantiles))
   names(out) = quantiles
-  for (q in 1:length(quantiles)) {
-    out[q] = a1[which(a2 > total * quantiles[q])[1]]
+  for (q in seq_along(quantiles)) {
+    out[q] = a1[which(a2 > (total * quantiles[q]))[1]]
   }
-  return(out)
+  out
 }
 
 
@@ -1413,18 +1596,28 @@ logMatrix = function(m, base = 2) {
   if (!is.null(rownames(m)) & nrow(m) > 1) {
     rownames(m2) = approx(as.numeric(rownames(m)), xout = idx_col)$y
   }
-
-  return(m2)
+  m2
 }
+
 
 #' Switch color theme
 #'
 #' Internal soundgen function
 #' @param colorTheme string like 'bw', 'seewave', or function name
 #' @keywords internal
+#' @examples
+#' soundgen:::switchColorTheme('bw')
+#' soundgen:::switchColorTheme('seewave')
+#'
+#' cols_matlab = soundgen:::switchColorTheme('matlab') (100)
+#' plot(1:100, seq(0, 1, length.out = 100), type = 'n')
+#' for (i in 1:100) {
+#'   rect(i - 1, 0, i, 1, col = cols_matlab[i], border = NA)
+#' }
 switchColorTheme = function(colorTheme) {
-  if (is.null(colorTheme)) return(NULL)
-  if (colorTheme == 'bw') {
+  if (is.null(colorTheme)) {
+    return(NULL)
+  }  else if (colorTheme == 'bw') {
     color.palette = function(x) gray(seq(from = 1, to = 0, length = x))
   } else if (colorTheme == 'seewave') {
     color.palette = seewave::spectro.colors
@@ -1434,7 +1627,7 @@ switchColorTheme = function(colorTheme) {
     colFun = match.fun(colorTheme)
     color.palette = function(x) rev(colFun(x))
   }
-  return(color.palette)
+  color.palette
 }
 
 
@@ -1452,8 +1645,8 @@ jet.col = function(n = 100, alpha = 1) {
   x.from = c(0, seq(0.125, 1, by = 0.25), 1)
   x.to = seq(0, 1, length.out = n)
   expand = function(col) approx(x = x.from, y = col, xout = x.to)$y
-  return(rgb(expand(red), expand(green), expand(blue), maxColorValue = 255,
-             alpha = alpha * 255))
+  rgb(expand(red), expand(green), expand(blue), maxColorValue = 255,
+      alpha = alpha * 255)
 }
 
 
@@ -1496,12 +1689,14 @@ parabPeakInterpol = function(threePoints, plot = FALSE) {
          xlab = 'Bin', ylab = 'Ampl')
     points(x, parab, type = 'l', col = 'blue')
   }
-  return(list(p = p, ampl_p = ampl_p))
+  list(p = p, ampl_p = ampl_p)
 }
+
 
 #' Identify and play
 #'
-#' Internal soundgen function
+#' Internal soundgen function. NB: even built-in examples of identify() not
+#' working in R 4.4.1 (points not identified).
 #'
 #' A wrapper around \code{identify()} intended to play the sound corresponding
 #' to a clicked point.
@@ -1519,18 +1714,18 @@ parabPeakInterpol = function(threePoints, plot = FALSE) {
 #' msf = modulationSpectrum('~/Downloads/temp', plot = FALSE)
 #'
 #' # Method 1: provide path to folder, leave data = NULL
-#' plot(msf$summary$amFreq_median, msf$summary$amDep_median)
-#' identifyPch(msf$summary$amFreq_median, msf$summary$amDep_median,
+#' plot(msf$summary$amMsFreq_median, msf$summary$amMsDep_median)
+#' soundgen:::identifyAndPlay(msf$summary$amFreq_median, msf$summary$amDep_median,
 #'   audioFolder = '~/Downloads/temp',
 #'   to = 2,
 #'  plot = TRUE,
 #'  pch = 19)
 #'
 #' # Method 2:
-#' plot(msf$summary$amFreq_median, msf$summary$amDep_median)
-#' x = msf$summary$amFreq_median
-#' y = msf$summary$amDep_median
-#' identifyPch(x, y, data = msf$summary,
+#' x = msf$summary$amMsFreq_median
+#' y = msf$summary$amMsDep_median
+#' plot(x, y)
+#' soundgen:::identifyAndPlay(x, y, data = msf$summary,
 #'   audioFolder = '~/Downloads/temp',
 #'   to = 2,
 #'   plot = FALSE,
@@ -1613,7 +1808,7 @@ warpMatrix = function(m, scaleFactor, interpol = c('approx', 'spline')[1]) {
     # plot(abs(m[, i]), type = 'l', xlim = c(1, max(n1, n2)))
     # points(m_warped[, i], type = 'l', col = 'blue')
   }
-  return(m_warped)
+  m_warped
 }
 
 
@@ -1665,7 +1860,7 @@ rbind_fill = function(df1, df2) {
   if (!is.list(df2) || nrow(df2) == 0) return(df1)
   df1[setdiff(names(df2), names(df1))] = NA
   df2[setdiff(names(df1), names(df2))] = NA
-  return(rbind(df1, df2))
+  rbind(df1, df2)
 }
 
 
@@ -1719,7 +1914,7 @@ pseudoLog_undo = function(x, sigma, base) {
 #' @keywords internal
 #' @examples
 #' y = c(10, 11, 8, 4, 2, 1.5, 1, 0.7, .5, .4, .3)
-#' soundgen:::findElbow(data.frame(x = 1:length(y), y = y), plot = TRUE)
+#' soundgen:::findElbow(data.frame(x = seq_along(y), y = y), plot = TRUE)
 findElbow = function(d, plot = FALSE) {
   d = na.omit(d)
   n = nrow(d)
@@ -1745,7 +1940,7 @@ findElbow = function(d, plot = FALSE) {
     segments(x0, y0, x1, y1, lty = 3)
     # NB: the angle only looks straight if the plot is square!
   }
-  return(out)
+  out
 }
 
 
@@ -1760,6 +1955,7 @@ logistic = function(x) 1 / (1 + exp(-x))
 #' @keywords internal
 logit = function(x) log(x / (1 - x))
 
+
 #' Sinc
 #' @param x numeric vector
 #' @keywords internal
@@ -1768,7 +1964,7 @@ logit = function(x) log(x / (1 - x))
 sinc = function(x) {
   out = sin(pi * x) / (pi * x)
   out[x == 0] = 1
-  return(out)
+  out
 }
 
 
@@ -1800,7 +1996,22 @@ averageMatrices = function(mat_list,
   # take typical ncol (depends on sound dur)
   nc = round(do.call(cFun, list(unlist(lapply(mat_list, ncol)))))
   mat_list_sameDim = lapply(mat_list, function(x) interpolMatrix(x, nr = nr, nc = nc))
-  agg = Reduce(reduceFun, mat_list_sameDim) / length(mat_list)
-  return(agg)
+  Reduce(reduceFun, mat_list_sameDim) / length(mat_list)
 }
 
+
+#' Trim leading and trailing NAs
+#'
+#' Internal soundgen function. Nearly 10 times faster than zoo::na.trim.
+#' Slightly slower solution: a[!cumprod(is.na(a)) &
+#' rev(!cumprod(is.na(rev(a))))]. See
+#' https://stackoverflow.com/questions/42759027/remove-leading-and-trailing-na
+#'
+#' @param x numeric vector
+#' @keywords internal
+#' @examples
+#' soundgen:::na.trim(c(NA, NA, 1:10, NA, 21:25, NA))
+na.trim = function(x) {
+  idx_notNA = which(!is.na(x))
+  x[min(idx_notNA):max(idx_notNA)]
+}

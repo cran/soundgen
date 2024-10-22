@@ -27,10 +27,6 @@ are generated (vector of length 1 or n)}
 
 \item{roundToInteger}{boolean vector of length 1 or n. If TRUE, the
 corresponding value is rounded to the nearest integer.}
-
-\item{invalidArgAction}{what to do if an argument is invalid or outside the
-range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
-= stop execution, 'ignore' = throw a warning and continue (may crash)}
 }
 \value{
 A vector of length n.
@@ -40,7 +36,8 @@ A vector of length n.
 using rnorm(), but forced to remain within the specified low/high bounds. All
 proposals outside the boundaries (exclusive) are discarded, and the sampling
 is repeated until there are enough values within the specified range. Fully
-vectorized.
+vectorized. Note: "truncnorm::truncnorm" is much faster, but it only accepts
+static low/high boundaries.
 }
 \examples{
 soundgen:::rnorm_truncated(n = 3, mean = 10, sd = 5, low = 7, high = NULL,

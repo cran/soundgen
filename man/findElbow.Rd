@@ -17,6 +17,6 @@ furthest from this line.
 }
 \examples{
 y = c(10, 11, 8, 4, 2, 1.5, 1, 0.7, .5, .4, .3)
-soundgen:::findElbow(data.frame(x = 1:length(y), y = y), plot = TRUE)
+soundgen:::findElbow(data.frame(x = seq_along(y), y = y), plot = TRUE)
 }
 \keyword{internal}

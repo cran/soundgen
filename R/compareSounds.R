@@ -114,7 +114,7 @@
 #' )
 #'
 #' sounds = list()
-#' for (s in 1:length(parsToTry)) {
+#' for (s in seq_along(parsToTry)) {
 #'   sounds[[length(sounds) + 1]] =  do.call(soundgen,
 #'     c(parsToTry[[s]], list(temperature = 0.001, sylLen = 500)))
 #' }
@@ -237,7 +237,7 @@ compareSounds = function(
     if (ncol(spec1) < ncol(spec2)) {
       if (is.na(padWith)) {
         # simply discard non-overlapping sections (shorten the long sound)
-        col_long = matchLengths(1:ncol(spec1), ncol(spec2),
+        col_long = matchLengths(seq_len(ncol(spec1)), ncol(spec2),
                                 padDir = padDir, padWith = NA)
         spec2_resized = spec2[, which(!is.na(col_long))]
       } else {

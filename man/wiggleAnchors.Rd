@@ -35,7 +35,7 @@ bound on "time"=0, low bound on "value"=1}
 \item{wiggleAllRows}{should the first and last time anchors be wiggled? (TRUE
 for breathing, FALSE for other anchors)}
 
-\item{sd_values}{(optional) the exact value of sd used by rnorm_truncated in
+\item{sd_values}{(optional) the exact value of sd used by rnorm_truncated2 in
 columns 2 and beyond}
 
 \item{roundToInteger}{if TRUE, rounds the values (not time points)}
@@ -72,7 +72,7 @@ soundgen:::wiggleAnchors(df = data.frame(
 formants = list(f1 = list(time = 0, freq = 860, amp = 30, width = 120),
                 f2 = list(time = c(0,1), freq = 1280,
                 amp = c(10,40), width = 120))
-for (f in 1:length(formants)) {
+for (f in seq_along(formants)) {
   formants[[f]] = soundgen:::wiggleAnchors(
     df = formants[[f]],
     temperature = .4, temp_coef = .5,

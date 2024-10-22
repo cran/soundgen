@@ -122,5 +122,5 @@ timeStretch = function(
     filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
     writeAudio(out, audio = audio, filename = filename)
   }
-  return(out)
+  out
 }

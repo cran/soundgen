@@ -15,6 +15,7 @@ spectrogram(
   step = windowLength/2,
   overlap = NULL,
   specType = c("spectrum", "reassigned", "spectralDerivative")[1],
+  logSpec = TRUE,
   rasterize = FALSE,
   wn = "gaussian",
   zp = 0,
@@ -25,6 +26,7 @@ spectrogram(
   percentNoise = 10,
   noiseReduction = 0,
   output = c("original", "processed", "complex", "all")[1],
+  specManual = NULL,
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
@@ -83,6 +85,8 @@ may be slightly different, eg 24.98866 instead of 25.0 ms)}
 \item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
 ('reassigned'), or spectral derivative ('spectralDerivative')}
 
+\item{logSpec}{if TRUE, log-transforms the spectrogram}
+
 \item{rasterize}{(only applies if specType = 'reassigned') if TRUE, the
 reassigned spectrogram is plotted after rasterizing it: that is, showing
 density per time-frequency bins with the same resolution as an ordinary
@@ -116,6 +120,10 @@ spectrogram ('original'), denoised and/or smoothed spectrogram
 ('processed'), or unmodified spectrogram with the imaginary part giving
 phase ('complex')}
 
+\item{specManual}{manually calculated spectrogram-like representation in the
+same format as the output of spectrogram(): rows = frequency in kHz,
+columns = time in ms}
+
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
@@ -140,9 +148,9 @@ logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
 'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
 Rectangular Bandwidths with \code{\link{HzToERB}}}
 
-\item{contrast}{spectrum is exponentiated by contrast (any real number,
-recommended -1 to +1). Contrast >0 increases sharpness, <0 decreases
-sharpness}
+\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
+raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
+sharpness, <0 decreases sharpness}
 
 \item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
 
@@ -182,10 +190,11 @@ examples)}
 \item{...}{other graphical parameters}
 }
 \value{
-Returns nothing (if output = 'none'), absolute - not power! -
-  spectrum (if output = 'original'), denoised and/or smoothed spectrum (if
-  output = 'processed'), or spectral derivatives (if specType =
-  'spectralDerivative') as a matrix of real numbers.
+Returns nothing if output = 'none', spectral magnitudes - not power!
+  - if output = 'original', denoised and/or smoothed spectrum if output =
+  'processed', or spectral derivatives if specType = 'spectralDerivative'.
+  The output is a matrix of real numbers with time in columns (ms) and
+  frequency in rows (kHz).
 }
 \description{
 Produces the spectrogram of a sound using short-time Fourier transform.
@@ -199,7 +208,7 @@ Many soundgen functions call \code{spectrogram}, and you can pass along most
 of its graphical parameters from functions like \code{\link{soundgen}},
 \code{\link{analyze}}, etc. However, in some cases this will not work (eg for
 "units") or may produce unexpected results. If in doubt, omit extra graphical
-parameters.
+parameters or save your sound first, then call spectrogram() explicitly.
 }
 \examples{
 # synthesize a sound 500 ms long, with gradually increasing hissing noise
@@ -296,7 +305,8 @@ nrow(sp) * ncol(sp) / 5e3  # spec downsampled by a factor of ~2
 
 # Plot some arbitrary contour over the spectrogram (simply calling lines()
 # will not work if osc = TRUE b/c the plot layout is modified)
-s = soundgen()
+s = soundgen(sylLen = 1500, pitch = c(250, 350, 320, 220),
+  jitterDep = c(0, 0, 3, 2, 0, 0))
 an = analyze(s, 16000, plot = FALSE)
 spectrogram(s, 16000, extraContour = an$detailed$dom,
   ylim = c(0, 2), yScale = 'bark')
@@ -305,6 +315,12 @@ spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
   # ylim[2] = 2000 Hz
   type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue'))
+
+# Plot a spectrogram-like matrix paired with an osc
+ms = modulationSpectrum(s, 16000, msType = '1D', amRes = 10)
+spectrogram(s, 16000, specManual = ms$modulation_spectrogram,
+  colorTheme = 'matlab', ylab = 'Modulation frequency, kHz',
+  contrast = .25, blur = c(10, 10))
 }
 }
 \seealso{

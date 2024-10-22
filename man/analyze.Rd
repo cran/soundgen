@@ -207,7 +207,7 @@ harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
 
 \item{subh}{a list of control parameters for estimating the strength of
 subharmonics per frame - that is, spectral energy at integer ratios of f0:
-see \code{?soundgen:::subhToHarm}}
+see \code{?soundgen:::getSHR}}
 
 \item{flux}{a list of control parameters for calculating feature-based flux
 (not spectral flux) passed to \code{\link{getFeatureFlux}}}
@@ -463,7 +463,8 @@ s2 = analyze('~/Downloads/temp',
   savePlots = '',  # save in the same folder as audio
   showLegend = TRUE, yScale = 'bark',
   width = 20, height = 12,
-  units = 'cm', res = 300, ylim = c(0, 5))
+  units = 'cm', res = 300, ylim = c(0, 5),
+  cores = 4)  # use multiple cores to speed up processing
 s2$summary[, 1:5]
 
 # Different options for summarizing the output
@@ -515,7 +516,8 @@ s = soundgen(sylLen = 100, addSilence = 10,
   pitch = c(25000, 35000, 30000),
   formants = NA, rolloff = -12, rolloffKHz = 0,
   pitchSamplingRate = 350000, samplingRate = 350000, windowLength = 5,
-  pitchCeiling = 45000, invalidArgAction = 'ignore')
+  pitchCeiling = 45000, invalidArgAction = 'ignore',
+  plot = TRUE)
 # s is a bat-like ultrasound inaudible to humans
 a = analyze(
   s, 350000, plot = TRUE,

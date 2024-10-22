@@ -31,9 +31,19 @@ approximately a sine wave to reversed clicks (small episodes of silence). The
 filter is made from concatenated sigmoids and their mirror reflections.
 }
 \examples{
-for (shape in c(0, -.1, .1, -1, 1)) {
+par(mfrow = c(3, 2))
+for (shape in c(0, -.1, .1, .5, -1, 1)) {
   s = soundgen:::getSigmoid(shape = shape, len = 1000, samplingRate = 500, freq = 2)
   plot(s, type = 'l', main = paste('shape =', shape), xlab = '', ylab = '')
 }
+par(mfrow = c(1, 1))
+
+par(mfrow = c(3, 2))
+for (shape in c(0, -.1, .1, .5, -1, 1)) {
+  s = soundgen:::getSigmoid(shape = shape, len = 1000, samplingRate = 500, freq = 2,
+    spikiness = 3)
+  plot(s, type = 'l', main = paste('shape =', shape), xlab = '', ylab = '')
+}
+par(mfrow = c(1, 1))
 }
 \keyword{internal}

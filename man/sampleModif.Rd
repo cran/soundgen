@@ -21,6 +21,6 @@ https://stackoverflow.com/questions/7547758/using-sample-with-sample-space-size-
 }
 \examples{
 soundgen:::sampleModif(x = 3, n = 1)
-# never returns 1 or 2: cf. sample(x = 3, n = 1)
+# never returns 1 or 2: cf. sample(x = 3, size = 1)
 }
 \keyword{internal}

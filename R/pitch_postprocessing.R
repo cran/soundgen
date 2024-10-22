@@ -63,7 +63,7 @@ pathfinder = function(pitchCands,
   # get the "center of gravity" of pitch candidates in each frame (mean of all
   # pitch candidates weighted by their respective certainties)
   pitchCenterGravity = rep(NA, ncol(pitchCands))
-  for (i in 1:ncol(pitchCands)) {
+  for (i in seq_len(ncol(pitchCands))) {
     idxDeadCert = which(pitchSource[, i] == 'manual' & pitchCert[, i] == manualCert)
     if (length(idxDeadCert) == 1) {
       # special case: pitchCenterGravity has to pass through manual candidates
@@ -84,18 +84,11 @@ pathfinder = function(pitchCands,
     # as to simplify the matrix (the position of manual candidates is not
     # important since they are saved in 'manual')
     if (nrow(pitchCands) > 1) {
-      o = apply(as.matrix(1:ncol(pitchCands), nrow = 1), 1, function(x) {
-        order(pitchCands[, x])
-      })
-      pitchCands = apply(matrix(1:ncol(pitchCands)), 1, function(x) {
-        pitchCands[o[, x], x]
-      })
-      pitchCert = apply(matrix(1:ncol(pitchCert)), 1, function(x) {
-        pitchCert[o[, x], x]
-      })
-      pitchSource = apply(matrix(1:ncol(pitchSource)), 1, function(x) {
-        pitchSource[o[, x], x]
-      })
+      colseq = seq_len(nc)
+      o = sapply(colseq, function(x) order(pitchCands[, x]))
+      pitchCands = sapply(colseq, function(x) pitchCands[o[, x], x])
+      pitchCert = sapply(colseq, function(x) pitchCert[o[, x], x])
+      pitchSource = sapply(colseq, function(x) pitchSource[o[, x], x])
     }
     intplt = interpolate(pitchCands = pitchCands,
                          pitchCert = pitchCert,
@@ -153,7 +146,7 @@ pathfinder = function(pitchCands,
     )
   } else {  # if (pathfinding == 'none')
     bestPath = rep(NA, nc)
-    for (i in 1:nc) {
+    for (i in seq_len(nc)) {
       idx = which.min(abs(pitchCands[, i] - pitchCenterGravity[i]))
       if (length(idx) > 0 && !is.na(idx)) bestPath[i] = pitchCands[idx, i]
     }
@@ -180,8 +173,7 @@ pathfinder = function(pitchCands,
     # browser()
     bestPath = pitchCenterGravity
   }
-
-  return(2 ^ bestPath)
+  2 ^ bestPath
 }
 
 
@@ -212,7 +204,7 @@ interpolate = function(pitchCands,
   pitchCands = rbind(rep(NA, nc), pitchCands)
   pitchCert = rbind(rep(NA, nc), pitchCert)
   pitchSource = rbind(rep('intpl', nc), pitchSource)
-  for (f in 1:nc) {
+  for (f in seq_len(nc)) {
     left = max(1, f - interpolWin_bin)
     right = min(ncol(pitchCands), f + interpolWin_bin)
     win = left:right
@@ -235,13 +227,13 @@ interpolate = function(pitchCands,
         curve = pitchCenterGravity[win]
         curve[f + 1 - left] = NA
       }
-      curve_df = na.omit(data.frame(x = 1:length(curve),
+      curve_df = na.omit(data.frame(x = seq_along(curve),
                                     y = curve))
       if (nrow(curve_df) > 2) {
         # >2 points - use loess
         l = try(suppressWarnings(loess(y ~ x, data = curve_df, span = 1)))
         if (!inherits(med, 'try-error')) {
-          p = predict(l, newdata = 1:tail(curve_df$x, n = 1))
+          p = predict(l, newdata = seq_len(.subset2(curve_df$x, length(curve_df$x))))
           med = p[f + 1 - left]
           # print(c(f, 'loess'))
         }
@@ -271,10 +263,10 @@ interpolate = function(pitchCands,
       }
     }
   }
-  return(list(pitchCands = pitchCands,
-              pitchCert = pitchCert,
-              pitchSource = pitchSource,
-              pitchCenterGravity = pitchCenterGravity))
+  list(pitchCands = pitchCands,
+       pitchCert = pitchCert,
+       pitchSource = pitchSource,
+       pitchCenterGravity = pitchCenterGravity)
 }
 
 
@@ -307,8 +299,8 @@ pathfinding_fast = function(pitchCands,
   nc = ncol(pitchCands)
   nr = nrow(pitchCands)
 
-  ## Boost certainties of similar pitch candidates per frame (close to pitchCenterGravity)
-  for (i in 1:nc) {
+  ## Boost certainties of similar pitch candidates per frameclose to pitchCenterGravity)
+  for (i in seq_len(nc)) {
     pitchCert[, i] = pitchCert[, i] / (1 + abs(pitchCands[, i] - pitchCenterGravity[i]))
   }
   pitchUncert = 1 - pitchCert
@@ -318,13 +310,13 @@ pathfinding_fast = function(pitchCands,
   if (nSeeds == 1) seed_approx_pos = 1
   seed_step = max(2, round(nc / (nSeeds + 1)))
   seed_half_step = floor(seed_step / 2)
-  seed_approx_pos = round(seed_step * (1:nSeeds))
+  seed_approx_pos = round(seed_step * (seq_len(nSeeds)))
   seed_approx_pos = unique(seed_approx_pos[seed_approx_pos <= nc])
   nSeeds = length(seed_approx_pos)
 
   # Repeat pathfinding at each seed to explore possible paths without getting stuck
   paths = costs = vector('list', nSeeds)
-  for (seed in 1:nSeeds) {
+  for (seed in seq_len(nSeeds)) {
     # Find the frame with the greatest number of candidates (to explore as many paths as possible)
     seed_win = (seed_approx_pos[seed] - seed_half_step) :
       (seed_approx_pos[seed] + seed_half_step)
@@ -341,7 +333,7 @@ pathfinding_fast = function(pitchCands,
     paths[[seed]] = costs[[seed]] = vector('list', nPaths)
 
     # Work backwards and forwards from each starting candidate, taking the least costly transitions
-    for (p in 1:nPaths) {
+    for (p in seq_len(nPaths)) {
       idx_start = start_cands_idx[p]
       point_current = pitchCands[idx_start, start]
       cost_start = certWeight * pitchUncert[idx_start, start]
@@ -350,7 +342,7 @@ pathfinding_fast = function(pitchCands,
       cost_back = 0
       if (start > 1) {
         path_back = rep(NA, start - 1)
-        for (i in rev(1:(start - 1))) {
+        for (i in rev(seq_len(start - 1))) {
           cands = pitchCands[, i]
           if (any(!is.na(cands))) {
             cost_cert = pitchUncert[, i]
@@ -409,17 +401,17 @@ pathfinding_fast = function(pitchCands,
   path = paths[[idx_best_path]]
 
   if (plot) {
-    plot(1:nc, type = 'n', xlab = '', ylab = '',
+    plot(seq_len(nc), type = 'n', xlab = '', ylab = '',
          ylim = range(pitchCands, na.rm = TRUE))
-    for (i in 1:nr) {
+    for (i in seq_len(nr)) {
       points(pitchCands[i, ], cex = 2 * pitchCert[i, ])
     }
-    for (p in (1:length(paths))[-idx_best_path]) {
+    for (p in (seq_along(paths))[-idx_best_path]) {
       points(paths[[p]], type = 'l', col = 'gray')
     }
     points(paths[[idx_best_path]], type = 'l', col = 'blue')
   }
-  return(path)
+  path
 }
 
 
@@ -437,7 +429,7 @@ pathfinding_fast = function(pitchCands,
 #' b = 1 / (1 + 10 * exp(3 - 7 * abs(a)))
 #' plot(a, b, type = 'l')
 costJumps = function(cand1, cand2) {
-  return(1 / (1 + 10 * exp(3 - 7 * abs(cand1 - cand2))))
+  1 / (1 + 10 * exp(3 - 7 * abs(cand1 - cand2)))
 }
 
 
@@ -463,7 +455,8 @@ pathfinding_slow = function(pitchCands = pitchCands,
                             annealPars = list(maxit = 5000, temp = 1000)) {
   # start with the pitch contour most faithful to center of gravity of pitch
   # candidates for each frame
-  path_init = apply(matrix(1:ncol(pitchCands)), 1, function(x) {
+  colseq = seq_len(ncol(pitchCands))
+  path_init = sapply(colseq, function(x) {
     which.min(abs(pitchCands[, x] - pitchCenterGravity[x]))
   })
 
@@ -481,10 +474,10 @@ pathfinding_slow = function(pitchCands = pitchCands,
     control = annealPars
   )
 
-  bestPath = apply(matrix(1:ncol(pitchCands)), 1, function(x) {
+  bestPath = sapply(colseq, function(x) {
     pitchCands[o$par[x], x]
   })
-  return(bestPath)
+  bestPath
 }
 
 
@@ -526,13 +519,14 @@ costPerPath = function(path,
 
   # get the cost of transition from the current point to each of the pitch
   # candidates in the next frame
-  cost_pitchJump = apply(as.matrix(1:(length(path) - 1), nrow = 1), 1, function(x) {
+  len = length(path)
+  cost_pitchJump = sapply(seq_len(len - 1), function(x) {
     costJumps(pitchCands[path[x], x], pitchCands[path[x + 1], x + 1])
   })
   cost_pitchJump = mean(cost_pitchJump, na.rm = TRUE)
 
   # get the cost of deviating from pitchCenterGravity
-  cost_cert = apply(as.matrix(1:length(path)), 1, function(x) {
+  cost_cert = sapply(seq_len(len), function(x) {
     abs(pitchCands[path[x], x] - pitchCenterGravity[x])
   })
   cost_cert = mean(cost_cert, na.rm = TRUE)
@@ -540,7 +534,7 @@ costPerPath = function(path,
   # get a weighted average of transition costs associated with the certainty
   # of each estimate vs. the magnitude of pitch jumps
   costs = certWeight * cost_cert + (1 - certWeight) * cost_pitchJump
-  return(costs)
+  costs
 }
 
 
@@ -559,7 +553,7 @@ costPerPath = function(path,
 generatePath = function(path, pitchCands, ...) {
   i = 1
   while (i < 100) {
-    point_to_wiggle = sample(1:length(path), 1)
+    point_to_wiggle = sample(seq_along(path), 1)
     idx = which(!is.na(pitchCands[, point_to_wiggle])) [-path[point_to_wiggle]]
     if (length(idx) > 0 & is.numeric(idx)) {
       path[point_to_wiggle] = sample(idx, size = 1)
@@ -567,7 +561,7 @@ generatePath = function(path, pitchCands, ...) {
     }
     i = i + 1
   }
-  return(NA)
+  NA
 }
 
 
@@ -608,12 +602,12 @@ snake = function(pitch,
            range(pitchCands, na.rm = TRUE)[2] + .3 * ran
          )
     )
-    for (r in 1:nrow(pitchCands)) {
-      points (seq(1, ncol(pitchCands)),
-              pitchCands[r, ],
-              cex = as.numeric(pitchCert[r, ]) * 2)
+    for (r in seq_len(nrow(pitchCands))) {
+      points(seq(1, ncol(pitchCands)),
+             pitchCands[r, ],
+             cex = as.numeric(pitchCert[r, ]) * 2)
     }
-    lines (seq(1, ncol(pitchCands)), pitch)
+    lines(seq(1, ncol(pitchCands)), pitch)
   }
 
   # optimization algorithm follows
@@ -643,7 +637,7 @@ snake = function(pitch,
     lines(seq(1, length(pitch)), pitch,
           type = 'l', col = 'blue', lwd = 3)
   }
-  return (pitch)
+  pitch
 }
 
 
@@ -672,7 +666,7 @@ forcePerPath = function(pitch,
   ran = diff(range(pitchCands, na.rm = TRUE))
   # external_force = -(pitch_path - pitchCenterGravity) / ran
   external_force = pitch # just a quick way to initialize a vector of the right length
-  for (i in 1:ncol(pitchCands)) {
+  for (i in seq_len(ncol(pitchCands))) {
     cands = na.omit(pitchCands[, i])
     certs = na.omit(pitchCert[, i])
     deltas = 1 / exp((cands - pitch[i]) ^ 2)
@@ -689,7 +683,7 @@ forcePerPath = function(pitch,
   total_force = certWeight * external_force + (1 - certWeight) * internal_force
   # weighted average of internal and external forces
 
-  return(total_force)
+  total_force
 }
 
 
@@ -707,30 +701,32 @@ findGrad = function(path, interpol = 3) {
   # extrapolate 2 values before the first one and two after the last one based
   # on /interpol/ number of points in case the path is shorter than the
   # specified interpol:
-  interpol = ifelse(interpol > length(path), length(path), interpol)
+  len = length(path)
+  interpol = ifelse(interpol > len, len, interpol)
   if (interpol == 1) {
-    path = c(rep(path[1], 2), path, rep(path[length(path)], 2))
+    path = c(rep(.subset2(path, 1), 2), path, rep(.subset2(path, len), 2))
   } else {
     slopeLeft = suppressWarnings(summary(lm(
-      path[1:interpol] ~ seq(1, interpol)
+      path[seq_len(interpol)] ~ seq(1, interpol)
     ))$coef[2, 1])
-    minus12 = path[1] - c(1, 2) * slopeLeft
+    minus12 = .subset2(path, 1) - c(1, 2) * slopeLeft
     slopeRight = suppressWarnings(summary(lm(
-      path[(length(path) - interpol + 1):length(path)] ~ seq(1, interpol)
+      path[(len - interpol + 1):len] ~ seq(1, interpol)
     ))$coef[2, 1])
-    plus12 = path[length(path)] + c(1, 2) * slopeRight
-    path = c (minus12[2], minus12[1], path, plus12[1], plus12[2])
+    plus12 = .subset2(path, len) + c(1, 2) * slopeRight
+    path = c (.subset2(minus12, 2), .subset2(minus12, 1),
+              path, .subset2(plus12, 1), .subset2(plus12, 2))
   }
 
   # take the 4th derivative of the path with extrapolated values
   # (so that we get d4f over the entire length of the original path)
-  grad = rep(0, length(path))
-  for (i in 3:(length(path) - 2)) {  # approximation
-    grad[i] = path[i - 2] - 4 * path[i - 1] + 6 * path[i] - 4 * path[i + 1] +
-      path[i + 2]
+  grad = rep(0, len)
+  for (i in 3:(len - 2)) {  # approximation
+    grad[i] = .subset2(path, i - 2) - 4 * .subset2(path, i - 1) +
+      6 * .subset2(path, i) - 4 * .subset2(path, i + 1) + .subset2(path, i + 2)
   }
-  grad = grad[3:(length(grad) - 2)]
-  return(grad)
+  grad = grad[3:(len - 2)]
+  grad
 }
 
 
@@ -745,16 +741,15 @@ findGrad = function(path, interpol = 3) {
 #'   contours can be fed into this function at once to speed things up)
 #' @param smoothing_ww width of smoothing window (points)
 #' @param smoothingThres tolerated deviance from moving median (semitones)
-#' @param inviolable a vector of indices of the rows rows of df that should not
-#'   be modified (meant for manual pitch values)
+#' @param inviolable a vector of indices of the rows of df that should not be
+#'   modified (meant for manual pitch values)
 #' @return Returns a dataframe of the same dimensions as df.
 #' @keywords internal
 #' @examples
-#' df = data.frame(a = rnorm(20, mean = 100, sd = 20),
-#'                 b = rnorm(20, mean = 100, sd = 10))
+#' df = data.frame(a = rnorm(40, mean = 100, sd = 20),
+#'                 b = rnorm(40, mean = 100, sd = 10))
 #' df1 = soundgen:::medianSmoother(df, smoothing_ww = 5,
-#'       smoothingThres = 1,
-#'       inviolable = c(rep(TRUE, 10), rep(FALSE, 10)))
+#'       smoothingThres = 1, inviolable = 1:10)
 #' plot(df[, 2], type='b')
 #' lines(df1[, 2], type='b', col='blue', pch=3)
 medianSmoother = function(df,
@@ -763,21 +758,19 @@ medianSmoother = function(df,
                           inviolable = NULL) {
   temp = df # to calculate median_over_window for original values
   hw = floor(smoothing_ww / 2) # smooth over plus-minus half the smoothing_ww
-  for (i in 1:nrow(df)) {
+  for (i in seq_len(nrow(df))) {
     window = c(max(i - hw, 1), min(i + hw, nrow(df))) # smoothing window
     # to be conservative, treat NAs as repetitions of value i
     winVal = as.matrix(temp[(window[1]:window[2]), ])
-    for (c in 1:ncol(winVal)) {
+    for (c in seq_len(ncol(winVal))) {
       idx_na = which(is.na(winVal[, c]))
       winVal[idx_na, c] = df[i, c]
     }
-    median_over_window = apply(winVal, 2, function(x) {
-      median(unlist(x), na.rm = TRUE)  # w/o unlist returns NULL for NA vectors (weird...)
-      # NB: use either temp or df, for original or smoothed values to be used
-      # for calculating median_over_window
-    })
+    median_over_window = apply(winVal, 2, median, na.rm = TRUE)
+    # NB: use either temp or df, for original or smoothed values to be used
+    # for calculating median_over_window
 
-    if (!i %in% inviolable) {
+    if (!any(inviolable == i)) {
       if (smoothingThres > 0) {
         # difference from median pitch etc over window, in semitones
         deviance = 12 * log2(as.numeric(df[i, ]) / median_over_window)
@@ -788,7 +781,7 @@ medianSmoother = function(df,
       }
     }
   }
-  return(df)
+  df
 }
 
 
@@ -860,6 +853,7 @@ findVoicedSegments = function(pitchCands,
     putativelyVoiced[manualTryToV[manualTryToV %in% anyCands]] = TRUE
   }
   if (length(manualUnv) > 0) putativelyVoiced[manualUnv] = FALSE
+  lenV = length(putativelyVoiced)
 
   # the smallest number of consecutive non-NA pitch values that constitute a
   # voiced segment; but at least 1
@@ -872,11 +866,11 @@ findVoicedSegments = function(pitchCands,
   segmentStart = numeric()
   segmentEnd = numeric()
   i = 1
-  while (i < (length(putativelyVoiced) - nRequired + 1)) {
+  while (i < (lenV - nRequired + 1)) {
     # find beginning
-    while (i < (length(putativelyVoiced) - nRequired + 1)) {
+    while (i < (lenV - nRequired + 1)) {
       if (sum(putativelyVoiced[i:(i + nRequired - 1)]) == nRequired |
-          i %in% manualV) {  # start a new syllable if we hit a manually voiced frame
+          any(manualV == i)) {  # start a new syllable if we hit a manually voiced frame
         segmentStart = c(segmentStart, i)
         break
       }
@@ -884,9 +878,9 @@ findVoicedSegments = function(pitchCands,
     }
     # find end
     if (length(segmentEnd) < length(segmentStart)) {
-      while (i < (length(putativelyVoiced) - toleratedGap + 1)) {
+      while (i < (lenV - toleratedGap + 1)) {
         if (sum(putativelyVoiced[i:(i + toleratedGap)]) == 0 |
-            i %in% manualUnv ) {  # interrupt the syllable if we hit a manuaUnv frame
+            any(manualUnv == i)) {  # interrupt the syllable if we hit a manuaUnv frame
           segmentEnd = c(segmentEnd, i - 1)
           i = i - 1
           break
@@ -901,7 +895,7 @@ findVoicedSegments = function(pitchCands,
     }
     i = i + 1
   }
-  return(data.frame(segmentStart = segmentStart, segmentEnd = segmentEnd))
+  data.frame(segmentStart = segmentStart, segmentEnd = segmentEnd)
 }
 
 
@@ -925,16 +919,17 @@ findVoicedSegments = function(pitchCands,
 #'   addToExistingPlot = FALSE
 #' @keywords internal
 #' @examples
-#' \dontrun{
 #' s = soundgen()
-#' a = analyze(s, 16000, windowLength = 25, step = 25,
-#'             summary = 'extended', plot = FALSE)
-#' spectrogram(s, 16000, windowLength = 25, step = 5)
-#' addPitchCands(pitchCands = a$pitchCands,
-#'               pitchCert = a$pitchCert,
-#'               pitchSource = a$pitchSource,
-#'               pitch = a$result$pitch)
-#' }
+#' a = soundgen:::.analyze(soundgen:::readAudio(s, samplingRate = 16000),
+#'  windowLength = 25, step = 25,
+#'  returnPitchCands = TRUE, plot = FALSE)
+#' spectrogram(s, 16000, windowLength = 25, step = 5, ylim = c(0, 1), osc = FALSE)
+#' soundgen:::addPitchCands(
+#'   pitchCands = a$pitchCands$freq,
+#'   pitchCert = a$pitchCands$cert,
+#'   pitchSource = a$pitchCands$source,
+#'   pitch = a$result$pitch,
+#'   timestamps = a$result$time / 1000)
 addPitchCands = function(pitchCands,
                          pitchCert,
                          pitchSource,
@@ -1007,13 +1002,13 @@ addPitchCands = function(pitchCands,
   plotPars = defaults_analyze_pitchCand  # see presets.R
   candPlot$final = pitchPlot
 
-  for (i in 1:length(candPlot)) {
+  for (i in seq_along(candPlot)) {
     temp = candPlot[[i]]
     if (length(temp) > 0) {
       method = names(candPlot)[i]
       idx = which(plotPars$method == method)
       if (length(idx) > 0) {
-        for (j in 1:length(temp)) {
+        for (j in seq_along(temp)) {
           property = names(temp[j])[1]
           if (!property %in% colnames(plotPars)) {
             # set to default, otherwise other rows become NA
@@ -1034,7 +1029,7 @@ addPitchCands = function(pitchCands,
   # Add pitch candidates to the plot
   pitchMethods = unique(na.omit(as.character(pitchSource)))
   if (length(pitchMethods) > 0) {
-    for (r in 1:nrow(pitchCands)) {
+    for (r in seq_len(nrow(pitchCands))) {
       method_r = as.character(pitchSource[r, ])
       method_r[is.na(method_r)] = 'def'
       pars_method = as.list(plotPars[match(method_r, plotPars$method), 2:ncol(plotPars)])
@@ -1137,35 +1132,38 @@ intplNA = function(x, idx_na = NULL, nPoints = 1) {
   if (is.null(idx_na)) idx_na = which(is.na(x))
   n_na = length(idx_na)
   if (n_na == len | n_na == 0) return(x)
-  idx_notNA = (1:len)[-idx_na]
+  idx_notNA = seq_len(len) [-idx_na]
+  len_notNA = length(idx_notNA)
 
   # fill in NAs in the middle by linear interpolation
   if (n_na > 0) {
-    idx_center = idx_notNA[1]:tail(idx_notNA, 1)
+    idx_center = .subset2(idx_notNA, 1) : .subset2(idx_notNA, len_notNA)
     if (length(idx_center) > 1) {
       xc = approx(x[idx_center], n = length(idx_center), na.rm = TRUE)$y
       if (!inherits(xc, 'try-error')) x[idx_center] = xc
     }
+    first_nonNA = .subset2(idx_notNA, 1)
+    last_nonNA = .subset2(idx_notNA, len_notNA)
 
     # fill in NAs at the ends
     if (nPoints == 1) {
       # constant interpolation
-      if (idx_notNA[1] > 1) {
-        x[1:(idx_notNA[1] - 1)] = x[idx_notNA[1]]
+      if (.subset2(idx_notNA, 1) > 1) {
+        x[seq_len(.subset2(idx_notNA, 1) - 1)] = x[first_nonNA]
       }
-      last_nonNA = tail(idx_notNA, 1)
+
       if (last_nonNA < len) {
-        x[(last_nonNA + 1):len] = x[last_nonNA]
+        x[(last_nonNA + 1):len] = .subset2(x, last_nonNA)
       }
     } else {
       # linear interpolation of NAs at the beg & end
-      if (idx_notNA[1] > 1) {
-        a = idx_notNA[1]:min(len, (idx_notNA[1] + nPoints - 1))
+      if (first_nonNA > 1) {
+        a = first_nonNA : min(len, (first_nonNA + nPoints - 1))
         b = x[a]
         mod = lm(b ~ a)
-        x[1:(idx_notNA[1] - 1)] = predict(mod, newdata = list(a = 1:(idx_notNA[1] - 1)))
+        x[seq_len(first_nonNA - 1)] = predict(
+          mod, newdata = list(a = seq_len(first_nonNA - 1)))
       }
-      last_nonNA = tail(idx_notNA, 1)
       if (last_nonNA < len) {
         a = max(1, (last_nonNA - nPoints + 1)) : last_nonNA
         b = x[a]
@@ -1174,6 +1172,5 @@ intplNA = function(x, idx_na = NULL, nPoints = 1) {
       }
     }
   }
-
-  return(x)
+  x
 }

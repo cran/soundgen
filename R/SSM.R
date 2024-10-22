@@ -73,53 +73,53 @@
 #'     noveltyPars = list(type = 'l', lty = 3, lwd = 2))
 #' }
 ssm = function(
-  x,
-  samplingRate = NULL,
-  from = NULL,
-  to = NULL,
-  windowLength = 25,
-  step = 5,
-  overlap = NULL,
-  ssmWin = NULL,
-  sparse = FALSE,
-  maxFreq = NULL,
-  nBands = NULL,
-  MFCC = 2:13,
-  input = c('mfcc', 'melspec', 'spectrum')[2],
-  norm = FALSE,
-  simil = c('cosine', 'cor')[1],
-  kernelLen = 100,
-  kernelSD = .5,
-  padWith = 0,
-  summaryFun = c('mean', 'sd'),
-  reportEvery = NULL,
-  cores = 1,
-  plot = TRUE,
-  savePlots = NULL,
-  main = NULL,
-  heights = c(2, 1),
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  specPars = list(
-    levels = seq(0, 1, length = 30),
-    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-    xlab = 'Time, s',
-    ylab = 'kHz'
-  ),
-  ssmPars = list(
-    levels = seq(0, 1, length = 30),
-    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-    xlab = 'Time, s',
-    ylab = 'Time, s'
-  ),
-  noveltyPars = list(
-    type = 'b',
-    pch = 16,
-    col = 'black',
-    lwd = 3
-  )) {
+    x,
+    samplingRate = NULL,
+    from = NULL,
+    to = NULL,
+    windowLength = 25,
+    step = 5,
+    overlap = NULL,
+    ssmWin = NULL,
+    sparse = FALSE,
+    maxFreq = NULL,
+    nBands = NULL,
+    MFCC = 2:13,
+    input = c('mfcc', 'melspec', 'spectrum')[2],
+    norm = FALSE,
+    simil = c('cosine', 'cor')[1],
+    kernelLen = 100,
+    kernelSD = .5,
+    padWith = 0,
+    summaryFun = c('mean', 'sd'),
+    reportEvery = NULL,
+    cores = 1,
+    plot = TRUE,
+    savePlots = NULL,
+    main = NULL,
+    heights = c(2, 1),
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    specPars = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
+      xlab = 'Time, s',
+      ylab = 'kHz'
+    ),
+    ssmPars = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
+      xlab = 'Time, s',
+      ylab = 'Time, s'
+    ),
+    noveltyPars = list(
+      type = 'b',
+      pch = 16,
+      col = 'black',
+      lwd = 3
+    )) {
   ## Prepare a list of arguments to pass to .ssm()
   myPars = as.list(environment())
   # exclude unnecessary args
@@ -206,46 +206,46 @@ ssm = function(
 #' @param audio a list returned by \code{readAudio}
 #' @keywords internal
 .ssm = function(
-  audio,
-  windowLength = 25,
-  step = 5,
-  overlap = NULL,
-  win = 1,
-  sparse = FALSE,
-  maxFreq = NULL,
-  nBands = NULL,
-  MFCC = 2:13,
-  input = c('mfcc', 'melspec', 'spectrum')[2],
-  norm = FALSE,
-  simil = c('cosine', 'cor')[1],
-  kernelLen = 100,
-  kernelSD = .5,
-  padWith = 0,
-  plot = TRUE,
-  main = NULL,
-  heights = c(2, 1),
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  specPars = list(
-    levels = seq(0, 1, length = 30),
-    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-    xlab = 'Time, s',
-    ylab = 'kHz'
-  ),
-  ssmPars = list(
-    levels = seq(0, 1, length = 30),
-    colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-    xlab = 'Time, s',
-    ylab = 'Time, s'
-  ),
-  noveltyPars = list(
-    type = 'b',
-    pch = 16,
-    col = 'black',
-    lwd = 3
-  )) {
+    audio,
+    windowLength = 25,
+    step = 5,
+    overlap = NULL,
+    win = 1,
+    sparse = FALSE,
+    maxFreq = NULL,
+    nBands = NULL,
+    MFCC = 2:13,
+    input = c('mfcc', 'melspec', 'spectrum')[2],
+    norm = FALSE,
+    simil = c('cosine', 'cor')[1],
+    kernelLen = 100,
+    kernelSD = .5,
+    padWith = 0,
+    plot = TRUE,
+    main = NULL,
+    heights = c(2, 1),
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    specPars = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
+      xlab = 'Time, s',
+      ylab = 'kHz'
+    ),
+    ssmPars = list(
+      levels = seq(0, 1, length = 30),
+      colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
+      xlab = 'Time, s',
+      ylab = 'Time, s'
+    ),
+    noveltyPars = list(
+      type = 'b',
+      pch = 16,
+      col = 'black',
+      lwd = 3
+    )) {
   ## set pars
   if (!is.numeric(windowLength) | windowLength <= 0 |
       windowLength > (audio$duration / 2 * 1000)) {
@@ -346,7 +346,7 @@ ssm = function(
       ylab = 'kHz',
       ylim = c(0, maxFreq / 1000)
     )
-    for (i in 1:length(specPars)) {
+    for (i in seq_along(specPars)) {
       n = names(specPars)[i]
       specPars1[[n]] = specPars[[n]]
     }
@@ -371,7 +371,7 @@ ssm = function(
       col = 'black',
       lwd = 3
     )
-    for (i in 1:length(noveltyPars)) {
+    for (i in seq_along(noveltyPars)) {
       n = names(noveltyPars)[i]
       noveltyPars1[[n]] = noveltyPars[[n]]
     }
@@ -394,7 +394,7 @@ ssm = function(
       ylab = 'Time, s',
       main = main
     )
-    for (i in 1:length(ssmPars)) {
+    for (i in seq_along(ssmPars)) {
       n = names(ssmPars)[i]
       ssmPars1[[n]] = ssmPars[[n]]
     }
@@ -416,7 +416,6 @@ ssm = function(
 }
 
 
-
 #' Compute self-similarity
 #'
 #' Internal soundgen function.
@@ -436,10 +435,11 @@ selfsim = function(m,
                    win = 1,
                    sparse = FALSE,
                    kernelSize = NULL) {
-  if (win > floor(ncol(m) / 2)) {
-    win = floor(ncol(m) / 2)
+  nc = ncol(m)
+  if (win > floor(nc / 2)) {
+    win = floor(nc / 2)
     warning(paste('"win" must be smaller than half the number of frames',
-                  'resetting to', floor(ncol(m) / 2)))
+                  'resetting to', floor(nc / 2)))
   }
   if (win %% 2 == 0) {
     win = max(ceiling(win / 2) * 2 - 1, 1)
@@ -448,18 +448,18 @@ selfsim = function(m,
   # normalize input by column, if needed
   if (norm) {
     m = apply(m, 2, zeroOne, na.rm = TRUE)
-    m[apply(m, c(1, 2), is.nan)] = 0
+    m[is.na(m)] = 0
   }
 
   # calculate windows for averaging self-similarity
-  winIdx = unique(round(seq(1, ncol(m) - win + 1, length.out = ceiling(ncol(m) / win))))
+  winIdx = unique(round(seq(1, nc - win + 1, length.out = ceiling(nc / win))))
   numWins = length(winIdx)
 
   # calculate the lower triangle of self-similarity matrix
   out = matrix(NA, nrow = numWins, ncol = numWins)
   rownames(out) = colnames(out) = winIdx
-  if (!sparse) j_idx = 1:numWins
-  for (i in 1:length(winIdx)) {
+  if (!sparse) j_idx = seq_len(numWins)
+  for (i in seq_along(winIdx)) {
     if (sparse) {
       j_idx = max(1, i - kernelSize) : max(1, (i - 1))
     } else {
@@ -468,7 +468,7 @@ selfsim = function(m,
     for (j in j_idx) {
       mi = as.vector(m[, winIdx[i]:(winIdx[i] + win - 1)])
       mj = as.vector(m[, winIdx[j]:(winIdx[j] + win - 1)])
-      if (any(mi != 0) & any(mj != 0)) {
+      if (any(mi != 0) && any(mj != 0)) {
         if (simil == 'cosine') {
           # http://stackoverflow.com/questions/6597005/cosine-similarity-between-two-vectors-in-language-r
           out[i, j] = crossprod(mi, mj) / sqrt(crossprod(mi) * crossprod(mj))
@@ -485,11 +485,9 @@ selfsim = function(m,
   diag(out) = 1
   out1 = t(out)
   out1[lower.tri(out1)] = out[lower.tri(out)]
-  out = t(out1)
-  # isSymmetric(out)
-  # image(t(out))
-  out = zeroOne(out, na.rm = TRUE)
-  return(out)
+  # isSymmetric(out1)
+  # image(out1)
+  zeroOne(t(out1), na.rm = TRUE)
 }
 
 
@@ -534,8 +532,8 @@ getCheckerboardKernel = function(size,
   if (max(size) < 50) {
     # faster than mvtnorm::dmvnorm for small kernels
     kernel = matrix(NA, ncol = size[2], nrow = size[1])
-    for (i in 1:nrow(kernel)) {
-      for (j in 1:ncol(kernel)) {
+    for (i in seq_len(nrow(kernel))) {
+      for (j in seq_len(ncol(kernel))) {
         kernel[i, j] = dnorm(x[i], mean = kernel_mean, sd = kernelSD) *
           dnorm(y[j], mean = kernel_mean, sd = kernelSD)
       }
@@ -557,12 +555,12 @@ getCheckerboardKernel = function(size,
     cl_row = ceiling(size[1] / 2)
     cl_col = ceiling(size[2] / 2)
     # quadrant 0 to 3 o'clock
-    kernel[1:fl_row, (cl_col + 1):size[2]] = -kernel[1:fl_row, (cl_col + 1):size[2]]
+    kernel[seq_len(fl_row), (cl_col + 1):size[2]] = -kernel[seq_len(fl_row), (cl_col + 1):size[2]]
     # quadrant 6 to 9 o'clock
-    kernel[(cl_row + 1):size[1], 1:cl_col] = -kernel[(cl_row + 1):size[1], 1:cl_col]
+    kernel[(cl_row + 1):size[1], seq_len(cl_col)] = -kernel[(cl_row + 1):size[1], seq_len(cl_col)]
   }
-
   kernel = kernel / max(kernel)
+
   if (plot) {
     persp(
       kernel,
@@ -572,7 +570,7 @@ getCheckerboardKernel = function(size,
       ticktype = 'detailed'
     )
   }
-  return (kernel)
+  kernel
 }
 
 
@@ -619,5 +617,5 @@ getNovelty = function(ssm,
     )
   }
   novelty[is.na(novelty)] = 0
-  return(novelty)
+  novelty
 }

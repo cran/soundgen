@@ -340,7 +340,7 @@ naiveBayes_likelihood = function(d,
     d[, like_name] = apply(likes, 1, sum, na.rm = TRUE)
   }
   # d[, like_names] = d[, like_names] / rowSums(d[, like_names], na.rm = TRUE)
-  return(d[, like_names])
+  d[, like_names]
 }
 
 
@@ -400,5 +400,5 @@ naiveBayes_dynamicPrior = function(d,
     })
   }
   # d[, prior_names] = log(d[, prior_names]) #  / rowSums(d[, prior_names])
-  return(d[, prior_names])
+  d[, prior_names]
 }

@@ -100,7 +100,7 @@ s1 = prosody(s, 16000, multProsody = 2,
 # Flat intonation - remove all frequency modulation
 s2 = prosody(s, 16000, multProsody = 0,
   analyze_pars = list(windowLength = 30, step = 15),
-  shiftPitch_pars = list(windowLength = 20, step = 5, freqWindow = 300),
+  shiftPitch_pars = list(windowLength = 20, step = 1, freqWindow = 500),
   plot = TRUE)
 playme(s2)
 spectrogram(s2, 16000, yScale = 'log')

@@ -117,7 +117,7 @@ pitchDescriptives = function(x,
     } else if (is.character(x$time)) {
       nr = nrow(x)
       data = vector('list', nr)
-      for (i in 1:nr) {
+      for (i in seq_len(nr)) {
         data[[i]] = try(list(
           file = x$file[i],
           time = suppressWarnings(as.numeric(unlist(strsplit(x$time[i], ',')))),
@@ -131,7 +131,7 @@ pitchDescriptives = function(x,
     # a list such as the output of analyze('folder')
     n = length(x)
     data = vector('list', n)
-    for (i in 1:n) {
+    for (i in seq_len(n)) {
       data[[i]] = try(list(
         file = names(x)[i],
         time = x[[i]]$time,
@@ -146,7 +146,7 @@ pitchDescriptives = function(x,
       stop('If x is a numeric vector, step must be provided')
     data = list(list(
       file = '',
-      time = step * (1:length(x) - .5),
+      time = step * (seq_along(x) - .5),
       pitch = x
     ))
   } else {
@@ -157,7 +157,7 @@ pitchDescriptives = function(x,
   out = NULL
   len_data = length(data)
   time_start = proc.time()
-  for (i in 1:len_data) {
+  for (i in seq_len(len_data)) {
     data_i = data[[i]]
     if (timeUnit == 'ms') data_i$time = data_i$time / 1000
     res = do.call(
@@ -218,7 +218,7 @@ pitchDescriptives = function(x,
 
   # apply smoothing
   out = data.frame(file = NA)
-  for (i in 1:length(smoothBW)) {
+  for (i in seq_along(smoothBW)) {
     if (is.finite(smoothBW[i])) {
       pitch_sm = pitchSmoothPraat(pitch, bandwidth = smoothBW[i],
                                   samplingRate = samplingRate)
@@ -290,7 +290,7 @@ timeSeriesSummary = function(x,
   lu = length(extraSummaryFun)
   if (lu > 0) {
     out[, extraSummaryFun] = NA
-    for (f in 1:lu) {
+    for (f in seq_len(lu)) {
       temp = try(do.call(extraSummaryFun[f], list(x)))
       if (!inherits(temp, 'try-error')) out[extraSummaryFun[f]] = temp
     }
@@ -365,6 +365,8 @@ timeSeriesSummary = function(x,
 #' with ocean waves, smoothing (low-pass filtering) removes the ripples and only
 #' leaves the slow roll, while thresholding preserves only waves that are
 #' sufficiently high, whatever their period.
+#'
+#' @seealso \code{\link{findPeaks}}
 #' @param x numeric vector with or without NAs
 #' @param thres minimum vertical distance between two extrema for them to count
 #'   as two independent inflections
@@ -395,7 +397,7 @@ findInflections = function(x,
   # remove leading/trailing NAs
   orig = x  # for plotting
   r = rle(is.na(x))
-  x = zoo::na.trim(x)
+  x = na.trim(x)
   if (r$values[1]) {
     shift = r$lengths[1]
   } else {
@@ -432,7 +434,7 @@ findInflections = function(x,
 
   if (plot) {
     if (!is.null(step)) {
-      time = ((1:length(orig)) - 0.5) * step
+      time = ((seq_along(orig)) - 0.5) * step
       xlab = 'Time, s'
       xaxt = 'n'
     } else {
@@ -445,7 +447,7 @@ findInflections = function(x,
     le = length(extrema)
     if (le > 0) {
       points(extrema, orig[extrema], col = 'blue', pch = 18)
-      for (i in 1:le)
+      for (i in seq_len(le))
         segments(x0 = extrema[i], y0 = -1e50, y1 = orig[extrema[i]],
                  lty = 1, lwd = .25, col = 'black')
     }
@@ -454,5 +456,5 @@ findInflections = function(x,
       axis(1, at = pt / step + .5, labels = pt)
     }
   }
-  return(extrema)
+  extrema
 }

@@ -105,14 +105,10 @@ morphDF = function(a,
     }
     a_norm = a
     b_norm = b
-    a_norm[, 1] = a_norm[, 1] - mymin_x
-    a_norm[, 1] = a_norm[, 1] / (mymax_x - mymin_x)
-    a_norm[, 2] = a_norm[, 2] - mymin_y
-    a_norm[, 2] = a_norm[, 2] / (mymax_y - mymin_y)
-    b_norm[, 1] = b_norm[, 1] - mymin_x
-    b_norm[, 1] = b_norm[, 1] / (mymax_x - mymin_x)
-    b_norm[, 2] = b_norm[, 2] - mymin_y
-    b_norm[, 2] = b_norm[, 2] / (mymax_y - mymin_y)
+    a_norm[, 1] = (a_norm[, 1] - mymin_x) / (mymax_x - mymin_x)
+    a_norm[, 2] = (a_norm[, 2] - mymin_y) / (mymax_y - mymin_y)
+    b_norm[, 1] = (b_norm[, 1] - mymin_x) / (mymax_x - mymin_x)
+    b_norm[, 2] = (b_norm[, 2] - mymin_y) / (mymax_y - mymin_y)
 
     # FIND MATCHING ANCHORS
     a_norm$match = NA
@@ -164,7 +160,7 @@ morphDF = function(a,
     # morph
     idx = seq(0, 1, length.out = nMorphs)
     out[[1]] = a[, 1:2]
-    for (d in 1:length(idx)) {
+    for (d in seq_along(idx)) {
       hybrid = a
       for (i in 1:nrow(hybrid)) {
         # NB: w/o rounding unique() below fails to find duplicates. For more on
@@ -192,7 +188,7 @@ morphDF = function(a,
       }
     }
   }
-  return (out)
+  out
 }
 
 
@@ -219,12 +215,13 @@ morphFormants = function(f1, f2, nMorphs = 5) {
   h = morphDF(f1[, c(1, 2)], f2[, c(1, 2)], nMorphs = nMorphs)
   h_amp = morphDF(f1[, c(1, 3)], f2[, c(1, 3)], nMorphs = nMorphs)
   h_width = morphDF(f1[, c(1, 4)], f2[, c(1, 4)], nMorphs = nMorphs)
-  for (i in 1:length(h)) {
+  for (i in seq_along(h)) {
     h[[i]]$amp = h_amp[[i]]$amp
     h[[i]]$width = h_width[[i]]$width
   }
-  return (h)
+  h
 }
+
 
 #' Morph lists
 #'
@@ -278,5 +275,5 @@ morphList = function(l1, l2, nMorphs = 5) {
       out[[i]] [[f]] = temp[[i]]
     }
   }
-  return (out)
+  out
 }

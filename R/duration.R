@@ -35,12 +35,12 @@
 #' hist(d$duration - d$duration_noSilence)
 #' }
 getDuration = function(
-  x,
-  samplingRate = NULL,
-  silence = .01,
-  rms = list(windowLength = 20, step = 5),
-  reportEvery = NULL,
-  cores = 1
+    x,
+    samplingRate = NULL,
+    silence = .01,
+    rms = list(windowLength = 20, step = 5),
+    reportEvery = NULL,
+    cores = 1
 ) {
   # match args
   myPars = list(silence = silence)
@@ -87,9 +87,9 @@ getDuration = function(
 #' @inheritParams getDuration
 #' @keywords internal
 .getDuration = function(
-  audio,
-  silence = .01,
-  rms = list(windowLength = 20, step = 5)
+    audio,
+    silence = .01,
+    rms = list(windowLength = 20, step = 5)
 ) {
   if (is.finite(silence)) {
     ampl = do.call(.getRMS, c(list(audio = audio, plot = FALSE), rms))
@@ -101,6 +101,6 @@ getDuration = function(
   } else {
     duration_noSilence = NA
   }
-  return(data.frame(duration = audio$duration,
-                    duration_noSilence = duration_noSilence))
+  data.frame(duration = audio$duration,
+             duration_noSilence = duration_noSilence)
 }

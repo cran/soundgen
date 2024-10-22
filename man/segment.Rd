@@ -165,7 +165,7 @@ segments that seem to be different from noise based on amplitude and/or
 spectral similarity thresholds. Bursts are defined as local maxima in signal
 envelope that are high enough both in absolute terms (relative to the global
 maximum) and with respect to the surrounding region (relative to local
-mimima). See vignette('acoustic_analysis', package = 'soundgen') for details.
+minima). See vignette('acoustic_analysis', package = 'soundgen') for details.
 }
 \details{
 Algorithm: for each chunk at most \code{maxDur} long, first the audio

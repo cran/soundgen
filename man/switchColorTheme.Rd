@@ -12,4 +12,14 @@ switchColorTheme(colorTheme)
 \description{
 Internal soundgen function
 }
+\examples{
+soundgen:::switchColorTheme('bw')
+soundgen:::switchColorTheme('seewave')
+
+cols_matlab = soundgen:::switchColorTheme('matlab') (100)
+plot(1:100, seq(0, 1, length.out = 100), type = 'n')
+for (i in 1:100) {
+  rect(i - 1, 0, i, 1, col = cols_matlab[i], border = NA)
+}
+}
 \keyword{internal}

@@ -21,11 +21,11 @@ Internal soundgen function.
 }
 \details{
 \code{clumper} makes sure each homogeneous segment in a sequence is at least
-minLength long. Called by getIntegerRandomWalk(), getVocalFry(),
-naiveBayes(), etc. Algorithm: find the epochs shorter than minLength, merge
-max 1/4 of them with the largest neighbor, and repeat recursively until all
-epochs are at least minLength long. minLength can be a vector, in which case
-it is assumed to change over time.
+minLength long. Called by getIntegerRandomWalk(), addSubh(), naiveBayes(),
+etc. Algorithm: find the epochs shorter than minLength, merge max 1/4 of them
+with the largest neighbor, and repeat recursively until all epochs are at
+least minLength long. minLength can be a vector, in which case it is assumed
+to change over time.
 }
 \examples{
 s = c(1,3,2,2,2,0,0,4,4,1,1,1,1,1,3,3)

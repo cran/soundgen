@@ -4,7 +4,7 @@
 \alias{addVectors}
 \title{Add overlapping vectors}
 \usage{
-addVectors(v1, v2, insertionPoint = 1, normalize = TRUE)
+addVectors(v1, v2, insertionPoint = 1L, normalize = TRUE)
 }
 \arguments{
 \item{v1, v2}{numeric vectors}
@@ -25,12 +25,14 @@ v1 = 1:6
 v2 = rep(100, 3)
 addVectors(v1, v2, insertionPoint = 5, normalize = FALSE)
 addVectors(v1, v2, insertionPoint = -4, normalize = FALSE)
+addVectors(v1, rep(100, 15), insertionPoint = -4, normalize = FALSE)
 # note the asymmetry: insertionPoint refers to the first arg
 addVectors(v2, v1, insertionPoint = -4, normalize = FALSE)
 
 v3 = rep(100, 15)
 addVectors(v1, v3, insertionPoint = -4, normalize = FALSE)
 addVectors(v2, v3, insertionPoint = 7, normalize = FALSE)
+addVectors(1:6, 3:6, insertionPoint = 3, normalize = FALSE)
 }
 \seealso{
 \code{\link{soundgen}}

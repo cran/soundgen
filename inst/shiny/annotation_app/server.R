@@ -532,7 +532,7 @@ server = function(input, output, session) {
                  axes = FALSE,
                  xlab = '', ylab = ''
             )
-            for (i in 1:nrow(myPars$ann)) {
+            for (i in seq_len(nrow(myPars$ann))) {
               r = rnorm(1, 0, .05)  # random vertical shift to avoid overlap
               # highlight current annotation
               highlight = ifelse(is.numeric(myPars$currentAnn) &&

@@ -195,7 +195,7 @@ getSmoothContour = function(
                             discontThres = discontThres,
                             jumpThres = jumpThres)
     smoothContour = vector()
-    for (i in 1:nrow(sections)) {
+    for (i in seq_len(nrow(sections))) {
       segm_len = round((anchors$time[sections$end[i]] -
                           anchors$time[sections$start[i]]) /
                          diff(range(anchors$time)) * len)
@@ -319,9 +319,11 @@ getSmoothContour = function(
   # floor / ceiling
   smoothContour[smoothContour < valueFloor] = valueFloor
   smoothContour[smoothContour > valueCeiling] = valueCeiling
-  if (thisIsPitch)
-    smoothContour = semitonesToHz(smoothContour)
-  return(smoothContour)
+  if (thisIsPitch) {
+    semitonesToHz(smoothContour)
+  } else {
+    smoothContour
+  }
 }
 
 
@@ -340,27 +342,30 @@ drawContour = function(len,
                        valueFloor,
                        duration_ms = 500,
                        loessSpan = NULL) {
-  time = 1:len
+  time = seq_len(len)
   nr = nrow(anchors)
   if (nr == len) return(anchors$value)
   if (nr == 1) {
     # flat
-    smoothContour = rep(anchors$value[1], len)
+    smoothContour = rep(.subset2(anchors$value, 1), len)
   } else if (nr == 2) {
     # linear
-    smoothContour = seq(anchors$value[1], anchors$value[2], length.out = len)
+    smoothContour = seq(.subset2(anchors$value, 1),
+                        .subset2(anchors$value, 2),
+                        length.out = len)
   } else {
     # smooth contour
     if (interpol == 'approx') {
       # approx can handle NAs, but we only really care about leading/trailing
       # NAs, because NAs in the middle can be handled automatically
-      if (is.na(anchors$value[1]) | is.na(anchors$value[nr])) {
+      if (is.na(.subset2(anchors$value, 1)) |
+          is.na(.subset2(anchors$value, nr))) {
         # if there are leading and/or trailing NAs, we have to upsample them separately
         # replace trailing NA with the first / last non-NA values
         idx_notNA = which(!is.na(anchors$value))
         idx_na = which(is.na(anchors$value))
-        n_leading_na = round(len * anchors$time[idx_notNA[1]])
-        n_trailing_na = round(len * (1 - anchors$time[tail(idx_notNA, 1)]))
+        n_leading_na = round(len * anchors$time[.subset2(idx_notNA, 1)])
+        n_trailing_na = round(len * (1 - anchors$time[.subset2(idx_notNA, length(idx_notNA))]))
         n_mid = len - n_leading_na - n_trailing_na
 
         leading_na = trailing_na = numeric(0)
@@ -420,7 +425,7 @@ drawContour = function(len,
         }
       }
     }
-    return(smoothContour)
+    smoothContour
   }
 }
 
@@ -458,15 +463,15 @@ splitContour = function(anchors,
     sections = data.frame(start = 1,
                           end = rep(nrow(anchors), length(discont) + 1),
                           jump = FALSE)
-    for (j in 1:length(discont)) {
-      sections$end[j] = discont[j]
-      sections$start[j + 1] = discont[j] + 1
-      sections$jump[j] = discont[j] %in% jumps
+    for (j in seq_along(discont)) {
+      sections$end[j] = .subset2(discont, j)
+      sections$start[j + 1] = .subset2(discont, j) + 1
+      sections$jump[j] = any(jumps == .subset2(discont, j))
     }
   } else {
     sections = data.frame(start = 1, end = nrow(anchors), jump = FALSE)
   }
-  return(sections)
+  sections
 }
 
 
@@ -487,14 +492,15 @@ splitContour = function(anchors,
 #' soundgen:::getDiscreteContour(len = 10, interpol = 'spline', plot = TRUE,
 #'   ylab = 'Semitones', anchors = data.frame(time = c(0, .2, .6, 1),
 #'   value = c(0, -3, 1, 0)))
-getDiscreteContour = function(len,
-                              anchors = data.frame(time = c(0, 1), value = c(1, 1)),
-                              interpol = c('spline', 'loess')[2],
-                              valueFloor = NULL,
-                              valueCeiling = NULL,
-                              ylim = NULL,
-                              plot = FALSE,
-                              ...) {
+getDiscreteContour = function(
+    len,
+    anchors = data.frame(time = c(0, 1), value = c(1, 1)),
+    interpol = c('spline', 'loess')[2],
+    valueFloor = NULL,
+    valueCeiling = NULL,
+    ylim = NULL,
+    plot = FALSE,
+    ...) {
   contour = getSmoothContour(
     len = len,
     anchors = anchors,
@@ -512,8 +518,9 @@ getDiscreteContour = function(len,
     points (x = anchors$time * (len - 1) + 1, y = anchors$value, col = 'blue',
             cex = 3)
   }
-  return(contour)
+  contour
 }
+
 
 #' Reformat anchors
 #'
@@ -581,6 +588,47 @@ reformatAnchors = function(anchors, normalizeTime = TRUE) {
 
   # make sure time ranges from 0 to 1
   if (normalizeTime) anchors_df$time = zeroOne(anchors_df$time)
-
-  return(anchors_df)
+  anchors_df
 }
+
+# microbenchmark(getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'approx'),
+#                getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'spline'),
+#                getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'loess'),
+#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'approx', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'spline', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'loess', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                approx(c(350, 800, 600), n = 5500)$y,
+#                spline(c(350, 800, 600), n = 5500)$y,
+#                times = 1000)
+# time (microseconds)
+#      min        lq       mean    median        uq       max neval
+#  704.830  781.8485  865.22542  829.1670  878.4180  9170.474  1000
+#  675.657  749.0710  829.25274  795.4405  843.2735 11977.453  1000
+# 2092.073 2339.1290 2647.36506 2482.8935 2622.5545 12141.226  1000
+#  266.278  296.8205  343.99792  315.7885  336.1955  8445.818  1000
+#  228.576  262.6020  287.56813  278.0920  298.9910   560.949  1000
+# 1625.574 1819.5360 2115.95818 1933.1375 2060.6220 14818.076  1000
+#   60.539   78.0055   89.63406   84.9255   95.0585  1274.741  1000
+#   39.215   51.7755   77.17996   57.1855   64.7655  8999.126  1000
+
+# more anchors
+# anchors = rnorm(25)
+# microbenchmark(getSmoothContour(anchors = anchors, len = 5500, interpol = 'approx'),
+#                getSmoothContour(anchors = anchors, len = 5500, interpol = 'spline'),
+#                getSmoothContour(anchors = anchors, len = 5500, interpol = 'loess'),
+#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'approx', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'spline', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'loess', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
+#                approx(anchors, n = 5500)$y,
+#                spline(anchors, n = 5500)$y,
+#                times = 1000)
+
+ #     min       lq       mean    median        uq        max neval
+ # 4080.377 4363.306 4700.50518 4542.5675 4790.0665  18021.480  1000
+ # 4089.236 4362.154 5259.55009 4550.4395 4791.3250 548357.525  1000
+ # 4061.613 4373.808 4760.14351 4550.9450 4793.2425  24379.357  1000
+ #  280.955  313.286  354.89594  327.7435  346.8805  11438.639  1000
+ #  226.346  261.227  291.07545  273.7860  292.3795  11430.247  1000
+ # 1522.295 1707.689 1827.32047 1775.8700 1867.1540  13665.532  1000
+ #   83.992   99.073  107.21616  104.5375  110.9490   1020.392  1000
+ #   41.920   54.735   60.25429   60.1025   65.0695     95.647  1000

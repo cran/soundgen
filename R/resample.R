@@ -1,13 +1,15 @@
 #' Resample a vector
 #'
-#' Changes the sampling rate without introducing artefacts like aliasing.
-#' Algorithm: to downsample, applies a low-pass filter, then decimates with
-#' \code{approx}; to upsample, performs linear interpolation with \code{approx},
-#' then applies a low-pass filter. NAs can be interpolated or preserved in the
-#' output. The length of output is determined, in order of precedence, by
-#' \code{len / mult / samplingRate_new}. For simple vector operations, this is
-#' very similar to approx, but the leading and trailing NAs are also preserved
-#' (see examples).
+#' Changes the sampling rate without introducing artefacts like aliasing. Best
+#' for relatively short vectors that require special care (eg pitch contours
+#' that contain NAs, which need to be dropped or preserved) as the algorithm is
+#' too slow for long sounds. Algorithm: to downsample, applies a low-pass
+#' filter, then decimates with \code{approx}; to upsample, performs linear
+#' interpolation with \code{approx}, then applies a low-pass filter. NAs can be
+#' interpolated or preserved in the output. The length of output is determined,
+#' in order of precedence, by \code{len / mult / samplingRate_new}. For simple
+#' vector operations, this is very similar to approx, but the leading and
+#' trailing NAs are also preserved (see examples).
 #' @inheritParams spectrogram
 #' @inheritParams segment
 #' @param mult multiplier of sampling rate: new sampling rate = old sampling
@@ -201,7 +203,7 @@ resample = function(x,
     time_stamps = (0:n1) / n1  # the beg of each frame plus one extra
     na_pos = data.frame(beg = time_stamps[beg], end = time_stamps[end])
     na_idx = numeric(0)
-    for (i in 1:length(beg)) {
+    for (i in seq_along(beg)) {
       idx_start = round(time_stamps[beg[i]] * n2) + 1
       n_na = round((na_pos$end[i] - na_pos$beg[i]) * n2)
       if (n_na > 0) na_idx = c(na_idx, idx_start:(min(n2, (idx_start + n_na - 1))))
@@ -237,6 +239,5 @@ resample = function(x,
     writeAudio(out, audio = audio, filename = filename)
   }
 
-  return(out)
+  out
 }
-

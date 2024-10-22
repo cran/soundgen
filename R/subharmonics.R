@@ -1,12 +1,12 @@
-# Functions for adding subharmonics (vocal fry).
+# Functions for adding subharmonics.
 
-#' Constant subharmonics regime
+#' Constant subharmonics
 #'
 #' Internal soundgen function.
 #'
-#' Helper function for adding vocal fry (subharmonics) to a single epoch, with
-#' unchanging subharmonics regime (fixed number of subharmonics and sideband
-#' width). See master function \code{\link{getVocalFry}}.
+#' Helper function for adding subharmonics to a single epoch, with unchanging
+#' subharmonic regime (fixed number of subharmonics and sideband width). See
+#' master function \code{\link{addSubh}}.
 #' @param rolloff matrix of original amplitudes of each harmonic in f0 stack
 #'   returned by \code{\link{getRolloff}} (columns=time, rows=frequency bins)
 #' @param pitch_per_gc vector of the same length as ncol(rolloff)): f0 in Hz,
@@ -22,15 +22,13 @@
 #'   0 and 1) to save computational resources
 #' @return Returns a modified rolloff matrix with added subharmonics
 #' @keywords internal
-getVocalFry_per_epoch = function(rolloff,
-                                 pitch_per_gc,
-                                 nSubharm,
-                                 sideband_width_vector,
-                                 subDep_vector,
-                                 throwaway01) {
-  if (nSubharm < 1) {
-    return(rolloff)
-  }
+addSubh_per_epoch = function(rolloff,
+                             pitch_per_gc,
+                             nSubharm,
+                             sideband_width_vector,
+                             subDep_vector,
+                             throwaway01) {
+  if (nSubharm < 1)  return(rolloff)
 
   # add an extra (temporary) empty harmonic at 0 Hz and another above the last
   #   f-harmonic, so as to have nice blocks
@@ -53,7 +51,7 @@ getVocalFry_per_epoch = function(rolloff,
   multipl_lwr = list()
   # normaliz factor is the same for all g harmonics
   normaliz = dnorm(0, mean = 0, sd = sideband_width_vector) / subDep_vector * 100
-  for (s in 1:nSubharm) {
+  for (s in seq_len(nSubharm)) {
     dist_lwr = pitch_per_gc * s / (nSubharm + 1)
     dist_upr = pitch_per_gc - dist_lwr
     multipl_lwr[[s]] = dnorm(dist_lwr, mean = 0,
@@ -66,7 +64,7 @@ getVocalFry_per_epoch = function(rolloff,
 
   # insert g harmonics to each block between f harmonics
   # (0 to f0, f0 to 2*f0, etc)
-  for (block in 1:(nrow(rolloff) + 1)) {
+  for (block in seq_len(nrow(rolloff) + 1)) {
     # +1 because we have an extra block
     # above the last f harmonic
 
@@ -77,18 +75,18 @@ getVocalFry_per_epoch = function(rolloff,
     g_idx = (row_lwr + 1):(row_upr - 1) # rows to be filled with g harmonics
 
     firstBlock = 2 ^ as.numeric(block == 1)  # double under f0
-    for (g in 1:length(g_idx)) {
+    for (g in seq_along(g_idx)) {
       # add up the contribution of the closest f harmonics immediately below and
       # above the current g harmonic
-      rolloff_new[g_idx[g],] = (rolloff_new[row_lwr] * multipl_lwr[[g]]+
-                                  rolloff_new[row_upr] * multipl_upr[[g]]) * addTwoFHarm * firstBlock
+      rolloff_new[g_idx[g], ] = (
+        rolloff_new[row_lwr] * multipl_lwr[[g]]+ rolloff_new[row_upr] *
+          multipl_upr[[g]]) * addTwoFHarm * firstBlock
     }
   }
 
   # clean up
   rolloff_new[rolloff_new < throwaway01] = 0
-  rolloff_new = rolloff_new [apply(rolloff_new, 1, sum) > 0, , drop = FALSE]
-  return(rolloff_new)
+  rolloff_new[rowSums(rolloff_new) > 0, , drop = FALSE]
 }
 
 
@@ -97,7 +95,7 @@ getVocalFry_per_epoch = function(rolloff,
 #' Internal soundgen function.
 #'
 #' Adds subharmonics to the main (f0) harmonic stack, forming sidebands.
-#' @inheritParams getVocalFry_per_epoch
+#' @inheritParams addSubh_per_epoch
 #' @inheritParams soundgen
 #' @return Returns a list consisting of a list of rolloff matrices (one matrix
 #'   per epoch) and a dataframe of epochs.
@@ -106,19 +104,19 @@ getVocalFry_per_epoch = function(rolloff,
 #' pitch_per_gc = c(400, 500, 600, 700)
 #' rolloff = getRolloff(pitch_per_gc, rolloff = -30)
 #' # one epoch, two subharmonics
-#' rolloff_subh = soundgen:::getVocalFry(rolloff, pitch_per_gc,
+#' rolloff_subh = soundgen:::addSubh(rolloff, pitch_per_gc,
 #'   subFreq = 200, subDep = 150, shortestEpoch = 100)
 #' # three epochs with 2/3/4 subharmonics
-#' rolloff_subh = soundgen:::getVocalFry(rolloff, pitch_per_gc,
+#' rolloff_subh = soundgen:::addSubh(rolloff, pitch_per_gc,
 #'   subFreq = 200, subDep = 150, shortestEpoch = 0)
-getVocalFry = function(rolloff,
-                       pitch_per_gc,
-                       subRatio = 2,
-                       subFreq = 0,
-                       subDep = 10,
-                       subWidth = 10000,
-                       dynamicRange = 80,
-                       shortestEpoch = 300) {
+addSubh = function(rolloff,
+                   pitch_per_gc,
+                   subRatio = 2,
+                   subFreq = 0,
+                   subDep = 10,
+                   subWidth = 10000,
+                   dynamicRange = 80,
+                   shortestEpoch = 300) {
   # force subFreq to be a multiple of f0 at each point
   if (any(subFreq > 0)) {
     # if subFreq is defined, we ignore subRatio
@@ -154,11 +152,11 @@ getVocalFry = function(rolloff,
   # check that nEpochs == length(unique(nSubharm))
   nSubharm_per_epoch = nSubharm[c(nSubharm_change_idx, length(nSubharm))]
 
-  # add vocal fry to rolloff for each epoch separately
+  # add subharmonics to rolloff for each epoch separately
   rolloff_new = vector("list", nEpochs)
-  for (e in 1:nEpochs) {
+  for (e in seq_len(nEpochs)) {
     idx = epoch_start_idx[e]:epoch_end_idx[e]
-    rolloff_new[[e]] = getVocalFry_per_epoch (
+    rolloff_new[[e]] = addSubh_per_epoch (
       rolloff = rolloff[, idx, drop = FALSE],
       pitch_per_gc = pitch_per_gc[idx],
       nSubharm = nSubharm_per_epoch[e],
@@ -169,8 +167,8 @@ getVocalFry = function(rolloff,
     # View(rolloff_new[[1]])
   }
 
-  return(list(
+  list(
     'rolloff' = rolloff_new,
     'epochs' = data.frame('start' = epoch_start_idx, 'end' = epoch_end_idx)
-  ))
+  )
 }

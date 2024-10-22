@@ -125,7 +125,7 @@ matchPars = function(target,
 
   # replace defaults with user-provided values, if any
   if (is.list(init)) {
-    for (i in 1:length(init)) {
+    for (i in seq_along(init)) {
       if (!names(init)[i] %in% names(defaults)) {
         stop(paste('init parameter not recognized:', init[i]))
       }
@@ -200,108 +200,5 @@ matchPars = function(target,
     }
   }
 
-  return(list(history = output, pars = output[[length(output)]]$pars))
-}
-
-
-
-#' Wiggle parameters
-#'
-#' Internal soundgen function
-#'
-#' Helper function for \code{\link{matchPars}}. Takes a list of control
-#' parameters for \code{\link{soundgen}} and introduces some random variation in
-#' their values.
-#' @param parList full list of considered parameters
-#' @param parsToWiggle a list of the names of pars that might be mutated
-#' @inheritParams matchPars
-#' @keywords internal
-#' @examples
-#' soundgen:::wigglePars(
-#'   parList = list(
-#'     sylLen = 250,
-#'     pitch = data.frame(time = c(0, 1), value = c(200, 300))
-#'   ),
-#'   parsToWiggle = c('sylLen', 'pitch'),
-#'   probMutation = .75,
-#'   stepVariance = .5
-#' )
-wigglePars = function(parList,
-                      parsToWiggle,
-                      probMutation,
-                      stepVariance) {
-  parsToRound = c('repeatBout', 'nSyl', 'rolloffParabHarm')
-
-  # choose pars to mutate
-  if (length(parsToWiggle) > 1) {
-    idx_mut = rbinom(n = length(parsToWiggle),
-                     size = 1,
-                     prob = probMutation)
-    idx_mut_bin = which(idx_mut == 1)
-    parsToMutate = parsToWiggle[idx_mut_bin]
-    if (length(parsToMutate) == 0) {
-      # need to mutate at least one par
-      parsToMutate = sample(parsToWiggle, size = 1)
-    }
-  } else {
-    parsToMutate = parsToWiggle
-  }
-
-  # prepare a list of mutated par values to feed to the sound generator
-  for (p in parsToMutate) {
-    if (is.numeric(parList[[p]])) {  # continuous pars
-      l = permittedValues[p, 'low']
-      h = permittedValues[p, 'high']
-      r = ifelse(parList[[p]] != 0,  # if par = 0, we wiggle based on its range
-                 abs(parList[[p]]),  # otherwise based on its current value
-                 h - l)
-      parList[[p]] = rnorm_truncated(
-        n = 1,
-        mean = parList[[p]],
-        low = l,
-        high = h,
-        sd = r * stepVariance,
-        roundToInteger = (p %in% parsToRound)
-      )
-    } else if (is.list(parList[[p]])) {  # anchors
-      if (p == 'formants' | p == 'formantsNoise') {  # formants
-        for (f in 1:length(parList[[p]])) {
-          parList[[p]][[f]] = wiggleAnchors(
-            df = parList[[p]][[f]],
-            temperature = stepVariance,
-            temp_coef = 1,
-            low = c(0, 50, -120, 1),  # time freq amp width
-            high = c(1, 8000, 120, 2000),
-            wiggleAllRows = FALSE
-          )
-        }
-      } else {  # pitch / ampl / etc
-        wiggleAllRows = FALSE
-        if (p == 'pitch') {
-          low = c(0, permittedValues['pitchFloor', 'default'])
-          high = c(1, permittedValues['pitchCeiling', 'default'])
-        } else if (p == 'pitchGlobal') {
-          low = c(0, permittedValues['pitchDeltas', 'low'])
-          high = c(1, permittedValues['pitchDeltas', 'high'])
-        } else if (p == 'ampl' |
-                   p == 'amplGlobal') {
-          low = c(0, 0)
-          high = c(1, permittedValues['dynamicRange', 'default'])
-        } else if (p == 'noise') {
-          low = c(-Inf, -permittedValues['dynamicRange', 'default'])
-          high = c(+Inf, 40)
-          wiggleAllRows = TRUE
-        }
-        parList[[p]] = wiggleAnchors(
-          df = parList[[p]],
-          temperature = stepVariance,
-          temp_coef = 1,
-          low = low,  # time, value
-          high = high,
-          wiggleAllRows = wiggleAllRows
-        )
-      }
-    }
-  }
-  return(parList)
+  list(history = output, pars = output[[length(output)]]$pars)
 }

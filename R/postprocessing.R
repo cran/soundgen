@@ -196,7 +196,7 @@ fade = function(
 
   # apply the fade
   if (fadeIn_points > 1) {
-    idx_in = 1:fadeIn_points
+    idx_in = seq_len(fadeIn_points)
     audio$sound[idx_in] = audio$sound[idx_in] * fi
   }
   if (fadeOut_points > 0) {
@@ -289,7 +289,7 @@ crossFade = function(
     # up to the last point before the last zero-crossing in sound 1 on the
     # upward curve + one extra zero (to have a nice, smooth transition line:
     # last negative in s1 - zero - first positive in s2)
-    ampl1 = c(ampl1[1:zc1], 0)
+    ampl1 = c(ampl1[seq_len(zc1)], 0)
   }
   zc2 = findZeroCrossing(ampl2, location = 1)
   if (!is.na(zc2)) {
@@ -322,8 +322,8 @@ crossFade = function(
                     steepness = steepness)
     idx1 = length(ampl1) - crossLenPoints
     cross = rev(multipl) * ampl1[(idx1 + 1):length(ampl1)] +
-      multipl * ampl2[1:crossLenPoints]
-    ampl = c(ampl1[1:idx1],
+      multipl * ampl2[seq_len(crossLenPoints)]
+    ampl = c(ampl1[seq_len(idx1)],
              cross,
              ampl2[(crossLenPoints + 1):length(ampl2)])
   }
@@ -460,7 +460,7 @@ flatSpectrum = function(x,
   }
 
   # modify the spectrogram
-  for (i in 1:ncol(spec)) {
+  for (i in seq_len(ncol(spec))) {
     abs_s = abs(spec[, i])
     sc = max(abs_s)
     cor_coef = .flatEnv(list(sound = abs_s,
@@ -495,7 +495,7 @@ flatSpectrum = function(x,
     writeAudio(sound_new, audio = audio, filename = filename)
   }
   # spectrogram(sound_new, audio$samplingRate)
-  invisible(sound_new)
+  sound_new
 }
 
 
@@ -637,18 +637,18 @@ reverb = function(x,
       nFr_rvb = round(rvb_len_ms * audio$samplingRate / 1000)
       win_mean = reverbDelay * audio$samplingRate / 1000
       win_sd = reverbSpread * audio$samplingRate / 1000
-      win = dnorm(1:nFr_rvb, mean = win_mean, sd = win_sd)
+      win = dnorm(seq_len(nFr_rvb), mean = win_mean, sd = win_sd)
       max_win = dnorm(win_mean, win_mean, win_sd)  # density at mean
       # win = win / max(win) * dynamicRange - dynamicRange + reverbLevel
       win = win / max_win * 120 - 120 + reverbLevel
       # 120 dB is used to set up the slope of decay, otherwise it would depend
       # on dynamicRange
       # "discretize" the win - only keep a few delay points
-      idx_keep = sort(sample(1:nFr_rvb, size = min(nFr_rvb, reverbDensity)))
+      idx_keep = sort(sample(seq_len(nFr_rvb), size = min(nFr_rvb, reverbDensity)))
       # only keep as much of win as exceeds dynamicRange (don't bother to add
       # very quiet reverb)
       idx_keep = idx_keep[win[idx_keep] > (-dynamicRange)]
-      win = win[1:tail(idx_keep, 1)]
+      win = win[seq_len(.subset2(idx_keep, length(idx_keep)))]
       if (length(idx_keep) == 0) {
         # nothing to do
         addRvb = FALSE
@@ -666,7 +666,7 @@ reverb = function(x,
       nFr_rvb = ceiling(rvb_len_ms * audio$samplingRate / 1000)
       len_halflife = ceiling(reverbDelay * audio$samplingRate / 1000)
       reverbLevel_lin = 10 ^ (reverbLevel / 20)
-      win = 2 ^ (-(1:nFr_rvb) / len_halflife) * reverbLevel_lin
+      win = 2 ^ (-(seq_len(nFr_rvb)) / len_halflife) * reverbLevel_lin
       # plot(win, type = 'l')
 
       # add some noise
@@ -698,15 +698,17 @@ reverb = function(x,
   }
 
   ## echo
-  if (is.numeric(echoLevel) && echoLevel > (-dynamicRange) & any(echoDelay > 0)) {
+  if (all(is.numeric(echoLevel)) &&
+      any(echoLevel > (-dynamicRange)) &&
+      any(echoDelay > 0)) {
     le = length(echoDelay)
     if (le > 1 & length(echoLevel) == 1) echoLevel = rep(echoLevel, le)
     echo = NULL
-    for (e in 1:le) {
+    for (e in seq_len(le)) {
       nFr_echo = dynamicRange / (-echoLevel[e])
       step_echo = ceiling(echoDelay[e] * audio$samplingRate / 1000)
       echo_e = rep(0, audio$ls + nFr_echo * step_echo - 1)
-      for (i in 1:nFr_echo) {
+      for (i in seq_len(nFr_echo)) {
         idx_start = i * step_echo
         idx_i = idx_start:(idx_start + audio$ls - 1)
         echo_e[idx_i] = echo_e[idx_i] + audio$sound * 10 ^ (echoLevel[e] * i / 20)
@@ -747,12 +749,12 @@ reverb = function(x,
     writeAudio(out, audio = audio, filename = filename)
   }
 
-  invisible(list(
+  list(
     rvb_win = win,
     rvb = rvb,
     echo = echo,
     effect = effect,
     audio = out
-  ))
+  )
 }
 

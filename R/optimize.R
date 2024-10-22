@@ -126,19 +126,18 @@ optimizePars = function(
   mygrid = NULL,
   verbose = TRUE) {
   if (is.null(bounds)) {
-    bounds = list(low = rep(-Inf, length(pars)),
-                  high = rep(Inf, length(pars)))
+    bounds = list(low = -Inf, high = Inf)
   }
   defaults = as.list(args(get(myfun)))
 
   ## Option 1: grid optimization (just evaluate the fitness for each combination of pars)
   if (!is.null(mygrid)) {
-    if (!identical(colnames(mygrid)[1:length(pars)], pars)) {
+    if (!identical(colnames(mygrid)[seq_along(pars)], pars)) {
       stop('mygrid should be either NULL or a dataframe with one column per parameter')
     }
     mygrid$fit = NA
     for (i in 1:nrow(mygrid)) {
-      mygrid$fit[i] = evaluatePars(p = as.numeric(mygrid[i, 1:length(pars)]),
+      mygrid$fit[i] = evaluatePars(p = as.numeric(mygrid[i, seq_along(pars)]),
                                    pars = pars,
                                    myfun  = myfun,
                                    key = key,
@@ -161,7 +160,7 @@ optimizePars = function(
   time_start = proc.time()
   for (i in 1:nIter) {
     # start with randomly wiggled default pars
-    p_init = rnorm_truncated(
+    p_init = rnorm_truncated2(
       length(pars_defaults),
       mean = as.numeric(unlist(pars_defaults)),
       sd = as.numeric(unlist(pars_defaults)) * initSD,

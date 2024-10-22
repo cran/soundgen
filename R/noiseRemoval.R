@@ -177,9 +177,8 @@ noiseRemoval = function(x,
     }
     audio_to_filt = audio$sound[from_idx:to_idx]
   }
-  soundFiltered = addFormants(
-    audio_to_filt,
-    samplingRate = audio$samplingRate,
+  soundFiltered = .addFormants(
+    readAudio(audio_to_filt, samplingRate = audio$samplingRate),
     from = from,
     to = to,
     spectralEnvelope = spec_noise ^ specificity,

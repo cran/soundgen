@@ -54,15 +54,16 @@ Internal soundgen function.
 Plots pitch candidates or adds them to a spectrogram.
 }
 \examples{
-\dontrun{
 s = soundgen()
-a = analyze(s, 16000, windowLength = 25, step = 25,
-            summary = 'extended', plot = FALSE)
-spectrogram(s, 16000, windowLength = 25, step = 5)
-addPitchCands(pitchCands = a$pitchCands,
-              pitchCert = a$pitchCert,
-              pitchSource = a$pitchSource,
-              pitch = a$result$pitch)
-}
+a = soundgen:::.analyze(soundgen:::readAudio(s, samplingRate = 16000),
+ windowLength = 25, step = 25,
+ returnPitchCands = TRUE, plot = FALSE)
+spectrogram(s, 16000, windowLength = 25, step = 5, ylim = c(0, 1), osc = FALSE)
+soundgen:::addPitchCands(
+  pitchCands = a$pitchCands$freq,
+  pitchCert = a$pitchCands$cert,
+  pitchSource = a$pitchCands$source,
+  pitch = a$result$pitch,
+  timestamps = a$result$time / 1000)
 }
 \keyword{internal}

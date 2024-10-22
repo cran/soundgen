@@ -639,7 +639,7 @@ server = function(input, output, session) {
                               input$plotUnvoiced_dblclick, xvar = 'time',
                               yvar = 'value', threshold = 100000, maxpoints = 1)
     idx = as.numeric(rownames(closestPoint))
-    if (length(idx) > 0 & length(myPars$noise$time) > 2) {
+    if (length(idx) > 0 && length(myPars$noise$time) > 2) {
       # we can remove any anchor, as long as there will be at least two anchors
       # left (to know what noise duration should be)
       myPars[['noise']] = data.frame(
@@ -653,13 +653,13 @@ server = function(input, output, session) {
     # flat pitch equal to the first pitch anchor
     myPars[['noise']] = data.frame(
       'time' = myPars$noise$time[c(1,length(myPars$noise$time))],
-      'value' = rep(myPars$noise$value[1],2)
+      'value' = rep(myPars$noise$value[1], 2)
     )})
 
   output$noise_anchors = renderTable(expr = data.frame(
     'Time, ms' = round(myPars$noise$time, 0),
     'Amplitude, dB' = round(myPars$noise$value, 0),
-    row.names = 1:length(myPars$noise$time)),
+    row.names = seq_along(myPars$noise$time)),
     digits = 0, align = 'c', rownames = FALSE)
 
 
@@ -743,7 +743,7 @@ server = function(input, output, session) {
   output$mouth_anchors = renderTable(expr = data.frame(
     'Time, ms' = as.integer(round(myPars$mouth$time * durSyl_withNoise())),
     'Open' = myPars$mouth$value,
-    row.names = 1:length(myPars$mouth$time)),
+    row.names = seq_along(myPars$mouth$time)),
     digits = 2, align = 'c', rownames = FALSE)
 
 
@@ -819,7 +819,7 @@ server = function(input, output, session) {
   output$ampl_syl_anchors = renderTable(expr = data.frame(
     'Time, ms' = as.integer(round(myPars$ampl$time * input$sylLen, 0)),
     'Amplitude' = myPars$ampl$value,
-    row.names = 1:length(myPars$ampl$time)),
+    row.names = seq_along(myPars$ampl$time)),
     digits = 0, align = 'c', rownames = FALSE)
 
 
@@ -994,7 +994,7 @@ server = function(input, output, session) {
                               samplingRate = input$samplingRate,
                               plot = FALSE
       )
-      lta = apply(s, 1, mean)
+      lta = rowSums(s)
       freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
       plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
            ylab = 'Power, dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
@@ -1110,7 +1110,7 @@ server = function(input, output, session) {
                                 samplingRate = input$samplingRate,
                                 plot = FALSE
         )
-        lta = apply(s, 1, mean)
+        lta = rowSums(m)
         freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
         plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
              ylab = 'dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
@@ -1230,7 +1230,7 @@ server = function(input, output, session) {
       dynamicRange = input$dynamicRange
     )
     # simplify arg_list by removing values that are the same as defaults
-    idx_same = apply(matrix(1:length(arg_list)), 1, function(x) {
+    idx_same = apply(matrix(seq_along(arg_list)), 1, function(x) {
       temp = all.equal(arg_list[[x]],
                        defaults[[names(arg_list)[x]]],
                        check.attributes = FALSE)

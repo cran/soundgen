@@ -8,7 +8,7 @@
 #' spectral similarity thresholds. Bursts are defined as local maxima in signal
 #' envelope that are high enough both in absolute terms (relative to the global
 #' maximum) and with respect to the surrounding region (relative to local
-#' mimima). See vignette('acoustic_analysis', package = 'soundgen') for details.
+#' minima). See vignette('acoustic_analysis', package = 'soundgen') for details.
 #'
 #' Algorithm: for each chunk at most \code{maxDur} long, first the audio
 #' recording is partitioned into signal and noise regions: the quietest and most
@@ -406,14 +406,13 @@ segment = function(
       nonZero_ampl_dampl = which(ampl_dampl > 0)
       if (is.null(propNoise)) {
         dens_ampl_dampl = density(ampl_dampl[nonZero_ampl_dampl])
-        a_zoo = zoo::as.zoo(dens_ampl_dampl$y)
-        temp = zoo::rollapply(a_zoo,
-                              width = 3,
-                              align = 'center',
-                              function(x) {
-                                which.max(x) == ceiling(length(x) / 2)
-                              })
-        idx = zoo::index(temp)[zoo::coredata(temp)]
+        hb = 1
+        idx = which(vapply(
+          (hb + 1):(length(dens_ampl_dampl$y) - hb), function(x) {
+            frx = dens_ampl_dampl$y[(x - hb):(x + hb)]
+            dens_ampl_dampl$y[x] == max(frx)
+          }, logical(1))) + hb
+
         thres_noise = dens_ampl_dampl$x[idx[1]]
         col_noise = which(ampl_dampl <= thres_noise)
         propNoise = max(.01, round(length(col_noise) / nc, 3))
@@ -528,14 +527,13 @@ segment = function(
       nonZero_cs_dcs = which(cs_dcs > 0)
       if (is.null(propNoise)) {
         dens_cs_dcs = density(cs_dcs[nonZero_cs_dcs])
-        a_zoo = zoo::as.zoo(dens_cs_dcs$y)
-        temp = zoo::rollapply(a_zoo,
-                              width = 3,
-                              align = 'center',
-                              function(x) {
-                                which.max(x) == ceiling(length(x) / 2)
-                              })
-        idx = zoo::index(temp)[zoo::coredata(temp)]
+        hb = 1
+        idx = which(vapply(
+          (hb + 1):(length(dens_cs_dcs$y) - hb), function(x) {
+            frx = dens_cs_dcs$y[(x - hb):(x + hb)]
+            dens_cs_dcs$y[x] == max(frx)
+          }, logical(1))) + hb
+
         thres_noise = max(min(cs_dcs), dens_cs_dcs$x[idx[1]])
         col_noise = which(cs_dcs <= thres_noise)
         propNoise = max(.01, round(length(col_noise) / nc, 3))
@@ -550,7 +548,7 @@ segment = function(
 
       # some kind of bin-by-bin spectral difference from noise
       difNoise = vector('numeric', nc)
-      for (c in 1:nc) {
+      for (c in seq_len(nc)) {
         # cosine
         difNoise[c] = 1 - crossprod(sp[, c], noise) /
           sqrt(crossprod(sp[, c]) * crossprod(noise))
@@ -590,7 +588,7 @@ segment = function(
             output = 'detailed'),
           reverbPars
         ))
-        rvb = rvb_list$rvb[1:nc]
+        rvb = rvb_list$rvb[seq_len(nc)]
         # plot(cs, type = 'l')
         # points(rvb, type = 'l', col = 'blue')
 
@@ -649,9 +647,8 @@ segment = function(
       if (any(!is.na(syllables_part$pauseLen))) {
         median_scaled = median_scaled + median(syllables_part$pauseLen, na.rm = TRUE)
       }
-      interburst = ifelse(!is.na(median_scaled) & length(median_scaled) > 0,
-                          median_scaled,
-                          shortestSyl)
+      interburst = if (!is.na(median_scaled) && length(median_scaled) > 0)
+        median_scaled else shortestSyl
     }
 
     bursts_part = findBursts(
@@ -705,7 +702,7 @@ segment = function(
   # fragment become NAs - recalculate
   syllables = na.omit(syllables)
   if (nrow(syllables) > 0) {
-    syllables$syllable = 1:nrow(syllables)
+    syllables$syllable = seq_len(nrow(syllables))
   } else {
     syllables = data.frame(syllable = NA,
                            start = NA, end = NA,
@@ -806,7 +803,7 @@ segment = function(
 
     # plot envelope
     envelope = data.frame(
-      time = (1:length(ampl) - 1) * step + windowLength / 2 + audio$timeShift,
+      time = (seq_along(ampl) - 1) * step + windowLength / 2 + audio$timeShift,
       value = ampl
     )
     # downsample long envelopes
@@ -875,9 +872,7 @@ segment = function(
     if (is.character(savePlots)) dev.off()
   }
 
-  result = list(
+  list(
     syllables = syllables[, c('syllable', 'start', 'end', 'sylLen', 'pauseLen')],
-    bursts = bursts,
-    noise = noise_list)
-  return(result)
+    bursts = bursts, noise = noise_list)
 }

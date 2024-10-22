@@ -25,7 +25,7 @@
 #' @examples
 #' \dontrun{
 #' # write two formulas or copy-paste them from soundgen_app() or presets:
-#' playback = c(TRUE, FALSE)[2]
+#' playback = c(TRUE, FALSE)[1]
 #' # [a] to barking
 #' m = morph(formula1 = list(repeatBout = 2),
 #'           # equivalently: formula1 = 'soundgen(repeatBout = 2)',
@@ -181,12 +181,12 @@ morph = function(formula1,
 
   notDefaultIdx_formula1 = notDefaultIdx_formula2 = NA
   if (length(formula1) > 0) {
-    notDefaultIdx_formula1 = which(apply(matrix(1:length(formula1)), 1, function(x) {
+    notDefaultIdx_formula1 = which(apply(matrix(seq_along(formula1)), 1, function(x) {
       identical(formula1[[x]], defaults[[names(formula1)[x]]]) == FALSE
     }))
   }
   if (length(formula2) > 0) {
-    notDefaultIdx_formula2 = which(apply(matrix(1:length(formula2)), 1, function(x) {
+    notDefaultIdx_formula2 = which(apply(matrix(seq_along(formula2)), 1, function(x) {
       identical(formula2[[x]], defaults[[names(formula2)[x]]]) == FALSE
     }))
   }
@@ -253,12 +253,12 @@ morph = function(formula1,
     if (is.numeric(f2$pitch$value)) f2$pitch$value = log(f2$pitch$value)
   }
   if ('formants' %in% names(f1)) {
-    for (l in 1:length(f1$formants)) {
+    for (l in seq_along(f1$formants)) {
       if (is.numeric(f1$formants[[l]]$freq)) {
         f1$formants[[l]]$freq = log(f1$formants[[l]]$freq)
       }
     }
-    for (l in 1:length(f2$formants)) {
+    for (l in seq_along(f2$formants)) {
       if (is.numeric(f2$formants[[l]]$freq)) {
         f2$formants[[l]]$freq = log(f2$formants[[l]]$freq)
       }
@@ -266,12 +266,12 @@ morph = function(formula1,
   }
 
   if ('formantsNoise' %in% names(f1)) {
-    for (l in 1:length(f1$formantsNoise)) {
+    for (l in seq_along(f1$formantsNoise)) {
       if (is.numeric(f1$formantsNoise[[l]]$freq)) {
         f1$formantsNoise[[l]]$freq = log(f1$formantsNoise[[l]]$freq)
       }
     }
-    for (l in 1:length(f2$formantsNoise)) {
+    for (l in seq_along(f2$formantsNoise)) {
       if (is.numeric(f2$formantsNoise[[l]]$freq)) {
         f2$formantsNoise[[l]]$freq = log(f2$formantsNoise[[l]]$freq)
       }
@@ -287,7 +287,7 @@ morph = function(formula1,
   }
 
   # expand vectorized pars, if any, to anchors
-  for (i in 1:length(f1)) {
+  for (i in seq_along(f1)) {
     if (is.numeric(f1[[i]]) & is.numeric(f2[[i]])) {
       if (length(f1[[i]]) > 1 | length(f2[[i]]) > 1) {
         f1[[i]] = reformatAnchors(f1[[i]])
@@ -303,7 +303,7 @@ morph = function(formula1,
   m = f1
   formulas = rep(list(f1), nMorphs)
   sounds = list()
-  for (p in 1:length(f1)) {
+  for (p in seq_along(f1)) {
     # morph each element of the formula list according to its type
     if (is.numeric(f1[[p]])) {
       m[[p]] = seq(f1[[p]], f2[[p]], length.out = nMorphs)
@@ -330,7 +330,7 @@ morph = function(formula1,
   }
   if ('formants' %in% names(f1)) {
     for (h in 1:nMorphs) {
-      for (l in 1:length(f1$formants)) {
+      for (l in seq_along(f1$formants)) {
         if (is.numeric(formulas[[h]]$formants[[l]]$freq)) {
           formulas[[h]]$formants[[l]]$freq =
             exp(formulas[[h]]$formants[[l]]$freq)
@@ -340,7 +340,7 @@ morph = function(formula1,
   }
   if ('formantsNoise' %in% names(f1)) {
     for (h in 1:nMorphs) {
-      for (l in 1:length(f1$formantsNoise)) {
+      for (l in seq_along(f1$formantsNoise)) {
         if (is.numeric(formulas[[h]]$formantsNoise[[l]]$freq)) {
           formulas[[h]]$formantsNoise[[l]]$freq =
             exp(formulas[[h]]$formantsNoise[[l]]$freq)
