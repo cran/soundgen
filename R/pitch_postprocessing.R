@@ -796,7 +796,6 @@ medianSmoother = function(df,
 #'   one fft frame, one row is one pitch candidate
 #' @inheritParams analyze
 #' @inheritParams spectrogram
-#' @param samplingRate sampling rate (Hz)
 #' @param minVoicedCands a frame is considered to be voiced if at least this
 #'   many pitch candidates are not NA. Defaults to 2: since dom is usually
 #'   defined, in practice this means that we also want at least one other pitch
@@ -810,11 +809,24 @@ medianSmoother = function(df,
 #' @return Returns a dataframe specifying where each voiced segment starts and
 #'   ends (in fft frames, not ms!)
 #' @keywords internal
+#' @examples
+#' pitch = c(rep(NA, 5), rnorm(15, 300, 15), rep(NA, 7), rnorm(10, 400, 10), rep(NA, 6))
+#' plot(pitch, type = 'b')
+#' soundgen:::findVoicedSegments(
+#'   pitchCands = matrix(pitch, nr = 1),
+#'   shortestSyl = 20,
+#'   shortestPause = 60,
+#'   step = 10,
+#'   minVoicedCands = 1,
+#'   pitchMethods = 'blabla',
+#'   manualV = NULL,
+#'   manualTryToV = NULL,
+#'   manualUnv = NULL
+#' )
 findVoicedSegments = function(pitchCands,
                               shortestSyl,
                               shortestPause,
                               step,
-                              samplingRate,
                               minVoicedCands,
                               pitchMethods,
                               manualV = NULL,
@@ -889,7 +901,11 @@ findVoicedSegments = function(pitchCands,
       }
       if (length(segmentEnd) < length(segmentStart)) {
         # if the end is not found, take the last voiced value
-        segmentEnd = c(segmentEnd, tail(which(putativelyVoiced), 1))
+        # (or terminate at the first manually unvoiced value after segmentStart, if any)
+        segmentEnd = c(segmentEnd, min(
+          manualUnv[which(manualUnv > tail(segmentStart, 1))] - 1,
+          tail(which(putativelyVoiced), 1)
+        ))
         break
       }
     }
@@ -971,7 +987,7 @@ addPitchCands = function(pitchCands,
     prior = NULL
   }
   pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
-  yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel'), 1, 1/1000)
+  yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel', 'ERB'), 1, 1/1000)
   if (yScale == 'bark') {
     # NB: tuneR::hz2bark can't handle NAs
     pitchCands = 6 * asinh(pitchCands / 600)

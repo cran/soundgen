@@ -9,7 +9,6 @@ findVoicedSegments(
   shortestSyl,
   shortestPause,
   step,
-  samplingRate,
   minVoicedCands,
   pitchMethods,
   manualV = NULL,
@@ -33,8 +32,6 @@ separated by an unvoiced gap}
 because digital audio is sampled at discrete time intervals of
 1/samplingRate, the actual step and thus the time stamps of STFT frames
 may be slightly different, eg 24.98866 instead of 25.0 ms)}
-
-\item{samplingRate}{sampling rate (Hz)}
 
 \item{minVoicedCands}{a frame is considered to be voiced if at least this
 many pitch candidates are not NA. Defaults to 2: since dom is usually
@@ -62,5 +59,20 @@ Internal soundgen function.
 Internal helper function for postprocessing of pitch contours. Merges voiced
 segments at least \code{shortestSyl} ms long and separated by less than
 \code{shortestPause} ms. Called by \code{\link{analyze}}
+}
+\examples{
+pitch = c(rep(NA, 5), rnorm(15, 300, 15), rep(NA, 7), rnorm(10, 400, 10), rep(NA, 6))
+plot(pitch, type = 'b')
+soundgen:::findVoicedSegments(
+  pitchCands = matrix(pitch, nr = 1),
+  shortestSyl = 20,
+  shortestPause = 60,
+  step = 10,
+  minVoicedCands = 1,
+  pitchMethods = 'blabla',
+  manualV = NULL,
+  manualTryToV = NULL,
+  manualUnv = NULL
+)
 }
 \keyword{internal}

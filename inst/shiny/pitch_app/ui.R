@@ -18,7 +18,7 @@ ui = fluidPage(
   # (eg for playing the audio)
   shinyjs::extendShinyjs(
     script = 'www/pitch_app_shinyjs.js',
-    functions = c('playme_js', 'stopAudio_js', 'clearBrush', 'inheritSize', 'scrollBar')
+    functions = c('playme_js', 'stopAudio_js', 'play_file', 'clearBrush', 'inheritSize', 'scrollBar')
   ),
 
   # html
@@ -665,6 +665,10 @@ ui = fluidPage(
           actionButton(
             inputId = "button_pathUpdate",
             label = HTML("<img src='icons/update.png' width = '25px'>"),
+            class = "buttonInline"),
+          actionButton(
+            inputId = "button_synth",
+            label = HTML("<img src='icons/synth.png' width = '25px'>"),
             class = "buttonInline")
         ),
 

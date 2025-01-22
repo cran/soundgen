@@ -21,6 +21,7 @@ plotSpec(
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
   col = NULL,
+  nlevels = 30,
   extraContour = NULL,
   xlab = NULL,
   ylab = NULL,

@@ -393,7 +393,7 @@ server = function(input, output, session) {
         text(
           x = 5, y = 5, cex = 3,
           labels =
-             'Upload wav/mp3 file(s) to begin...\n
+            'Upload wav/mp3 file(s) to begin...\n
              Suggested max duration ~10 s')
       } else {
         if (input$specType != 'reassigned') {
@@ -402,8 +402,7 @@ server = function(input, output, session) {
             x = as.numeric(colnames(myPars$spec_trimmed)),
             y = as.numeric(rownames(myPars$spec_trimmed)),
             z = t(myPars$spec_trimmed),
-            levels = seq(0, 1, length = input$nColors),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
             log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
@@ -417,8 +416,7 @@ server = function(input, output, session) {
           # unrasterized reassigned spectrogram
           soundgen:::plotUnrasterized(
             myPars$reassigned,
-            levels = seq(0, 1, length = input$nColors),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
             log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
@@ -630,6 +628,25 @@ server = function(input, output, session) {
         col = ifelse(f %in% myPars$voiced_frames, rgb(0, 0, 1, .25), NA),
         lwd = 0
       )
+
+      # highlight manually voiced/unvoiced frames
+      if (any(myPars$manual$frame == f)) {
+        col_rect = rgb(1, 1, 0, .25)
+      } else if (any(myPars$manualUnv == f)) {
+        col_rect = rgb(1, 0, 0, .25)
+      } else {
+        col_rect = 'white'
+      }
+      if (col_rect != 'white') {
+        rect(
+          xleft = myPars$result$time[f] - input$step / 2,
+          xright = myPars$result$time[f] + input$step / 2,
+          ybottom = myPars$ylim_osc[1],
+          ytop = myPars$ylim_osc[1] + (myPars$ylim_osc[2] - myPars$ylim_osc[1]) / 6,
+          col = col_rect,
+          lwd = 0
+        )
+      }
     }
   }, bg = 'transparent')
 
@@ -781,8 +798,7 @@ server = function(input, output, session) {
         shortestPause = input$shortestPause,
         minVoicedCands = input$minVoicedCands,
         pitchMethods = input$pitchMethods,
-        step = input$step,
-        samplingRate = myPars$samplingRate
+        step = input$step
       )
       if (updateAll | is.null(myPars$voicedSegments_old)) {
         # the first time we update everything
@@ -1031,6 +1047,37 @@ server = function(input, output, session) {
     }
   })
 
+  synthAndPlay = function() {
+    if (myPars$print) print('Calling soundgen()...')
+    dur_sel = diff(myPars$spec_xlim)
+    frames_sel = round(myPars$spec_xlim / input$step)
+    pitch_sel = myPars$pitch[frames_sel[1] : frames_sel[2]]
+    if (length(pitch_sel) > 0 && any(!is.na(pitch_sel))) {
+      temp_s = try(soundgen(
+        sylLen = dur_sel,
+        pitch = pitch_sel,
+        formants = NA,
+        rolloff = -15,
+        samplingRate = myPars$samplingRate,
+        invalidArgAction = 'ignore',  # otherwise might reset samplingRate
+        temperature = 0))
+      if (!inherits(temp_s, 'try-error')) {
+        if (input$audioMethod == 'Browser') {
+          # save a temporary file and play with the browser
+          seewave::savewav(temp_s,
+                           f = myPars$samplingRate,
+                           filename = 'www/temp.wav',
+                           extensible = FALSE)
+          shinyjs::js$play_file(filename = 'temp.wav')
+        } else {
+          # play directly in R without saving to disk
+          playme(temp_s, samplingRate = myPars$samplingRate)
+        }
+      }
+    }
+    soundgen()
+  }
+
   # HOTKEYS
   observeEvent(input$userPressedSmth, {
     button_key = substr(input$userPressedSmth, 1, nchar(input$userPressedSmth) - 8)
@@ -1212,6 +1259,10 @@ server = function(input, output, session) {
 
   observeEvent(input$button_pathUpdate, {
     obs_pitch()
+  })
+
+  observeEvent(input$button_synth, {
+    synthAndPlay()
   })
 
   # HOVER
@@ -1612,6 +1663,7 @@ server = function(input, output, session) {
   shinyBS::addTooltip(session, id='selection_octaveDown', title = 'Lower pitch for selection by an octave (L)', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='selection_setPrior', title = 'Set a prior on expected pitch values corresponding to the selected frequency range (P)', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='button_pathUpdate', title = 'Draw / refresh pitch contour (D) (only needed if "Out/Path/Update path automatically" is turned off)', placement="right", trigger="hover", options = tooltip_options)
+  shinyBS::addTooltip(session, id='button_synth', title = 'Synthesize and play pitch contour', placement="right", trigger="hover", options = tooltip_options)
   shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = tooltip_options)
 
   # navigation / zoom

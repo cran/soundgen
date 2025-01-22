@@ -748,3 +748,68 @@ wigglePars = function(parList,
   }
   parList
 }
+
+
+#' Add pitch jumps
+#'
+#' Internal soundgen function
+#'
+#' Adds random discontinuities (jumps) to a pitch contour in a manner that
+#' shifts a segment of pitch contour up or down. Careful when adding several
+#' jumps: one can land on top of another, and it gets rather weird rather
+#' quickly.
+#'
+#' @param pitch numeric vector of f0 values over time (any step is OK)
+#' @param magn magnitude of jump(s) in semitones, a numeric vector of length 1
+#'   or nj
+#' @param nj number of jump pairs = affected segments (e.g., a single fragment
+#'   is transposed if nj = 1)
+#' @param prop duration of transposed episode(s) a a proportion of the total
+#'   voiced duration (length of \code{pitch})
+#' @param plot if TRUE, plots the original and modified contours
+#' @export
+#' @examples
+#' pitch = getSmoothContour(c(100, 350, 320, 110), len = 100, interpol = 'loess')
+#' addPitchJumps(pitch, magn = runif(1, 3, 12), plot = TRUE)
+#' addPitchJumps(pitch, magn = c(6, 1), nj = 2, plot = TRUE)
+#' addPitchJumps(pitch, magn = 3, nj = 5, plot = TRUE)
+#'
+#' pitch2 = c(rep(NA, 10), pitch[1:50], rep(NA, 25), pitch[51:100], rep(NA, 17))
+#' addPitchJumps(pitch2, magn = c(6, 1), nj = 2, plot = TRUE)
+addPitchJumps = function(pitch, magn, nj = 1, prop = .1, plot = FALSE) {
+  if (length(magn) < nj) magn = rep(magn[1], nj)
+  prop = min(prop, 1 / nj / 2)  # avoid overlap
+  if (sum(!is.na(pitch) < 2)) return(NA)
+  len = length(pitch)
+  out = pitch
+  magn_lin = 2^(magn/12)
+  for (j in seq_len(nj)) {
+    start_min = (j - 1) / nj
+    start_max = (j - prop) / nj
+    # try max 10 times to land on a non-NA pitch value
+    for (i in 1:10) {
+      start = max(1, round(runif(1, start_min, start_max) * len))
+      if (!is.na(pitch[start])) break
+    }
+    # if that fails, default to the first non-NA
+    if (is.na(pitch[start])) start = which(!is.na(pitch))[1]
+    idx = start : round((start + len * prop))
+    if (start == 1) {
+      dir = sample(c('up', 'down'), size = 1)
+    } else {
+      dj = pitch[start] - pitch[start - 1]
+      if (is.na(dj) || dj > 0) prob = c(.8, .2) else prob = c(.2, .8)
+      dir = sample(c('up', 'down'), size = 1, prob = prob)
+    }
+    if (dir == 'up') {
+      out[idx] = out[idx] * magn_lin[j]
+    } else {
+      out[idx] = out[idx] / magn_lin[j]
+    }
+  }
+  if (plot) {
+    plot(pitch, type = 'l', ylim = range(c(pitch, out), na.rm = TRUE))
+    points(out, type = 'l', col = 'blue')
+  }
+  out
+}

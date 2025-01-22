@@ -51,25 +51,25 @@
 #'   fade('~/Downloads/temp', fadeIn = 500, fadeOut = 500, savePlots = '')
 #' }
 fade = function(
-  x,
-  fadeIn = 50,
-  fadeOut = 50,
-  fadeIn_points = NULL,
-  fadeOut_points = NULL,
-  samplingRate = NULL,
-  scale = NULL,
-  shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
-  steepness = 1,
-  reportEvery = NULL,
-  cores = 1,
-  saveAudio = NULL,
-  plot = FALSE,
-  savePlots = NULL,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...
+    x,
+    fadeIn = 50,
+    fadeOut = 50,
+    fadeIn_points = NULL,
+    fadeOut_points = NULL,
+    samplingRate = NULL,
+    scale = NULL,
+    shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
+    steepness = 1,
+    reportEvery = NULL,
+    cores = 1,
+    saveAudio = NULL,
+    plot = FALSE,
+    savePlots = NULL,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...
 ) {
   # match args
   myPars = c(as.list(environment()), list(...))
@@ -113,20 +113,20 @@ fade = function(
 #' @inheritParams segment
 #' @keywords internal
 .fade = function(
-  audio,
-  fadeIn = 1000,
-  fadeOut = 1000,
-  fadeIn_points = NULL,
-  fadeOut_points = NULL,
-  samplingRate = NULL,
-  shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
-  steepness = 1,
-  plot = FALSE,
-  width = 900,
-  height = 500,
-  units = 'px',
-  res = NA,
-  ...) {
+    audio,
+    fadeIn = 1000,
+    fadeOut = 1000,
+    fadeIn_points = NULL,
+    fadeOut_points = NULL,
+    samplingRate = NULL,
+    shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
+    steepness = 1,
+    plot = FALSE,
+    width = 900,
+    height = 500,
+    units = 'px',
+    res = NA,
+    ...) {
   if ((!is.numeric(fadeIn) | fadeIn < 1) &
       (!is.numeric(fadeOut) | fadeOut < 1)) {
     return(audio$sound)
@@ -217,7 +217,11 @@ fade = function(
     abline(v = (len - fadeOut_points)  / audio$samplingRate * 1000, col = 'blue')
     if (is.character(audio$savePlots)) dev.off()
   }
-  invisible(audio$sound)
+  if (is.character(audio$saveAudio)) {
+    filename = paste0(audio$saveAudio, '/', audio$filename_noExt, '.wav')
+    writeAudio(audio$sound, audio = audio, filename = filename)
+  }
+  audio$sound
 }
 
 
@@ -276,13 +280,13 @@ fade = function(
 #'                  crossLen = 300, shape = 'cos'), 16000)
 #' }
 crossFade = function(
-  ampl1,
-  ampl2,
-  crossLenPoints = 240,
-  crossLen = NULL,
-  samplingRate = NULL,
-  shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
-  steepness = 1) {
+    ampl1,
+    ampl2,
+    crossLenPoints = 240,
+    crossLen = NULL,
+    samplingRate = NULL,
+    shape = c('lin', 'exp', 'log', 'cos', 'logistic', 'gaussian')[1],
+    steepness = 1) {
   # cut to the nearest zero crossings
   zc1 = findZeroCrossing(ampl1, location = length(ampl1))
   if (!is.na(zc1)) {
@@ -467,9 +471,9 @@ flatSpectrum = function(x,
                              samplingRate = 1,  # sr not really needed
                              scale = sc,
                              scale_used = sc),
-                       method = 'peak',
-                       dynamicRange = dynamicRange,
-                       windowLength_points = freqWindow_bins) / abs_s
+                        method = 'peak',
+                        dynamicRange = dynamicRange,
+                        windowLength_points = freqWindow_bins) / abs_s
     # plot(cor_coef, type = 'b')
     # spec[, i] = complex(real = Re(spec[, i]) * cor_coef,
     #                     imaginary = Im(spec[, i]))

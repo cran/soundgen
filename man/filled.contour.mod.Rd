@@ -11,10 +11,10 @@ filled.contour.mod(
   xlim = range(x, finite = TRUE),
   ylim = range(y, finite = TRUE),
   zlim = range(z, finite = TRUE),
-  levels = pretty(zlim, nlevels),
+  levels = seq(min(z, na.rm = TRUE), max(z, na.rm = TRUE), length.out = nlevels + 1),
   nlevels = 30,
   color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
-  col = color.palette(length(levels) - 1),
+  col = color.palette(nlevels),
   legend = FALSE,
   asp = NA,
   xaxs = "i",
@@ -36,7 +36,8 @@ filled.contour.mod(
 
 \item{xlim, ylim, zlim}{limits for the plot}
 
-\item{levels}{levels for partitioning z}
+\item{levels}{levels for partitioning z (modified compared to default
+filled.contour to avoid artifacts)}
 
 \item{nlevels}{numbers of levels for partitioning z}
 

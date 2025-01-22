@@ -1,3 +1,23 @@
+          CHANGES IN SOUNDGEN VERSION 2.7.2 [22-Jan-2025]
+NEW FUNCTIONS:
+  * addPitchJumps(): adds random discontinuities (jumps) to a pitch contour
+
+MINOR:
+  * pitch_app(): added button to synthesize a tone with the pitch contour extracted from the visible part of analyzed sound
+  * pitch_app(): manually voiced/unvoiced frames highlighted
+  * annotation_app(), formnat_app(): disabled ENTER to close annotation window, otherwise the label is not saved if ENTER is pressed too fast
+  * soundgen(): automatic addition of pitch jumps at temperature > 0.25
+
+BUGS FIXED:
+  * analyze(): correct plotting of pitch contours with yScale = 'ERB'
+  * ssm(): correct time labels (thanks to Ben Bauer)
+  * segment(): saves syllables ("scale" argument added)
+  * fade(): saves audio
+  * pitch_app() no longer interpolates over manually unvoiced frames
+  * pitch_app(), annotation_app(), formant_app(): nColors control works (the number of colors in the spectrogram)
+  * filled.contour.mod() and all upstream functions (spectrogram, modulationSpectrum, all apps) - fixed weird colors when range exceeded (caused by default levels in graphics::filled.contour)
+
+
           CHANGES IN SOUNDGEN VERSION 2.7.1 [22-Oct-2024]
 NEW FUNCTIONS:
   * findPeaks(): a bare-bones, very fast function to find peaks in a numeric vector

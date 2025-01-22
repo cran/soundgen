@@ -829,6 +829,7 @@ plotSpec = function(
     padWithSilence = TRUE,
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
     col = NULL,
+    nlevels = 30,
     extraContour = NULL,
     xlab = NULL,
     ylab = NULL,
@@ -849,6 +850,7 @@ plotSpec = function(
   } else {
     color.palette = NULL
   }
+  if (is.null(col)) col = color.palette(30)
   if (osc == TRUE) osc = 'linear' else if (!is.character(osc)) osc = 'none'
   op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
   if (is.null(xlab)) xlab = ''
@@ -933,7 +935,6 @@ plotSpec = function(
     # unrasterized spectrogram
     plotUnrasterized(
       Z,
-      color.palette = color.palette,
       col = col,
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
@@ -953,8 +954,7 @@ plotSpec = function(
 
     filled.contour.mod(
       x = X, y = Y, z = Z,
-      levels = seq(0, 1, length = 30),
-      color.palette = color.palette,
+      nlevels = length(col),
       col = col,
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
@@ -1019,7 +1019,8 @@ plotSpec = function(
 #' @param x,y locations of grid lines (NB: x = time, y = frequency in kHz, not Hz!)
 #' @param z numeric matrix of values to plot
 #' @param xlim,ylim,zlim limits for the plot
-#' @param levels levels for partitioning z
+#' @param levels levels for partitioning z (modified compared to default
+#'   filled.contour to avoid artifacts)
 #' @param nlevels numbers of levels for partitioning z
 #' @param color.palette color palette function
 #' @param col list of colors instead of color.palette
@@ -1040,10 +1041,10 @@ filled.contour.mod = function(
     xlim = range(x, finite = TRUE),
     ylim = range(y, finite = TRUE),
     zlim = range(z, finite = TRUE),
-    levels = pretty(zlim, nlevels),
+    levels = seq(min(z, na.rm = TRUE), max(z, na.rm = TRUE), length.out = nlevels + 1),
     nlevels = 30,
     color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
-    col = color.palette(length(levels) - 1),
+    col = color.palette(nlevels),
     legend = FALSE,
     asp = NA,
     xaxs = "i",
@@ -1060,9 +1061,9 @@ filled.contour.mod = function(
   if (is.null(y_Hz)) y_Hz = (ylim[2] < 1)
   if (!is.null(col)) {
     nlevels = length(col)
-    levels = pretty(zlim, nlevels)
+    levels = seq(min(z, na.rm = TRUE), max(z, na.rm = TRUE), length.out = nlevels + 1)
   } else if (!is.null(color.palette)) {
-    col = color.palette(length(levels) - 1)
+    col = color.palette(nlevels)
   }
   if (ylim[2] > tail(y, 1)) ylim[2] = tail(y, 1)
   if (yScale == 'bark') {
@@ -1216,12 +1217,12 @@ plotUnrasterized = function(
     xlim = range(df$time, finite = TRUE),
     ylim = range(df$freq, finite = TRUE),
     zlim = range(df$magn, finite = TRUE),
-    levels = pretty(df$magn, nlevels),
+    levels = seq(min(df$magn, na.rm = TRUE), max(df$magn, na.rm = TRUE), length.out = nlevels + 1),
     nlevels = 30,
     pch = 16,
     cex = .25,
     color.palette = function(n) grDevices::hcl.colors(n, "YlOrRd", rev = TRUE),
-    col = color.palette(length(levels) - 1),
+    col = color.palette(nlevels),
     legend = FALSE,
     asp = NA,
     xaxs = "i",

@@ -11,8 +11,10 @@
 #' stretch (at present, with horizontal or adaptive phase propagation) followed
 #' by resampling. This shifts both pitch and formants; to preserve the original
 #' formant frequencies or modify them independently of pitch, a variant of
-#' \code{link{transplantFormants}} is performed to "transplant" the original or
-#' scaled formants onto the time-stretched new sound.
+#' \code{\link{transplantFormants}} is performed to "transplant" the original or
+#' scaled formants onto the time-stretched new sound. See Prusa 2017 "Phase
+#' vocoder done right", Royer 2019 "Pitch-shifting algorithm design and
+#' applications in music".
 #'
 #' @seealso \code{\link{shiftFormants}} \code{\link{transplantFormants}}
 #'

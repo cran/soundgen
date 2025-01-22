@@ -7,6 +7,7 @@
 segment(
   x,
   samplingRate = NULL,
+  scale = NULL,
   from = NULL,
   to = NULL,
   shortestSyl = 40,
@@ -54,6 +55,9 @@ numeric vectors}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
+
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}

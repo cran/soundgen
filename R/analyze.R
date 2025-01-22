@@ -1294,8 +1294,7 @@ analyze = function(
       shortestPause = shortestPause,
       minVoicedCands = minVoicedCands,
       pitchMethods = pitchMethods,
-      step = step,
-      samplingRate = audio$samplingRate
+      step = step
     )
 
     # add prior

@@ -141,6 +141,7 @@
 segment = function(
     x,
     samplingRate = NULL,
+    scale = NULL,
     from = NULL,
     to = NULL,
     shortestSyl = 40,

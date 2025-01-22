@@ -119,21 +119,21 @@
 #' # but becomes more and more like the original at longer window lengths)
 #' }
 generateNoise = function(
-  len,
-  rolloffNoise = 0,
-  noiseFlatSpec = 1200,
-  rolloffNoiseExp = 0,
-  spectralEnvelope = NULL,
-  noise = NULL,
-  temperature = .1,
-  attackLen = 10,
-  windowLength_points = 1024,
-  samplingRate = 16000,
-  overlap = 75,
-  dynamicRange = 80,
-  smoothing = list(),
-  invalidArgAction = c('adjust', 'abort', 'ignore')[1],
-  play = FALSE) {
+    len,
+    rolloffNoise = 0,
+    noiseFlatSpec = 1200,
+    rolloffNoiseExp = 0,
+    spectralEnvelope = NULL,
+    noise = NULL,
+    temperature = .1,
+    attackLen = 10,
+    windowLength_points = 1024,
+    samplingRate = 16000,
+    overlap = 75,
+    dynamicRange = 80,
+    smoothing = list(),
+    invalidArgAction = c('adjust', 'abort', 'ignore')[1],
+    play = FALSE) {
   # wiggle pars
   if (temperature > 0) {  # set to 0 when called internally by soundgen()
     # len = rnorm_truncated2(n = 1,
@@ -485,6 +485,19 @@ generateHarmonics = function(pitch,
                            pitchSamplingRate) * vibratoDep / 12)
       # plot(vibrato, type = 'l')
       pitch = pitch * vibrato  # plot(pitch, type = 'l')
+    }
+  }
+
+  # sometimes add a pair of pitch jumps if temperature is very high
+  if (temperature > .25) {
+    add_jump = rbinom(1, 1, temperature)
+    if (add_jump) {
+      pitch = addPitchJumps(
+        pitch,
+        nj = 1,
+        magn = rbeta(1, 1, 3) * 12,  # hist(rbeta(1000, 1, 3) * 12)
+        prop = rbeta(1, 1, 4)
+      )
     }
   }
 
@@ -1071,13 +1084,13 @@ fart = function(glottis = c(50, 200),
   # wiggle pars
   if (temperature > 0) {
     rolloff = rnorm_truncated2(n = 1,
-                              mean = rolloff,
-                              sd = abs(rolloff) * temperature * .5,
-                              low = -50, high = 10)
+                               mean = rolloff,
+                               sd = abs(rolloff) * temperature * .5,
+                               low = -50, high = 10)
     sylLen = rnorm_truncated2(n = 1,
-                             mean = sylLen,
-                             sd = sylLen * temperature * .5,
-                             low = 0, high = 10000)
+                              mean = sylLen,
+                              sd = sylLen * temperature * .5,
+                              low = 0, high = 10000)
 
     glottis = wiggleAnchors(
       glottis, temperature, temp_coef = .5,

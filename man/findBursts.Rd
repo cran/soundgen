@@ -32,6 +32,9 @@ by \code{interburst}). Defaults to SNR + 3 dB}
 
 \item{troughLocation}{should local maxima be compared to the trough on the
 left and/or right of it? Values: 'left', 'right', 'both', 'either'}
+
+\item{scale}{maximum possible amplitude of input used for normalization of
+input vector (only needed if \code{x} is a numeric vector)}
 }
 \value{
 Returns a dataframe with timing of bursts

@@ -404,7 +404,8 @@ ssm = function(
     do.call(filled.contour.mod, c(list(
       x = timestamps_ssm,
       y = timestamps_ssm,
-      z = s
+      z = s,
+      y_Hz = FALSE
     ), ssmPars1
     ))
     # restore original pars

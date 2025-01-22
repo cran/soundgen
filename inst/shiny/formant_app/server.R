@@ -605,8 +605,7 @@ server = function(input, output, session) {
             x = as.numeric(colnames(myPars$spec_trimmed)),
             y = as.numeric(rownames(myPars$spec_trimmed)),
             z = t(myPars$spec_trimmed),
-            levels = seq(0, 1, length = input$nColors),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
             log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
@@ -620,8 +619,7 @@ server = function(input, output, session) {
           # unrasterized reassigned spectrogram
           soundgen:::plotUnrasterized(
             myPars$reassigned,
-            levels = seq(0, 1, length = input$nColors),
-            color.palette = soundgen:::switchColorTheme(input$spec_colorTheme),
+            col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
             log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
@@ -1623,11 +1621,12 @@ server = function(input, output, session) {
     } else if (button_key == 'PageUp') {                # PageUp (previous file)
       lastFile()
     } else if ((myPars$listen_enter | myPars$listen_enter_edit) & button_key == 'Enter') {
-      if (myPars$listen_enter) {
-        new_annotation()
-      } else {
-        edit_annotation()
-      }
+      # this creates a problem if ENTER is pressed too fast --> label not saved
+      # if (myPars$listen_enter) {
+      #   new_annotation()
+      # } else {
+      #   edit_annotation()
+      # }
     } else if (button_key == 'p') {
       synthAndPlay()
     }

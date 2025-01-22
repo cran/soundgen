@@ -16,9 +16,10 @@
 #' @export
 #' @examples
 #' time_start = proc.time()
-#' for (i in 1:100) {
+#' nIter = 100
+#' for (i in 1:nIter) {
 #'   Sys.sleep(i ^ 1.02 / 10000)
-#'   reportTime(i = i, time_start = time_start, nIter = 100,
+#'   reportTime(i, time_start, nIter,
 #'     jobs = (1:100) ^ 1.02, prefix = 'Chain 1: ')
 #' }
 #' \dontrun{
@@ -38,8 +39,8 @@
 #' filesizes = file.info(filenames)$size
 #' for (i in seq_along(filenames)) {
 #'   # ...do what you have to do with each file...
-#'   reportTime(i = i, nIter = length(filenames),
-#'              time_start = time_start, jobs = filesizes)
+#'   reportTime(i = i, time_start = time_start, nIter = length(filenames),
+#'              jobs = filesizes)
 #' }
 #' }
 reportTime = function(
