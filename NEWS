@@ -1,3 +1,20 @@
+          CHANGES IN SOUNDGEN VERSION 2.7.3 [17-July-2025]
+MINOR:
+  * spectrogram(): support for multi-resolution spectrograms, eg windowLength = c(5, 15, 50)
+  * spectrogram(): reassigned spectrograms obey dynamicRange, logSpec, contrast, brightness
+  * soundgen(): windowed glottal cycles when "glottis" > 0
+  * segment(): set propNoise = 0 to skip SNR correction, reverbPars = NULL to skip adjusting for reverb
+  * soundgen(), soundgen_app(): updated presets
+
+BUGS FIXED:
+  * modulationSpectrum(), plotMS(): correct colors if "col" is not specified, only "colorTheme"
+  * addPitchJumps(): always returns a vector of the same length as input
+  * transplantFormants(): blur works if freqWindow is NULL, accepts blur of length 1
+  * getSmoothContour() and downstream functions like soundgen_app(): correct plotting with manually set ylim
+  * spectrogram(), analyze(): pitch tracks and other contours plotted correctly with yScale = 'ERB'
+  * analyze() doesn't save extra loudness plots
+
+
           CHANGES IN SOUNDGEN VERSION 2.7.2 [22-Jan-2025]
 NEW FUNCTIONS:
   * addPitchJumps(): adds random discontinuities (jumps) to a pitch contour

@@ -25,18 +25,6 @@ self-similarity matrices, morphing, etc.
 -   Measuring syllables, pauses, and bursts in a wav/mp3 file:
     `segment()`
 
-For more information, please see the vignettes on sound synthesis and
-acoustic analysis:
-
-`vignette("sound_generation", package="soundgen")`
-
-`vignette("acoustic_analysis", package="soundgen")`
-
-Or, to open the vignettes in a browser:  
-`RShowDoc('sound_generation', package = 'soundgen')`
-
-`RShowDoc('acoustic_analysis', package = 'soundgen')`
-
 # Example of sound synthesis
 
 Use the `soundgen()` function to create a breathy moan:

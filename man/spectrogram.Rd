@@ -73,12 +73,14 @@ from...to (s)}
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
@@ -162,7 +164,7 @@ by dividing instead of multiplying by the filter during convolution}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
-c(1e5, 5e5)}
+c(1e5, 5e5); does not affect reassigned spectrograms}
 
 \item{padWithSilence}{if TRUE, pads the sound with just enough silence to
 resolve the edges properly (only the original region is plotted, so the
@@ -194,14 +196,15 @@ Returns nothing if output = 'none', spectral magnitudes - not power!
   - if output = 'original', denoised and/or smoothed spectrum if output =
   'processed', or spectral derivatives if specType = 'spectralDerivative'.
   The output is a matrix of real numbers with time in columns (ms) and
-  frequency in rows (kHz).
+  frequency in rows (kHz). For multi-resolution spectrograms, the complex
+  matrix corresponds to the last value of windowLength.
 }
 \description{
 Produces the spectrogram of a sound using short-time Fourier transform.
 Inspired by \code{\link[seewave]{spectro}}, this function offers added
-routines for reassignment, noise reduction, smoothing in time and frequency
-domains, manual control of contrast and brightness, plotting the oscillogram
-on a dB scale, grid, etc.
+routines for reassignment, multi-resolution spectrograms, noise reduction,
+smoothing in time and frequency domains, manual control of contrast and
+brightness, plotting the oscillogram on a dB scale, grid, etc.
 }
 \details{
 Many soundgen functions call \code{spectrogram}, and you can pass along most
@@ -209,6 +212,7 @@ of its graphical parameters from functions like \code{\link{soundgen}},
 \code{\link{analyze}}, etc. However, in some cases this will not work (eg for
 "units") or may produce unexpected results. If in doubt, omit extra graphical
 parameters or save your sound first, then call spectrogram() explicitly.
+Reassigned spectrograms are not affected by noise reduction or blurring.
 }
 \examples{
 # synthesize a sound 500 ms long, with gradually increasing hissing noise
@@ -247,7 +251,7 @@ spectrogram(sound, samplingRate = 16000, dynamicRange = 120)
 # remove the oscillogram
 spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 
-# frequencies on a logarithmic (musical) scale (mel/bark also available)
+# frequencies on a logarithmic (musical) scale (mel/bark/ERB also available)
 spectrogram(sound, samplingRate = 16000,
             yScale = 'log', ylim = c(.05, 8))
 
@@ -258,17 +262,25 @@ spectrogram(sound, samplingRate = 16000, windowLength = 5)
 # scatterplot instead of a contour plot
 s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
   samplingRate = 22050, formants = NULL, lipRad = 0, rolloff = -20)
-spectrogram(s, 22050, windowLength = 5, step = 1, ylim = c(0, 2))
+spectrogram(s, 22050, windowLength = 5, step = 1, yScale = 'bark')
 spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
-  step = 1, ylim = c(0, 2))
-# ...or it can be rasterized, but that sacrifices frequency resolution:
+  step = 1, yScale = 'bark')
+# ...or it can be rasterized, but that sacrifices frequency resolution:s
 sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
-                 windowLength = 5, step = 1, ylim = c(0, 2), output = 'all')
+                 windowLength = 5, step = 1, yScale = 'bark', output = 'all')
 # The raw reassigned version is saved if output = 'all' for custom plotting
 df = sp$reassigned
 df$z1 = soundgen:::zeroOne(log(df$magn))
 plot(df$time, df$freq, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
   pch = 16, cex = 0.25, ylim = c(0, 2))
+
+# multi-resolution spectrograms
+spectrogram(s, 22050, windowLength = c(1, 10, 20, 50), yScale = 'bark')
+# (works well in combination with de-blurring)
+spectrogram(s, 22050, windowLength = c(1, 10, 20, 50), yScale = 'bark',
+  blur = c(-50, -50))
+spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
+  specType = 'reassigned', dynamicRange = 50)
 
 # focus only on values in the upper 5\% for each frequency bin
 spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -310,6 +322,12 @@ s = soundgen(sylLen = 1500, pitch = c(250, 350, 320, 220),
 an = analyze(s, 16000, plot = FALSE)
 spectrogram(s, 16000, extraContour = an$detailed$dom,
   ylim = c(0, 2), yScale = 'bark')
+# or simply (but without an oscillogram):
+spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
+points(an$detailed$time/1000,  # time in s
+       6 * asinh(an$detailed$dom/600),  # values in barks
+       lwd = 2, col = 'green', lty = 2  # any graphic pars
+)
 # For values that are not in Hz, normalize any way you like
 spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,

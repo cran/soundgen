@@ -267,7 +267,7 @@ ms = modulationSpectrum(s, samplingRate = 16000, logMPS = TRUE,
 
 # 1D instead of 2D
 modulationSpectrum(s, 16000, msType = '1D', quantiles = NULL,
-  colorTheme = 'matlab')
+  col = soundgen:::jet.col(50))
 
 \dontrun{
 # A long sound with varying AM and a bit of chaos at the end
@@ -302,7 +302,7 @@ modulationSpectrum(s, 44100, specSource = 'audSpec',
 
 # customize the plot
 ms = modulationSpectrum(s, samplingRate = 44100,
-  windowLength = 15, overlap = 80, amRes = NULL,
+  windowLength = 15, step = 2, amRes = NULL,
   kernelSize = 17,  # more smoothing
   xlim = c(-70, 70), ylim = c(0, 4),  # zoom in on the central region
   quantiles = c(.25, .5, .8),  # customize contour lines

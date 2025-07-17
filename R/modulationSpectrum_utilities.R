@@ -29,8 +29,8 @@
 #'   col = colorRampPalette(c('blue', 'yellow')) (50))
 plotMS = function(
     ms,
-    X = NULL,
-    Y = NULL,
+    X = as.numeric(colnames(ms)),
+    Y = as.numeric(rownames(ms)),
     quantiles = c(.5, .8, .9),
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
     col = NULL,
@@ -51,8 +51,7 @@ plotMS = function(
   } else {
     color.palette = NULL
   }
-  if (is.null(X)) X = as.numeric(colnames(ms))
-  if (is.null(Y)) Y = as.numeric(rownames(ms))
+  if (is.null(col)) col = color.palette(30)
   if (is.null(xlim)) xlim = range(X)
   if (is.null(ylim)) ylim = range(Y)
   if (is.null(main) & !is.null(audio$filename_noExt)) {
@@ -64,7 +63,7 @@ plotMS = function(
   }
 
   # plot with filled.contour.mod
-  ms = zeroOne(ms)
+  # ms = zeroOne(ms)
   X1 = X
   Y1 = Y
   if (is.numeric(logWarpX) | is.numeric(logWarpY)) {
@@ -88,8 +87,6 @@ plotMS = function(
       lab_y = at_y = pretty(Y)
     }
     filled.contour.mod(X1, Y1, t(ms),
-                       levels = seq(0, 1, length = 100),
-                       color.palette = color.palette,
                        col = col,
                        xlab = xlab, ylab = ylab,
                        bty = 'n',
@@ -110,8 +107,6 @@ plotMS = function(
   } else {
     # no log-warping
     filled.contour.mod(X1, Y1, t(ms),
-                       levels = seq(0, 1, length = 100),
-                       color.palette = color.palette,
                        col = col,
                        xlab = xlab, ylab = ylab,
                        bty = 'n',
@@ -199,13 +194,13 @@ getAM = function(m,
   wl = max(3, round(amRes / (colNames[2] - colNames[1])))
   # eg if amRes = 10, we look for a local maximum within ±5 Hz
   hb = floor(wl / 2)
-  idx = which(vapply(
+  idx = try(which(vapply(
     (hb + 1):(length(am_smRan$amp) - hb), function(x) {
       frx = am_smRan$amp[(x - hb):(x + hb)]
       am_smRan$amp[x] == max(frx)
-    }, logical(1))) + hb
+    }, logical(1))) + hb, silent = TRUE)
 
-  if (length(idx) > 0) {
+  if (!inherits(idx, 'try-error') && length(idx) > 0) {
     peaks = am_smRan[idx, ]
     peaks = peaks[which.max(peaks$amp), ]
     if (nrow(peaks) > 0) {

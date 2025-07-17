@@ -56,11 +56,13 @@ mel-transformed spectrogram (see tuneR::melfcc)}
 
 \item{propNoise}{the proportion of non-zero sound assumed to represent
 background noise, 0 to 1 (note that complete silence is not considered, so
-padding with silence won't affect the algorithm)}
+padding with silence won't affect the algorithm). Set to 0 to skip
+correcting SNR by background noise level}
 
 \item{SNR}{expected signal-to-noise ratio (dB above noise), which determines
 the threshold for syllable detection. The meaning of "dB" here is
-approximate since the "signal" may be different from sound intensity}
+approximate since the "signal" may be different from sound intensity,
+depending on the \code{method}}
 
 \item{noiseLevelStabWeight}{a vector of length 2 specifying the relative
 weights of the overall signal level vs. stability when attempting to
@@ -68,12 +70,14 @@ automatically locate the regions that represent noise. Increasing the
 weight of stability tends to accentuate the beginning and end of each
 syllable.}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
@@ -117,7 +121,7 @@ don't save, '' = same folder as audio)}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
-c(1e5, 5e5)}
+c(1e5, 5e5); does not affect reassigned spectrograms}
 
 \item{specPlot}{a list of graphical parameters for displaying the spectrogram
 (if \code{method = 'spec' or 'mel'}); set to NULL to hide the spectrogram}

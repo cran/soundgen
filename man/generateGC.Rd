@@ -9,7 +9,6 @@ generateGC(
   glottisClosed_per_gc,
   rolloff_per_gc,
   samplingRate,
-  wn = "none",
   interpol = "approx"
 )
 }
@@ -25,9 +24,6 @@ the ratio to F0 (eg 1.5 means it's a subharmonic added between f0 and its
 first harmonic)}
 
 \item{samplingRate}{the sampling rate of generated sound, Hz}
-
-\item{wn}{windowing function applied to each glottal cycle (see
-\code{\link[seewave]{ftwindow}})}
 
 \item{interpol}{method used to adjust the number of gc to target duration}
 }

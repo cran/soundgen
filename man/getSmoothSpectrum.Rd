@@ -32,7 +32,8 @@ numeric vector)}
 \item{loessSpan}{passed to loess to control the amount of smoothing (.01 =
 minimal smoothing, 1 = strong smoothing)}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 

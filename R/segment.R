@@ -49,10 +49,12 @@
 #'   mel-transformed spectrogram (see tuneR::melfcc)
 #' @param propNoise the proportion of non-zero sound assumed to represent
 #'   background noise, 0 to 1 (note that complete silence is not considered, so
-#'   padding with silence won't affect the algorithm)
+#'   padding with silence won't affect the algorithm). Set to 0 to skip
+#'   correcting SNR by background noise level
 #' @param SNR expected signal-to-noise ratio (dB above noise), which determines
 #'   the threshold for syllable detection. The meaning of "dB" here is
-#'   approximate since the "signal" may be different from sound intensity
+#'   approximate since the "signal" may be different from sound intensity,
+#'   depending on the \code{method}
 #' @param noiseLevelStabWeight a vector of length 2 specifying the relative
 #'   weights of the overall signal level vs. stability when attempting to
 #'   automatically locate the regions that represent noise. Increasing the
@@ -121,6 +123,12 @@
 #' \dontrun{
 #' # set SNR manually to control detection threshold
 #' s = segment(sound, samplingRate = 16000, SNR = 1, plot = TRUE)
+#'
+#' # simple intensity threshold (anything >2 dB is signal)
+#' segment(sound, 16000, method = 'env', SNR = 2, plot = TRUE,
+#'   propNoise = 0, # don't correct SNR based on estimated background noise
+#'   reverbPars = NULL  # don't use dynamic thresholds to cancel reverb
+#' )
 #'
 #' # Download 260 sounds from the supplements to Anikin & Persson (2017) at
 #' # http://cogsci.se/publications.html
@@ -217,7 +225,7 @@ segment = function(
   myPars$sylPlot = sylPlot
   myPars$burstPlot = burstPlot
   myPars$specPlot = specPlot
-  myPars$reverbPars = reverbPars
+  myPars$reverbPars = if (is.null(reverbPars)) NA else reverbPars
 
   # analyze
   pa = processAudio(
@@ -405,7 +413,7 @@ segment = function(
       ampl_dampl = exp(log(ampl) * noiseLevelStabWeight[1] +
                          log(d_ampl) * noiseLevelStabWeight[2])
       nonZero_ampl_dampl = which(ampl_dampl > 0)
-      if (is.null(propNoise)) {
+      if (is.null(propNoise) || is.na(propNoise)) {
         dens_ampl_dampl = density(ampl_dampl[nonZero_ampl_dampl])
         hb = 1
         idx = which(vapply(
@@ -418,6 +426,8 @@ segment = function(
         col_noise = which(ampl_dampl <= thres_noise)
         propNoise = max(.01, round(length(col_noise) / nc, 3))
         message(paste0('propNoise set to ', propNoise, '; reset manually if needed'))
+      } else if (propNoise == 0) {
+        thres_difNoise = 0  # ignore noise
       } else {
         col_noise = which(ampl_dampl <= quantile(ampl_dampl[nonZero_ampl_dampl],
                                                  probs = propNoise))
@@ -433,7 +443,8 @@ segment = function(
       if (length(peakToTrough) < 1) peakToTrough = 10 ^ ((SNR + 3) / 20)
 
       # adaptive thresholds may help to control for reverb
-      if (length(reverbPars) > 0 & is.list(reverbPars)) {
+      if (!is.null(reverbPars) &&
+          (length(reverbPars) > 0 & is.list(reverbPars))) {
         # dynamic threshold
         rvb_list = do.call('.reverb', c(
           list(audio = list(

@@ -4,15 +4,16 @@
 #'
 #' Produces the spectrogram of a sound using short-time Fourier transform.
 #' Inspired by \code{\link[seewave]{spectro}}, this function offers added
-#' routines for reassignment, noise reduction, smoothing in time and frequency
-#' domains, manual control of contrast and brightness, plotting the oscillogram
-#' on a dB scale, grid, etc.
+#' routines for reassignment, multi-resolution spectrograms, noise reduction,
+#' smoothing in time and frequency domains, manual control of contrast and
+#' brightness, plotting the oscillogram on a dB scale, grid, etc.
 #'
 #' Many soundgen functions call \code{spectrogram}, and you can pass along most
 #' of its graphical parameters from functions like \code{\link{soundgen}},
 #' \code{\link{analyze}}, etc. However, in some cases this will not work (eg for
 #' "units") or may produce unexpected results. If in doubt, omit extra graphical
 #' parameters or save your sound first, then call spectrogram() explicitly.
+#' Reassigned spectrograms are not affected by noise reduction or blurring.
 #'
 #' @seealso \code{\link{osc}} \code{\link{modulationSpectrum}} \code{\link{ssm}}
 #'
@@ -27,12 +28,14 @@
 #'   from...to (s)
 #' @param dynamicRange dynamic range, dB. All values more than one dynamicRange
 #'   under maximum are treated as zero
-#' @param windowLength length of FFT window, ms
+#' @param windowLength length of FFT window, ms (multiple values in a vector
+#'   produce a multi-resolution spectrogram)
 #' @param overlap overlap between successive FFT frames, \%
-#' @param step you can override \code{overlap} by specifying FFT step, ms (NB:
-#'   because digital audio is sampled at discrete time intervals of
-#'   1/samplingRate, the actual step and thus the time stamps of STFT frames
-#'   may be slightly different, eg 24.98866 instead of 25.0 ms)
+#' @param step you can override \code{overlap} by specifying FFT step, ms - a
+#'   vector of the same length as windowLength (NB: because digital audio is
+#'   sampled at discrete time intervals of 1/samplingRate, the actual step and
+#'   thus the time stamps of STFT frames may be slightly different, eg 24.98866
+#'   instead of 25.0 ms)
 #' @param specType plot the original FFT ('spectrum'), reassigned spectrogram
 #'   ('reassigned'), or spectral derivative ('spectralDerivative')
 #' @param logSpec if TRUE, log-transforms the spectrogram
@@ -67,7 +70,7 @@
 #'   by dividing instead of multiplying by the filter during convolution
 #' @param maxPoints the maximum number of "pixels" in the oscillogram (if any)
 #'   and spectrogram; good for quickly plotting long audio files; defaults to
-#'   c(1e5, 5e5)
+#'   c(1e5, 5e5); does not affect reassigned spectrograms
 #' @param output specifies what to return: nothing ('none'), unmodified
 #'   spectrogram ('original'), denoised and/or smoothed spectrogram
 #'   ('processed'), or unmodified spectrogram with the imaginary part giving
@@ -113,7 +116,8 @@
 #'   - if output = 'original', denoised and/or smoothed spectrum if output =
 #'   'processed', or spectral derivatives if specType = 'spectralDerivative'.
 #'   The output is a matrix of real numbers with time in columns (ms) and
-#'   frequency in rows (kHz).
+#'   frequency in rows (kHz). For multi-resolution spectrograms, the complex
+#'   matrix corresponds to the last value of windowLength.
 #' @examples
 #' # synthesize a sound 500 ms long, with gradually increasing hissing noise
 #' sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
@@ -151,7 +155,7 @@
 #' # remove the oscillogram
 #' spectrogram(sound, samplingRate = 16000, osc = 'none')  # or NULL etc
 #'
-#' # frequencies on a logarithmic (musical) scale (mel/bark also available)
+#' # frequencies on a logarithmic (musical) scale (mel/bark/ERB also available)
 #' spectrogram(sound, samplingRate = 16000,
 #'             yScale = 'log', ylim = c(.05, 8))
 #'
@@ -162,17 +166,25 @@
 #' # scatterplot instead of a contour plot
 #' s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
 #'   samplingRate = 22050, formants = NULL, lipRad = 0, rolloff = -20)
-#' spectrogram(s, 22050, windowLength = 5, step = 1, ylim = c(0, 2))
+#' spectrogram(s, 22050, windowLength = 5, step = 1, yScale = 'bark')
 #' spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
-#'   step = 1, ylim = c(0, 2))
-#' # ...or it can be rasterized, but that sacrifices frequency resolution:
+#'   step = 1, yScale = 'bark')
+#' # ...or it can be rasterized, but that sacrifices frequency resolution:s
 #' sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
-#'                  windowLength = 5, step = 1, ylim = c(0, 2), output = 'all')
+#'                  windowLength = 5, step = 1, yScale = 'bark', output = 'all')
 #' # The raw reassigned version is saved if output = 'all' for custom plotting
 #' df = sp$reassigned
 #' df$z1 = soundgen:::zeroOne(log(df$magn))
 #' plot(df$time, df$freq, col = rgb(df$z1, df$z1, 1 - df$z1, 1),
 #'   pch = 16, cex = 0.25, ylim = c(0, 2))
+#'
+#' # multi-resolution spectrograms
+#' spectrogram(s, 22050, windowLength = c(1, 10, 20, 50), yScale = 'bark')
+#' # (works well in combination with de-blurring)
+#' spectrogram(s, 22050, windowLength = c(1, 10, 20, 50), yScale = 'bark',
+#'   blur = c(-50, -50))
+#' spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
+#'   specType = 'reassigned', dynamicRange = 50)
 #'
 #' # focus only on values in the upper 5% for each frequency bin
 #' spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -214,6 +226,12 @@
 #' an = analyze(s, 16000, plot = FALSE)
 #' spectrogram(s, 16000, extraContour = an$detailed$dom,
 #'   ylim = c(0, 2), yScale = 'bark')
+#' # or simply (but without an oscillogram):
+#' spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
+#' points(an$detailed$time/1000,  # time in s
+#'        6 * asinh(an$detailed$dom/600),  # values in barks
+#'        lwd = 2, col = 'green', lty = 2  # any graphic pars
+#' )
 #' # For values that are not in Hz, normalize any way you like
 #' spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
 #'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
@@ -363,6 +381,7 @@ spectrogram = function(
     internal = NULL,
     ...
 ) {
+  reassigned_raw = NULL
   # check input, basic STFT settings
   if (is.null(audio$ls)) audio$ls = length(audio$sound)
   if (is.null(audio$dur)) audio$dur = audio$ls / audio$samplingRate
@@ -372,14 +391,17 @@ spectrogram = function(
     } else {
       step = windowLength * (1 - overlap / 100)
     }
+  } else if (!length(windowLength) == length(step)) {
+    stop('windowLength must be of the same length as step unless step = NULL')
   }
+
   half_dur = audio$dur * 1000 / 2
-  if (windowLength > half_dur) {
-    windowLength = half_dur
+  if (any(windowLength > half_dur)) {
+    windowLength[windowLength > half_dur] = half_dur
     message(paste('windowLength > half the sound duration; resetting to', windowLength, 'ms'))
   }
   windowLength_points = floor(windowLength / 1000 * audio$samplingRate / 2) * 2
-  if (windowLength_points == 0) {
+  if (any(windowLength_points == 0)) {
     stop('The sound and/or windowLength are too short for plotting a spectrogram')
   }
   rec_scales = c('linear', 'log', 'bark', 'mel', 'ERB')
@@ -404,164 +426,170 @@ spectrogram = function(
         width = width, height = height, units = units, res = res)
   }
 
+  ## STFT
   if (is.null(specManual)) {
-    # Get a bank of windowed frames
-    if (is.null(internal$frameBank)) {
-      internal$frameBank = getFrameBank(
-        sound = audio$sound,
-        samplingRate = audio$samplingRate,
-        windowLength_points = windowLength_points,
-        step = step,
-        zp = zp,
-        normalize = normalize,
-        wn = wn,
-        filter = NULL,
-        padWithSilence = padWithSilence,
-        timeShift = audio$timeShift
-      )
-    }
+    # the number of STFTs to perform (with different window lengths)
+    nw = length(windowLength)
+    if (nw > 1) specs = vector('list', nw)
 
-    # time stamps
-    X = as.numeric(colnames(internal$frameBank))
-    lx = length(X)
-    # adjust the timing of spectrogram to match the actual time stamps
-    # in getFrameBank (~the middle of each fft frame)
-    if (lx < 1) {
-      message('The sound is too short for plotting a spectrogram')
-      return(NA)
-    }
-
-    # frequency stamps
-    zpExtra = max(0, floor((zp - windowLength_points) / 2) * 2)
-    windowLength_points = windowLength_points + zpExtra
-    n1 = floor(windowLength_points / 2)  # zpExtra
-    bin_width = audio$samplingRate / windowLength_points
-    Y = (0:(n1 - 1)) * bin_width / 1000
-    ly = length(Y)
-    if (ly < 2) {
-      message('The sound and/or the windowLength is too short for obtaining a spectrogram')
-      return(NA)
-    }
-
-    # fft of each frame
-    z = apply(internal$frameBank, 2, function(x) stats::fft(x)[seq_len(n1)])
-    if (!inherits(z, 'matrix')) z = matrix(z, ncol = 1)
-    rownames(z) = Y
-    colnames(z) = X
-    Z = t(Mod(z))
-    # image(Z)
-
-    reassigned_raw = NULL
-    if (specType == 'spectralDerivative') {
-      # first derivative of spectrum by time
-      dZ_dt = cbind(rep(0, lx), t(apply(Z, 1, diff)))
-      # first derivative of spectrum by frequency
-      dZ_df = rbind(rep(0, ly), apply(Z, 2, diff))
-      Z = sqrt(dZ_dt ^ 2 + dZ_df ^ 2)  # length of gradient vector
-    } else if (specType == 'reassigned') {
-      # Code adapted from librosa reassigned_spectrogram
-      # Reassign frequencies (eq. 5.20 in Flandrin et al., 2002)
-      filter_h = seewave::ftwindow(wl = windowLength_points, wn = wn)
-      # plot(filter_h)
-      filter_dh = diff(filter_h)
-      filter_dh = c(filter_dh[1] - (filter_dh[2] - filter_dh[1]), filter_dh)
-      # plot(filter_dh)
-      internal$frameBank_dh = getFrameBank(
-        sound = audio$sound,
-        samplingRate = audio$samplingRate,
-        windowLength_points = windowLength_points,
-        step = step,
-        zp = zp,
-        normalize = normalize,
-        filter = filter_dh,
-        padWithSilence = padWithSilence,
-        timeShift = audio$timeShift
-      )
-      z_dh = apply(internal$frameBank_dh, 2, function(x) stats::fft(x)[seq_len(n1)])
-      freqs_new = matrix(Y, nrow = nrow(z), ncol = ncol(z)) -
-        Im(z_dh/z) * audio$samplingRate / (2000 * pi)
-
-      # Reassign time stamps (eq. 5.23 in Flandrin et al., 2002)
-      middle = (windowLength_points + 1) / 2
-      filter_th = filter_h * (middle - (seq_len(windowLength_points)))
-      # plot(filter_th)
-      internal$frameBank_th = getFrameBank(
-        sound = audio$sound,
-        samplingRate = audio$samplingRate,
-        windowLength_points = windowLength_points,
-        step = step,
-        zp = zp,
-        normalize = normalize,
-        filter = filter_th,
-        padWithSilence = padWithSilence,
-        timeShift = audio$timeShift
-      )
-      z_th = apply(internal$frameBank_th, 2, function(x) stats::fft(x)[seq_len(n1)])
-      times_new = matrix(X, nrow = ly, ncol = lx, byrow = TRUE) +
-        Re(z_th / z) / audio$samplingRate * 1000
-
-      # to long format, remove weird values
-      reassigned_raw = na.omit(data.frame(
-        time = as.numeric(times_new),
-        freq = as.numeric(freqs_new),
-        magn = as.numeric(t(Z)))
-      )
-      min_x = min(X); min_y = min(Y)
-      max_x = max(X); max_y = max(Y)
-      reassigned_raw = reassigned_raw[which(
-        reassigned_raw$time > min_x &
-          reassigned_raw$time < max_x &
-          reassigned_raw$freq > min_y &
-          reassigned_raw$freq < max_y), ]
-
-      if (!rasterize & plot) {
-        # plot without rasterizing
-        plotSpec(
-          X = X, Y = Y, Z = reassigned_raw,
-          audio = audio, internal = internal, dynamicRange = dynamicRange,
-          osc = osc, heights = heights, ylim = ylim, yScale = yScale,
-          maxPoints = maxPoints, colorTheme = colorTheme, col = col,
-          extraContour = extraContour,
-          xlab = xlab, ylab = ylab, xaxp = xaxp,
-          mar = mar, main = main, grid = grid,
-          width = width, height = height,
-          units = units, res = res,
-          ...
+    for (w in 1:nw) {  # for each window length
+      # Get a bank of windowed frames
+      if (is.null(internal$frameBank) | nw != 1) {
+        internal$frameBank = getFrameBank(
+          sound = audio$sound,
+          samplingRate = audio$samplingRate,
+          windowLength_points = windowLength_points[w],
+          step = step[w],
+          zp = zp,
+          normalize = normalize,
+          wn = wn,
+          filter = NULL,
+          padWithSilence = padWithSilence,
+          timeShift = audio$timeShift
         )
-        if (is.character(audio$savePlots)) dev.off()
-        return(invisible(list(
-          original = t(Z),
-          processed = t(Z),
-          reassigned = reassigned_raw,
-          complex = z
-        )))
       }
 
-      # An irregular time-frequency grid is hard to plot, so we rasterize it
-      df = reassigned_raw
-      df$ix = findInterval(df$time, seq(min_x, max_x, length.out = lx + 1),
-                           all.inside = TRUE)
-      df$iy = findInterval(df$freq, seq(min_y, max_y, length.out = ly + 1),
-                           all.inside = TRUE)
-      Z = matrix(min(df$magn), nrow = lx, ncol = ly)
-      for (i in seq_len(nrow(df)))
-        Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$magn[i]
-
-
-      if (FALSE) {
-        # alternative (marginally faster): use library(raster)
-        # e = extent(df[, 1:2])
-        # r = raster(e, ncol = lx, nrow = ly)
-        # r_new = rasterize(df[, 1:2], r, df[, 3], fun = mean)
-        # # raster::filledContour(r_new)  # need freq in Hz
-        #
-        # # convert from raster to df and plot with filled.contour
-        # sam = sampleRegular(r_new, lx * ly, asRaster = TRUE, useGDAL = TRUE)
-        # Z1 = t(matrix(getValues(sam), ncol = sam@ncols, byrow = TRUE)[nrow(sam):1, ])
-        # Z1[is.na(Z1)] = min(Z1, na.rm = T)
+      # time stamps
+      X = as.numeric(colnames(internal$frameBank))
+      lx = length(X)
+      # adjust the timing of spectrogram to match the actual time stamps
+      # in getFrameBank (~the middle of each fft frame)
+      if (lx < 1) {
+        message('The sound is too short for plotting a spectrogram')
+        return(NA)
       }
-      rownames(Z) = X
-      colnames(Z) = Y
+
+      # frequency stamps
+      zpExtra = max(0, floor((zp - windowLength_points[w]) / 2) * 2)
+      windowLength_points[w] = windowLength_points[w] + zpExtra
+      n1 = floor(windowLength_points[w] / 2)  # zpExtra
+      bin_width = audio$samplingRate / windowLength_points[w]
+      Y = (0:(n1 - 1)) * bin_width / 1000
+      ly = length(Y)
+      if (ly < 2) {
+        message('The sound and/or the windowLength is too short for obtaining a spectrogram')
+        return(NA)
+      }
+
+      # fft of each frame
+      z = apply(internal$frameBank, 2, function(x) stats::fft(x)[seq_len(n1)])
+      if (!inherits(z, 'matrix')) z = matrix(z, ncol = 1)
+      rownames(z) = Y
+      colnames(z) = X
+      Z = t(Mod(z))
+      # image(Z)
+
+      if (specType == 'spectralDerivative') {
+        # first derivative of spectrum by time
+        dZ_dt = cbind(rep(0, lx), t(apply(Z, 1, diff)))
+        # first derivative of spectrum by frequency
+        dZ_df = rbind(rep(0, ly), apply(Z, 2, diff))
+        Z = sqrt(dZ_dt ^ 2 + dZ_df ^ 2)  # length of gradient vector
+      } else if (specType == 'reassigned') {
+        # Code adapted from librosa reassigned_spectrogram
+        # Reassign frequencies (eq. 5.20 in Flandrin et al., 2002)
+        filter_h = seewave::ftwindow(wl = windowLength_points[w], wn = wn)
+        # plot(filter_h)
+        filter_dh = diff(filter_h)
+        filter_dh = c(filter_dh[1] - (filter_dh[2] - filter_dh[1]), filter_dh)
+        # plot(filter_dh)
+        internal$frameBank_dh = getFrameBank(
+          sound = audio$sound,
+          samplingRate = audio$samplingRate,
+          windowLength_points = windowLength_points[w],
+          step = step[w],
+          zp = zp,
+          normalize = normalize,
+          filter = filter_dh,
+          padWithSilence = padWithSilence,
+          timeShift = audio$timeShift
+        )
+        z_dh = apply(internal$frameBank_dh, 2, function(x) stats::fft(x)[seq_len(n1)])
+        freqs_new = matrix(Y, nrow = nrow(z), ncol = ncol(z)) -
+          Im(z_dh/z) * audio$samplingRate / (2000 * pi)
+
+        # Reassign time stamps (eq. 5.23 in Flandrin et al., 2002)
+        middle = (windowLength_points[w] + 1) / 2
+        filter_th = filter_h * (middle - (seq_len(windowLength_points[w])))
+        # plot(filter_th)
+        internal$frameBank_th = getFrameBank(
+          sound = audio$sound,
+          samplingRate = audio$samplingRate,
+          windowLength_points = windowLength_points[w],
+          step = step[w],
+          zp = zp,
+          normalize = normalize,
+          filter = filter_th,
+          padWithSilence = padWithSilence,
+          timeShift = audio$timeShift
+        )
+        z_th = apply(internal$frameBank_th, 2, function(x) stats::fft(x)[seq_len(n1)])
+        times_new = matrix(X, nrow = ly, ncol = lx, byrow = TRUE) +
+          Re(z_th / z) / audio$samplingRate * 1000
+
+        # to long format, remove weird values
+        reassigned_raw = na.omit(data.frame(
+          time = as.numeric(times_new),
+          freq = as.numeric(freqs_new),
+          magn = as.numeric(t(Z)))
+        )
+        min_x = min(X); min_y = min(Y)
+        max_x = max(X); max_y = max(Y)
+        reassigned_raw = reassigned_raw[which(
+          reassigned_raw$time > min_x &
+            reassigned_raw$time < max_x &
+            reassigned_raw$freq > min_y &
+            reassigned_raw$freq < max_y), ]
+        Z = reassigned_raw
+      }
+      if (nw > 1) specs[[w]] = Z
+    }
+
+    # combine several STFTs into a single multi-resolution spectrogram
+    if (nw > 1) {
+      if (specType != 'reassigned') {
+        # linear interpolation to make all STFTs have the same dimensions
+        # (namely, max freq and temp resolution)
+        max_dims = apply(sapply(specs, dim), 1, max)
+        specs = lapply(specs, interpolMatrix, nr = max_dims[1], nc = max_dims[2])
+
+        # take geometric mean of STFTs, rescale to have the same gynamic range with ^(1/nw)
+        Z = Reduce(function(x, y) exp((log(x) + log(y)) / 2), specs) # ^ (1 / nw)
+
+        # reset wl and step to the new effective freq/temp resolution
+        windowLength = max(windowLength)
+        step = min(step)
+        X = as.numeric(rownames(Z)) # time
+        Y = as.numeric(colnames(Z)) # freq
+      } else {
+        Z = reassigned_raw = do.call(rbind, specs)
+        if (rasterize) {
+          # An irregular time-frequency grid is hard to plot, so we rasterize it
+          df = reassigned_raw
+          df$ix = findInterval(df$time, seq(min_x, max_x, length.out = lx + 1),
+                               all.inside = TRUE)
+          df$iy = findInterval(df$freq, seq(min_y, max_y, length.out = ly + 1),
+                               all.inside = TRUE)
+          Z = matrix(min(df$magn), nrow = lx, ncol = ly)
+          for (i in seq_len(nrow(df)))
+            Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$magn[i]
+
+          if (FALSE) {
+            # alternative (marginally faster): use library(raster)
+            # e = extent(df[, 1:2])
+            # r = raster(e, ncol = lx, nrow = ly)
+            # r_new = rasterize(df[, 1:2], r, df[, 3], fun = mean)
+            # # raster::filledContour(r_new)  # need freq in Hz
+            #
+            # # convert from raster to df and plot with filled.contour
+            # sam = sampleRegular(r_new, lx * ly, asRaster = TRUE, useGDAL = TRUE)
+            # Z1 = t(matrix(getValues(sam), ncol = sam@ncols, byrow = TRUE)[nrow(sam):1, ])
+            # Z1[is.na(Z1)] = min(Z1, na.rm = T)
+          }
+          rownames(Z) = X
+          colnames(Z) = Y
+        }
+      }
     }
   } else {
     Z = t(specManual)
@@ -570,27 +598,37 @@ spectrogram = function(
   }
   # soundgen:::filled.contour.mod(X, Y, z = log(Z))
 
+  ## Post-processing of STFT (for non-rasterized reassigned spectrograms, work
+  ## just with the magnitudes)
+  reas = (specType == 'reassigned' & !rasterize)
+  if (reas) {
+    Z1 = Z$magn
+  } else {
+    Z1 = Z
+  }
+
   # set to zero under dynamic range
-  Z1 = Z
   threshold = max(Z1) / 10^(dynamicRange/20)
   Z1[Z1 < threshold] = 0
 
   # removing noise. NB: the order of these operations is crucial,
   # don't change it!
-  if (smoothTime > 1) {
-    Z1 = t(apply(Z1, 1, function(x) {
-      zoo::rollmedian(x, k = smoothTime, fill = 0)
-    }))  # time domain
-  }
-  if (smoothFreq > 1) {
-    Z1 = apply(Z1, 2, function(x) {
-      zoo::rollmedian(x, k = smoothFreq, fill = 0)
-    }) # freq domain
-  }
-  if (qTime > 0) {
-    Z1 = t(apply(Z1, 1, function(x) {
-      x - quantile(x, probs = qTime)
-    }))  # for each freq bin, subtract median or another quantile
+  if (!reas) {
+    if (smoothTime > 1) {
+      Z1 = t(apply(Z1, 1, function(x) {
+        zoo::rollmedian(x, k = smoothTime, fill = 0)
+      }))  # time domain
+    }
+    if (smoothFreq > 1) {
+      Z1 = apply(Z1, 2, function(x) {
+        zoo::rollmedian(x, k = smoothFreq, fill = 0)
+      }) # freq domain
+    }
+    if (qTime > 0) {
+      Z1 = t(apply(Z1, 1, function(x) {
+        x - quantile(x, probs = qTime)
+      }))  # for each freq bin, subtract median or another quantile
+    }
   }
 
   # re-normalize, log-transform
@@ -604,7 +642,7 @@ spectrogram = function(
   }
   Z1 = Z1 - min(Z1)
 
-  if (noiseReduction > 0) {
+  if (!reas & noiseReduction > 0) {
     # silence frames with entropy above threshold
     entr = apply(Z1, 1, getEntropy) # Z1 >= 0
     q = quantile(entr, probs = 1 - percentNoise/100, na.rm = TRUE)
@@ -633,7 +671,8 @@ spectrogram = function(
     Z1[Z1 > 1] = 1 # otherwise values >1 are shown as white instead of black
   }
   # Gaussian filter
-  if (!is.null(blur) &&
+  if (!reas &&
+      !is.null(blur) &&
       any(is.finite(blur)) &&
       any(blur != 0)) {
     if (!is.null(specManual)) step = (Y[2] - Y[1]) * 1000
@@ -689,6 +728,10 @@ spectrogram = function(
     Z1[idx_pos] = Z1[idx_pos] / max(Z1[idx_pos]) * old_max
   }
 
+  if (reas) {
+    # transform magnitudes back to the full reassigned spectrogram
+    Z1 = data.frame(time = Z$time, freq = Z$freq, magn = Z1)
+  }
 
   ## plot
   if (plot) {
@@ -941,7 +984,6 @@ plotSpec = function(
       xlim = xlim, xaxt = 'n',
       log = ifelse(yScale == 'log', 'y', ''),
       yScale = yScale,
-      maxPoints = maxPoints[2],
       ...
     )
   } else {
@@ -1059,11 +1101,10 @@ filled.contour.mod = function(
     ...
 ) {
   if (is.null(y_Hz)) y_Hz = (ylim[2] < 1)
-  if (!is.null(col)) {
+  if (!missing(col) & !is.null(col)) {
     nlevels = length(col)
-    levels = seq(min(z, na.rm = TRUE), max(z, na.rm = TRUE), length.out = nlevels + 1)
-  } else if (!is.null(color.palette)) {
-    col = color.palette(nlevels)
+    ran_z = range(z, na.rm = TRUE, finite = TRUE)
+    levels = seq(ran_z[1], ran_z[2], length.out = nlevels + 1)
   }
   if (ylim[2] > tail(y, 1)) ylim[2] = tail(y, 1)
   if (yScale == 'bark') {
@@ -1209,7 +1250,6 @@ drawFreqAxis = function(y,
 #' @param
 #'   levels,nlevels,pch,cex,color.palette,col,legend,asp,xaxs,yaxs,las,log,axisX,axisY
 #'   graphical parameters passed to plot()
-#' @param maxPoints downsample if too big for plotting
 #'
 #' @keywords internal
 plotUnrasterized = function(
@@ -1232,7 +1272,6 @@ plotUnrasterized = function(
     yScale = c('orig', 'bark', 'mel', 'ERB')[1],
     axisX = TRUE,
     axisY = TRUE,
-    maxPoints = 5e5,
     ...
 ) {
   if (!is.null(col)) {
@@ -1264,19 +1303,8 @@ plotUnrasterized = function(
   idx_neg = which(df$magn <= 0)
   if (length(idx_neg) > 0)
     df$magn[idx_neg] = min(df$magn[-idx_neg])
-  df$magn = zeroOne(log(df$magn))
+  df$magn = zeroOne(df$magn) # zeroOne(log(df$magn))
   ord = findInterval(df$magn, seq(0, 1, length.out = length(col)))
-
-  # for very large matrices, downsample before plotting to avoid delays
-  if (!is.null(maxPoints)) {
-    nr = nrow(df)
-    if (nr > maxPoints) {
-      message(paste('Plotting with reduced resolution;',
-                    'increase maxPoints or set to NULL to override'))
-      idx = seq(1, nr, length.out = maxPoints)
-      df = df[idx, ]
-    }
-  }
 
   suppressWarnings({
     plot.new()

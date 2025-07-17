@@ -999,6 +999,11 @@ addPitchCands = function(pitchCands,
     pitch = hz2mel(pitch)
     if (!is.null(prior)) prior$freq = hz2mel(prior$freq)
     if (!is.null(extraContour)) extraContour = hz2mel(extraContour)
+  } else if (yScale == 'ERB') {
+    pitchCands = HzToERB(pitchCands)
+    pitch = HzToERB(pitch)
+    if (!is.null(prior)) prior$freq = HzToERB(prior$freq)
+    if (!is.null(extraContour)) extraContour = HzToERB(extraContour)
   }
 
   # If addToExistingPlot is FALSE, we first have to set up an empty plot

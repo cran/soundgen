@@ -162,7 +162,7 @@
 #'
 #' # 1D instead of 2D
 #' modulationSpectrum(s, 16000, msType = '1D', quantiles = NULL,
-#'   colorTheme = 'matlab')
+#'   col = soundgen:::jet.col(50))
 #'
 #' \dontrun{
 #' # A long sound with varying AM and a bit of chaos at the end
@@ -197,7 +197,7 @@
 #'
 #' # customize the plot
 #' ms = modulationSpectrum(s, samplingRate = 44100,
-#'   windowLength = 15, overlap = 80, amRes = NULL,
+#'   windowLength = 15, step = 2, amRes = NULL,
 #'   kernelSize = 17,  # more smoothing
 #'   xlim = c(-70, 70), ylim = c(0, 4),  # zoom in on the central region
 #'   quantiles = c(.25, .5, .8),  # customize contour lines
@@ -517,22 +517,21 @@ modulationSpectrum = function(
     res = NA,
     ...
 ) {
-  # Re-set windowLength, step, and overlap so as to ensure that
+  # Re-set windowLength and step  to ensure that
   # windowLength_points and step_points are not fractions
-  if (is.null(step)) step = windowLength * (1 - overlap / 100)
+  # f (is.null(step)) step = windowLength * (1 - overlap / 100)
   step_points = round(step / 1000 * audio$samplingRate)
   step = step_points / audio$samplingRate * 1000
   windowLength_points = round(windowLength / 1000 * audio$samplingRate)
   windowLength = windowLength_points / audio$samplingRate * 1000
-  overlap = 100 * (1 - step_points / windowLength_points)
   lowestFreq = if (is.null(roughRange)) 5 else min(5, roughRange[1])
 
   max_am = 1000 / step / 2
   if (!is.null(roughRange) && max_am < roughRange[1]) {
     warning(paste(
       'roughRange outside the analyzed range of temporal modulation frequencies;',
-      'increase overlap / decrease step to improve temporal resolution,',
-      'or else look for roughness in a lower range'))
+      'decrease step to improve temporal resolution ',
+      'or look for roughness in a lower range'))
   }
   if (is.numeric(amRes)) {
     if (specSource == 'STFT') {

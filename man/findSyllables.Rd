@@ -11,7 +11,8 @@ findSyllables(ampl, step, windowLength, threshold, shortestSyl, shortestPause)
 
 \item{step}{time difference between two points in the envelope (ms)}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
 \item{threshold}{all continuous segments above this value are considered to
 be syllables}

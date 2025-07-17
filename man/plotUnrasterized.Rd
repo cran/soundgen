@@ -25,7 +25,6 @@ plotUnrasterized(
   yScale = c("orig", "bark", "mel", "ERB")[1],
   axisX = TRUE,
   axisY = TRUE,
-  maxPoints = 5e+05,
   ...
 )
 }
@@ -37,8 +36,6 @@ plotUnrasterized(
 \item{levels, nlevels, pch, cex, color.palette, col, legend, asp, xaxs, yaxs, las, log, axisX, axisY}{graphical parameters passed to plot()}
 
 \item{yScale}{scale of frequency representation}
-
-\item{maxPoints}{downsample if too big for plotting}
 }
 \description{
 Internal soundgen function

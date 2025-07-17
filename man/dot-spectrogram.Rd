@@ -56,12 +56,14 @@
 \item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
 under maximum are treated as zero}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{overlap}{overlap between successive FFT frames, \%}
 
@@ -137,7 +139,7 @@ by dividing instead of multiplying by the filter during convolution}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
-c(1e5, 5e5)}
+c(1e5, 5e5); does not affect reassigned spectrograms}
 
 \item{padWithSilence}{if TRUE, pads the sound with just enough silence to
 resolve the edges properly (only the original region is plotted, so the

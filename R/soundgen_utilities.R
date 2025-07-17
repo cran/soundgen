@@ -807,6 +807,7 @@ addPitchJumps = function(pitch, magn, nj = 1, prop = .1, plot = FALSE) {
       out[idx] = out[idx] / magn_lin[j]
     }
   }
+  out = out[1:len]  # otherwise it can add a few NA's at the end
   if (plot) {
     plot(pitch, type = 'l', ylim = range(c(pitch, out), na.rm = TRUE))
     points(out, type = 'l', col = 'blue')

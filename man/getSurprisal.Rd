@@ -98,7 +98,7 @@ sharpness, <0 decreases sharpness}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
-c(1e5, 5e5)}
+c(1e5, 5e5); does not affect reassigned spectrograms}
 
 \item{padWithSilence}{if TRUE, pads the sound with just enough silence to
 resolve the edges properly (only the original region is plotted, so the

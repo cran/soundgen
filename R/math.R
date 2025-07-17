@@ -423,8 +423,9 @@ listDepth = function(x) ifelse(is.list(x), 1L + max(sapply(x, listDepth)), 0L)
 #' @param xmin,xmax min and max (to save time if already known)
 #' @keywords internal
 zeroOne = function(x, na.rm = FALSE, xmin = NULL, xmax = NULL) {
-  if (is.null(xmin)) xmin = min(x, na.rm = na.rm)
-  if (is.null(xmax)) xmax = max(x, na.rm = na.rm)
+  if (is.null(xmin) | is.null(xmax)) ran = range(x, na.rm = TRUE, finite = TRUE)
+  if (is.null(xmin)) xmin = ran[1] # min(x, na.rm = na.rm)
+  if (is.null(xmax)) xmax = ran[2] # max(x, na.rm = na.rm)
   (x - xmin) / (xmax - xmin)
 }
 

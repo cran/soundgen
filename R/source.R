@@ -862,8 +862,6 @@ generateHarmonics = function(pitch,
 #'   the ratio to F0 (eg 1.5 means it's a subharmonic added between f0 and its
 #'   first harmonic)
 #' @param samplingRate the sampling rate of generated sound, Hz
-#' @param wn windowing function applied to each glottal cycle (see
-#'   \code{\link[seewave]{ftwindow}})
 #' @param interpol method used to adjust the number of gc to target duration
 #' @return Returns a waveform as a non-normalized numeric vector centered at
 #'   zero.
@@ -882,7 +880,6 @@ generateGC = function(pitch_per_gc,
                       glottisClosed_per_gc,
                       rolloff_per_gc,
                       samplingRate,
-                      wn = 'none',
                       interpol = 'approx') {
   gc_len = round(samplingRate / pitch_per_gc)  # length of each gc, points
   gc_closed = round(gc_len * glottisClosed_per_gc / 100)  # length of each pause, points
@@ -931,24 +928,32 @@ generateGC = function(pitch_per_gc,
     # spectrogram(cycle, samplingRate, ylim = c(0, 2))
     # seewave::spec(rep(cycle,10), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
 
-    if (wn == 'none') {
-      waveform = c(waveform, cycle, rep(0, gc_closed_adj[i]))
-      # Alternative to simple concatenation: cross-fade (doesn't make much difference in practice)
-      # fadeTime_ms = 2
-      # fadeTime_points = round(fadeTime_ms * samplingRate / 1000)
-      # fadeTime_points = min(fadeTime_points, 2 * round(gc_closed_adj[i] / 4))
-      # new = crossFade(cycle, rep(0, gc_closed_adj[i] + 2 * fadeTime_points), crossLenPoints = fadeTime_points, shape = 'lin')
-      # waveform = crossFade(waveform, new, crossLenPoints = fadeTime_points, shape = 'lin')
-    } else {
-      # window before glueing gc with pauses
-      win = seewave::ftwindow(wl = gc_len_adj[i], wn = wn)
-      # plot(win, type = 'b')
-      cycle_win = cycle * win
-      # plot(cycle_win, type = 'l')
-      # spectrogram(cycle_win, samplingRate, ylim = c(0, 10))
-      # seewave::spec(rep(cycle_win,10), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
-      waveform = c(waveform, cycle_win, rep(0, gc_closed_adj[i]))
-    }
+    # apply a Gaussian window before glueing gc with pauses (changes the spectrum, though)
+    n1 = gc_len_adj[i] - 1
+    e12 = exp(-12)
+    cycle = cycle * (exp(-12 * (((0:n1)/n1) - 0.5)^2) - e12)/(1 - e12)
+    # slower, but more flexible in terms of possible window shapes
+    # if (wn != 'none') {
+    #   win = seewave::ftwindow(wl = gc_len_adj[i], wn = wn)
+    #   # plot(win, type = 'b')
+    #   cycle = cycle * win
+    #   # plot(cycle, type = 'l')
+    #   # spectrogram(rep(cycle,100), samplingRate, ylim = c(0, 10))
+    #   # seewave::spec(rep(cycle,100), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
+    # }
+
+    # another solution is to simply to fade each glottal cycle (also changes the spectrum)
+    # cycle = fade(cycle, samplingRate = samplingRate, fadeIn_points = 0,
+    #              fadeOut_points = gc_len_adj[i],
+    #              shape = 'gaussian')
+
+    waveform = c(waveform, cycle, rep(0, gc_closed_adj[i]))
+    # Alternative to simple concatenation: cross-fade (doesn't make much difference in practice)
+    # fadeTime_ms = 2
+    # fadeTime_points = round(fadeTime_ms * samplingRate / 1000)
+    # fadeTime_points = min(fadeTime_points, 2 * round(gc_closed_adj[i] / 4))
+    # new = crossFade(cycle, rep(0, gc_closed_adj[i] + 2 * fadeTime_points), crossLenPoints = fadeTime_points, shape = 'lin')
+    # waveform = crossFade(waveform, new, crossLenPoints = fadeTime_points, shape = 'lin')
   }
   # plot(waveform, type = 'l')
   # playme(waveform, samplingRate)

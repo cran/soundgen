@@ -1170,7 +1170,7 @@ transplantFormants = function(donor,
 
   # Flatten the recipient spectrogram
   if (!is.numeric(freqWindow)) {
-    if (!is.null(blur) && is.finite(blur)) {
+    if (!is.null(blur) && is.finite(blur[1])) {
       # set freqWindow to the amount of "blur" along the frequency axis
       freqWindow = blur[1]
     } else {
@@ -1228,6 +1228,7 @@ transplantFormants = function(donor,
     }
   } else {
     # method 2: apply a Gaussian blur to the entire spectrogram
+    if (length(blur) == 1) blur = c(blur, 0)
     bin_width = samplingRate / windowLength_points
     filt_dim = c(
       round(blur[1] / bin_width) * 2 + 1,  # frequency

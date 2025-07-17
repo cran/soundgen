@@ -28,10 +28,11 @@ numeric vector)}
 \item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
 gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{zp}{window length after zero padding, points}
 

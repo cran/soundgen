@@ -29,10 +29,11 @@ column is one fft frame, each row is one candidate (the last row is always
 \item{pitchCert}{a matrix of the same dimensionality as pitchCands specifying
 our certainty in pitch candidates}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{certWeight}{(0 to 1) in pitch postprocessing, specifies how much we
 prioritize the certainty of pitch candidates vs. pitch jumps / the internal

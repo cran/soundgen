@@ -20,7 +20,8 @@ findBursts(
 
 \item{step}{time difference between two points in the envelope (ms)}
 
-\item{windowLength}{length of FFT window, ms}
+\item{windowLength}{length of FFT window, ms (multiple values in a vector
+produce a multi-resolution spectrogram)}
 
 \item{interburst}{minimum time between two consecutive bursts (ms). Defaults
 to the average detected \code{(syllable + pause) / 2}}

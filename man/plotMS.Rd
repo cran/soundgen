@@ -6,8 +6,8 @@
 \usage{
 plotMS(
   ms,
-  X = NULL,
-  Y = NULL,
+  X = as.numeric(colnames(ms)),
+  Y = as.numeric(rownames(ms)),
   quantiles = c(0.5, 0.8, 0.9),
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
   col = NULL,

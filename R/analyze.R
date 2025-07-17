@@ -925,7 +925,8 @@ analyze = function(
   # yet, since most routines in analyze() require scale [-1, 1]
   if (!is.null(loudness)) {
     ldns = try(do.call(.getLoudness, c(list(
-      audio = audio, windowLength = windowLength, step = step, plot = FALSE),
+      audio = audio[which(names(audio) != 'savePlots')],
+      windowLength = windowLength, step = step, plot = FALSE),
       loudness))$loudness)
   } else {
     scaleCorrection = NA

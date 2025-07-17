@@ -28,10 +28,11 @@ if unvoiced)}
 value = interpolate and merge, small value = treat as separate syllables
 separated by an unvoiced gap}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms (NB:
-because digital audio is sampled at discrete time intervals of
-1/samplingRate, the actual step and thus the time stamps of STFT frames
-may be slightly different, eg 24.98866 instead of 25.0 ms)}
+\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
+vector of the same length as windowLength (NB: because digital audio is
+sampled at discrete time intervals of 1/samplingRate, the actual step and
+thus the time stamps of STFT frames may be slightly different, eg 24.98866
+instead of 25.0 ms)}
 
 \item{minVoicedCands}{a frame is considered to be voiced if at least this
 many pitch candidates are not NA. Defaults to 2: since dom is usually

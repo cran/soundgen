@@ -258,12 +258,12 @@ getSmoothContour = function(
           min(smoothContour_downsampled) / 1.1,  # can't be negative
           max(smoothContour_downsampled) * 1.1
         )
-      } else if (min(smoothContour_downsampled) < HzToSemitones(ylim[1])) {
-        ylim[1] = min(smoothContour_downsampled) / 1.1
-      } else if (max(smoothContour_downsampled) > HzToSemitones(ylim[2])) {
-        ylim[2] = max(smoothContour_downsampled) * 1.1
       } else {
         ylim = HzToSemitones(ylim)
+        if (min(smoothContour_downsampled) < ylim[1])
+          ylim[1] = min(smoothContour_downsampled) / 1.1
+        if (max(smoothContour_downsampled) > ylim[2])
+          ylim[2] = max(smoothContour_downsampled) * 1.1
       }
       lbls_semitones = unique(seq(ylim[1], ylim[2], length.out = 5))
       # unique to remove duplicates, max 5 labels
