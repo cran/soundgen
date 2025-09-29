@@ -14,6 +14,7 @@ addPitchCands(
   pitchPlot = list(),
   extraContour = NULL,
   extraContour_pars = list(),
+  extraContour_warp = TRUE,
   priorMean = NULL,
   priorSD = NULL,
   pitchFloor = NULL,
@@ -21,7 +22,7 @@ addPitchCands(
   addToExistingPlot = TRUE,
   showLegend = TRUE,
   y_Hz = FALSE,
-  yScale = c("orig", "bark", "mel")[1],
+  yScale = c("linear", "bark", "mel")[1],
   ...
 )
 }

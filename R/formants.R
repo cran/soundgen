@@ -744,7 +744,7 @@ addFormants = function(
     ...
 ) {
   formants = reformatFormants(formants)
-  mouth = reformatFormants(mouth)
+  mouth = reformatAnchors(mouth)
 
   # match args
   myPars = c(as.list(environment()), list(...))

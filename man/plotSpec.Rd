@@ -15,8 +15,6 @@ plotSpec(
   heights = c(3, 1),
   ylim = NULL,
   yScale = "linear",
-  contrast = 0.2,
-  brightness = 0,
   maxPoints = c(1e+05, 5e+05),
   padWithSilence = TRUE,
   colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
@@ -63,12 +61,6 @@ logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
 'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
 Rectangular Bandwidths with \code{\link{HzToERB}}}
 
-\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
-raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
-sharpness, <0 decreases sharpness}
-
-\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
-
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
 c(1e5, 5e5); does not affect reassigned spectrograms}
@@ -85,9 +77,9 @@ matlab-type palette ('matlab'), or any palette from
 in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
-yScale!) that will be plotted over the spectrogram (eg pitch contour); can
-also be a list with extra graphical parameters such as lwd, col, etc. (see
-examples)}
+yScale, but nonlinear yScale also warps the contour) that will be plotted
+over the spectrogram (eg pitch contour); can also be a list with extra
+graphical parameters such as lwd, col, etc. (see examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 

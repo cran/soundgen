@@ -1,7 +1,7 @@
-# TODO: increase sampling rate if creating one gc at a time for smooth f0 changes, then downsample again; (Windows) formant_app etc - opaque selection on some systems (Win10?); pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?); check or remove identifyAndPlay - not working in RStudio (but OK in console)
+# TODO: segment - return the spectrum and spectral peaks of the signal contour (as an alternative to "interburst"); increase sampling rate if creating one gc at a time for smooth f0 changes, then downsample again; (Windows) formant_app etc - opaque selection on some systems (Win10?); pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?); check or remove identifyAndPlay - not working in RStudio (but OK in console)
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare, check titze2021effect); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png()
+# TODO maybe: check math behind formants (eg use LPC to create all formants in one go); segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare, check titze2021effect); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png()
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
@@ -19,8 +19,7 @@ NULL
 #' formants. Intonation and amplitude contours can be applied both within each
 #' syllable and across multiple syllables. Suggested application: synthesis of
 #' animal or human non-linguistic vocalizations. For more information, see
-#' \url{http://cogsci.se/soundgen.html} and vignette('sound_generation', package
-#' = 'soundgen').
+#' \url{https://cogsci.se/soundgen/sound_generation.html}.
 #'
 #' @seealso \code{\link{generateNoise}} \code{\link{beat}} \code{\link{fart}}
 #'
@@ -205,7 +204,11 @@ NULL
 #' @export
 #' @return Returns the synthesized waveform as a numeric vector.
 #' @examples
-#' # NB: GUI for soundgen is available as a Shiny app.
+#' # Detailed documentation: https://cogsci.se/soundgen/sound_generation.html
+#'
+#' # A gallery of examples with code: https://cogsci.se/soundgen/demos.html
+#'
+#' # A GUI for soundgen is available as a Shiny app.
 #' # Type "soundgen_app()" to open it in default browser
 #'
 #'# Set "playback" to TRUE for default system player or the name of preferred
@@ -286,10 +289,7 @@ NULL
 #'    plot = TRUE
 #'  )
 #'
-#' # See the vignette on sound generation for more examples and in-depth
-#' # explanation of the arguments to soundgen()
-#' # Examples of code for creating human and animal vocalizations are available
-#' # on project's homepage: http://cogsci.se/soundgen.html
+#' # Project's homepage: http://cogsci.se/soundgen.html
 #' }
 soundgen = function(
     repeatBout = 1,

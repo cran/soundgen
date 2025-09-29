@@ -6,7 +6,8 @@
 #' Inspired by \code{\link[seewave]{spectro}}, this function offers added
 #' routines for reassignment, multi-resolution spectrograms, noise reduction,
 #' smoothing in time and frequency domains, manual control of contrast and
-#' brightness, plotting the oscillogram on a dB scale, grid, etc.
+#' brightness, plotting the oscillogram on a dB scale, grid, etc. Gallery of
+#' examples: \url{https://cogsci.se/soundgen/spectrograms.html}.
 #'
 #' Many soundgen functions call \code{spectrogram}, and you can pass along most
 #' of its graphical parameters from functions like \code{\link{soundgen}},
@@ -59,10 +60,15 @@
 #'   \eqn{spectrum - (noiseReduction * noiseSpectrum)}, where noiseSpectrum is
 #'   the average spectrum of frames with entropy exceeding the quantile set by
 #'   \code{percentNoise}
-#' @param contrast a number, recommended range -1 to +1. The spectrogram is
-#'   raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
-#'   sharpness, <0 decreases sharpness
-#' @param brightness how much to "lighten" the image (>0 = lighter, <0 = darker)
+#' @param contrast controls the sharpness or contrast of the image: <0 =
+#'   decrease contrast, 0 = no change, >0 increase contrast. Recommended range
+#'   approximately (-1, 1). The spectrogram is raised to the power of
+#'   \code{exp(3 * contrast)}
+#' @param brightness makes the image lighter or darker: <0 = darker, 0 = no
+#'   change, >0 = lighter, range (-1, 1). The color palette is preserved, so
+#'   "brightness" works by capping an increasing proportion of image at the
+#'   lightest or darkest color. To lighten or darken the palette, just change
+#'   the colors instead
 #' @param blur apply a Gaussian filter to blur or sharpen the image, two
 #'   numbers: frequency (Hz), time (ms). A single number is interpreted as
 #'   frequency, and a square filter is applied. NA / NULL / 0 means no blurring
@@ -103,9 +109,9 @@
 #' @param col actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
 #'   in base R (overrides colorTheme)
 #' @param extraContour a vector of arbitrary length scaled in Hz (regardless of
-#'   yScale!) that will be plotted over the spectrogram (eg pitch contour); can
-#'   also be a list with extra graphical parameters such as lwd, col, etc. (see
-#'   examples)
+#'   yScale, but nonlinear yScale also warps the contour) that will be plotted
+#'   over the spectrogram (eg pitch contour); can also be a list with extra
+#'   graphical parameters such as lwd, col, etc. (see examples)
 #' @param xlab,ylab,main,mar,xaxp graphical parameters for plotting
 #' @param grid if numeric, adds n = \code{grid} dotted lines per kHz
 #' @param width,height,units,res graphical parameters for saving plots passed to
@@ -119,6 +125,8 @@
 #'   frequency in rows (kHz). For multi-resolution spectrograms, the complex
 #'   matrix corresponds to the last value of windowLength.
 #' @examples
+#' # Gallery of examples: https://cogsci.se/soundgen/spectrograms.html
+#'
 #' # synthesize a sound 500 ms long, with gradually increasing hissing noise
 #' sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
 #'   time = c(0, 650), value = c(-40, 0)), formantsNoise = list(
@@ -130,10 +138,11 @@
 #'
 #' # add bells and whistles
 #' spectrogram(sound, samplingRate = 16000,
+#'   windowLength = c(5, 40),  # multi-resolution
 #'   osc = 'dB',  # plot oscillogram in dB
 #'   heights = c(2, 1),  # spectro/osc height ratio
-#'   noiseReduction = 1.1,  # subtract the spectrum of noisy parts
-#'   brightness = -1,  # reduce brightness
+#'   noiseReduction = .9,  # subtract the spectrum of noisy parts
+#'   brightness = -.5,  # reduce brightness
 #'   # pick color theme - see ?hcl.colors
 #'   # colorTheme = 'heat.colors',
 #'   # ...or just specify the actual colors
@@ -169,7 +178,7 @@
 #' spectrogram(s, 22050, windowLength = 5, step = 1, yScale = 'bark')
 #' spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
 #'   step = 1, yScale = 'bark')
-#' # ...or it can be rasterized, but that sacrifices frequency resolution:s
+#' # ...or it can be rasterized, but that sacrifices frequency resolution:
 #' sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
 #'                  windowLength = 5, step = 1, yScale = 'bark', output = 'all')
 #' # The raw reassigned version is saved if output = 'all' for custom plotting
@@ -185,6 +194,22 @@
 #'   blur = c(-50, -50))
 #' spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
 #'   specType = 'reassigned', dynamicRange = 50)
+#' spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
+#'   specType = 'reassigned', dynamicRange = 50, rasterize = TRUE)
+#'
+#' # Different combinations of specType, mono/multiresolution, and rasterization
+#' spectrogram(s, 22050, windowLength = 5)
+#' spectrogram(s, 22050, windowLength = c(5, 10))
+#'
+#' spectrogram(s, 22050, windowLength = 5, specType = 'reassigned',
+#'   rasterize = FALSE)
+#' spectrogram(s, 22050, windowLength = c(5, 10), specType = 'reassigned',
+#'   rasterize = FALSE)
+#'
+#' spectrogram(s, 22050, windowLength = 5, specType = 'reassigned',
+#'   rasterize = TRUE)
+#' spectrogram(s, 22050, windowLength = c(5, 10), specType = 'reassigned',
+#'   rasterize = TRUE)
 #'
 #' # focus only on values in the upper 5% for each frequency bin
 #' spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -196,6 +221,12 @@
 #'
 #' # increase contrast, reduce brightness
 #' spectrogram(sound, samplingRate = 16000, contrast = .7, brightness = -.5)
+#'
+#' # increase brightness (drops quiet bins with the same color palette)
+#' spectrogram(sound, samplingRate = 16000, brightness = .5)
+#'
+#' # another approach is to just make the palette lighter:
+#' spectrogram(sound, samplingRate = 16000, col = gray.colors(30, 1, .5))
 #'
 #' # apply median smoothing in both time and frequency domains
 #' spectrogram(sound, samplingRate = 16000, smoothFreq = 5,
@@ -226,23 +257,33 @@
 #' an = analyze(s, 16000, plot = FALSE)
 #' spectrogram(s, 16000, extraContour = an$detailed$dom,
 #'   ylim = c(0, 2), yScale = 'bark')
-#' # or simply (but without an oscillogram):
+#' spectrogram(s, 16000, extraContour = list(x = an$detailed$dom, col = 'blue'),
+#'   ylim = c(0, 2), yScale = 'bark')
+#' # or simply add whatever you like to a spectrogram with points(), lines(),
+#' # etc., (but only works without an oscillogram):
 #' spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
 #' points(an$detailed$time/1000,  # time in s
-#'        6 * asinh(an$detailed$dom/600),  # values in barks
+#'        HzToOther(an$detailed$dom, 'bark'),  # values in barks
 #'        lwd = 2, col = 'green', lty = 2  # any graphic pars
 #' )
-#' # For values that are not in Hz, normalize any way you like
-#' spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
-#'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
-#'   # ylim[2] = 2000 Hz
+#' # For values that are not in Hz, normalize any way you like. NB: if yScale !=
+#' # 'linear', the extra contour is by default warped to the same scale b/c it
+#' # is assumed to be in Hz. Specify "warp = FALSE" to avoid this
+#' spectrogram(s, 16000, yScale = 'ERB', ylim = c(0, 5), extraContour = list(
+#'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 5000,
+#'   # because ylim[2] = 2000 Hz
+#'   type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue', warp = FALSE))
+#' # compare:
+#' spectrogram(s, 16000, yScale = 'ERB', ylim = c(0, 5), extraContour = list(
+#'   x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 5000,
+#'   # because ylim[2] = 2000 Hz
 #'   type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue'))
 #'
 #' # Plot a spectrogram-like matrix paired with an osc
 #' ms = modulationSpectrum(s, 16000, msType = '1D', amRes = 10)
 #' spectrogram(s, 16000, specManual = ms$modulation_spectrogram,
 #'   colorTheme = 'matlab', ylab = 'Modulation frequency, kHz',
-#'   contrast = .25, blur = c(10, 10))
+#'   contrast = .25, blur = c(10, 10), yScale = 'log')
 #' }
 spectrogram = function(
     x,
@@ -417,8 +458,12 @@ spectrogram = function(
                   "defaulting to 'spectrum'"))
   }
   contrast_exp = exp(3 * contrast)
-  brightness_exp = exp(3 * brightness)
-  # visualization: plot(exp(3 * seq(-1, 1, by = .01)), type = 'l')
+  # br = seq(-1, 1, by = .01); plot(br, exp(3 * br), type = 'l')
+  if (brightness >= 1) {
+    brightness = 0.99
+  } else if (brightness <= -1) {
+    brightness = -0.99
+  }
 
   if (is.character(audio$savePlots)) {
     plot = TRUE
@@ -427,6 +472,7 @@ spectrogram = function(
   }
 
   ## STFT
+  reas = (specType == 'reassigned' & !rasterize)  # non-rasterized - a data.frame
   if (is.null(specManual)) {
     # the number of STFTs to perform (with different window lengths)
     nw = length(windowLength)
@@ -545,6 +591,7 @@ spectrogram = function(
       if (nw > 1) specs[[w]] = Z
     }
 
+
     # combine several STFTs into a single multi-resolution spectrogram
     if (nw > 1) {
       if (specType != 'reassigned') {
@@ -563,32 +610,6 @@ spectrogram = function(
         Y = as.numeric(colnames(Z)) # freq
       } else {
         Z = reassigned_raw = do.call(rbind, specs)
-        if (rasterize) {
-          # An irregular time-frequency grid is hard to plot, so we rasterize it
-          df = reassigned_raw
-          df$ix = findInterval(df$time, seq(min_x, max_x, length.out = lx + 1),
-                               all.inside = TRUE)
-          df$iy = findInterval(df$freq, seq(min_y, max_y, length.out = ly + 1),
-                               all.inside = TRUE)
-          Z = matrix(min(df$magn), nrow = lx, ncol = ly)
-          for (i in seq_len(nrow(df)))
-            Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$magn[i]
-
-          if (FALSE) {
-            # alternative (marginally faster): use library(raster)
-            # e = extent(df[, 1:2])
-            # r = raster(e, ncol = lx, nrow = ly)
-            # r_new = rasterize(df[, 1:2], r, df[, 3], fun = mean)
-            # # raster::filledContour(r_new)  # need freq in Hz
-            #
-            # # convert from raster to df and plot with filled.contour
-            # sam = sampleRegular(r_new, lx * ly, asRaster = TRUE, useGDAL = TRUE)
-            # Z1 = t(matrix(getValues(sam), ncol = sam@ncols, byrow = TRUE)[nrow(sam):1, ])
-            # Z1[is.na(Z1)] = min(Z1, na.rm = T)
-          }
-          rownames(Z) = X
-          colnames(Z) = Y
-        }
       }
     }
   } else {
@@ -598,13 +619,42 @@ spectrogram = function(
   }
   # soundgen:::filled.contour.mod(X, Y, z = log(Z))
 
+
+  # Rasterize the reassigned spectrogram
+  if (specType == 'reassigned' & rasterize) {
+    # An irregular time-frequency grid is hard to plot, so we rasterize it
+    df = reassigned_raw
+    df$ix = findInterval(df$time, seq(min_x, max_x, length.out = lx + 1),
+                         all.inside = TRUE)
+    df$iy = findInterval(df$freq, seq(min_y, max_y, length.out = ly + 1),
+                         all.inside = TRUE)
+    Z = matrix(min(df$magn), nrow = lx, ncol = ly)
+    for (i in seq_len(nrow(df)))
+      Z[df$ix[i], df$iy[i]] = Z[df$ix[i], df$iy[i]] + df$magn[i]
+
+    if (FALSE) {
+      # alternative (marginally faster): use library(raster)
+      # e = extent(df[, 1:2])
+      # r = raster(e, ncol = lx, nrow = ly)
+      # r_new = rasterize(df[, 1:2], r, df[, 3], fun = mean)
+      # # raster::filledContour(r_new)  # need freq in Hz
+      #
+      # # convert from raster to df and plot with filled.contour
+      # sam = sampleRegular(r_new, lx * ly, asRaster = TRUE, useGDAL = TRUE)
+      # Z1 = t(matrix(getValues(sam), ncol = sam@ncols, byrow = TRUE)[nrow(sam):1, ])
+      # Z1[is.na(Z1)] = min(Z1, na.rm = T)
+    }
+    rownames(Z) = X
+    colnames(Z) = Y
+  }
+
+
   ## Post-processing of STFT (for non-rasterized reassigned spectrograms, work
   ## just with the magnitudes)
-  reas = (specType == 'reassigned' & !rasterize)
   if (reas) {
     Z1 = Z$magn
   } else {
-    Z1 = Z
+    Z1 = as.matrix(Z)
   }
 
   # set to zero under dynamic range
@@ -663,13 +713,12 @@ spectrogram = function(
     Z1 = Z1 ^ contrast_exp
   }
   if (any(Z1 != 0)) Z1 = Z1 / max(Z1)
-  # if (inherits(tr, 'try-error')) browser()
-  if (brightness_exp != 1) {
-    Z1 = Z1 / brightness_exp
+  if (brightness != 0) {
+    Z1 = Z1 - brightness
   }
-  if (brightness_exp < 1) {
-    Z1[Z1 > 1] = 1 # otherwise values >1 are shown as white instead of black
-  }
+  Z1[Z1 > 1] = 1 # otherwise values >1 are shown as white instead of black
+  Z1[Z1 < 0] = 0
+
   # Gaussian filter
   if (!reas &&
       !is.null(blur) &&
@@ -866,8 +915,6 @@ plotSpec = function(
     heights = c(3, 1),
     ylim = NULL,
     yScale = 'linear',
-    contrast = .2,
-    brightness = 0,
     maxPoints = c(1e5, 5e5),
     padWithSilence = TRUE,
     colorTheme = c('bw', 'seewave', 'heat.colors', '...')[1],
@@ -1029,10 +1076,15 @@ plotSpec = function(
   # add an extra contour, if any
   if (!is.null(extraContour)) {
     extraContour_pars = list()
+    extraContour_warp = TRUE
     if (is.list(extraContour)) {
-      if (length(extraContour) > 1)
-        extraContour_pars = extraContour[2:length(extraContour)]
-      cnt = extraContour[[1]]
+      if (length(extraContour) > 1) {
+        cnt = extraContour$x
+        if (!is.null(extraContour$warp)) extraContour_warp = extraContour$warp
+        extraContour_pars = extraContour[-which(names(extraContour) %in% c('x', 'warp'))]
+      } else {
+        cnt = extraContour[[1]]
+      }
     } else {
       cnt = extraContour
     }
@@ -1041,8 +1093,12 @@ plotSpec = function(
     cnt = approx(x = seq_len(lc), y = cnt,
                  xout = seq(1, lc, length.out = length(X)),
                  na.rm = FALSE)$y  # see ex. in ?approx on handling NAs
+    if (!extraContour_warp) {
+      cnt = cnt / max(cnt, na.rm = TRUE) * HzToOther(ylim[2] * 1000, yScale)
+    }
     do.call(addPitchCands, list(
       extraContour = cnt, extraContour_pars = extraContour_pars,
+      extraContour_warp = extraContour_warp,
       y_Hz = y_Hz, timestamps = X, yScale = yScale,
       pitchCands = NA, pitchCert = NA, pitchSource = NA, pitch = NA))
   }

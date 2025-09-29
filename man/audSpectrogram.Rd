@@ -19,7 +19,7 @@ audSpectrogram(
   bandwidth = NULL,
   bandwidthMult = 1,
   minFreq = 20,
-  maxFreq = samplingRate/2,
+  maxFreq = NULL,
   minBandwidth = 10,
   output = c("audSpec", "audSpec_processed", "filterbank", "filterbank_env", "roughness"),
   reportEvery = NULL,
@@ -127,11 +127,16 @@ frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{yScale}{determines the location of center frequencies of the filters}
 
-\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
-raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
-sharpness, <0 decreases sharpness}
+\item{contrast}{controls the sharpness or contrast of the image: <0 =
+decrease contrast, 0 = no change, >0 increase contrast. Recommended range
+approximately (-1, 1). The spectrogram is raised to the power of
+\code{exp(3 * contrast)}}
 
-\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
+\item{brightness}{makes the image lighter or darker: <0 = darker, 0 = no
+change, >0 = lighter, range (-1, 1). The color palette is preserved, so
+"brightness" works by capping an increasing proportion of image at the
+lightest or darkest color. To lighten or darken the palette, just change
+the colors instead}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
@@ -149,9 +154,9 @@ matlab-type palette ('matlab'), or any palette from
 in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
-yScale!) that will be plotted over the spectrogram (eg pitch contour); can
-also be a list with extra graphical parameters such as lwd, col, etc. (see
-examples)}
+yScale, but nonlinear yScale also warps the contour) that will be plotted
+over the spectrogram (eg pitch contour); can also be a list with extra
+graphical parameters such as lwd, col, etc. (see examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
@@ -204,7 +209,7 @@ dim(fs)
 audSpectrogram(sound, samplingRate = 16000,
   filterType = 'butterworth',
   nFilters = 128,
-  yScale = 'ERB',
+  yScale = 'mel',
   bandwidth = 1/6,
   dynamicRange = 150,
   osc = 'dB',  # plot oscillogram in dB

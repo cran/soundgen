@@ -71,7 +71,7 @@
 #' audSpectrogram(sound, samplingRate = 16000,
 #'   filterType = 'butterworth',
 #'   nFilters = 128,
-#'   yScale = 'ERB',
+#'   yScale = 'mel',
 #'   bandwidth = 1/6,
 #'   dynamicRange = 150,
 #'   osc = 'dB',  # plot oscillogram in dB
@@ -116,9 +116,10 @@ audSpectrogram = function(
     bandwidth = NULL,
     bandwidthMult = 1,
     minFreq = 20,
-    maxFreq = samplingRate / 2,
+    maxFreq = NULL,
     minBandwidth = 10,
-    output = c('audSpec', 'audSpec_processed', 'filterbank', 'filterbank_env', 'roughness'),
+    output = c('audSpec', 'audSpec_processed', 'filterbank',
+               'filterbank_env', 'roughness'),
     reportEvery = NULL,
     cores = 1,
     plot = TRUE,
@@ -199,14 +200,14 @@ audSpectrogram = function(
     filterType = c('butterworth', 'chebyshev', 'gammatone')[1],
     nFilters = 128,
     nFilters_oct = NULL,
-    filterOrder = if(filterType == 'gammatone') 4 else 3,
+    filterOrder = if (filterType == 'gammatone') 4 else 3,
     bandwidth = NULL,
     bandwidthMult = 1,
     minFreq = 20,
-    maxFreq = audio$samplingRate / 2,
+    maxFreq = audio$samplingRate / 2 / (1 + (1 / nFilters)),
     minBandwidth = 10,
-    output = c('audSpec', 'audSpec_processed',
-               'filterbank', 'filterbank_env', 'roughness'),
+    output = c('audSpec', 'audSpec_processed', 'filterbank',
+               'filterbank_env', 'roughness'),
     plot = TRUE,
     plotFilters = FALSE,
     osc = c('none', 'linear', 'dB')[2],
@@ -234,7 +235,7 @@ audSpectrogram = function(
 ) {
   nyquist = audio$samplingRate / 2
   if (is.null(maxFreq) || length(maxFreq) < 1) {
-    maxFreq = nyquist
+    maxFreq = nyquist / (1 + (1 / nFilters))
   } else {
     maxFreq = min(maxFreq, nyquist)
   }
@@ -249,16 +250,8 @@ audSpectrogram = function(
     nFilters = round(log2(maxFreq/minFreq) * nFilters_oct)
 
   # set up filters (if "bandwidth" is NULL, non-overlapping)
-  if (yScale == 'log') {
-    cf = 2^(seq(log2(minFreq), log2(maxFreq), length.out = nFilters))
-  } else if (yScale == 'bark') {
-    cf = tuneR::bark2hz(seq(tuneR::hz2bark(minFreq), tuneR::hz2bark(maxFreq),
-                            length.out = nFilters))
-  } else if (yScale == 'mel') {
-    cf = tuneR::mel2hz(seq(hz2mel(minFreq), hz2mel(maxFreq), length.out = nFilters))
-  } else if (yScale == 'ERB') {
-    cf = ERBToHz(seq(HzToERB(minFreq), HzToERB(maxFreq), length.out = nFilters))
-  }
+  cf = otherToHz(seq(HzToOther(minFreq, yScale), HzToOther(maxFreq, yScale),
+                     length.out = nFilters), yScale)
   filters = data.frame(cf = cf)
   if (is.null(bandwidth)) {
     # default bandwidths from Slaney 1993
@@ -353,6 +346,18 @@ audSpectrogram = function(
     }
   }
 
+  # find "weird" channels with near-infinite values and exclude them
+  ranges = t(sapply(sp, range))
+  rmns = rowMeans(ranges)
+  medmax = median(apply(ranges, 1, max))
+  idx_weird = which(
+    # literally infinite or
+    !is.finite(ranges[, 2]) | (
+      # suspiciously huge both in abs terms and compared to other freq channels
+      ranges[, 2] > 1e10 & rmns > (medmax * 100)))
+  for (i in idx_weird) sp[[i]] = rep(0, length(sp[[i]]))
+
+  # prepare output
   if ('audSpec' %in% output | 'audSpec_processed' %in% output) {
     audSpec = do.call(rbind, sp)
     audSpec[is.na(audSpec)] = 0
@@ -409,7 +414,6 @@ audSpectrogram = function(
       Z = Z1,
       audio = audio, internal = NULL, dynamicRange = dynamicRange,
       osc = osc, heights = heights, ylim = ylim, yScale = yScale,
-      contrast = contrast, brightness = brightness,
       maxPoints = maxPoints, colorTheme = colorTheme, col = col,
       extraContour = extraContour,
       xlab = xlab, ylab = ylab, xaxp = xaxp,

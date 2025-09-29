@@ -447,15 +447,9 @@ server = function(input, output, session) {
       }
 
       # Add text label of file name
-      if (input$spec_yScale == 'bark') {
-        spec_ylim = tuneR::hz2bark(input$spec_ylim * 1000)
-        nyquist = tuneR::hz2bark(myPars$samplingRate / 2)
-      } else if (input$spec_yScale == 'mel') {
-        spec_ylim = hz2mel(input$spec_ylim * 1000)
-        nyquist = hz2mel(myPars$samplingRate / 2)
-      } else if (input$spec_yScale == 'ERB') {
-        spec_ylim = HzToERB(input$spec_ylim * 1000)
-        nyquist = HzToERB(myPars$samplingRate / 2)
+      if (input$spec_yScale %in% c('bark', 'mel', 'ERB')) {
+        spec_ylim = HzToOther(input$spec_ylim * 1000, input$spec_yScale)
+        nyquist = HzToOther(myPars$samplingRate / 2, input$spec_yScale)
       } else {
         spec_ylim = input$spec_ylim
         nyquist = myPars$samplingRate / 2000

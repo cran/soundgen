@@ -11,14 +11,25 @@
 #' calculated as the mean distance between formants, and then VTL is calculated
 #' as \eqn{speed of sound / 2 / formant dispersion}. If \code{method =
 #' 'regression'}, formant dispersion is estimated using the regression method
-#' described in Reby et al. (2005) "Red deer stags use formants as assessment
-#' cues during intrasexual agonistic interactions". For a review of these and
-#' other VTL-related summary measures of formant frequencies, refer to Pisanski
-#' et al. (2014) "Vocal indicators of body size in men and women: a
-#' meta-analysis". See also \code{\link{schwa}} for VTL estimation with
-#' additional information on formant frequencies.
+#' described in Reby et al. (2005) and Anikin et al. (2024). For a review of
+#' VTL-related summary measures of formant frequencies, refer to Pisanski et al.
+#' (2014). See also \code{\link{schwa}} for VTL estimation with additional
+#' information on formant frequencies.
 #'
 #' @seealso \code{\link{schwa}}
+#'
+#' @references \itemize{
+#'   \item Reby, D., McComb, K., Cargnelutti, B., Darwin, C., Fitch, W. T., &
+#'   Clutton-Brock, T. (2005). Red deer stags use formants as assessment cues
+#'   during intrasexual agonistic interactions. Proceedings of the Royal Society
+#'   B: Biological Sciences, 272(1566), 941-947.
+#'   \item Pisanski, K., Fraccaro, P. J., Tigue, C. C., O'Connor, J. J., Röder,
+#'   S., Andrews, P. W., ... & Feinberg, D. R. (2014). Vocal indicators of body
+#'   size in men and women: a meta-analysis. Animal Behaviour, 95, 89-99.
+#'   \item Anikin, A., Barreda, S. & Reby, D. (2024) A practical guide to
+#'   calculating vocal tract length and scale-invariant formant patterns.
+#'   Behavior Research Methods 56, 5588–5604.
+#' }
 #'
 #' @param formants formant frequencies in any format recognized by
 #'   \code{\link{soundgen}}: a vector of formant frequencies like \code{c(550,
@@ -196,6 +207,13 @@ estimateVTL = function(
 #' with the option \code{method = 'regression'}).
 #'
 #' @seealso \code{\link{estimateVTL}}
+#'
+#' @references \itemize{
+#'   \item Stevens, K. N. (2000). Acoustic phonetics (Vol. 30). MIT press.
+#'   \item Anikin, A., Barreda, S. & Reby, D. (2024) A practical guide to
+#'   calculating vocal tract length and scale-invariant formant patterns.
+#'   Behavior Research Methods 56, 5588–5604.
+#' }
 #'
 #' @return Returns a list with the following components: \describe{
 #'   \item{vtl_measured}{VTL as provided by the user, cm}

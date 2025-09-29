@@ -345,7 +345,7 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   \item{pitch}{post-processed pitch contour based on all F0 estimates}
   \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
   quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
-  amount of amplitude modulation, see modulationSpectrum}
+  amount of amplitude modulation, see modulationSpectrum and Anikin 2025}
   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
   to the spectrum below cutFreq (dB/kHz)} \item{subDep}{estimated depth of
@@ -366,7 +366,8 @@ and reasonable ranges of all arguments can be found in
 \code{\link{defaults_analyze}}. For high-precision work, first extract and
 manually correct pitch contours with \code{\link{pitch_app}}, PRAAT, or
 whatever, and then run \code{analyze(pitchManual = ...)} with these manual
-contours.
+contours. For more information, see
+\url{https://cogsci.se/soundgen/acoustic_analysis.html}
 }
 \details{
 Each pitch tracker is controlled by its own list of settings, as follows:
@@ -411,6 +412,8 @@ tolerated deviation of peak frequency from multiples of f0, proportion of f0
 }} }
 }
 \examples{
+# Detailed documentation: https://cogsci.se/soundgen/acoustic_analysis.html
+
 sound = soundgen(sylLen = 300, pitch = c(500, 400, 600),
   noise = list(time = c(0, 300), value = c(-40, 0)),
   temperature = 0.001,
@@ -450,7 +453,7 @@ analyze(sound2, 44100,
 
 # Fancy plotting options:
 a = analyze(sound2, samplingRate = 44100, plot = TRUE,
-  xlab = 'Time, ms', colorTheme = 'seewave',
+  xlab = 'Time, ms', colorTheme = 'seewave', yScale = 'ERB',
   contrast = .5, ylim = c(0, 4), main = 'My plot',
   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
   priorMean = NA,  # no prior info at all
@@ -559,6 +562,10 @@ s1 = analyze(myfolder, pitchManual = pitchContour)
 plot(s$summary$harmonics_median, s1$summary$harmonics_median)
 abline(a=0, b=1, col='red')
 }
+}
+\references{
+Anikin, A. (2025) Acoustic estimation of voice roughness.
+  Attention, Perception, & Psychophysics 87: 1771–1787.
 }
 \seealso{
 \code{\link{pitch_app}} \code{\link{getLoudness}}

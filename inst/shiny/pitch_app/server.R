@@ -146,9 +146,10 @@ server = function(input, output, session) {
 
           frame_i = round(time_i / input$step)
           step_i = time_i[2] - time_i[1]
-          if (step_i != input$step) pitch_i = pitch_i[!duplicated(frame_i)]
+          if (step_i != input$step)
+            pitch_i = .resample(audio = list(sound = pitch_i), len = length(unique(frame_i)), lowPass = FALSE, na.rm = FALSE)
           manual_i = data.frame(
-            frame = frame_i, freq = pitch_i
+            frame = unique(frame_i), freq = pitch_i
           )
           myPars$history[[user_ann$file[i]]] = list(
             manual = manual_i[!is.na(manual_i$freq), ],
@@ -1495,9 +1496,11 @@ server = function(input, output, session) {
     if (!is.null(myPars$out)) {
       write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
       myPars$result$pitch = myPars$pitch
-      myPars$history[[myPars$myAudio_filename]]$detailed = myPars$result
-      myPars$history[[myPars$myAudio_filename]]$summary = myPars$out
-      myPars$history[[myPars$myAudio_filename]]$pitch = myPars$pitch
+      if (!is.null(myPars$myAudio_filename)) {
+        myPars$history[[myPars$myAudio_filename]]$detailed = myPars$result
+        myPars$history[[myPars$myAudio_filename]]$summary = myPars$out
+        myPars$history[[myPars$myAudio_filename]]$pitch = myPars$pitch
+      }
       my_pitch <<- myPars$history
     }
   }

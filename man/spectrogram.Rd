@@ -150,11 +150,16 @@ logarithmic (musical), 'bark' = bark with \code{\link[tuneR]{hz2bark}},
 'mel' = mel with \code{\link[tuneR]{hz2mel}}, 'ERB' = Equivalent
 Rectangular Bandwidths with \code{\link{HzToERB}}}
 
-\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
-raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
-sharpness, <0 decreases sharpness}
+\item{contrast}{controls the sharpness or contrast of the image: <0 =
+decrease contrast, 0 = no change, >0 increase contrast. Recommended range
+approximately (-1, 1). The spectrogram is raised to the power of
+\code{exp(3 * contrast)}}
 
-\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
+\item{brightness}{makes the image lighter or darker: <0 = darker, 0 = no
+change, >0 = lighter, range (-1, 1). The color palette is preserved, so
+"brightness" works by capping an increasing proportion of image at the
+lightest or darkest color. To lighten or darken the palette, just change
+the colors instead}
 
 \item{blur}{apply a Gaussian filter to blur or sharpen the image, two
 numbers: frequency (Hz), time (ms). A single number is interpreted as
@@ -178,9 +183,9 @@ matlab-type palette ('matlab'), or any palette from
 in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
-yScale!) that will be plotted over the spectrogram (eg pitch contour); can
-also be a list with extra graphical parameters such as lwd, col, etc. (see
-examples)}
+yScale, but nonlinear yScale also warps the contour) that will be plotted
+over the spectrogram (eg pitch contour); can also be a list with extra
+graphical parameters such as lwd, col, etc. (see examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
@@ -204,7 +209,8 @@ Produces the spectrogram of a sound using short-time Fourier transform.
 Inspired by \code{\link[seewave]{spectro}}, this function offers added
 routines for reassignment, multi-resolution spectrograms, noise reduction,
 smoothing in time and frequency domains, manual control of contrast and
-brightness, plotting the oscillogram on a dB scale, grid, etc.
+brightness, plotting the oscillogram on a dB scale, grid, etc. Gallery of
+examples: \url{https://cogsci.se/soundgen/spectrograms.html}.
 }
 \details{
 Many soundgen functions call \code{spectrogram}, and you can pass along most
@@ -215,6 +221,8 @@ parameters or save your sound first, then call spectrogram() explicitly.
 Reassigned spectrograms are not affected by noise reduction or blurring.
 }
 \examples{
+# Gallery of examples: https://cogsci.se/soundgen/spectrograms.html
+
 # synthesize a sound 500 ms long, with gradually increasing hissing noise
 sound = soundgen(sylLen = 500, temperature = 0.001, noise = list(
   time = c(0, 650), value = c(-40, 0)), formantsNoise = list(
@@ -226,10 +234,11 @@ spectrogram(sound, samplingRate = 16000, yScale = 'bark')
 
 # add bells and whistles
 spectrogram(sound, samplingRate = 16000,
+  windowLength = c(5, 40),  # multi-resolution
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
-  noiseReduction = 1.1,  # subtract the spectrum of noisy parts
-  brightness = -1,  # reduce brightness
+  noiseReduction = .9,  # subtract the spectrum of noisy parts
+  brightness = -.5,  # reduce brightness
   # pick color theme - see ?hcl.colors
   # colorTheme = 'heat.colors',
   # ...or just specify the actual colors
@@ -265,7 +274,7 @@ s = soundgen(sylLen = 500, pitch = c(100, 1100, 120, 1200, 90, 900, 110, 700),
 spectrogram(s, 22050, windowLength = 5, step = 1, yScale = 'bark')
 spectrogram(s, 22050, specType = 'reassigned', windowLength = 5,
   step = 1, yScale = 'bark')
-# ...or it can be rasterized, but that sacrifices frequency resolution:s
+# ...or it can be rasterized, but that sacrifices frequency resolution:
 sp = spectrogram(s, 22050, specType = 'reassigned', rasterize = TRUE,
                  windowLength = 5, step = 1, yScale = 'bark', output = 'all')
 # The raw reassigned version is saved if output = 'all' for custom plotting
@@ -281,6 +290,22 @@ spectrogram(s, 22050, windowLength = c(1, 10, 20, 50), yScale = 'bark',
   blur = c(-50, -50))
 spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
   specType = 'reassigned', dynamicRange = 50)
+spectrogram(s, 22050, windowLength = 1:10, yScale = 'bark',
+  specType = 'reassigned', dynamicRange = 50, rasterize = TRUE)
+
+# Different combinations of specType, mono/multiresolution, and rasterization
+spectrogram(s, 22050, windowLength = 5)
+spectrogram(s, 22050, windowLength = c(5, 10))
+
+spectrogram(s, 22050, windowLength = 5, specType = 'reassigned',
+  rasterize = FALSE)
+spectrogram(s, 22050, windowLength = c(5, 10), specType = 'reassigned',
+  rasterize = FALSE)
+
+spectrogram(s, 22050, windowLength = 5, specType = 'reassigned',
+  rasterize = TRUE)
+spectrogram(s, 22050, windowLength = c(5, 10), specType = 'reassigned',
+  rasterize = TRUE)
 
 # focus only on values in the upper 5\% for each frequency bin
 spectrogram(sound, samplingRate = 16000, qTime = 0.95)
@@ -292,6 +317,12 @@ spectrogram(sound, samplingRate = 16000,  noiseReduction = 1.1,
 
 # increase contrast, reduce brightness
 spectrogram(sound, samplingRate = 16000, contrast = .7, brightness = -.5)
+
+# increase brightness (drops quiet bins with the same color palette)
+spectrogram(sound, samplingRate = 16000, brightness = .5)
+
+# another approach is to just make the palette lighter:
+spectrogram(sound, samplingRate = 16000, col = gray.colors(30, 1, .5))
 
 # apply median smoothing in both time and frequency domains
 spectrogram(sound, samplingRate = 16000, smoothFreq = 5,
@@ -322,23 +353,33 @@ s = soundgen(sylLen = 1500, pitch = c(250, 350, 320, 220),
 an = analyze(s, 16000, plot = FALSE)
 spectrogram(s, 16000, extraContour = an$detailed$dom,
   ylim = c(0, 2), yScale = 'bark')
-# or simply (but without an oscillogram):
+spectrogram(s, 16000, extraContour = list(x = an$detailed$dom, col = 'blue'),
+  ylim = c(0, 2), yScale = 'bark')
+# or simply add whatever you like to a spectrogram with points(), lines(),
+# etc., (but only works without an oscillogram):
 spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
 points(an$detailed$time/1000,  # time in s
-       6 * asinh(an$detailed$dom/600),  # values in barks
+       HzToOther(an$detailed$dom, 'bark'),  # values in barks
        lwd = 2, col = 'green', lty = 2  # any graphic pars
 )
-# For values that are not in Hz, normalize any way you like
-spectrogram(s, 16000, ylim = c(0, 2), extraContour = list(
-  x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 2000,
-  # ylim[2] = 2000 Hz
+# For values that are not in Hz, normalize any way you like. NB: if yScale !=
+# 'linear', the extra contour is by default warped to the same scale b/c it
+# is assumed to be in Hz. Specify "warp = FALSE" to avoid this
+spectrogram(s, 16000, yScale = 'ERB', ylim = c(0, 5), extraContour = list(
+  x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 5000,
+  # because ylim[2] = 2000 Hz
+  type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue', warp = FALSE))
+# compare:
+spectrogram(s, 16000, yScale = 'ERB', ylim = c(0, 5), extraContour = list(
+  x = an$detailed$loudness / max(an$detailed$loudness, na.rm = TRUE) * 5000,
+  # because ylim[2] = 2000 Hz
   type = 'b', pch = 5, lwd = 2, lty = 2, col = 'blue'))
 
 # Plot a spectrogram-like matrix paired with an osc
 ms = modulationSpectrum(s, 16000, msType = '1D', amRes = 10)
 spectrogram(s, 16000, specManual = ms$modulation_spectrogram,
   colorTheme = 'matlab', ylab = 'Modulation frequency, kHz',
-  contrast = .25, blur = c(10, 10))
+  contrast = .25, blur = c(10, 10), yScale = 'log')
 }
 }
 \seealso{

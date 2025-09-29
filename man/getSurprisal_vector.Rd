@@ -4,18 +4,24 @@
 \alias{getSurprisal_vector}
 \title{Get surprisal per vector}
 \usage{
-getSurprisal_vector(x, method = c("acf", "np")[1])
+getSurprisal_vector(x, method = c("acf", "np")[1], best_lag = NULL)
 }
 \arguments{
 \item{x}{numeric vector representing the time sequence of interest, eg
 amplitudes in a frequency bin over multiple STFT frames}
 
 \item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
+point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
+is VERY slow)}
+
+\item{best_lag}{(only for method = 'acf') if specified, we don't calculate
+the ACF but simply compare autocorrelation at best_lag with vs without the
+final point}
 }
 \description{
-Internal soundgen function called by \code{\link{getSurprisal}}. Estimates
-the unexpectedness or "surprisal" of the last element of input vector.
+Internal soundgen function called by \code{\link{getSurprisal}}.
+Estimates the unexpectedness or "surprisal" of the last element of input
+vector.
 }
 \examples{
 x = c(rep(1, 3), rep(0, 4), rep(1, 3), rep(0, 4), rep(1, 3), 0, 0)

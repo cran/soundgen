@@ -82,22 +82,22 @@ s_rev = reverb(s, 16000)
 # double echo, no reverb
 s1 = reverb(s, samplingRate = 16000, reverbLevel = NULL,
             echoDelay = c(250, 800), echoLevel = c(-15, -25))
-# playme(s1)
-# spectrogram(s1, 16000, osc = TRUE, ylim = c(0, 4))
+playme(s1)
+spectrogram(s1, 16000, osc = TRUE, ylim = c(0, 4))
 
 # only reverb (indoors)
 s2 = reverb(s, samplingRate = 16000, echoDelay = NULL,
             reverbDelay = 70, reverbSpread = 130,
             reverbLevel = -20, reverbDensity = 20)
-# playme(s2)
-# spectrogram(s2, 16000, osc = TRUE, ylim = c(0, 4))
+playme(s2)
+spectrogram(s2, 16000, osc = TRUE, ylim = c(0, 4))
 
 # reverb (caves)
 s3 = reverb(s, samplingRate = 16000, echoDelay = NULL,
             reverbDelay = 600, reverbSpread = 1500,
             reverbLevel = -10, reverbDensity = 100)
-# playme(s3)
-# spectrogram(s3, 16000, osc = TRUE, ylim = c(0, 4))
+playme(s3)
+spectrogram(s3, 16000, osc = TRUE, ylim = c(0, 4))
 
 # both echo and reverb with high frequencies emphasized
 s4 = reverb(s, samplingRate = 16000,
@@ -105,8 +105,8 @@ s4 = reverb(s, samplingRate = 16000,
             reverbDelay = 70, reverbSpread = 120,
             reverbLevel = -25, reverbDensity = 50,
             filter = list(formants = NULL, lipRad = 3))
-# playme(s4)
-# spectrogram(s4, 16000, osc = TRUE, ylim = c(0, 4))
+playme(s4)
+spectrogram(s4, 16000, osc = TRUE, ylim = c(0, 4))
 
 # add reverb to a recording
 s5 = reverb('~/Downloads/temp260/ut_fear_57-m-tone.wav',

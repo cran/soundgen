@@ -35,6 +35,8 @@
 #'   \item Singh, N. C., & Theunissen, F. E. (2003). Modulation spectra of
 #'   natural sounds and ethological theories of auditory processing. The Journal
 #'   of the Acoustical Society of America, 114(6), 3394-3411.
+#'   \item Anikin, A. (2025) Acoustic estimation of voice roughness. Attention,
+#'   Perception, & Psychophysics 87: 1771–1787.
 #' }
 #' @inheritParams spectrogram
 #' @inheritParams analyze

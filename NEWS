@@ -1,3 +1,20 @@
+          CHANGES IN SOUNDGEN VERSION 2.7.4 [29-Sep-2025]
+NEW FUNCTIONS:
+  * HzToOther(), otherToHz(): conversion between Hz and other frequency scales (mel, bark, ERB, semitones, musical notes). Updated documentation for HzToSemitones, HzToNotes, HzToERB.
+
+MAJOR:
+  * getSurprisal(): updated algorithm (especially weighting and normalization), new arguments "sameLagAllFreqs", "weightByAmpl", "rescale", and "input" (can be an envelope, STFT spectrogram, or auditory spectrogram)
+
+MINOR:
+  * audSpectrogram(): "weird" frequency channels with near-infinite values set to 0 to avoid returning empty plots
+  * spectrogram(): brightness works by capping an increasing proportion of image at the lightest or darkest color
+
+BUGS FIXED:
+  * addFormants(): the "mouth" argument works correctly
+  * pitch_app(): less likely to crash when loading previous annotations (e.g., if the "step" setting has changed)
+  * spectrogram(): correct handling of rasterized reassigned spectrograms
+
+
           CHANGES IN SOUNDGEN VERSION 2.7.3 [17-July-2025]
 MINOR:
   * spectrogram(): support for multi-resolution spectrograms, eg windowLength = c(5, 15, 50)

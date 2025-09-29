@@ -12,7 +12,8 @@
 #' \code{\link{defaults_analyze}}. For high-precision work, first extract and
 #' manually correct pitch contours with \code{\link{pitch_app}}, PRAAT, or
 #' whatever, and then run \code{analyze(pitchManual = ...)} with these manual
-#' contours.
+#' contours. For more information, see
+#' \url{https://cogsci.se/soundgen/acoustic_analysis.html}
 #'
 #' Each pitch tracker is controlled by its own list of settings, as follows:
 #' \describe{\item{\code{pitchDom} (lowest dominant frequency band)}{\itemize{
@@ -233,7 +234,7 @@
 #'   \item{pitch}{post-processed pitch contour based on all F0 estimates}
 #'   \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
 #'   quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
-#'   amount of amplitude modulation, see modulationSpectrum}
+#'   amount of amplitude modulation, see modulationSpectrum and Anikin 2025}
 #'   \item{specCentroid}{the center of gravity of the frame’s spectrum, first
 #'   spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
 #'   to the spectrum below cutFreq (dB/kHz)} \item{subDep}{estimated depth of
@@ -242,8 +243,12 @@
 #'   subharmonics frequency with strength subDep: 2 = period doubling, 3 = f0 /
 #'   3, etc.} \item{voiced}{is the current STFT frame voiced? TRUE / FALSE}
 #' }
+#' @references Anikin, A. (2025) Acoustic estimation of voice roughness.
+#'   Attention, Perception, & Psychophysics 87: 1771–1787.
 #' @export
 #' @examples
+#' # Detailed documentation: https://cogsci.se/soundgen/acoustic_analysis.html
+#'
 #' sound = soundgen(sylLen = 300, pitch = c(500, 400, 600),
 #'   noise = list(time = c(0, 300), value = c(-40, 0)),
 #'   temperature = 0.001,
@@ -283,7 +288,7 @@
 #'
 #' # Fancy plotting options:
 #' a = analyze(sound2, samplingRate = 44100, plot = TRUE,
-#'   xlab = 'Time, ms', colorTheme = 'seewave',
+#'   xlab = 'Time, ms', colorTheme = 'seewave', yScale = 'ERB',
 #'   contrast = .5, ylim = c(0, 4), main = 'My plot',
 #'   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
 #'   priorMean = NA,  # no prior info at all
@@ -1517,7 +1522,16 @@ analyze = function(
   ## Add pitch contours to the spectrogram
   if (plot) {
     # extra contour
-    cnt = cnt_plotPars = NULL
+    col_non_Hz = c(
+      'amEnvDep', 'amMsPurity', 'ampl, amplVoiced',
+      'entropy', 'entropyVoiced', 'entropySh', 'entropyShVoiced',
+      paste0('f', seq_len(10), '_width'), 'flux', 'fmDep',
+      'harmEnergy', 'harmSlope', 'HNR', 'HNR_voiced', 'CPP',
+      'loudness', 'loudnessVoiced', 'roughness', 'roughnessVoiced',
+      'novelty', 'noveltyVoiced', 'specSlope', 'specSlopeVoiced',
+      'subDep', 'subRatio'
+    )
+    cnt = cnt_name = cnt_plotPars = NULL
     if (!is.null(extraContour)) {
       if (is.list(extraContour)) {
         cnt_name = extraContour[[1]]
@@ -1529,19 +1543,11 @@ analyze = function(
       valid_cols = valid_cols[valid_cols != 'voiced']
       if (cnt_name %in% valid_cols) {
         cnt = result[, cnt_name]
-        col_non_Hz = c(
-          'amEnvDep', 'amMsPurity', 'ampl, amplVoiced',
-          'entropy', 'entropyVoiced', 'entropySh', 'entropyShVoiced',
-          paste0('f', seq_len(10), '_width'), 'flux', 'fmDep',
-          'harmEnergy', 'harmSlope', 'HNR', 'HNR_voiced', 'CPP',
-          'loudness', 'loudnessVoiced', 'roughness', 'roughnessVoiced',
-          'novelty', 'noveltyVoiced', 'specSlope', 'specSlopeVoiced',
-          'subDep', 'subRatio'
-        )
         if (cnt_name %in% col_non_Hz) {
           # normalize
           if (is.null(ylim)) ylim = c(0, audio$samplingRate / 2 / 1000)
-          cnt = zeroOne(cnt, na.rm = TRUE) * ylim[2] * 1000
+          cnt = zeroOne(cnt, na.rm = TRUE) *
+            HzToOther(ylim[2] * 1000, extraSpecPars$yScale)
         }
       } else {
         message(paste0('Valid extraContour names are: ',
@@ -1604,6 +1610,7 @@ analyze = function(
           ),
           extraContour = cnt,
           extraContour_pars = cnt_plotPars,
+          extraContour_warp = (!cnt_name %in% col_non_Hz),
           pitchPlot = pitchPlot,
           priorMean = priorMean,
           priorSD = priorSD,

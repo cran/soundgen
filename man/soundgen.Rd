@@ -332,11 +332,14 @@ noise component. Both components can be filtered with independently specified
 formants. Intonation and amplitude contours can be applied both within each
 syllable and across multiple syllables. Suggested application: synthesis of
 animal or human non-linguistic vocalizations. For more information, see
-\url{http://cogsci.se/soundgen.html} and vignette('sound_generation', package
-= 'soundgen').
+\url{https://cogsci.se/soundgen/sound_generation.html}.
 }
 \examples{
-# NB: GUI for soundgen is available as a Shiny app.
+# Detailed documentation: https://cogsci.se/soundgen/sound_generation.html
+
+# A gallery of examples with code: https://cogsci.se/soundgen/demos.html
+
+# A GUI for soundgen is available as a Shiny app.
 # Type "soundgen_app()" to open it in default browser
 
 # Set "playback" to TRUE for default system player or the name of preferred
@@ -417,10 +420,7 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
    plot = TRUE
  )
 
-# See the vignette on sound generation for more examples and in-depth
-# explanation of the arguments to soundgen()
-# Examples of code for creating human and animal vocalizations are available
-# on project's homepage: http://cogsci.se/soundgen.html
+# Project's homepage: http://cogsci.se/soundgen.html
 }
 }
 \seealso{

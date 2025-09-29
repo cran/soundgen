@@ -156,6 +156,14 @@ s = schwa(formants_relative = c(-20, 40), vocalTract = 15, plot = TRUE)
 #   target relative formant values (low F1, high F2)
 schwa(formants = s$ff_theoretical)
 }
+\references{
+\itemize{
+  \item Stevens, K. N. (2000). Acoustic phonetics (Vol. 30). MIT press.
+  \item Anikin, A., Barreda, S. & Reby, D. (2024) A practical guide to
+  calculating vocal tract length and scale-invariant formant patterns.
+  Behavior Research Methods 56, 5588–5604.
+}
+}
 \seealso{
 \code{\link{estimateVTL}}
 }

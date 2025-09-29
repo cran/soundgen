@@ -955,6 +955,7 @@ addPitchCands = function(pitchCands,
                          pitchPlot = list(),
                          extraContour = NULL,
                          extraContour_pars = list(),
+                         extraContour_warp = TRUE,
                          priorMean = NULL,
                          priorSD = NULL,
                          pitchFloor = NULL,
@@ -962,7 +963,7 @@ addPitchCands = function(pitchCands,
                          addToExistingPlot = TRUE,
                          showLegend = TRUE,
                          y_Hz = FALSE,
-                         yScale = c('orig', 'bark', 'mel')[1],
+                         yScale = c('linear', 'bark', 'mel')[1],
                          ...) {
   if (is.null(pitchCands) & is.null(pitch)) invisible()
   if (length(pitchCands) < 1 & length(pitch) < 1) invisible()
@@ -988,22 +989,12 @@ addPitchCands = function(pitchCands,
   }
   pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
   yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel', 'ERB'), 1, 1/1000)
-  if (yScale == 'bark') {
-    # NB: tuneR::hz2bark can't handle NAs
-    pitchCands = 6 * asinh(pitchCands / 600)
-    pitch = 6 * asinh(pitch / 600)
-    if (!is.null(prior)) prior$freq = 6 * asinh(prior$freq / 600)
-    if (!is.null(extraContour)) extraContour = 6 * asinh(extraContour / 600)
-  } else if (yScale == 'mel') {
-    pitchCands = hz2mel(pitchCands)
-    pitch = hz2mel(pitch)
-    if (!is.null(prior)) prior$freq = hz2mel(prior$freq)
-    if (!is.null(extraContour)) extraContour = hz2mel(extraContour)
-  } else if (yScale == 'ERB') {
-    pitchCands = HzToERB(pitchCands)
-    pitch = HzToERB(pitch)
-    if (!is.null(prior)) prior$freq = HzToERB(prior$freq)
-    if (!is.null(extraContour)) extraContour = HzToERB(extraContour)
+  if (yScale != 'linear') {
+    pitchCands = HzToOther(pitchCands, yScale)
+    pitch = HzToOther(pitch, yScale)
+    if (!is.null(prior)) prior$freq = HzToOther(prior$freq, yScale)
+    if (!is.null(extraContour) && extraContour_warp)
+      extraContour = HzToOther(extraContour, yScale)
   }
 
   # If addToExistingPlot is FALSE, we first have to set up an empty plot

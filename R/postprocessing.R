@@ -537,22 +537,22 @@ flatSpectrum = function(x,
 #' # double echo, no reverb
 #' s1 = reverb(s, samplingRate = 16000, reverbLevel = NULL,
 #'             echoDelay = c(250, 800), echoLevel = c(-15, -25))
-#' # playme(s1)
-#' # spectrogram(s1, 16000, osc = TRUE, ylim = c(0, 4))
+#' playme(s1)
+#' spectrogram(s1, 16000, osc = TRUE, ylim = c(0, 4))
 #'
 #' # only reverb (indoors)
 #' s2 = reverb(s, samplingRate = 16000, echoDelay = NULL,
 #'             reverbDelay = 70, reverbSpread = 130,
 #'             reverbLevel = -20, reverbDensity = 20)
-#' # playme(s2)
-#' # spectrogram(s2, 16000, osc = TRUE, ylim = c(0, 4))
+#' playme(s2)
+#' spectrogram(s2, 16000, osc = TRUE, ylim = c(0, 4))
 #'
 #' # reverb (caves)
 #' s3 = reverb(s, samplingRate = 16000, echoDelay = NULL,
 #'             reverbDelay = 600, reverbSpread = 1500,
 #'             reverbLevel = -10, reverbDensity = 100)
-#' # playme(s3)
-#' # spectrogram(s3, 16000, osc = TRUE, ylim = c(0, 4))
+#' playme(s3)
+#' spectrogram(s3, 16000, osc = TRUE, ylim = c(0, 4))
 #'
 #' # both echo and reverb with high frequencies emphasized
 #' s4 = reverb(s, samplingRate = 16000,
@@ -560,8 +560,8 @@ flatSpectrum = function(x,
 #'             reverbDelay = 70, reverbSpread = 120,
 #'             reverbLevel = -25, reverbDensity = 50,
 #'             filter = list(formants = NULL, lipRad = 3))
-#' # playme(s4)
-#' # spectrogram(s4, 16000, osc = TRUE, ylim = c(0, 4))
+#' playme(s4)
+#' spectrogram(s4, 16000, osc = TRUE, ylim = c(0, 4))
 #'
 #' # add reverb to a recording
 #' s5 = reverb('~/Downloads/temp260/ut_fear_57-m-tone.wav',
@@ -647,21 +647,20 @@ reverb = function(x,
       win = win / max_win * 120 - 120 + reverbLevel
       # 120 dB is used to set up the slope of decay, otherwise it would depend
       # on dynamicRange
+      win = 10 ^ (win / 20)  # from dB to linear
+      # plot(win, type = 'l')
+
       # "discretize" the win - only keep a few delay points
       idx_keep = sort(sample(seq_len(nFr_rvb), size = min(nFr_rvb, reverbDensity)))
       # only keep as much of win as exceeds dynamicRange (don't bother to add
       # very quiet reverb)
       idx_keep = idx_keep[win[idx_keep] > (-dynamicRange)]
-      win = win[seq_len(.subset2(idx_keep, length(idx_keep)))]
       if (length(idx_keep) == 0) {
         # nothing to do
         addRvb = FALSE
       } else {
         nFr_rvb = tail(idx_keep, 1)
-        win[idx_keep] = 10 ^ (win[idx_keep] / 20)
-        win[-idx_keep] = 0
       }
-      # plot(win, type = 'l')
     } else {
       stop("Only reverbType = 'gaussian' has been implemented so far")
       # exponential decay: halves (-6 dB) every reverbDelay

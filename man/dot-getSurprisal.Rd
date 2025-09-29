@@ -7,9 +7,17 @@
 .getSurprisal(
   audio,
   winSurp,
-  audSpec_pars = list(filterType = "butterworth", nFilters = 64, step = 20),
+  input = c("audSpec", "spec", "env")[1],
+  audSpec_pars = list(filterType = "butterworth", nFilters = 32, step = 20, yScale =
+    "bark"),
+  spec_pars = list(windowLength = c(5, 40), step = NULL),
+  env_pars = list(windowLength = 40, step = 20),
   method = c("acf", "np")[1],
+  sameLagAllFreqs = TRUE,
+  weightByAmpl = TRUE,
+  rescale = FALSE,
   plot = TRUE,
+  whatToPlot = c("surprisal", "surprisalLoudness")[1],
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
   ylim = NULL,
@@ -37,14 +45,37 @@
 \item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
 point)}
 
-\item{audSpec_pars}{a list of parameters passed to
-\code{\link{audSpectrogram}}}
+\item{input}{\code{audSpec} = auditory spectrogram
+(\code{\link{audSpectrogram}}, speed ~= 0.4x), \code{spec} = ordinary STFT
+spectrogram (\code{\link{spectrogram}}, speed ~= 0.25x), \code{env} =
+analytic envelope (\code{\link{getRMS}}, speed ~= 33x)}
+
+\item{audSpec_pars, spec_pars, env_pars}{a list of parameters passed to
+\code{\link{audSpectrogram}} (if input = 'audSpec'),
+\code{\link{spectrogram}} (if input = 'spec'), or \code{\link{getRMS}} (if
+input = 'env')}
 
 \item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
+point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
+is VERY slow)}
+
+\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the best_lag is
+calculated by averaging the ACFs of all channels, and the same best_lag is
+used to calculate the surprisal in each frequency channel (we expect the
+same "rhythm" for all frequencies); if FALSE, the best_lag is calculated
+separately for each frequency channel (we can track different "rhythms" at
+different frequencies)}
+
+\item{weightByAmpl}{if TRUE, ACFs and surprisal are weighted by max amplitude
+per frequency channel}
+
+\item{rescale}{if TRUE, surprisal is normalized from (-Inf, Inf) to [-1, 1]}
 
 \item{plot}{if TRUE, plots the auditory spectrogram and the
 \code{suprisalLoudness} contour}
+
+\item{whatToPlot}{"surprisal" = pure surprisal, "surprisalLoudness" =
+surprisal x increase in subjective loudness}
 
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
 in decibels}
@@ -55,11 +86,16 @@ spectrogram and the oscillogram (including time axes labels)}
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
-\item{contrast}{a number, recommended range -1 to +1. The spectrogram is
-raised to the power of \code{exp(3 * contrast)}. Contrast >0 increases
-sharpness, <0 decreases sharpness}
+\item{contrast}{controls the sharpness or contrast of the image: <0 =
+decrease contrast, 0 = no change, >0 increase contrast. Recommended range
+approximately (-1, 1). The spectrogram is raised to the power of
+\code{exp(3 * contrast)}}
 
-\item{brightness}{how much to "lighten" the image (>0 = lighter, <0 = darker)}
+\item{brightness}{makes the image lighter or darker: <0 = darker, 0 = no
+change, >0 = lighter, range (-1, 1). The color palette is preserved, so
+"brightness" works by capping an increasing proportion of image at the
+lightest or darkest color. To lighten or darken the palette, just change
+the colors instead}
 
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
@@ -77,9 +113,9 @@ matlab-type palette ('matlab'), or any palette from
 in base R (overrides colorTheme)}
 
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
-yScale!) that will be plotted over the spectrogram (eg pitch contour); can
-also be a list with extra graphical parameters such as lwd, col, etc. (see
-examples)}
+yScale, but nonlinear yScale also warps the contour) that will be plotted
+over the spectrogram (eg pitch contour); can also be a list with extra
+graphical parameters such as lwd, col, etc. (see examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 

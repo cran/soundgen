@@ -4,7 +4,14 @@
 \alias{getSurprisal_matrix}
 \title{Get surprisal per matrix}
 \usage{
-getSurprisal_matrix(x, win, method = c("acf", "np")[1])
+getSurprisal_matrix(
+  x,
+  win,
+  method = c("acf", "np")[1],
+  sameLagAllFreqs = TRUE,
+  weightByAmpl = TRUE,
+  rescale = FALSE
+)
 }
 \arguments{
 \item{x}{input matrix such as a spectrogram (columns = time, rows =
@@ -13,7 +20,20 @@ frequency)}
 \item{win}{length of analysis window}
 
 \item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}})}
+point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
+is VERY slow)}
+
+\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the best_lag is
+calculated by averaging the ACFs of all channels, and the same best_lag is
+used to calculate the surprisal in each frequency channel (we expect the
+same "rhythm" for all frequencies); if FALSE, the best_lag is calculated
+separately for each frequency channel (we can track different "rhythms" at
+different frequencies)}
+
+\item{weightByAmpl}{if TRUE, ACFs and surprisal are weighted by max amplitude
+per frequency channel}
+
+\item{rescale}{if TRUE, surprisal is normalized from (-Inf, Inf) to [-1, 1]}
 }
 \description{
 Internal soundgen function called by \code{\link{getSurprisal}}.
