@@ -39,7 +39,7 @@ settings passed to soundgen:::harmHeight()}
 
 \item{smooth, smoothing_ww, smoothingThres}{smoothing parameters}
 
-\item{varsToUnv}{set these variables to NA in unvoiced frames}
+\item{varsToUnv}{set these variables to NA in voiceless frames}
 }
 \description{
 Internal soundgen function

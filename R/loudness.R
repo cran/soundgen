@@ -108,7 +108,7 @@ getLoudness = function(x,
                        summaryFun = c('mean', 'median', 'sd'),
                        reportEvery = NULL,
                        cores = 1,
-                       plot = TRUE,
+                       plot = FALSE,
                        savePlots = NULL,
                        main = NULL,
                        ylim = NULL,
@@ -151,7 +151,8 @@ getLoudness = function(x,
     for (i in 1:pa$input$n) {
       if (!pa$input$failed[i]) {
         temp[[i]] = summarizeAnalyze(
-          data.frame(loudness = pa$result[[i]]$loudness),
+          data.frame(loudness = pa$result[[i]]$loudness,
+                     loudness_phon = pa$result[[i]]$loudness_phon),
           summaryFun = summaryFun,
           var_noSummary = NULL)
       }
@@ -177,14 +178,17 @@ getLoudness = function(x,
     # unlist specSone and loudness
     specSone = pa$result[[1]]$specSone
     loudness = pa$result[[1]]$loudness
+    loudness_phon = pa$result[[1]]$loudness_phon
   } else {
     specSone = lapply(pa$result, function(x) x[['specSone']])
     loudness = lapply(pa$result, function(x) x[['loudness']])
+    loudness_phon = lapply(pa$result, function(x) x[['loudness_phon']])
   }
 
   invisible(list(
     specSone = specSone,
     loudness = loudness,
+    loudness_phon = loudness_phon,
     summary = mysum_all
   ))
 }
@@ -227,34 +231,55 @@ getLoudness = function(x,
                           SPL_measured = SPL_measured,
                           Pref = Pref)
   # range(sound_scaled)
-  # log10(sqrt(mean(sound_scaled ^ 2))) * 20
+  # log10(sqrt(mean(sound_scaled ^ 2))) * 20 or log10(mean(sound_scaled ^ 2)) * 10
   # (should be the same as SPL_measured w/o scale adjustment)
 
-  # get power spectrum
+  # get auditory spectrum with 1 filter/bark
   if (is.character(audio$savePlots)) {
     plot = TRUE
     png(filename = paste0(audio$savePlots, audio$filename_noExt, "_loudness.png"),
         width = width, height = height, units = units, res = res)
   }
-  powerSpec = tuneR::powspec(
-    sound_scaled, sr = audio$samplingRate,
-    wintime = windowLength / 1000, steptime = step / 1000,
-    dither = FALSE)
-  # range(log10(powerSpec) * 10)
 
-  # normalize power spectrum by the size of STFT frame
-  # windowLength_points = floor(windowLength / 1000 * audio$samplingRate / 2) * 2
-  powerSpec_scaled = powerSpec / nrow(powerSpec)  # same as * 2 / windowLength_points
-  # range(log10(powerSpec_scaled) * 10)
-  # image(t(powerSpec_scaled))
+  if (FALSE) {
+    # auditory spectrogram extracted directly (but how to normalize?)
+    nFilters = floor(HzToOther(audio$samplingRate / 2, 'bark'))
+    audSpec = try(.audSpectrogram(
+      audio = list(sound = sound_scaled, samplingRate = audio$samplingRate),
+      nFilters = nFilters,
+      step = NULL,
+      bandwidth = NULL,
+      minFreq = otherToHz(1, 'bark'),
+      maxFreq = otherToHz(nFilters, 'bark'),
+      plot = FALSE)$audSpec^2, silent = TRUE)
+    if (inherits(audSpec, 'try-error'))
+      return(list(specSone = NA, loudness = NA, loudness_phon = NA))
+    # calculate energy per channel
+    # log10(mean(audSpec[8, ] ^ 2)) * 10
+    audSpec = t(apply(audSpec, 1, function(x) as.numeric(getRMS(
+      x, samplingRate = audio$samplingRate,
+      windowLength = step * 2, step = step)$detailed))) * 10^(SPL_measured/10)
+  } else {
+    powerSpec = tuneR::powspec(
+      sound_scaled, sr = audio$samplingRate,
+      wintime = windowLength / 1000, steptime = step / 1000,
+      dither = FALSE)
+    # range(log10(powerSpec) * 10)
 
-  # get auditory spectrum
-  audSpec = try(tuneR::audspec(
-    powerSpec_scaled,
-    sr = audio$samplingRate,
-    fbtype = 'bark')$aspectrum, silent = TRUE)
-  if (inherits(audSpec, 'try-error'))
-    return(list(specSone = NA, loudness = NA))
+    # normalize power spectrum by the size of STFT frame
+    # windowLength_points = floor(windowLength / 1000 * audio$samplingRate / 2) * 2
+    powerSpec_scaled = powerSpec / nrow(powerSpec)  # same as * 2 / windowLength_points
+    # range(log10(powerSpec_scaled) * 10)
+    # image(t(powerSpec_scaled))
+
+    # get auditory spectrum
+    audSpec = try(tuneR::audspec(
+      powerSpec_scaled,
+      sr = audio$samplingRate,
+      fbtype = 'bark')$aspectrum, silent = TRUE)
+    if (inherits(audSpec, 'try-error'))
+      return(list(specSone = NA, loudness = NA))
+  }
   # image(t(audSpec))
   # range(log10(audSpec) * 10)
   # plot(audSpec[, 1], type = 'l')
@@ -279,8 +304,8 @@ getLoudness = function(x,
     # plot(log10(audSpec[, 1]) * 10, type = 'l')
   }
 
-  # convert spectrum to sone
-  specSone = matrix(0, nrow = nrow(audSpec), ncol = ncol(audSpec))
+  # convert spectrum to phon and sone
+  specPhon = specSone = matrix(0, nrow = nrow(audSpec), ncol = ncol(audSpec))
   for (i in 1:ncol(specSone)) {
     # spectrum in dB SPL
     y = 10 * log10(audSpec[, i])
@@ -290,22 +315,26 @@ getLoudness = function(x,
     n_phonCurve = which.min(abs(y[8] - as.numeric(names(phonCurves))))
     # correction curve for frame i
     curve = phonCurves[[n_phonCurve]][seq_along(y), ]
+    # plot(curve$freq_Hz, curve$hearingThres_dB, type = 'b')
+    # plot(curve$freq_Hz, curve$spl, type = 'b')
+    # plot(curve$freq_Hz, curve$spl[8] - curve$spl, type = 'b')
     y_phon = y + curve$spl[8] - curve$spl
     # plot(y_phon, type = 'b')
 
     # ignore frequency bins below hearing threshold
     y_phon[y_phon < curve$hearingThres_dB | y_phon < 0] = 0
+    specPhon[, i] = y_phon
 
     # phons to sone
     specSone[, i] = phon2sone(y_phon)
     # plot(specSone[, i], type = 'b')
   }
   # image(t(specSone))
-  loudness = colSums(specSone)
+  loudness = colMeans(specSone)
 
   # empirical normalization (see commented-out code below the function)
-  loudness = loudness / (5.73 +  6.56 * windowLength ^ .35) /
-    (.0357 + .0345 * audio$samplingRate ^ .3113)
+  loudness = loudness / (0.25 + 0.22 * windowLength ^ .36)
+  loudness_phon = sone2phon(loudness)
 
   # plotting
   if (plot) {
@@ -328,44 +357,16 @@ getLoudness = function(x,
       ...)
     if (is.character(audio$savePlots)) dev.off()
   }
-  list(specSone = specSone, loudness = loudness)
+  list(specSone = specSone, loudness = loudness, loudness_phon = loudness_phon)
 }
 
 
-# Where is the ^5/3 in loudness adjustment coming from?
-# s = '~/Downloads/temp/145_ut_effort_24.wav'
-# s1 = tuneR::readWave(s)
-# s2 = as.numeric(s1@left)
-# range(s2)
-#
-# mean(getLoudness(s2, samplingRate = s1@samp.rate, scale = 2^(s1@bit-1), plot = FALSE)$loudness)
-# mean(getLoudness(s2 / 10, samplingRate = s1@samp.rate, scale = 2^(s1@bit-1), plot = FALSE)$loudness)
-#
-# out = data.frame(coef = seq(0, 1, length.out = 100), loud = NA)
-# for (i in 1:nrow(out)) {
-#   out$loud[i] = mean(getLoudness(s2 * out$coef[i],
-#                                  samplingRate = s1@samp.rate,
-#                                  scale = 2^(s1@bit-1),
-#                                  plot = FALSE)$loudness)
-# }
-# plot(out, type = 'l')
-#
-# mod = nls(loud ~ a + b * coef ^ c, out, start = list(a = 0, b = 1, c = .5))
-# plot(out, type = 'l')
-# points(out$coef, predict(mod, list(coef = out$coef)), type = 'b', col = 'green')
-# summary(mod)  # a = 0, b = 12, c = 0.6
-# # so loud1/loud2 = coef1^c / coef2^c = (coef1/coef2)^c, where c = 0.6,
-# # so coef1/coef2 = (loud1/loud2)^(1/0.6) = (loud1/loud2)^(5/3)
-
 # ## EMPIRICAL CALIBRATION OF LOUDNESS (SONE) RETURNED BY getLoudness()
-# # Simple linear scaling can correct for a given windowLength, but
-# # how does scaling coef depend on windowLength and samplingRate?
 # wl = expand.grid(windowLength = seq(10, 150, by = 10),
 #                  samplingRate = c(16000, 24000, 32000, 44000))
-# wl$windowLength_points = 2 ^ (ceiling(log2(wl$windowLength * samplingRate / 1000)))
 # for (i in 1:nrow(wl)) {
 #   sound = sin(2*pi*1000/wl$samplingRate[i]*(1:20000))
-#   wl$loudness[i] = getLoudness(x = sound, samplingRate = wl$samplingRate[i], windowLength = wl$windowLength[i], step = NULL, overlap = 0, SPL_measured = 40, Pref = 2e-5, plot = FALSE)$loudness[1]
+#   wl$loudness[i] = getLoudness(x = sound, samplingRate = wl$samplingRate[i], windowLength = wl$windowLength[i], step = NULL, overlap = 0, SPL_measured = 40, Pref = 2e-5, plot = FALSE)$loudness_phon[1]
 # }
 # # plot(wl$windowLength, wl$loudness)
 # library(ggplot2)
@@ -374,17 +375,6 @@ getLoudness = function(x,
 #   geom_line()
 #
 # # account for windowLength
-# samplingRate = 44100
-# sound = sin(2*pi*1000/samplingRate*(1:20000))
-# wl = data.frame(windowLength = seq(5, 200, by = 5))
-# wl$windowLength_points = 2 ^ (ceiling(log2(wl$windowLength * samplingRate / 1000)))
-# for (i in 1:nrow(wl)) {
-#   wl$loudness[i] = getLoudness(x = sound, samplingRate = samplingRate, windowLength = wl$windowLength[i], step = NULL, overlap = 0, SPL_measured = 40, Pref = 2e-5, plot = FALSE)$loudness[1]
-# }
-# plot(wl$windowLength, wl$loudness)
-# # wl
-# # plot(wl$windowLength_points, wl$loudness)
-#
 # mod = nls(loudness ~ a + b * windowLength ^ c, wl, start = list(a = 0, b = 1, c = .5))
 # plot(wl$windowLength, wl$loudness)
 # lines(wl$windowLength, predict(mod, list(windowLength = wl$windowLength)))
@@ -392,19 +382,6 @@ getLoudness = function(x,
 # # use these regression coefficients to calculate scaling factor
 # # as a function of windowLength
 #
-#
-# # account for samplingRate
-# windowLength = 30
-# wl = data.frame(samplingRate = seq(16000, 44000, by = 1000))
-# for (i in 1:nrow(wl)) {
-#   sound = sin(2*pi*1000/wl$samplingRate[i]*(1:20000))
-#   wl$loudness[i] = getLoudness(x = sound, samplingRate = wl$samplingRate[i], windowLength = windowLength, step = NULL, overlap = 0, SPL_measured = 40, Pref = 2e-5, plot = FALSE)$loudness[1]
-# }
-# plot(wl$samplingRate, wl$loudness)
-# mod = nls(loudness ~ a + b * samplingRate ^ c, wl, start = list(a = 0, b = 1, c = .5))
-# plot(wl$samplingRate, wl$loudness)
-# lines(wl$samplingRate, predict(mod, list(samplingRate = wl$samplingRate)))
-# summary(mod)
 #
 # # CHECKING THE CALIBRATION
 # samplingRate = 24000

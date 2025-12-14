@@ -811,6 +811,7 @@ addFormants = function(
   if (!any(audio$sound != 0) |
       (is.na(formants)[1] &
        is.na(vocalTract)[1] &
+       is.null(spectralEnvelope) &
        (is.na(lipRad)[1] | lipRad == 0))) {
     # otherwise fft glitches
     soundFiltered = audio$sound

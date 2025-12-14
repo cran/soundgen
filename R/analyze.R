@@ -142,10 +142,10 @@
 #'   modulation, Hz (\code{fmFreq}): a vector of length 2
 #' @param shortestSyl the smallest length of a voiced segment (ms) that
 #'   constitutes a voiced syllable (shorter segments will be replaced by NA, as
-#'   if unvoiced)
+#'   if voiceless)
 #' @param shortestPause the smallest gap between voiced syllables (ms): large
 #'   value = interpolate and merge, small value = treat as separate syllables
-#'   separated by an unvoiced gap
+#'   separated by a voiceless gap
 #' @param interpol a list of parameters (currently \code{win, tol, cert}) passed
 #'   to \code{soundgen:::pathfinder} for interpolating missing pitch candidates
 #'   (NULL = no interpolation)
@@ -1211,7 +1211,8 @@ analyze = function(
 
   # add loudness
   if (exists('ldns') && !inherits(ldns, 'try-error')) {
-    result$loudness = ldns
+    result$loudness = .resample(list(sound = ldns), len = nr,
+                                lowPass = FALSE, plot = FALSE)
   } else {
     result$loudness = NA
   }
@@ -1270,7 +1271,7 @@ analyze = function(
   max_cands = max(unlist(lapply(frameInfo, function(y)
     nrow(y[['pitchCands_frame']]))))
   if (max_cands == 0) {
-    # no pitch candidates at all, purely unvoiced
+    # no pitch candidates at all, purely voiceless
     result[, c('pitch', pitchNames$pitchName)] = NA
     pitchCands_list = list()
   } else {
@@ -1488,7 +1489,7 @@ analyze = function(
     result[!cond_silence, c('amEnvFreq', 'amEnvDep')] = NA
   }
 
-  # save spectral descriptives separately for voiced and unvoiced frames
+  # save spectral descriptives separately for voiced and voiceless frames
   varsToUnv = c(
     'ampl', 'roughness', 'amMsFreq', 'amMsPurity', 'amEnvFreq', 'amEnvDep',
     'novelty', 'entropy', 'entropySh', 'dom', 'HNR', 'loudness', 'peakFreq',
@@ -1515,7 +1516,7 @@ analyze = function(
     smooth = smooth,
     smoothing_ww = smoothing_ww,
     smoothingThres = smoothingThres,
-    # NB: peakFreq & specCentroid are defined for unvoiced frames, but not quartiles
+    # NB: peakFreq & specCentroid are defined for voiceless frames, but not quartiles
     varsToUnv = paste0(varsToUnv, 'Voiced')
   )
 

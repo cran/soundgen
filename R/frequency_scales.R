@@ -244,12 +244,13 @@ HzToOther = function(
     do.call(HzToSemitones, list(x, ...))
   } else if (scale == 'notes') {
     do.call(HzToNotes, list(x, ...))
-  } else if (scale == 'linear') {
+  } else if (scale %in% c('linear', 'orig')) {
     # convenient to avoid having to check for this special case when calling
     # HzToOther()
     x
   } else {
-    stop('scale not recognized')
+    x
+    warning('scale not recognized')
   }
 }
 
@@ -272,11 +273,12 @@ otherToHz = function(
     do.call(semitonesToHz, list(x, ...))
   } else if (scale == 'notes') {
     do.call(notesToHz, list(x, ...))
-  } else if (scale == 'linear') {
+  } else if (scale %in% c('linear', 'orig')) {
     # convenient to avoid having to check for this special case when calling
     # HzToOther()
     x
   } else {
-    stop('scale not recognized')
+    warning('scale not recognized')
+    x
   }
 }

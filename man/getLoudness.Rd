@@ -19,7 +19,7 @@ getLoudness(
   summaryFun = c("mean", "median", "sd"),
   reportEvery = NULL,
   cores = 1,
-  plot = TRUE,
+  plot = FALSE,
   savePlots = NULL,
   main = NULL,
   ylim = NULL,

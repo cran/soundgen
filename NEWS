@@ -1,3 +1,22 @@
+          CHANGES IN SOUNDGEN VERSION 2.8.0 [13-Dec-2025]
+NEW FUNCTIONS:
+  * phon2sone(), sone2phon(): conversion between phon and sone loudness scales
+
+MAJOR:
+  * pitch_app(), formant_app(), and annotation_app() accept presets as arguments, eg "pitch_app(step = 10, pitchMethods = c('autocor', 'cep')", and export $settings
+  * segment() returns average and instantaneous proportion of time vocalizing (PTV) and signal over time; new arguments ptvStep, ptvFreq, and ptvTime
+  * getLoudness(): modified algorithm, also returns loudness level in "phon" units
+
+MINOR:
+  * all apps use bslib instead of shinyBS; updated documenation; minor debugging
+
+BUGS FIXED:
+  * fade(), soundgen(): doesn't crash with negative attackLen, which can happen if temperature > 0 and invalidArgAction = 'ignore'
+  * phasegram(): plots rasterized phasegrams without specifying colors explicitly
+  * spectrogram(): correct plotting of extraContour with yScale = 'log'
+  * analyze(): resolved occasional crashing when adding loudness to the output
+
+
           CHANGES IN SOUNDGEN VERSION 2.7.4 [29-Sep-2025]
 NEW FUNCTIONS:
   * HzToOther(), otherToHz(): conversion between Hz and other frequency scales (mel, bark, ERB, semitones, musical notes). Updated documentation for HzToSemitones, HzToNotes, HzToERB.

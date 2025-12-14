@@ -254,7 +254,7 @@
 #' # will not work if osc = TRUE b/c the plot layout is modified)
 #' s = soundgen(sylLen = 1500, pitch = c(250, 350, 320, 220),
 #'   jitterDep = c(0, 0, 3, 2, 0, 0))
-#' an = analyze(s, 16000, plot = FALSE)
+#' an = analyze(s, 16000, plot = TRUE, extraContour = 'dom')
 #' spectrogram(s, 16000, extraContour = an$detailed$dom,
 #'   ylim = c(0, 2), yScale = 'bark')
 #' spectrogram(s, 16000, extraContour = list(x = an$detailed$dom, col = 'blue'),
@@ -264,8 +264,8 @@
 #' spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
 #' points(an$detailed$time/1000,  # time in s
 #'        HzToOther(an$detailed$dom, 'bark'),  # values in barks
-#'        lwd = 2, col = 'green', lty = 2  # any graphic pars
-#' )
+#'        lwd = 2, col = 'green', lty = 2)  # any graphic pars
+#'
 #' # For values that are not in Hz, normalize any way you like. NB: if yScale !=
 #' # 'linear', the extra contour is by default warped to the same scale b/c it
 #' # is assumed to be in Hz. Specify "warp = FALSE" to avoid this
@@ -1029,7 +1029,6 @@ plotSpec = function(
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
       xlim = xlim, xaxt = 'n',
-      log = ifelse(yScale == 'log', 'y', ''),
       yScale = yScale,
       ...
     )
@@ -1048,7 +1047,6 @@ plotSpec = function(
       ylim = ylim, main = main,
       xlab = xlab, ylab = ylab,
       xlim = xlim, xaxt = 'n',
-      log = ifelse(yScale == 'log', 'y', ''),
       yScale = yScale,
       maxPoints = maxPoints[2],
       ...
@@ -1125,7 +1123,6 @@ plotSpec = function(
 #' @param asp,xaxs,yaxs,... graphical parameters passed to plot.window() and
 #'   axis()
 #' @param axisX,axisY plot the axis or not (logical)
-#' @param log log = 'y' log-transforms the y axis
 #' @param y_Hz Y-labels in Hz or kHz (rescales by *1000 if kHz and max < 1 kHz)
 #' @keywords internal
 #' @examples
@@ -1148,7 +1145,6 @@ filled.contour.mod = function(
     xaxs = "i",
     yaxs = "i",
     las = 1,
-    log = '',
     yScale = c('orig', 'bark', 'mel', 'ERB')[1],
     axisX = TRUE,
     axisY = TRUE,
@@ -1163,21 +1159,18 @@ filled.contour.mod = function(
     levels = seq(ran_z[1], ran_z[2], length.out = nlevels + 1)
   }
   if (ylim[2] > tail(y, 1)) ylim[2] = tail(y, 1)
-  if (yScale == 'bark') {
-    y = tuneR::hz2bark(y * 1000)
-    ylim = tuneR::hz2bark(ylim * 1000)
-  } else if (yScale == 'mel') {
-    y = hz2mel(y * 1000)
-    ylim = hz2mel(ylim * 1000)
-  } else if (yScale == 'ERB') {
-    y = HzToERB(y * 1000)
-    ylim = HzToERB(ylim * 1000)
+  if (yScale == 'log' & ylim[1] < .01) ylim[1] = .01
+  idx_keep = which(y >= ylim[1] & y <= ylim[2])
+  y = y[idx_keep]
+  z = z[, idx_keep]
+  if (!yScale %in% c('orig', 'linear')) {
+    y = HzToOther(y * 1000, yScale)
+    ylim = HzToOther(ylim * 1000, yScale)
   } else {
     if (y_Hz) {
       y = y * 1000
       ylim = ylim * 1000
     }
-    if (log == 'y' & ylim[1] < .01) ylim[1] = .01
   }
 
   if (legend) {
@@ -1203,7 +1196,7 @@ filled.contour.mod = function(
   suppressWarnings({
     plot.new()
     plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
-                asp = asp, log = log, ...)
+                asp = asp, ...)
     if (!is.matrix(z) || nrow(z) <= 1 || ncol(z) <= 1)
       stop("no proper 'z' matrix specified")
     if (!is.double(z))  storage.mode(z) = "double"
@@ -1254,43 +1247,21 @@ drawFreqAxis = function(y,
                         nLbls = 5,
                         y_Hz = TRUE,
                         ...) {
-  if (!any(c('bark', 'mel', 'ERB') == yScale)) {
+  if (yScale %in% c('orig', 'linear')) {
     axis(2, ...)
-    return()
+  } else {
+    y_at = seq(ylim[1], ylim[2], length.out = nLbls) # pretty(c(y[1], tail(y, 1)))
+    # round to pretty labels in Hz or kHz
+    if (y_Hz) {
+      y_lab = round(otherToHz(y_at, yScale))
+      # and back to original yScale for precise position
+      y_at = HzToOther(y_lab, yScale)
+    } else {
+      y_lab = round(otherToHz(y_at, yScale) / 1000, 1)
+      y_at = HzToOther(y_lab * 1000, yScale)
+    }
+    axis(2, at = y_at, labels = y_lab, ...)
   }
-  y_at = seq(ylim[1], ylim[2], length.out = nLbls) # pretty(c(y[1], tail(y, 1)))
-  if (yScale == 'bark') {
-    # round to pretty labels in Hz or kHz
-    if (y_Hz) {
-      y_lab = round(tuneR::bark2hz(y_at))
-      # and back to bark for precise position
-      y_at = tuneR::hz2bark(y_lab)
-    } else {
-      y_lab = round(tuneR::bark2hz(y_at) / 1000, 1)
-      y_at = tuneR::hz2bark(y_lab * 1000)
-    }
-  } else if (yScale == 'mel') {
-    # round to pretty labels in Hz or kHz
-    if (y_Hz) {
-      y_lab = round(tuneR::mel2hz(y_at))
-      # and back to mel for precise position
-      y_at = hz2mel(y_lab)
-    } else {
-      y_lab = round(tuneR::mel2hz(y_at) / 1000, 1)
-      y_at = hz2mel(y_lab * 1000)
-    }
-  } else if (yScale == 'ERB') {
-    # round to pretty labels in Hz or kHz
-    if (y_Hz) {
-      y_lab = round(ERBToHz(y_at))
-      # and back to bark for precise position
-      y_at = HzToERB(y_lab)
-    } else {
-      y_lab = round(ERBToHz(y_at) / 1000, 1)
-      y_at = HzToERB(y_lab * 1000)
-    }
-  }
-  axis(2, at = y_at, labels = y_lab, ...)
 }
 
 
@@ -1304,7 +1275,7 @@ drawFreqAxis = function(y,
 #' @param xlim,ylim,zlim range of values
 #' @param yScale scale of frequency representation
 #' @param
-#'   levels,nlevels,pch,cex,color.palette,col,legend,asp,xaxs,yaxs,las,log,axisX,axisY
+#'   levels,nlevels,pch,cex,color.palette,col,legend,asp,xaxs,yaxs,las,axisX,axisY
 #'   graphical parameters passed to plot()
 #'
 #' @keywords internal
@@ -1324,7 +1295,6 @@ plotUnrasterized = function(
     xaxs = "i",
     yaxs = "i",
     las = 1,
-    log = '',
     yScale = c('orig', 'bark', 'mel', 'ERB')[1],
     axisX = TRUE,
     axisY = TRUE,
@@ -1339,21 +1309,15 @@ plotUnrasterized = function(
   y_Hz = ylim[2] < 1  # labels in Hz or kHz
   mf = max(df$freq)
   if (ylim[2] > mf) ylim[2] = mf
-  if (yScale == 'bark') {
-    df$freq = tuneR::hz2bark(df$freq * 1000)
-    ylim = tuneR::hz2bark(ylim * 1000)
-  } else if (yScale == 'mel') {
-    df$freq = hz2mel(df$freq * 1000)
-    ylim = hz2mel(ylim * 1000)
-  } else if (yScale == 'ERB') {
-    df$freq = HzToERB(df$freq * 1000)
-    ylim = HzToERB(ylim * 1000)
+  if (!yScale %in% c('orig', 'linear')) {
+    df$freq = HzToOther(df$freq * 1000, yScale)
+    ylim = HzToOther(ylim * 1000, yScale)
   } else {
     if (y_Hz) {
       df$freq = df$freq * 1000
       ylim = ylim * 1000
     }
-    if (log == 'y' & ylim[1] < .01) ylim[1] = .01
+    if (yScale == 'log' & ylim[1] < .01) ylim[1] = .01
   }
 
   idx_neg = which(df$magn <= 0)
@@ -1365,7 +1329,7 @@ plotUnrasterized = function(
   suppressWarnings({
     plot.new()
     plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs,
-                asp = asp, log = log, ...)
+                asp = asp, ...)
     points(
       df$time, df$freq,
       col = col[ord],

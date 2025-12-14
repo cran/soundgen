@@ -72,7 +72,14 @@ unlike analyze(), it returns the times of individual zero crossings
 time intervals.
 }
 \details{
-Algorithm: the audio is bandpass-filtered from \code{pitchFloor} to \code{pitchCeiling}, and the timing of all zero crossings is saved. This is not enough, however, because unvoiced sounds like white noise also have plenty of zero crossings. Accordingly, an attempt is made to detect voiced segments (or steady musical tones, etc.) by looking for stable regions, with several zero-crossings at relatively regular intervals (see parameters \code{zcThres} and \code{zcWin}). Very quiet parts of audio are also treated as not having a pitch.
+Algorithm: the audio is bandpass-filtered from \code{pitchFloor} to
+\code{pitchCeiling}, and the timing of all zero crossings is saved. This is
+not enough, however, because aperiodic sounds like white noise also have
+plenty of zero crossings. Accordingly, an attempt is made to detect voiced
+segments (or steady musical tones, etc.) by looking for stable regions, with
+several zero-crossings at relatively regular intervals (see parameters
+\code{zcThres} and \code{zcWin}). Very quiet parts of audio are also treated
+as not having a pitch.
 }
 \examples{
 data(sheep, package = 'seewave')

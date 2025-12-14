@@ -988,7 +988,7 @@ addPitchCands = function(pitchCands,
     prior = NULL
   }
   pitchPlot = pitchPlot[names(pitchPlot) != 'showPrior']
-  yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel', 'ERB'), 1, 1/1000)
+  yScaleCoef = ifelse(y_Hz | yScale %in% c('bark', 'mel', 'ERB', 'log'), 1, 1/1000)
   if (yScale != 'linear') {
     pitchCands = HzToOther(pitchCands, yScale)
     pitch = HzToOther(pitch, yScale)

@@ -1,20 +1,22 @@
-# TODO: segment - return the spectrum and spectral peaks of the signal contour (as an alternative to "interburst"); increase sampling rate if creating one gc at a time for smooth f0 changes, then downsample again; (Windows) formant_app etc - opaque selection on some systems (Win10?); pitch_app should be able to load an rds object with manual voiced/unvoiced like that returned to the main environment (change the format of what's saved?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?); check or remove identifyAndPlay - not working in RStudio (but OK in console)
+# TODO: Wiener entropy etc - use power spectrum?; increase sampling rate if creating one gc at a time for smooth f0 changes, then downsample again; (Windows) formant_app etc - opaque selection on some systems (Win10?); getSurprisal - try different time scales, DTW instead of autocorrelation; make color theme in apps compatible with dark mode; spectrogram etc - relative paths not working on Windows only, abs path only if saveAudio is the same as input folder (?); checkInput complains when running any folder function on some Win10 machines (?); check or remove identifyAndPlay - not working in RStudio (but OK in console)
 # NB: turn off debug mode in pitch_app & formant_app & annotation_app before submitting to CRAN!
 
-# TODO maybe: check math behind formants (eg use LPC to create all formants in one go); segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); check loudness estimation (try to find standard values to compare, check titze2021effect); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png()
+# TODO maybe: segment - return the spectrum and spectral peaks of the signal contour (as an alternative to "interburst"); check math behind formants (eg use LPC to create all formants in one go); segment_ann() - segment audio based on annotations; per-channel normalization (https://librosa.org/doc/main/generated/librosa.pcen.html); superlets; repetitive CPU-intense tasks with Rcpp (see https://blog.ephorie.de/why-r-for-data-science-and-not-python); try to use i-fft to create nice glottal cycles from the desired spectrum (or some sensible model of glottal pulses); option to plot legend in spectrogram, plotMS, etc; add AM either before or after adding formants; smart merge in all folder functions in case there are missing columns; formant_app - drag annotation borders to change duration; check main in all plots - should be like analyze & spectrogram ('' if audio$filename_base = 'sound'); include the output of segment in analyze (just for convenience); compareSounds - input folder creates a distance matrix based on features and/or melSpec; inverse distance weighting interpolation instead of interpolMatrix; sharpness in getLoudness (see Fastl p. 242); refine cepstrum to look for freq windows with a strong cepstral peak, like opera singing over the orchestra; morph multiple sounds not just 2; maybe vectorize lipRad/noseRad; soundgen - pitch2 for dual source (desynchronized vocal folds); morph() - tempEffects; streamline saving all plots a la ggsave: filename, path, different supported devices instead of only png()
 
 # Debugging tip: run smth like options('browser' = '/usr/bin/chromium-browser') or options('browser' = '/usr/bin/google-chrome') to check a Shiny app in a non-default browser
 
 #' @importFrom foreach %dopar%
-#' @import stats graphics utils grDevices shinyBS
+#' @import stats graphics utils grDevices
+# need to import smth from bslib, otherwise a note
+#' @importFrom bslib page_fluid
 #' @encoding UTF-8
 NULL
 
 #' Generate a sound
 #'
 #' Generates a bout of one or more syllables with pauses between them. Two basic
-#' components are synthesized: the harmonic component (the sum of sine waves
-#' with frequencies that are multiples of the fundamental frequency) and the
+#' components are synthesized: a periodic component (the sum of sine waves with
+#' frequencies that are multiples of the fundamental frequency) and an aperiodic
 #' noise component. Both components can be filtered with independently specified
 #' formants. Intonation and amplitude contours can be applied both within each
 #' syllable and across multiple syllables. Suggested application: synthesis of
@@ -151,18 +153,18 @@ NULL
 #' @param amType "sine" = sinusoidal, "logistic" = logistic (default)
 #' @param amShape ignore if amType = "sine", otherwise determines the shape of
 #'   non-sinusoidal AM: 0 = ~sine, -1 = notches, +1 = clicks (anchor format)
-#' @param noise loudness of turbulent noise (0 dB = as loud as
-#'   voiced component, negative values = quieter) such as aspiration, hissing,
+#' @param noise loudness of turbulent noise (0 dB = as loud as the periodic
+#'   (voiced) component, negative values = quieter) such as aspiration, hissing,
 #'   etc (anchor format)
-#' @param formantsNoise the same as \code{formants}, but for unvoiced instead of
-#'   voiced component. If NA (default), the unvoiced component will be filtered
-#'   through the same formants as the voiced component, approximating aspiration
-#'   noise [h]
+#' @param formantsNoise the same as \code{formants}, but for the aperiodic noise
+#'   rather than for the periodic component. If NA (default), the noise will be
+#'   filtered through the same formants as the periodic component, approximating
+#'   aspiration noise [h]
 #' @param rolloffNoise,noiseFlatSpec linear rolloff of the excitation source for
-#'   the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+#'   the noise component, \code{rolloffNoise} dB/kHz (anchor format) applied
 #'   above \code{noiseFlatSpec} Hz
 #' @param rolloffNoiseExp exponential rolloff of the excitation source for the
-#'   unvoiced component, dB/oct (anchor format) applied above 0 Hz
+#'   noise component, dB/oct (anchor format) applied above 0 Hz
 #' @param noiseAmpRef noise amplitude is defined relative to: "f0" = the
 #'   amplitude of the first partial (fundamental frequency), "source" = the
 #'   amplitude of the harmonic component prior to applying formants, "filtered"
@@ -288,6 +290,22 @@ NULL
 #'    temperature = 1e-4,
 #'    plot = TRUE
 #'  )
+#'
+#'  # soundgen playing Bach
+#' dt = notesToHz(
+#'   c('E4', 'D4', 'E4', 'C4', 'E4', 'B3', 'E4', 'A3', 'E4', 'G#3', 'E4',
+#'   'A3', 'E4', 'B3', 'E4', 'C4', 'E4', 'E3', 'E4', 'F#3', 'E4', 'G#3',
+#'   'E4', 'A3', 'E4', 'G#3', 'E4', 'A3', 'E4', 'B3', 'E4', 'C4'))
+#' out = 0
+#' for (s in 1:length(dt)) {
+#'   syl_s = soundgen(sylLen = 100, pitch = dt[s], rolloff = -15,
+#'                    formants = c(750, 1400, 2900, 3800), noise = -45,
+#'                    attackLen = 50, addSilence = 0, temperature = .01)
+#'   syl_s = fade(matchLengths(syl_s, 0.1 * 16000), samplingRate = 16000)
+#'   out = c(out, syl_s[1:(0.1 * 16000)])
+#' }
+#' spectrogram(out, 16000, yScale = 'ERB')
+#' playme(out, 16000)
 #'
 #' # Project's homepage: http://cogsci.se/soundgen.html
 #' }
@@ -862,7 +880,7 @@ soundgen = function(
 
     # START OF SYLLABLE GENERATION
     voiced = vector()
-    unvoiced = list()
+    aperiodic = list()
     noise_syl = list()
 
     for (s in 1:nrow(syllables)) {
@@ -1060,7 +1078,7 @@ soundgen = function(
         )
       }
 
-      # generate the unvoiced part, but don't add it to the sound just yet
+      # generate the aperiodic part, but don't add it to the sound just yet
       if (is.list(noise)) {
         if (any(noise$value > -dynamicRange)) {
           if (is.list(rolloffNoise)) {
@@ -1104,8 +1122,8 @@ soundgen = function(
               invalidArgAction = invalidArgAction
             )
           }
-          # synthesize the unvoiced part
-          unvoiced[[s]] = generateNoise(
+          # synthesize the aperiodic noise
+          aperiodic[[s]] = generateNoise(
             len = round(diff(range(noise_syl[[s]]$time)) * samplingRate / 1000),
             noise = noise_syl[[s]],
             rolloffNoise = rolloffNoise_syl,
@@ -1121,7 +1139,7 @@ soundgen = function(
             smoothing = smoothing,
             spectralEnvelope = NULL # spectralEnvelopeNoise
           ) * amplEnvelope[s]  # correction of amplitude per syllable
-          # plot(unvoiced[[s]], type = 'l')
+          # plot(aperiodic[[s]], type = 'l')
         }
       }
     }
@@ -1130,28 +1148,28 @@ soundgen = function(
     # playme(voiced, samplingRate = samplingRate)
     # END OF SYLLABLE GENERATION
 
-    ## Merging voiced and unvoiced components and adding formants
+    ## Merging voiced and noise components and adding formants
     # for noiseAmpRef == "filtered", enforce adding formants separately
-    # followed by independent normalization of voiced & unvoiced
+    # followed by independent normalization of voiced & noise
     any_voiced = any(voiced != 0)
     if (!any_voiced) voiced = 0
 
     if (noiseAmpRef == 'filtered' & !is.list(formantsNoise)) {
       formantsNoise = formants
     }
-    sound_unvoiced = rep(0, length(voiced))
-    if (length(unvoiced) > 0) {
-      ## Add unvoiced fragments together
-      for (s in seq_along(unvoiced)) {
+    sound_aperiodic = rep(0, length(voiced))
+    if (length(aperiodic) > 0) {
+      ## Add noise fragments together
+      for (s in seq_along(aperiodic)) {
         # calculate where syllable s begins
         syllableStartIdx = round(syllables[s, 'start'] * samplingRate / 1000)
         if (s == 1) syllableStartIdx = 1  # instead of 0
 
-        # calculate where unvoiced is to be inserted
+        # calculate where noise is to be inserted
         insertionIdx = syllableStartIdx +
           noise_syl[[s]]$time[1] * samplingRate / 1000
-        sound_unvoiced = addVectors(sound_unvoiced,
-                                    unvoiced[[s]],
+        sound_aperiodic = addVectors(sound_aperiodic,
+                                    aperiodic[[s]],
                                     insertionPoint = insertionIdx,
                                     normalize = FALSE)
 
@@ -1162,21 +1180,21 @@ soundgen = function(
             syllables[, c('start', 'end')] - insertionIdx / samplingRate * 1000
         }
       }
-      any_unvoiced = any(sound_unvoiced != 0)
-      if (!any_unvoiced) sound_unvoiced = 0
+      any_aperiodic = any(sound_aperiodic != 0)
+      if (!any_aperiodic) sound_aperiodic = 0
 
       # set RMS of both signal and noise to 1 to ensure that their relative
       # intensities (RMS amplitudes) satisfy the required "noise" parameter
       # (noise-to-signal ratio)
       if (identical(formants,formantsNoise) || (
         !is.numeric(formantsNoise) & !is.list(formantsNoise))) {
-        # OPTION 1: mix voiced + unvoiced, then apply the same formant filter
+        # OPTION 1: mix voiced + noise, then apply the same formant filter
         if (any_voiced) voiced = voiced / sqrt(mean(voiced ^ 2))
-        if (any_unvoiced) sound_unvoiced = sound_unvoiced /
-            sqrt(mean(sound_unvoiced ^ 2)) * 10 ^ (max(noise$value) / 20)
+        if (any_aperiodic) sound_aperiodic = sound_aperiodic /
+            sqrt(mean(sound_aperiodic ^ 2)) * 10 ^ (max(noise$value) / 20)
         sound = addVectors(
           voiced,
-          sound_unvoiced,
+          sound_aperiodic,
           insertionPoint = -syllables$start[1] * samplingRate / 1000,
           normalize = FALSE
         )
@@ -1197,12 +1215,12 @@ soundgen = function(
           soundFiltered = sound
         }
       } else {
-        # OPTION 2: apply different formant filters to voiced and unvoiced, then mix
+        # OPTION 2: apply different formant filters to voiced and aperiodic, then mix
         # add formants to voiced
         if (noiseAmpRef == 'source') {
           if (any_voiced) voiced = voiced / sqrt(mean(voiced ^ 2))
-          if (any_unvoiced) sound_unvoiced = sound_unvoiced /
-              sqrt(mean(sound_unvoiced ^ 2)) * 10 ^ (max(noise$value) / 20)
+          if (any_aperiodic) sound_aperiodic = sound_aperiodic /
+              sqrt(mean(sound_aperiodic ^ 2)) * 10 ^ (max(noise$value) / 20)
         }
         if (any_voiced &&
             length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
@@ -1220,13 +1238,13 @@ soundgen = function(
         } else {
           voicedFiltered = voiced
         }
-        # add formants to unvoiced
-        if (any_unvoiced &&
-            length(sound_unvoiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
-          unvoicedFiltered = do.call(.addFormants, c(
+        # add formants to noise
+        if (any_aperiodic &&
+            length(sound_aperiodic) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
+          aperiodicFiltered = do.call(.addFormants, c(
             formantPars,
             list(audio = list(
-              sound = sound_unvoiced,
+              sound = sound_aperiodic,
               samplingRate = samplingRate,
               scale = 1
             ),
@@ -1235,26 +1253,26 @@ soundgen = function(
             normalize = ifelse(noiseAmpRef == 'filtered', 'max', 'none'))
           ))
         } else {
-          unvoicedFiltered = sound_unvoiced
+          aperiodicFiltered = sound_aperiodic
         }
 
-        # mix filtered version of the voiced and unvoiced components
+        # mix filtered version of the voiced and noise components
         if (noiseAmpRef == 'filtered') {
           if (any_voiced) voicedFiltered = voicedFiltered /
               sqrt(mean(voicedFiltered ^ 2))
-          if (any_unvoiced) unvoicedFiltered = unvoicedFiltered /
-              sqrt(mean(unvoicedFiltered ^ 2)) *
+          if (any_aperiodic) aperiodicFiltered = aperiodicFiltered /
+              sqrt(mean(aperiodicFiltered ^ 2)) *
               10 ^ (max(noise$value) / 20)
         }
         soundFiltered = addVectors(
           voicedFiltered,
-          unvoicedFiltered,
+          aperiodicFiltered,
           insertionPoint = -syllables$start[1] * samplingRate / 1000,
           normalize = FALSE
         )
       }
     } else {
-      # no unvoiced component - just add formants to voiced
+      # no noise component - just add formants to voiced
       # plot(voiced, type = 'l')
       if (any_voiced &&
           length(voiced) / samplingRate * 1000 > permittedValues['sylLen', 'low']) {
@@ -1275,7 +1293,7 @@ soundgen = function(
     }
     # plot(soundFiltered, type = 'l')
 
-    # Add amplitude modulation (affects both voiced and unvoiced)
+    # Add amplitude modulation (affects both voiced and noise)
     if (is.list(amDep)) {
       if (any(amDep$value > 0)) {
         soundFiltered = .addAM(

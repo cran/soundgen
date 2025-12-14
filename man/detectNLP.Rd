@@ -10,7 +10,7 @@ detectNLP(
   predictors = c("d2", "subDep", "amEnvDep", "amMsPurity", "entropy", "HNR", "CPP",
     "roughness"),
   thresProb = 0.4,
-  unvoicedToNone = FALSE,
+  voicelessdToNone = FALSE,
   train = soundgen::detectNLP_training_nonv,
   scale = NULL,
   from = NULL,
@@ -53,7 +53,7 @@ variable is measured).}
 non-"none", which is good for reducing false alarms (<1/nClasses means just
 go for the highest probability)}
 
-\item{unvoicedToNone}{if TRUE, frames treated as unvoiced are set to "none"
+\item{voicelessdToNone}{if TRUE, frames treated as voicelessd are set to "none"
 (mostly makes sense with manual pitch tracking)}
 
 \item{train}{training corpus, namely the result of running

@@ -9,7 +9,7 @@
   predictors = c("nPeaks", "d2", "subDep", "amEnvDep", "entropy", "HNR", "CPP",
     "roughness"),
   thresProb = 0.4,
-  unvoicedToNone = FALSE,
+  voicelessdToNone = FALSE,
   train = soundgen::detectNLP_training_nonv,
   scale = NULL,
   from = NULL,

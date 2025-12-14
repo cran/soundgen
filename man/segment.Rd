@@ -17,7 +17,7 @@ segment(
   SNR = NULL,
   noiseLevelStabWeight = c(1, 0.25),
   windowLength = 40,
-  step = NULL,
+  step = windowLength/5,
   overlap = 80,
   reverbPars = list(reverbDelay = 70, reverbSpread = 130, reverbLevel = -35,
     reverbDensity = 50),
@@ -26,6 +26,9 @@ segment(
   troughLocation = c("left", "right", "both", "either")[4],
   summaryFun = c("median", "sd"),
   maxDur = 30,
+  ptvStep = NULL,
+  ptvTime = 0.5,
+  ptvFreq = 1,
   reportEvery = NULL,
   cores = 1,
   plot = FALSE,
@@ -121,6 +124,13 @@ avoid running out of RAM; the outputs for all fragments are glued together,
 but plotting is switched off. Note that noise profile is estimated in each
 chunk separately, so set it low if the background noise is highly variable}
 
+\item{ptvStep, ptvTime, ptvFreq}{the instantaneous proportion of time
+vocalizing (PTV) is calculated by producing a binary (sound on/off) contour
+with a step of \code{ptvStep} ms and convolving it with a half-Gaussian
+filter with SD = \code{ptvTime} ($ptv_conv) and by low-pass filtering it
+over \code{ptvFreq} ($ptv_lowpass). \code{ptvStep} defaults to the same
+value as \code{step}}
+
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
 
@@ -161,10 +171,20 @@ contour used to detect syllables (see details)}
 \item{...}{other graphical parameters passed to graphics::plot}
 }
 \value{
-If \code{summaryFun = NULL}, returns returns a list containing full
-  stats on each syllable and burst (one row per syllable and per burst),
-  otherwise returns only a dataframe with one row per file - a summary of the
-  number and spacing of syllables and vocal bursts.
+Returns a list with the following components:
+  \describe{\item{syllables}{location and duration of each syllable and the
+  pause before it (ms) plus the PTV calculated for each pause-syllable pair}
+  \item{bursts}{the time and amplitude of each burst plus the pause before
+  it (ms)} \item{summary}{a summary of temporal descriptives per file,
+  including PTV = sum of all syllable durations / total duration of audio}
+  \item{noise}{the spectrum of background noise} \item{ptv}{contours of
+  instantaneous proportion of time vocalizing: time = time in ms, on = 1 if
+  this frame is part of a syllable and 0 otherwise, ptv_lowpass = "on" after
+  applying a low-pass filter over \code{ptvFreq} Hz, ptv_conv = "on" after
+  convolution with a half-Gaussian filter with SD = \code{ptvTime}}
+  \item{signal}{a dataframe containing the time and value of the contour used
+  to segment the sound (some form of envelope or the difference of spectrum
+  from background noise, depending on the method)}}
 }
 \description{
 Finds syllables and bursts separated by background noise in long recordings
@@ -214,7 +234,7 @@ sound = sound + runif(length(sound), -10 ^ (-20 / 20), 10 ^ (-20 / 20))
 # playme(sound, samplingRate = 16000)
 
 s = segment(sound, samplingRate = 16000, plot = TRUE)
-s
+str(s)
 
 # customizing the plot
 segment(sound, samplingRate = 16000, plot = TRUE,
@@ -224,15 +244,37 @@ segment(sound, samplingRate = 16000, plot = TRUE,
         xlab = 'Some custom label', cex.lab = 1.2,
         showLegend = TRUE,
         main = 'My awesome plot')
+
+# plot the PTV contour (proportion of time vocalizing)
+plot(s$ptv$time, s$ptv$on, type = 'l', xlab = 'Time, ms',
+  ylab = 'Prop. time voc.')
+points(s$ptv$time, s$ptv$ptv_conv, type = 'l', col = 'blue')
+points(s$ptv$time, s$ptv$ptv_lowpass, type = 'l', col = 'red')
+s$summary$ptv; mean(s$ptv$ptv_conv); mean(s$ptv$ptv_lowpass) # similar
+
 \dontrun{
 # set SNR manually to control detection threshold
 s = segment(sound, samplingRate = 16000, SNR = 1, plot = TRUE)
 
-# simple intensity threshold (anything >2 dB is signal)
-segment(sound, 16000, method = 'env', SNR = 2, plot = TRUE,
-  propNoise = 0, # don't correct SNR based on estimated background noise
-  reverbPars = NULL  # don't use dynamic thresholds to cancel reverb
+# simple intensity threshold (anything >5 dB is signal)
+segment(sound, 16000, method = 'env', SNR = 5, plot = TRUE,
+  # very little smoothing for maximally precise timing
+  windowLength = 5, step = 1,
+  # don't correct SNR based on estimated background noise
+  propNoise = 0,
+  # don't use dynamic thresholds to cancel reverb
+  reverbPars = NULL
 )
+
+# different ways to calculate instantaneous PTV
+s2 = segment(sound, 16000, ptvTime = 2, ptvFreq = 5)
+s3 = segment(sound, 16000, ptvTime = 0.05, ptvFreq = 0.5)
+plot(s2$ptv$time, s2$ptv$on, type = 'l', xlab = 'Time, ms',
+  ylab = 'Prop. time voc.')
+points(s2$ptv$time, s2$ptv$ptv_conv, type = 'l', col = 'blue')
+points(s2$ptv$time, s2$ptv$ptv_lowpass, type = 'l', col = 'yellow')
+points(s3$ptv$time, s3$ptv$ptv_conv, type = 'l', col = 'purple')
+points(s3$ptv$time, s3$ptv$ptv_lowpass, type = 'l', col = 'orange')
 
 # Download 260 sounds from the supplements to Anikin & Persson (2017) at
 # http://cogsci.se/publications.html

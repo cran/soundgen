@@ -21,7 +21,6 @@ plotUnrasterized(
   xaxs = "i",
   yaxs = "i",
   las = 1,
-  log = "",
   yScale = c("orig", "bark", "mel", "ERB")[1],
   axisX = TRUE,
   axisY = TRUE,
@@ -33,7 +32,7 @@ plotUnrasterized(
 
 \item{xlim, ylim, zlim}{range of values}
 
-\item{levels, nlevels, pch, cex, color.palette, col, legend, asp, xaxs, yaxs, las, log, axisX, axisY}{graphical parameters passed to plot()}
+\item{levels, nlevels, pch, cex, color.palette, col, legend, asp, xaxs, yaxs, las, axisX, axisY}{graphical parameters passed to plot()}
 
 \item{yScale}{scale of frequency representation}
 }

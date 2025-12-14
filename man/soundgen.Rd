@@ -250,21 +250,21 @@ amplitude range equal to the dynamic range of the sound (anchor format)}
 \item{amShape}{ignore if amType = "sine", otherwise determines the shape of
 non-sinusoidal AM: 0 = ~sine, -1 = notches, +1 = clicks (anchor format)}
 
-\item{noise}{loudness of turbulent noise (0 dB = as loud as
-voiced component, negative values = quieter) such as aspiration, hissing,
+\item{noise}{loudness of turbulent noise (0 dB = as loud as the periodic
+(voiced) component, negative values = quieter) such as aspiration, hissing,
 etc (anchor format)}
 
-\item{formantsNoise}{the same as \code{formants}, but for unvoiced instead of
-voiced component. If NA (default), the unvoiced component will be filtered
-through the same formants as the voiced component, approximating aspiration
-noise [h]}
+\item{formantsNoise}{the same as \code{formants}, but for the aperiodic noise
+rather than for the periodic component. If NA (default), the noise will be
+filtered through the same formants as the periodic component, approximating
+aspiration noise [h]}
 
 \item{rolloffNoise, noiseFlatSpec}{linear rolloff of the excitation source for
-the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+the noise component, \code{rolloffNoise} dB/kHz (anchor format) applied
 above \code{noiseFlatSpec} Hz}
 
 \item{rolloffNoiseExp}{exponential rolloff of the excitation source for the
-unvoiced component, dB/oct (anchor format) applied above 0 Hz}
+noise component, dB/oct (anchor format) applied above 0 Hz}
 
 \item{noiseAmpRef}{noise amplitude is defined relative to: "f0" = the
 amplitude of the first partial (fundamental frequency), "source" = the
@@ -326,8 +326,8 @@ Returns the synthesized waveform as a numeric vector.
 }
 \description{
 Generates a bout of one or more syllables with pauses between them. Two basic
-components are synthesized: the harmonic component (the sum of sine waves
-with frequencies that are multiples of the fundamental frequency) and the
+components are synthesized: a periodic component (the sum of sine waves with
+frequencies that are multiples of the fundamental frequency) and an aperiodic
 noise component. Both components can be filtered with independently specified
 formants. Intonation and amplitude contours can be applied both within each
 syllable and across multiple syllables. Suggested application: synthesis of
@@ -419,6 +419,22 @@ sound = soundgen(repeatBout = 2, sylLen = 160, pauseLen = 100,
    temperature = 1e-4,
    plot = TRUE
  )
+
+ # soundgen playing Bach
+dt = notesToHz(
+  c('E4', 'D4', 'E4', 'C4', 'E4', 'B3', 'E4', 'A3', 'E4', 'G#3', 'E4',
+  'A3', 'E4', 'B3', 'E4', 'C4', 'E4', 'E3', 'E4', 'F#3', 'E4', 'G#3',
+  'E4', 'A3', 'E4', 'G#3', 'E4', 'A3', 'E4', 'B3', 'E4', 'C4'))
+out = 0
+for (s in 1:length(dt)) {
+  syl_s = soundgen(sylLen = 100, pitch = dt[s], rolloff = -15,
+                   formants = c(750, 1400, 2900, 3800), noise = -45,
+                   attackLen = 50, addSilence = 0, temperature = .01)
+  syl_s = fade(matchLengths(syl_s, 0.1 * 16000), samplingRate = 16000)
+  out = c(out, syl_s[1:(0.1 * 16000)])
+}
+spectrogram(out, 16000, yScale = 'ERB')
+playme(out, 16000)
 
 # Project's homepage: http://cogsci.se/soundgen.html
 }

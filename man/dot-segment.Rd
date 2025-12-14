@@ -13,7 +13,7 @@
   SNR = NULL,
   noiseLevelStabWeight = c(1, 0.25),
   windowLength = 40,
-  step = NULL,
+  step = windowLength/5,
   overlap = 80,
   reverbPars = list(reverbDelay = 70, reverbSpread = 130, reverbLevel = -35,
     reverbDensity = 50),
@@ -21,6 +21,9 @@
   peakToTrough = SNR + 3,
   troughLocation = c("left", "right", "both", "either")[4],
   maxDur = 30,
+  ptvStep = NULL,
+  ptvTime = 0.5,
+  ptvFreq = 1,
   saveAudio = NULL,
   addSilence = 50,
   plot = FALSE,
@@ -100,6 +103,13 @@ left and/or right of it? Values: 'left', 'right', 'both', 'either'}
 avoid running out of RAM; the outputs for all fragments are glued together,
 but plotting is switched off. Note that noise profile is estimated in each
 chunk separately, so set it low if the background noise is highly variable}
+
+\item{ptvStep, ptvTime, ptvFreq}{the instantaneous proportion of time
+vocalizing (PTV) is calculated by producing a binary (sound on/off) contour
+with a step of \code{ptvStep} ms and convolving it with a half-Gaussian
+filter with SD = \code{ptvTime} ($ptv_conv) and by low-pass filtering it
+over \code{ptvFreq} ($ptv_lowpass). \code{ptvStep} defaults to the same
+value as \code{step}}
 
 \item{saveAudio}{full path to the folder in which to save audio files (one
 per detected syllable)}

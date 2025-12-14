@@ -77,6 +77,12 @@
 #'   avoid running out of RAM; the outputs for all fragments are glued together,
 #'   but plotting is switched off. Note that noise profile is estimated in each
 #'   chunk separately, so set it low if the background noise is highly variable
+#' @param ptvStep,ptvTime,ptvFreq the instantaneous proportion of time
+#'   vocalizing (PTV) is calculated by producing a binary (sound on/off) contour
+#'   with a step of \code{ptvStep} ms and convolving it with a half-Gaussian
+#'   filter with SD = \code{ptvTime} ($ptv_conv) and by low-pass filtering it
+#'   over \code{ptvFreq} ($ptv_lowpass). \code{ptvStep} defaults to the same
+#'   value as \code{step}
 #' @param plot if TRUE, produces a segmentation plot
 #' @param saveAudio full path to the folder in which to save audio files (one
 #'   per detected syllable)
@@ -94,10 +100,21 @@
 #' @param showLegend if TRUE, shows a legend for thresholds
 #' @param ... other graphical parameters passed to graphics::plot
 #'
-#' @return If \code{summaryFun = NULL}, returns returns a list containing full
-#'   stats on each syllable and burst (one row per syllable and per burst),
-#'   otherwise returns only a dataframe with one row per file - a summary of the
-#'   number and spacing of syllables and vocal bursts.
+#' @return Returns a list with the following components:
+#'   \describe{\item{syllables}{location and duration of each syllable and the
+#'   pause before it (ms) plus the PTV calculated for each pause-syllable pair}
+#'   \item{bursts}{the time and amplitude of each burst plus the pause before
+#'   it (ms)} \item{summary}{a summary of temporal descriptives per file,
+#'   including PTV = sum of all syllable durations / total duration of audio}
+#'   \item{noise}{the spectrum of background noise} \item{ptv}{contours of
+#'   instantaneous proportion of time vocalizing: time = time in ms, on = 1 if
+#'   this frame is part of a syllable and 0 otherwise, ptv_lowpass = "on" after
+#'   applying a low-pass filter over \code{ptvFreq} Hz, ptv_conv = "on" after
+#'   convolution with a half-Gaussian filter with SD = \code{ptvTime}}
+#'   \item{signal}{a dataframe containing the time and value of the contour used
+#'   to segment the sound (some form of envelope or the difference of spectrum
+#'   from background noise, depending on the method)}}
+#'
 #' @export
 #' @examples
 #' sound = soundgen(nSyl = 4, sylLen = 100, pauseLen = 70,
@@ -110,7 +127,7 @@
 #' # playme(sound, samplingRate = 16000)
 #'
 #' s = segment(sound, samplingRate = 16000, plot = TRUE)
-#' s
+#' str(s)
 #'
 #' # customizing the plot
 #' segment(sound, samplingRate = 16000, plot = TRUE,
@@ -120,15 +137,37 @@
 #'         xlab = 'Some custom label', cex.lab = 1.2,
 #'         showLegend = TRUE,
 #'         main = 'My awesome plot')
+#'
+#' # plot the PTV contour (proportion of time vocalizing)
+#' plot(s$ptv$time, s$ptv$on, type = 'l', xlab = 'Time, ms',
+#'   ylab = 'Prop. time voc.')
+#' points(s$ptv$time, s$ptv$ptv_conv, type = 'l', col = 'blue')
+#' points(s$ptv$time, s$ptv$ptv_lowpass, type = 'l', col = 'red')
+#' s$summary$ptv; mean(s$ptv$ptv_conv); mean(s$ptv$ptv_lowpass) # similar
+#'
 #' \dontrun{
 #' # set SNR manually to control detection threshold
 #' s = segment(sound, samplingRate = 16000, SNR = 1, plot = TRUE)
 #'
-#' # simple intensity threshold (anything >2 dB is signal)
-#' segment(sound, 16000, method = 'env', SNR = 2, plot = TRUE,
-#'   propNoise = 0, # don't correct SNR based on estimated background noise
-#'   reverbPars = NULL  # don't use dynamic thresholds to cancel reverb
+#' # simple intensity threshold (anything >5 dB is signal)
+#' segment(sound, 16000, method = 'env', SNR = 5, plot = TRUE,
+#'   # very little smoothing for maximally precise timing
+#'   windowLength = 5, step = 1,
+#'   # don't correct SNR based on estimated background noise
+#'   propNoise = 0,
+#'   # don't use dynamic thresholds to cancel reverb
+#'   reverbPars = NULL
 #' )
+#'
+#' # different ways to calculate instantaneous PTV
+#' s2 = segment(sound, 16000, ptvTime = 2, ptvFreq = 5)
+#' s3 = segment(sound, 16000, ptvTime = 0.05, ptvFreq = 0.5)
+#' plot(s2$ptv$time, s2$ptv$on, type = 'l', xlab = 'Time, ms',
+#'   ylab = 'Prop. time voc.')
+#' points(s2$ptv$time, s2$ptv$ptv_conv, type = 'l', col = 'blue')
+#' points(s2$ptv$time, s2$ptv$ptv_lowpass, type = 'l', col = 'yellow')
+#' points(s3$ptv$time, s3$ptv$ptv_conv, type = 'l', col = 'purple')
+#' points(s3$ptv$time, s3$ptv$ptv_lowpass, type = 'l', col = 'orange')
 #'
 #' # Download 260 sounds from the supplements to Anikin & Persson (2017) at
 #' # http://cogsci.se/publications.html
@@ -159,7 +198,7 @@ segment = function(
     SNR = NULL,
     noiseLevelStabWeight = c(1, .25),
     windowLength = 40,
-    step = NULL,
+    step = windowLength / 5,
     overlap = 80,
     reverbPars = list(reverbDelay = 70, reverbSpread = 130,
                       reverbLevel = -35, reverbDensity = 50),
@@ -168,6 +207,9 @@ segment = function(
     troughLocation = c('left', 'right', 'both', 'either')[4],
     summaryFun = c('median', 'sd'),
     maxDur = 30,
+    ptvStep = NULL,
+    ptvTime = 0.5,
+    ptvFreq = 1,
     reportEvery = NULL,
     cores = 1,
     plot = FALSE,
@@ -263,7 +305,8 @@ segment = function(
           summaryFun = summaryFun,
           var_noSummary = NULL)
         temp[[i]] = as.data.frame(c(
-          list(nSyl = if (pa$input$failed[i]) NA else sum(!is.na(seg$syllables$start))),
+          list(nSyl = if (pa$input$failed[i]) NA else sum(!is.na(seg$syllables$start)),
+               ptv = if (pa$input$failed[i]) NA else seg$ptv),
           sum_syl,
           list(nBursts = if (pa$input$failed[i]) NA else sum(!is.na(seg$bursts$time))),
           sum_bursts
@@ -293,21 +336,27 @@ segment = function(
     syllables = pa$result[[1]]$syllables
     bursts = pa$result[[1]]$bursts
     noise = pa$result[[1]]$noise
+    ptv = pa$result[[1]]$ptv_cont
+    signal = pa$result[[1]]$signal
   } else {
     for (i in 1:pa$input$n) {
       if (length(pa$result[[i]]) == 0)
-        pa$result[[i]] = list(syllables = NA, bursts = NA, noise = NA)
+        pa$result[[i]] = list(syllables = NA, bursts = NA, noise = NA, ptv = NA)
     }
     syllables = lapply(pa$result, function(x) x[['syllables']])
     bursts = lapply(pa$result, function(x) x[['bursts']])
     noise = lapply(pa$result, function(x) x[['noise']])
+    ptv = lapply(pa$result, function(x) x[['ptv_cont']])
+    signal = lapply(pa$result, function(x) x[['signal']])
   }
 
   output = list(
     syllables = syllables,
     bursts = bursts,
     summary = mysum_all,
-    noise = noise
+    noise = noise,
+    ptv = ptv,
+    signal = signal
   )
   invisible(output)
 }
@@ -328,7 +377,7 @@ segment = function(
     SNR = NULL,
     noiseLevelStabWeight = c(1, .25),
     windowLength = 40,
-    step = NULL,
+    step = windowLength / 5,
     overlap = 80,
     reverbPars = list(reverbDelay = 70, reverbSpread = 130,
                       reverbLevel = -35, reverbDensity = 50),
@@ -336,6 +385,9 @@ segment = function(
     peakToTrough = SNR + 3,
     troughLocation = c('left', 'right', 'both', 'either')[4],
     maxDur = 30,
+    ptvStep = NULL,
+    ptvTime = 0.5,
+    ptvFreq = 1,
     saveAudio = NULL,
     addSilence = 50,
     plot = FALSE,
@@ -393,6 +445,8 @@ segment = function(
 
     if (method == 'env') {
       ## work with smoothed amplitude envelope
+      # ampl = soundgen:::getEnv(sound_part, windowLength_points, method = 'peak')
+      # ampl = abs(sound_part)
       ampl = seewave::env(
         sound_part,
         f = audio$samplingRate,
@@ -696,16 +750,8 @@ segment = function(
     if (analyze_to >= dur_total_ms) stopNextTime = TRUE
 
     # add to growing syllables/bursts for the entire file
-    if (is.null(syllables)) {
-      syllables = syllables_part
-    } else {
-      syllables = rbind(syllables, syllables_part)
-    }
-    if (is.null(bursts)) {
-      bursts = bursts_part
-    } else {
-      bursts = rbind(bursts, bursts_part)
-    }
+    syllables = rbind(syllables, syllables_part)
+    bursts = rbind(bursts, bursts_part)
     if (stopNextTime) break
   }
   # end of WHILE loop for processing long sounds
@@ -713,12 +759,16 @@ segment = function(
   # in case of long files, interbursts for the first burst in a new analyzed
   # fragment become NAs - recalculate
   syllables = na.omit(syllables)
+
   if (nrow(syllables) > 0) {
     syllables$syllable = seq_len(nrow(syllables))
+    # calculate proportion of time vocalizing
+    ptv = sum(syllables$sylLen) / 1000 / audio$dur
   } else {
     syllables = data.frame(syllable = NA,
                            start = NA, end = NA,
                            sylLen = NA, pauseLen = NA)
+    ptv = 0
   }
   bursts = bursts[which(!is.na(bursts$time)), ]
   if (nrow(bursts) < 1) {
@@ -729,6 +779,57 @@ segment = function(
         bursts$interburst[i] = bursts$time[i] - bursts$time[i - 1]
     }
   }
+
+
+  ## calculate ptv for each syllable
+  syllables$ptv = syllables$sylLen / (syllables$sylLen + syllables$pauseLen)
+  syllables$ptv[1] = NA
+  # or average pauses before and after each syl
+  # syllables$ptv = NA
+  # if (nrow(syllables) > 1) {
+  #   for (i in 1:nrow(syllables)) {
+  #     sylLen = syllables$sylLen[i]
+  #     if (i == 1) {
+  #       # for the first syl, use the pause after it
+  #       pauseLen =  syllables$pauseLen[i + 1]
+  #     } else if (i < nrow(syllables)) {
+  #       # average pauses before and after the syl
+  #       pauseLen = (syllables$pauseLen[i] + syllables$pauseLen[i + 1]) / 2
+  #     } else if (i == nrow(syllables)) {
+  #       # for the last syl, use the pause before it
+  #       pauseLen = syllables$pauseLen[i]
+  #     }
+  #     syllables$ptv[i] = sylLen / (sylLen + pauseLen)
+  #   }
+  # }
+
+
+  ## calculate instantaneous ptv
+  # split 0/1 contour into bins
+  if (is.null(ptvStep)) ptvStep = step
+  ptv_cont = data.frame(time = seq(0, audio$duration * 1000, ptvStep), on = 0)
+  for (s in 1:nrow(syllables)) {
+    ptv_cont$on[ptv_cont$time >= syllables$start[s] &
+                  ptv_cont$time <= syllables$end[s]] = 1
+  }
+  # plot(ptv_cont, type = 'l')
+  len_env = nrow(ptv_cont)
+  sr = len_env / audio$duration
+
+  # low-pass
+  ptv_cont$ptv_lowpass = bandpass(ptv_cont$on, sr, upr = ptvFreq)
+
+  # convolve with a half-Gaussian filter
+  len_win = min(len_env, round(ptvTime * sr) * 3)  # -3 SD to 0
+  # 3 SD gives the same result as 4 SD; 2 SD is also very similar
+  win = dnorm(seq(-3, 0, length.out = len_win)) # seewave:::gaussian.w(len_win)
+  win = win / sum(win)  # so all weights sum to 1
+  if (len_env > len_win) {
+    win = c(rep(0, len_env - len_win), win)
+  }
+  # plot(win)
+  ptv_cont$ptv_conv = convolve(ptv_cont$on, win)
+
 
   ## plotting
   if (is.character(audio$savePlots)) {
@@ -742,7 +843,8 @@ segment = function(
     addSil = rep(0, addSilence * audio$samplingRate / 1000)
     audio$sound = audio$sound * audio$scale_used  # back to original scale from [-1, 1]
     for (i in 1:nrow(syllables)) {
-      from = max(1, audio$samplingRate * ((syllables$start[i]) / 1000))  #  - windowLength / 2
+      from = max(1, audio$samplingRate * ((syllables$start[i]) / 1000))
+      #  - windowLength / 2
       to = min(length(audio$sound), audio$samplingRate * ((syllables$end[i]) / 1000))
       temp = c(addSil, audio$sound[from:to], addSil)
       filename_i = paste0(
@@ -885,6 +987,11 @@ segment = function(
   }
 
   list(
-    syllables = syllables[, c('syllable', 'start', 'end', 'sylLen', 'pauseLen')],
-    bursts = bursts, noise = noise_list)
+    syllables = syllables[, c('syllable', 'start', 'end', 'sylLen', 'pauseLen', 'ptv')],
+    bursts = bursts,
+    noise = noise_list,
+    ptv = ptv, ptv_cont = ptv_cont,
+    signal = data.frame(time = seq(0, audio$dur, length.out = length(ampl)),
+                        value = ampl)
+  )
 }

@@ -182,6 +182,7 @@ getRolloff = function(pitch_per_gc = c(440),
     }
     rolloffParabHarm[rolloffParabHarm == 2] = 3 # will have the effect of boosting
     # H1 (2 * F0)
+    rolloffParabHarm[rolloffParabHarm > nHarmonics] = nHarmonics
     # parabola ax^2+bx+c
     # 0 at h=1 and at h=rolloffParabHarm; a parabola up/down in between. We have the following constraints on the parabola: f(1)=0; f(rolloffParabHarm)=0; f'((1+rolloffParabHarm)/2)=0; and f((1+rolloffParabHarm)/2)=rolloffParab.
     ## Solving for a,b,c
@@ -198,7 +199,8 @@ getRolloff = function(pitch_per_gc = c(440),
 
     # for a single affected harmonic, just change the amplitude of F0
     ph_idx = which(rolloffParabHarm < 3)
-    r[1, ph_idx] = r[1, ph_idx] + rolloffParab[ph_idx]
+    if (length(ph_idx) > 0)
+      r[1, ph_idx] = r[1, ph_idx] + rolloffParab[ph_idx]
     # if at least 2 harmonics are to be adjusted, calculate a parabola
     for (i in which(rolloffParabHarm >= 3)) {
       rowIdx = seq_len(.subset2(rolloffParabHarm, i))

@@ -366,7 +366,7 @@ summarizeAnalyze = function(
 #' @param harmHeight_pars same as argument "harmHeight" to analyze() - a list of
 #'   settings passed to soundgen:::harmHeight()
 #' @param smooth,smoothing_ww,smoothingThres smoothing parameters
-#' @param varsToUnv set these variables to NA in unvoiced frames
+#' @param varsToUnv set these variables to NA in voiceless frames
 #' @keywords internal
 updateAnalyze = function(
     result,
@@ -392,8 +392,8 @@ updateAnalyze = function(
 
   # Finalize voicing (some measures are only reported for voiced frames)
   result$voiced = !is.na(pitch_true)
-  unvoiced_frames = which(!result$voiced)
-  result[unvoiced_frames, varsToUnv] = NA
+  voiceless_frames = which(!result$voiced)
+  result[voiceless_frames, varsToUnv] = NA
 
   # Calculate how far harmonics reach in the spectrum and how strong they are
   # relative to f0
@@ -507,7 +507,7 @@ updateAnalyze = function(
                                   lowPass = FALSE, plot = FALSE)
       result$fmDep = .resample(list(sound = fmDep), len = nr,
                                lowPass = FALSE, plot = FALSE)
-      result[unvoiced_frames, c('fmFreq', 'fmPurity', 'fmDep')] = NA
+      result[voiceless_frames, c('fmFreq', 'fmPurity', 'fmDep')] = NA
     }
   } else {
 

@@ -350,7 +350,7 @@ nrow(sp) * ncol(sp) / 5e3  # spec downsampled by a factor of ~2
 # will not work if osc = TRUE b/c the plot layout is modified)
 s = soundgen(sylLen = 1500, pitch = c(250, 350, 320, 220),
   jitterDep = c(0, 0, 3, 2, 0, 0))
-an = analyze(s, 16000, plot = FALSE)
+an = analyze(s, 16000, plot = TRUE, extraContour = 'dom')
 spectrogram(s, 16000, extraContour = an$detailed$dom,
   ylim = c(0, 2), yScale = 'bark')
 spectrogram(s, 16000, extraContour = list(x = an$detailed$dom, col = 'blue'),
@@ -360,8 +360,8 @@ spectrogram(s, 16000, extraContour = list(x = an$detailed$dom, col = 'blue'),
 spectrogram(s, 16000, ylim = c(0, 2), yScale = 'bark', osc = FALSE)
 points(an$detailed$time/1000,  # time in s
        HzToOther(an$detailed$dom, 'bark'),  # values in barks
-       lwd = 2, col = 'green', lty = 2  # any graphic pars
-)
+       lwd = 2, col = 'green', lty = 2)  # any graphic pars
+
 # For values that are not in Hz, normalize any way you like. NB: if yScale !=
 # 'linear', the extra contour is by default warped to the same scale b/c it
 # is assumed to be in Hz. Specify "warp = FALSE" to avoid this

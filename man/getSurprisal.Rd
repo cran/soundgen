@@ -221,7 +221,8 @@ surp = getSurprisal(sound, 16000, winSurp = Inf, input = 'env')
 
 # increase spectral and temporal resolution (slow)
 surp = getSurprisal(sound, 16000, winSurp = 2000,
-  audSpec_pars = list(nFilters = 128, step = 10, yScale = 'bark', bandwidth = 1/12))
+  audSpec_pars = list(nFilters = 128, step = 10,
+  yScale = 'bark', bandwidth = 1/12))
 
 # weight by increase in loudness instead of "pure" surprisal
 spectrogram(sound, 16000, extraContour = surp$detailed$surprisalLoudness /

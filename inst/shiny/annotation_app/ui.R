@@ -1,6 +1,9 @@
 # annotation_app()
 #
-ui = fluidPage(
+library(bslib)
+tooltip_opt = list(trigger = 'hover', delay = list(show = 500, hide = 100))
+
+ui = page_fluid(
   # css
   tags$head(
     shiny::includeCSS("www/annotation_app.css")
@@ -29,184 +32,208 @@ ui = fluidPage(
     tags$div(
       id = 'left',
       fluidRow(
-        column(
-          width = 4,
-          id = "Sidebar",
-          tabsetPanel(
-            id = 'parGroup',
-            tabPanel(
-              "General",
-              actionButton(
-                'reset_to_def',
-                label = 'Reset ALL to defaults'),
-              radioButtons(
-                'audioMethod',
-                label = "Play analyzed audio with",
-                choices = list('Browser' = 'Browser', 'R' = 'R'),
-                selected = 'Browser', inline = TRUE, width = NULL
+        layout_sidebar(
+          sidebar = sidebar(
+            id = "Sidebar",
+            width = "300px",
+            bg = "Azure",
+
+            tabsetPanel(
+              id = 'parGroup',
+              tabPanel(
+                "General",
+                actionButton(
+                  'reset_to_def',
+                  label = 'Reset ALL to defaults') |>
+                  tooltip("Reset all settings to default values", options = tooltip_opt),
+
+                radioButtons(
+                  'audioMethod',
+                  label = "Play analyzed audio with",
+                  choices = list('Browser' = 'Browser', 'R' = 'R'),
+                  selected = 'Browser', inline = TRUE, width = NULL) |>
+                  tooltip("Play audio with javascript (recommended in Firefox,
+                        doesn't work in Chrome) or with R (browser-independent,
+                        but then the cursor doesn't move, and you can't stop playback)",
+                          options = tooltip_opt),
+
+                checkboxInput(
+                  'normalizeInput',
+                  'Normalize for peak amplitude',
+                  value = TRUE),
               ),
-              checkboxInput(
-                'normalizeInput',
-                'Normalize for peak amplitude',
-                value = TRUE),
-            ),
 
-            tabPanel(
-              "Spectrogram",
-              sliderInput(
-                'spec_ylim',
-                'Frequency range, kHz',
-                value = c(0, def_form['spec_ylim', 'default']),
-                min = def_form['spec_ylim', 'low'],
-                max = def_form['spec_ylim', 'high'],
-                step = def_form['spec_ylim', 'step']),
-              numericInput(
-                'windowLength',
-                'Window length, ms',
-                value = 20, # def_form['windowLength', 'default'],
-                min = def_form['windowLength', 'low'],
-                max = def_form['windowLength', 'high'],
-                step = def_form['windowLength', 'step']),
-              numericInput(
-                'step',
-                'Step, ms',
-                value = 5, # def_form['step', 'default'],
-                min = def_form['step', 'low'],
-                max = def_form['step', 'high'],
-                step = def_form['step', 'step']),
-              # sliderInput(
-              #   'overlap',
-              #   'Overlap, %',
-              #   value = def_form['overlap', 'default'],
-              #   min = def_form['overlap', 'low'],
-              #   max = def_form['overlap', 'high'],
-              #   step = def_form['overlap', 'step']),
-              radioButtons(
-                inputId = 'specType',
-                label = 'Spectrogram type',
-                choices = c("Ordinary FFT" = "spectrum",
-                            "Reassigned" = "reassigned",
-                            "Derivative" = "spectralDerivative"),
-                selected = 'spectrum', inline = TRUE, width = NULL),
-              sliderInput(
-                'dynamicRange',
-                'Dynamic range, dB',
-                value = def_form['dynamicRange', 'default'],
-                min = def_form['dynamicRange', 'low'],
-                max = def_form['dynamicRange', 'high'],
-                step = def_form['dynamicRange', 'step']),
-              radioButtons(
-                inputId = 'spec_colorTheme',
-                label = 'Color scheme',
-                choices = c("Seewave" = "seewave",
-                            "Heat" = "heat.colors",
-                            "Black & white" = "bw"),
-                selected = 'bw', inline = TRUE, width = NULL),
-              numericInput(
-                'nColors',
-                'Number of colors in the palette',
-                value = defaults_analyze['nColors', 'default'],
-                min = defaults_analyze['nColors', 'low'],
-                max = defaults_analyze['nColors', 'high'],
-                step = defaults_analyze['nColors', 'step']),
-              radioButtons(
-                inputId = 'spec_yScale',
-                label = 'Frequency scale',
-                choices = c("Linear" = "linear",
-                            "Musical (log)" = "log",
-                            "Bark" = "bark",
-                            "Mel" = "mel",
-                            "ERB" = "ERB"),
-                selected = 'linear', inline = TRUE, width = NULL),
-              sliderInput(
-                'specContrast',
-                'Contrast',
-                value = 0, # def_form['specContrast', 'default'],
-                min = def_form['specContrast', 'low'],
-                max = def_form['specContrast', 'high'],
-                step = def_form['specContrast', 'step']),
-              sliderInput(
-                'specBrightness',
-                'Brightness',
-                value =0, # def_form['specBrightness', 'default'],
-                min = def_form['specBrightness', 'low'],
-                max = def_form['specBrightness', 'high'],
-                step = def_form['specBrightness', 'step']),
-              shinyBS::bsCollapsePanel(
-                "Advanced",
-                sliderInput(
-                  'blur_freq',
-                  'Blur: frequency (Hz)',
-                  value = 0, # def_form['blur_freq', 'default'],
-                  min = def_form['blur_freq', 'low'],
-                  max = def_form['blur_freq', 'high'],
-                  step = def_form['blur_freq', 'step']),
-                sliderInput(
-                  'blur_time',
-                  'Blur: time (ms)',
-                  value = 0, # def_form['blur_time', 'default'],
-                  min = def_form['blur_time', 'low'],
-                  max = def_form['blur_time', 'high'],
-                  step = def_form['blur_time', 'step']),
-                sliderInput(
-                  'reass_cex',
-                  'Point size (reassigned spectrogram only)',
-                  value = def_form['reass_cex', 'default'],
-                  min = def_form['reass_cex', 'low'],
-                  max = def_form['reass_cex', 'high'],
-                  step = def_form['reass_cex', 'step']),
-                sliderInput(
-                  'zp',
-                  'Zero padding, points 2 ^ n',
-                  value = def_form['zp', 'default'],
-                  min = def_form['zp', 'low'],
-                  max = def_form['zp', 'high'],
-                  step = def_form['zp', 'step']),
+              tabPanel(
+                "Spectrogram",
+                accordion(
+                  sliderInput(
+                    'spec_ylim',
+                    'Frequency range, kHz',
+                    value = c(0, def_form['spec_ylim', 'default']),
+                    min = def_form['spec_ylim', 'low'],
+                    max = def_form['spec_ylim', 'high'],
+                    step = def_form['spec_ylim', 'step']) |>
+                    tooltip("Range of displayed frequencies, kHz", options = tooltip_opt),
+
+                  numericInput(
+                    'windowLength',
+                    'Window length, ms',
+                    value = 20, # def_form['windowLength', 'default'],
+                    min = def_form['windowLength', 'low'],
+                    max = def_form['windowLength', 'high'],
+                    step = def_form['windowLength', 'step']) |>
+                    tooltip("Length of STFT window, ms", options = tooltip_opt),
+
+                  numericInput(
+                    'step',
+                    'Step, ms',
+                    value = 5, # def_form['step', 'default'],
+                    min = def_form['step', 'low'],
+                    max = def_form['step', 'high'],
+                    step = def_form['step', 'step']) |>
+                    tooltip("Step between analysis frames, ms", options = tooltip_opt),
+
+                  radioButtons(
+                    inputId = 'specType',
+                    label = tooltip('Spectrogram type', "Spectrogram type,
+                                  argument 'specType' in spectrogram()"),
+                    choices = c("Ordinary FFT" = "spectrum",
+                                "Reassigned" = "reassigned",
+                                "Derivative" = "spectralDerivative"),
+                    selected = 'spectrum', inline = TRUE, width = NULL),
+
+                  sliderInput(
+                    'dynamicRange',
+                    'Dynamic range, dB',
+                    value = def_form['dynamicRange', 'default'],
+                    min = def_form['dynamicRange', 'low'],
+                    max = def_form['dynamicRange', 'high'],
+                    step = def_form['dynamicRange', 'step']),
+
+                  radioButtons(
+                    inputId = 'spec_colorTheme',
+                    label = 'Color scheme',
+                    choices = c("Seewave" = "seewave",
+                                "Heat" = "heat.colors",
+                                "Black & white" = "bw"),
+                    selected = 'bw', inline = TRUE, width = NULL),
+
+                  numericInput(
+                    'nColors',
+                    'Number of colors in the palette',
+                    value = defaults_analyze['nColors', 'default'],
+                    min = defaults_analyze['nColors', 'low'],
+                    max = defaults_analyze['nColors', 'high'],
+                    step = defaults_analyze['nColors', 'step']),
+
+                  radioButtons(
+                    inputId = 'spec_yScale',
+                    label = 'Frequency scale',
+                    choices = c("Linear" = "linear",
+                                "Musical (log)" = "log",
+                                "Bark" = "bark",
+                                "Mel" = "mel",
+                                "ERB" = "ERB"),
+                    selected = 'linear', inline = TRUE, width = NULL),
+
+                  sliderInput(
+                    'specContrast',
+                    'Contrast',
+                    value = 0, # def_form['specContrast', 'default'],
+                    min = def_form['specContrast', 'low'],
+                    max = def_form['specContrast', 'high'],
+                    step = def_form['specContrast', 'step']),
+
+                  sliderInput(
+                    'specBrightness',
+                    'Brightness',
+                    value =0, # def_form['specBrightness', 'default'],
+                    min = def_form['specBrightness', 'low'],
+                    max = def_form['specBrightness', 'high'],
+                    step = def_form['specBrightness', 'step']),
+
+                  accordion_panel(
+                    "Advanced",
+                    sliderInput(
+                      'blur_freq',
+                      'Blur: frequency (Hz)',
+                      value = 0, # def_form['blur_freq', 'default'],
+                      min = def_form['blur_freq', 'low'],
+                      max = def_form['blur_freq', 'high'],
+                      step = def_form['blur_freq', 'step']) |>
+                      tooltip("Gaussian filter of frequency: >0 = blur, <0 = unblur
+                        (sharpen)", options = tooltip_opt),
+
+                    sliderInput(
+                      'blur_time',
+                      'Blur: time (ms)',
+                      value = 0, # def_form['blur_time', 'default'],
+                      min = def_form['blur_time', 'low'],
+                      max = def_form['blur_time', 'high'],
+                      step = def_form['blur_time', 'step']) |>
+                      tooltip("Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)",
+                              options = tooltip_opt),
+
+                    sliderInput(
+                      'reass_cex',
+                      'Point size (reassigned spectrogram only)',
+                      value = def_form['reass_cex', 'default'],
+                      min = def_form['reass_cex', 'low'],
+                      max = def_form['reass_cex', 'high'],
+                      step = def_form['reass_cex', 'step']) |>
+                      tooltip("", options = tooltip_opt),
+
+                    sliderInput(
+                      'zp',
+                      'Zero padding, points 2 ^ n',
+                      value = def_form['zp', 'default'],
+                      min = def_form['zp', 'low'],
+                      max = def_form['zp', 'high'],
+                      step = def_form['zp', 'step']) |>
+                      tooltip("Zero padding: 8 means 2^8 = 256, etc.", options = tooltip_opt),
+
+                    selectInput(
+                      'wn',
+                      'STFT window type',
+                      choices = c('bartlett', 'blackman', 'flattop', 'gaussian',
+                                  'hamming', 'hanning', 'rectangle'),
+                      selected = 'gaussian', multiple = FALSE),
+
+                    sliderInput(
+                      'spec_maxPoints',
+                      'Max number of pixels, 10^',
+                      value = def_form['spec_maxPoints', 'default'],
+                      min = def_form['spec_maxPoints', 'low'],
+                      max = def_form['spec_maxPoints', 'high'],
+                      step = def_form['spec_maxPoints', 'step']) |>
+                      tooltip("The number of points to plot in the spectrogram
+                        (smaller = faster, but low resolution)", options = tooltip_opt)
+                  )
+                )
+              ),
+
+              tabPanel(
+                "Oscillogram",
                 selectInput(
-                  'wn',
-                  'Window type',
-                  choices = c('bartlett', 'blackman', 'flattop', 'gaussian',
-                              'hamming', 'hanning', 'rectangle'),
-                  selected = 'gaussian', multiple = FALSE),
+                  'osc',
+                  'Oscillogram type',
+                  choices = c('linear', 'dB'),
+                  selected = 'linear', multiple = FALSE),
+
                 sliderInput(
-                  'spec_maxPoints',
+                  'osc_maxPoints',
                   'Max number of pixels, 10^',
-                  value = def_form['spec_maxPoints', 'default'],
-                  min = def_form['spec_maxPoints', 'low'],
-                  max = def_form['spec_maxPoints', 'high'],
-                  step = def_form['spec_maxPoints', 'step'])
+                  value = def_form['osc_maxPoints', 'default'],
+                  min = def_form['osc_maxPoints', 'low'],
+                  max = def_form['osc_maxPoints', 'high'],
+                  step = def_form['osc_maxPoints', 'step']) |>
+                  tooltip("The number of points to plot in the oscillogram
+                        (smaller = faster, but low resolution)", options = tooltip_opt)
               )
-            ),
-
-            tabPanel(
-              "Oscillogram",
-              selectInput(
-                'osc',
-                'Oscillogram type',
-                choices = c('linear', 'dB'),
-                selected = 'linear', multiple = FALSE),
-              sliderInput(
-                'osc_maxPoints',
-                'Max number of pixels, 10^',
-                value = def_form['osc_maxPoints', 'default'],
-                min = def_form['osc_maxPoints', 'low'],
-                max = def_form['osc_maxPoints', 'high'],
-                step = def_form['osc_maxPoints', 'step'])
             )
-          )
-        ),  # end of column "sidebar"
+          ), # end of column "sidebar"
 
-        column(
-          width = 8,
-          id ="Main",
           fluidRow(
-            column(
-              width = 1,
-              bsButton(
-                "showpanel", label = '', icon = icon("bars"),
-                type = "toggle", value = FALSE)
-            ),
-
             column(
               width = 3,
               fileInput(
@@ -223,11 +250,13 @@ ui = fluidPage(
               tags$div(
                 actionButton(
                   inputId = "lastFile", label = "<<",
-                  class = "buttonFile"),
+                  class = "buttonFile") |>
+                  tooltip("Save and return to the previous file (PageUp)", options = tooltip_opt),
                 tags$strong(uiOutput("fileN", inline = TRUE)),
                 actionButton(
                   inputId = "nextFile", label = ">>",
-                  class = "buttonFile")
+                  class = "buttonFile") |>
+                  tooltip("Save and proceed to the next file (PageDown)", options = tooltip_opt)
               ),
               selectInput('fileList', label = NULL, choices = list())
             ),
@@ -237,14 +266,12 @@ ui = fluidPage(
               uiOutput("htmlAudio"),  # not actually shown
               downloadButton(
                 outputId = "saveRes", label = "",
-                style="color: blue; background-color: orange;"),
+                style="color: blue; background-color: orange;") |>
+                tooltip("Download results (see ?pitch_app for recovering unsaved
+                        data after a crash)", options = tooltip_opt),
+
               actionButton(
                 'about', label = '?'),
-              shinyBS:::bsPopover
-              (id = 'about', title = NULL, content = 'Help',
-                placement = "right", trigger = "hover")
-              # shinyBS has to be mentioned somewhere in ui,
-              # otherwise addTooltip doesn't work in server
             )
           ),
 
@@ -254,11 +281,14 @@ ui = fluidPage(
               actionButton(
                 inputId = 'zoomOut_freq',
                 label = HTML("<img src='icons/zoomOut.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Zoom out frequency (-)", options = tooltip_opt),
+
               actionButton(
                 inputId = 'zoomIn_freq',
                 label = HTML("<img src='icons/zoomIn.png' width = '20px'>"),
-                class = "buttonInline")
+                class = "buttonInline") |>
+                tooltip("Zoom in frequency (+)", options = tooltip_opt)
             ),
 
             column(
@@ -266,19 +296,26 @@ ui = fluidPage(
               actionButton(
                 inputId = "selection_stop",
                 label = HTML("<img src='icons/stop.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Stop playback", options = tooltip_opt),
+
               actionButton(
                 inputId = "selection_play",
                 label = HTML("<img src='icons/play.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Play selection (SPACEBAR)", options = tooltip_opt),
+
               actionButton(
                 inputId = "selection_annotate",
                 label = HTML("<img src='icons/annotate.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Create a new annotation (A or DOUBLE-CLICK)", options = tooltip_opt),
+
               actionButton(
                 inputId = "selection_delete",
                 label = HTML("<img src='icons/delete.png' width = '20px'>"),
-                class = "buttonInline")
+                class = "buttonInline") |>
+                tooltip("Remove annotation (DELETE / BACKSPACE)", options = tooltip_opt)
             ),
 
             column(
@@ -286,23 +323,32 @@ ui = fluidPage(
               actionButton(
                 inputId = 'scrollLeft',
                 label = HTML("<img src='icons/backward.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Scroll left (arrow LEFT)", options = tooltip_opt),
+
               actionButton(
                 inputId = 'zoomOut',
                 label = HTML("<img src='icons/zoomOut.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Zoom out time (arrow DOWN)", options = tooltip_opt),
+
               actionButton(
                 inputId = "zoomToSel",
                 label = HTML("<img src='icons/zoomSel.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Zoom to selection (S)", options = tooltip_opt),
+
               actionButton(
                 inputId = 'zoomIn',
                 label = HTML("<img src='icons/zoomIn.png' width = '20px'>"),
-                class = "buttonInline"),
+                class = "buttonInline") |>
+                tooltip("Zoom in time (arrow UP)", options = tooltip_opt),
+
               actionButton(
                 inputId = 'scrollRight',
                 label = HTML("<img src='icons/forward.png' width = '20px'>"),
-                class = "buttonInline")
+                class = "buttonInline") |>
+                tooltip("Scroll right (arrow RIGHT)", options = tooltip_opt)
             )
           ),
 

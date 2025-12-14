@@ -4,13 +4,19 @@
 \alias{annotation_app}
 \title{Annotation app}
 \usage{
-annotation_app()
+annotation_app(...)
+}
+\arguments{
+\item{...}{presets like \code{windowLength = 25}. Full list: dynamicRange,
+specContrast, specBrightness, blur_freq, blur_time, reass_cex, zp,
+spec_maxPoints, osc_maxPoints, windowLength, step, spec_xlim, spec_ylim,
+spec_colorTheme, osc, wn}
 }
 \value{
-Every time a new annotation is added, the app creates a backup csv
-  file and creates or updates a global object called "my_annot", which
-  contains all the annotations. When the app is terminated, it also returns
-  the results as a dataframe.
+A list of the last used settings ($settings) plus a data.frame with
+  the annotations. Every time a new annotation is added, the app creates a
+  backup csv file and creates or updates a global object called "my_annot",
+  which contains all the annotations.
 }
 \description{
 Starts a shiny app for annotating audio. This is a simplified and faster
@@ -19,6 +25,14 @@ version of \code{\link{formant_app}} intended only for making annotations.
 \examples{
 \dontrun{
 ann = annotation_app()  # runs in default browser such as Firefox or Chrome
+
+ann = annotation_app(specType = 'reassigned', windowLength = 5, step = 1)
+# full list of parameters that can be passed to annotation_app():
+# paste0(c(names(input)[which(names(input) \%in\% rownames(def_form))],
+#  'spec_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+
+# save the complete output, including the settings used
+saveRDS(ann, 'my_annotations.rds')
 
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux

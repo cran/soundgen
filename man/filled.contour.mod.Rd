@@ -20,7 +20,6 @@ filled.contour.mod(
   xaxs = "i",
   yaxs = "i",
   las = 1,
-  log = "",
   yScale = c("orig", "bark", "mel", "ERB")[1],
   axisX = TRUE,
   axisY = TRUE,
@@ -47,8 +46,6 @@ filled.contour to avoid artifacts)}
 
 \item{asp, xaxs, yaxs, ...}{graphical parameters passed to plot.window() and
 axis()}
-
-\item{log}{log = 'y' log-transforms the y axis}
 
 \item{axisX, axisY}{plot the axis or not (logical)}
 

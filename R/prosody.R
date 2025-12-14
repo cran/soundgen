@@ -172,7 +172,7 @@ prosody = function(
 
   # convert the difference between old and new pitch contour to mult
   multPitch = pitch_new / pitch
-  # NA means mult = 1 (don't change unvoiced frames)
+  # NA means mult = 1 (don't change voiceless frames)
   multPitch[is.na(multPitch)] = 1
 
   # perform pitch shifting

@@ -4,13 +4,22 @@
 \alias{formant_app}
 \title{Interactive formant tracker}
 \usage{
-formant_app()
+formant_app(...)
+}
+\arguments{
+\item{...}{presets like \code{windowLength = 25}. Full list:
+samplingRate_mult, nFormants, minformant, maxbw, dynamicRange_lpc, zp_lpc,
+spec_ylim, dynamicRange, specContrast, specBrightness, blur_freq,
+blur_time, reass_cex, zp, spec_maxPoints, osc_maxPoints, spectrum_smooth,
+spectrum_xlim, spectrum_len, silence, windowLength_lpc, step_lpc,
+windowLength, step, spectrum_xlim, spec_ylim, spec_colorTheme, osc, wn,
+wn_lpc, vtl_method, speedSound, coeffs, interceptZero, tube}
 }
 \value{
-Every time a new annotation is added, the app creates a backup csv
-  file and creates or updates a global object called "my_formants", which
-  contains all the annotations. When the app is terminated, it also returns
-  the results as a dataframe.
+A list of the last used settings ($settings) plus a data.frame with
+  the formant measurements. Every time a new annotation is added, the app
+  creates a backup csv file and creates or updates a global object called
+  "my_formants", which contains all the annotations.
 }
 \description{
 Starts a shiny app for manually correcting formant measurements. For more
@@ -37,6 +46,18 @@ very large files.
 \examples{
 \dontrun{
 f = formant_app()  # runs in default browser such as Firefox or Chrome
+
+f1 = formant_app(specType = 'reassigned', windowLength = 5, step = 1)
+# full list of parameters that can be passed to formant_app():
+# paste0(c(names(input)[which(names(input) \%in\% rownames(def_form))],
+# 'spectrum_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn', 'wn_lpc',
+# 'vtl_method', 'speedSound', 'coeffs', 'interceptZero', 'tube'), collapse = ', ')
+
+# run the app with previously used settings
+f2 = do.call(formant_app, f1$settings)
+
+# save the complete output, including the settings used
+saveRDS(f2, 'my_formant_analysis.rds')
 
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux

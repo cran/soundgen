@@ -142,7 +142,7 @@ getPitchAutocor = function(autoCorrelation,
 
   # HNR = max(a$amp) # HNR is here defined as the maximum autocorrelation
   # within the specified pitch range. It is also measured for the frames which
-  # are later classified as unvoiced (i.e. HNR can be <voicedThres)
+  # are later classified as voiceless (i.e. HNR can be <voicedThres)
 
   # find peaks in the corrected autocorrelation function; default width = 7
   # chosen by optimization, but it doesn't make that much difference anyhow
@@ -748,7 +748,14 @@ getPitchHps = function(frame,
 #' (hopefully corresponding to glottal cycles) instead of pitch values at fixed
 #' time intervals.
 #'
-#' Algorithm: the audio is bandpass-filtered from \code{pitchFloor} to \code{pitchCeiling}, and the timing of all zero crossings is saved. This is not enough, however, because unvoiced sounds like white noise also have plenty of zero crossings. Accordingly, an attempt is made to detect voiced segments (or steady musical tones, etc.) by looking for stable regions, with several zero-crossings at relatively regular intervals (see parameters \code{zcThres} and \code{zcWin}). Very quiet parts of audio are also treated as not having a pitch.
+#' Algorithm: the audio is bandpass-filtered from \code{pitchFloor} to
+#' \code{pitchCeiling}, and the timing of all zero crossings is saved. This is
+#' not enough, however, because aperiodic sounds like white noise also have
+#' plenty of zero crossings. Accordingly, an attempt is made to detect voiced
+#' segments (or steady musical tones, etc.) by looking for stable regions, with
+#' several zero-crossings at relatively regular intervals (see parameters
+#' \code{zcThres} and \code{zcWin}). Very quiet parts of audio are also treated
+#' as not having a pitch.
 #' @seealso \code{\link{analyze}}
 #'
 #' @inheritParams spectrogram

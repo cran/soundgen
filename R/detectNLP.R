@@ -28,7 +28,7 @@
 #' @param thresProb minimum probability of NLP for the frame to be classified as
 #'   non-"none", which is good for reducing false alarms (<1/nClasses means just
 #'   go for the highest probability)
-#' @param unvoicedToNone if TRUE, frames treated as unvoiced are set to "none"
+#' @param voicelessdToNone if TRUE, frames treated as voicelessd are set to "none"
 #'   (mostly makes sense with manual pitch tracking)
 #' @param train training corpus, namely the result of running
 #'   \code{\link{naiveBayes_train}} on audio with known NLP episodes. Currently
@@ -112,7 +112,7 @@ detectNLP = function(
     predictors = c('d2', 'subDep', 'amEnvDep', 'amMsPurity',
                    'entropy', 'HNR', 'CPP', 'roughness'),
     thresProb = 0.4,
-    unvoicedToNone = FALSE,
+    voicelessdToNone = FALSE,
     train = soundgen::detectNLP_training_nonv,
     scale = NULL,
     from = NULL,
@@ -198,7 +198,7 @@ detectNLP = function(
     predictors = c('nPeaks', 'd2', 'subDep', 'amEnvDep',
                    'entropy', 'HNR', 'CPP', 'roughness'),
     thresProb = 0.4,
-    unvoicedToNone = FALSE,
+    voicelessdToNone = FALSE,
     train = soundgen::detectNLP_training_nonv,
     scale = NULL,
     from = NULL,
@@ -275,7 +275,7 @@ detectNLP = function(
   # all_na = which(apply(df, 2, function(x) !any(!is.na(x))))
   # if (length(all_na) > 0) df = df[, -as.numeric(all_na)]
 
-  # call naiveBayes() w/o clumpering (done after setting unvoiced to "none")
+  # call naiveBayes() w/o clumpering (done after setting voicelessd to "none")
   myf = formula(paste('nlp ~', paste(predictors, collapse = '+')))
   nb = do.call(naiveBayes, c(
     pars_naiveBayes[which(names(pars_naiveBayes) != 'wlClumper')],
@@ -287,12 +287,12 @@ detectNLP = function(
   max_nlp_prob = apply(df[, c('sb', 'sh', 'chaos')], 1, max)
   df$pr = as.character(df$pr) # in case 'none' is not already a valid level
   df$pr[which(max_nlp_prob < thresProb)] = 'none'
-  # same for very quiet frames and unvoiced frames
+  # same for very quiet frames and voicelessd frames
   if (nr_an != nrow(df))
     an = an[seq(1, nrow(an), length.out = nrow(df)),
             c('ampl_noSilence', 'voiced')]
   df$pr[which(is.na(an$ampl_noSilence))] = 'none'
-  if (unvoicedToNone)
+  if (voicelessdToNone)
     df$pr[which(!an$voiced)] = 'none'
   # run clumper()
   if (!is.null(pars_naiveBayes$wlClumper) && pars_naiveBayes$wlClumper > 1)

@@ -171,14 +171,18 @@ ph$descriptives
 
 # Unfortunately, phasegrams are greatly affected by noise. Compare:
 target2 = soundgen(sylLen = 300, pitch = c(350, 420, 420, 410, 340) * 3,
-  subDep = c(0, 0, 60, 50, 0, 0)/2, noise = -10, addSilence = 0, plot = TRUE)
-ph2 = phasegram(target2, 16000)
+  subDep = c(0, 0, 60, 50, 0, 0), noise = -30, jitterDep = .4,
+  rolloff = -5, addSilence = 0, plot = TRUE)
+ph2 = phasegram(target2, 16000, nonlinStats = NULL)
+
+# low-pass filtering may help a bit
+target2_lowpass = bandpass(target2, 16000, upr = 2500)
+phasegram(target2_lowpass, 16000, nonlinStats = NULL)
 
 s2 = soundgen(sylLen = 3000, addSilence = 0, temperature = 1e-6,
   pitch = c(380, 550, 500, 220), subDep = c(0, 0, 40, 0, 0, 0, 0, 0),
   amDep = c(0, 0, 0, 0, 80, 0, 0, 0), amFreq = 80,
-  jitterDep = c(0, 0, 0, 0, 0, 3))
-spectrogram(s2, 16000, yScale = 'bark')
+  jitterDep = c(0, 0, 0, 0, 0, 3), plot = TRUE, yScale = 'bark')
 phasegram(s2, 16000, windowLength = 10, nonlinStats = NULL, bw = .001)
 phasegram(s2, 16000, windowLength = 10, nonlinStats = NULL, bw = .02)
 }

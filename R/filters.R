@@ -352,14 +352,14 @@ bandpass = function(
 #'
 #' Smoothes an intonation (pitch) contour with a low-pass filter, as in Praat
 #' (http://www.fon.hum.uva.nl/praat/). Algorithm: interpolates missing values
-#' (unvoiced frames), performs FFT to obtain the spectrum, multiplies by a
+#' (voiceless frames), performs FFT to obtain the spectrum, multiplies by a
 #' Gaussian filter, performs an inverse FFT, and fills the missing values back
 #' in. The \code{bandwidth} parameter is about half the cutoff frequency (ie
 #' some frequencies will still be present up to ~2 * bandwidth)
 #'
 #' @seealso \code{\link{analyze}}
 #'
-#' @param pitch numeric vector of pitch values (NA = unvoiced)
+#' @param pitch numeric vector of pitch values (NA = voiceless)
 #' @param bandwidth the bandwidth of low-pass filter, Hz (high = less smoothing,
 #'   close to zero = more smoothing)
 #' @param samplingRate the number of pitch values per second

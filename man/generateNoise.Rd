@@ -26,11 +26,11 @@ generateNoise(
 \item{len}{length of output}
 
 \item{rolloffNoise, noiseFlatSpec}{linear rolloff of the excitation source for
-the unvoiced component, \code{rolloffNoise} dB/kHz (anchor format) applied
+the noise component, \code{rolloffNoise} dB/kHz (anchor format) applied
 above \code{noiseFlatSpec} Hz}
 
 \item{rolloffNoiseExp}{exponential rolloff of the excitation source for the
-unvoiced component, dB/oct (anchor format) applied above 0 Hz}
+noise component, dB/oct (anchor format) applied above 0 Hz}
 
 \item{spectralEnvelope}{(optional): as an alternative to using rolloffNoise,
 we can provide the exact filter - a vector of non-negative numbers
@@ -41,8 +41,8 @@ each STFT step is also accepted. The easiest way to obtain spectralEnvelope
 is to call soundgen:::getSpectralEnvelope or to use the spectrum /
 spectrogram of a recorded sound}
 
-\item{noise}{loudness of turbulent noise (0 dB = as loud as
-voiced component, negative values = quieter) such as aspiration, hissing,
+\item{noise}{loudness of turbulent noise (0 dB = as loud as the periodic
+(voiced) component, negative values = quieter) such as aspiration, hissing,
 etc (anchor format)}
 
 \item{temperature}{hyperparameter for regulating the amount of stochasticity
@@ -147,7 +147,7 @@ noise = generateNoise(len = samplingRate, spectralEnvelope = spectralEnvelope,
   samplingRate = samplingRate, play = playback)
 
 # Compare to a similar sound created with soundgen()
-# (unvoiced only, a single formant at 4 kHz)
+# (aperiodic noise only, a single formant at 4 kHz)
 noise_s = soundgen(pitch = NULL,
   noise = data.frame(time = c(0, 1000), value = c(0, 0)),
   formants = list(f1 = data.frame(freq = 4000, amp = 80, width = 20)),

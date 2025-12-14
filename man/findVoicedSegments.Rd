@@ -22,11 +22,11 @@ one fft frame, one row is one pitch candidate}
 
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
-if unvoiced)}
+if voiceless)}
 
 \item{shortestPause}{the smallest gap between voiced syllables (ms): large
 value = interpolate and merge, small value = treat as separate syllables
-separated by an unvoiced gap}
+separated by a voiceless gap}
 
 \item{step}{you can override \code{overlap} by specifying FFT step, ms - a
 vector of the same length as windowLength (NB: because digital audio is

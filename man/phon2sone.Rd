@@ -2,24 +2,29 @@
 % Please edit documentation in R/loudness_utilities.R
 \name{phon2sone}
 \alias{phon2sone}
-\title{Convert phon to sone}
+\alias{sone2phon}
+\title{Phon-sone conversion}
 \usage{
 phon2sone(phon)
+
+sone2phon(sone)
 }
 \arguments{
 \item{phon}{loudness level, phon (vectorized)}
+
+\item{sone}{loudness in sones (vectorized)}
 }
 \description{
-Internal soundgen function
-}
-\details{
-Source: Timoney, J., Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004).
-Implementing loudness models in matlab.
+Conversion between phon and sone loudness scales. Source: Timoney, J.,
+Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004). Implementing loudness
+models in matlab.
 }
 \examples{
 phon = seq(0, 120, 2)
 sone = soundgen:::phon2sone(phon)
 plot(phon, sone, type = 'b')
 plot(phon, log2(sone), type = 'b')
+
+phon2 = soundgen:::sone2phon(sone)
+plot(phon, phon2); abline(0, 1)
 }
-\keyword{internal}

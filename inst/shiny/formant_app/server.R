@@ -11,9 +11,6 @@
 # a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
 # as.numeric(unlist(strsplit(a$pitch, ',')))
 
-# shinyBS needs to be included as a dependency (instead of just "import"):
-# see https://stackoverflow.com/questions/52649138/including-shinybs-in-a-package
-
 server = function(input, output, session) {
   # make overlaid plots resizable (js fix)
   shinyjs::js$inheritSize(parentDiv = 'specDiv')
@@ -23,7 +20,7 @@ server = function(input, output, session) {
 
   myPars = reactiveValues(
     print = FALSE,          # if TRUE, some functions print a meassage to the console when called
-    debugQn = FALSE,        # for debugging - click "?" to step into the code
+    debugQn = T,        # for debugging - click "?" to step into the code
     zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
     drawSpec = TRUE,
@@ -94,27 +91,30 @@ server = function(input, output, session) {
 
   resetSliders = function() {
     if (myPars$print) print('Resetting sliders...')
-    sliders_to_reset = names(input)[which(names(input) %in% rownames(def_form))]
+    sliders_to_reset = c(
+      names(input)[which(names(input) %in% names(formant_app_defaults))],
+      'spectrum_xlim', 'spec_ylim', 'speedSound'
+    )
     for (v in sliders_to_reset) {
-      new_value = def_form[v, 'default']
-      try(updateSliderInput(session, v, value = new_value))
-      try(updateNumericInput(session, v, value = new_value))
-      updateSelectInput(session, 'wn', selected = 'gaussian')
-      updateSelectInput(session, 'wn_lpc', selected = 'gaussian')
-      updateSliderInput(session, 'spec_ylim',
-                        value = c(0, def_form['spec_ylim','default']))
-      updateSliderInput(session, 'spectrum_xlim',
-                        value = c(0, def_form['spectrum_xlim','default']))
-      updateRadioButtons(session, 'spec_colorTheme', selected='bw')
-      updateSelectInput(session, 'osc', selected = 'linear')
-      updateSelectInput(session, 'vtl_method', selected = 'regression')
-      updateSliderInput(session, 'speedSound', value = '35400')
-      updateTextInput(session, 'coeffs', value = '')
-      updateCheckboxInput(session, 'interceptZero', value = TRUE)
-      updateCheckboxInput(session, 'tube', value = 'closed-open')
+      new_value = formant_app_defaults[[v]]
+      suppressWarnings(try(updateSliderInput(session, v, value = new_value)))
+      suppressWarnings(try(updateNumericInput(session, v, value = new_value)))
     }
+    updateSelectInput(session, 'wn', selected = formant_app_defaults$wn)
+    updateSelectInput(session, 'wn_lpc', selected = formant_app_defaults$wn_lpc)
+    updateSliderInput(session, 'spec_ylim', value = formant_app_defaults$spec_ylim)
+    updateSliderInput(session, 'spectrum_xlim',
+                      value = formant_app_defaults$spectrum_xlim)
+    updateRadioButtons(session, 'spec_colorTheme',
+                       selected = formant_app_defaults$spec_colorTheme)
+    updateSelectInput(session, 'osc', selected = formant_app_defaults$osc)
+    updateSelectInput(session, 'vtl_method', selected = formant_app_defaults$vtl_method)
+    updateSliderInput(session, 'speedSound', value = formant_app_defaults$speedSound)
+    updateTextInput(session, 'coeffs', value = formant_app_defaults$coeffs)
+    updateCheckboxInput(session, 'interceptZero', value = formant_app_defaults$interceptZero)
+    updateCheckboxInput(session, 'tube', value = formant_app_defaults$tube)
   }
-  observeEvent(input$reset_to_def, resetSliders())
+  observeEvent(input$reset_to_def, resetSliders(), ignoreNULL = FALSE)
 
   loadAudio = function() {
     # shinyjs::js$inheritSize(parentDiv = 'specDiv')
@@ -187,20 +187,6 @@ server = function(input, output, session) {
     }
   }
   observeEvent(input$loadAudio, loadAudio())
-
-  observeEvent(input$showpanel, {
-    if(input$showpanel == TRUE) {
-      shinyjs::removeCssClass("Main", "col-sm-12")
-      shinyjs::addCssClass("Main", "col-sm-8")
-      shinyjs::show(id = "Sidebar")
-      shinyjs::enable(id = "Sidebar")
-    }
-    else {
-      shinyjs::removeCssClass("Main", "col-sm-8")
-      shinyjs::addCssClass("Main", "col-sm-12")
-      shinyjs::hide(id = "Sidebar")
-    }
-  })
 
   readAudio = function(i) {
     # reads an audio file with tuneR::readWave
@@ -307,9 +293,10 @@ server = function(input, output, session) {
       ))
       if (!inherits(temp_spec, 'try-error') &&
           length(temp_spec) > 0 &&
-          is.matrix(temp_spec$processed))
+          is.matrix(temp_spec$processed)) {
         myPars$spec = temp_spec$processed
-      myPars$reassigned = temp_spec$reassigned
+        myPars$reassigned = temp_spec$reassigned
+      }
     }
   })
 
@@ -347,35 +334,37 @@ server = function(input, output, session) {
     c(
       list(actionButton(
         inputId = 'remF',
-        label = HTML("<img src='icons/minus.png' width = '25px'>"), # '-',
+        label = tooltip(HTML("<img src='icons/minus.png' width = '25px'>"),
+                        "Remove one formant"), # '-',
         class = "buttonInline"
       )),
+
       lapply(1:input$nFormants, function(f) {  # need to return a list, hence lapply
         tags$div(
           id = paste0('fDiv_', f),
           class = ifelse(f == 1, 'fBox selected', 'fBox'),
           textInput(
             inputId = paste0('F', f, '_text'),
-            label = paste0('F', f),
+            label = tooltip(paste0('F', f),
+                            "Click to select, type a number to correct,
+                            any text or NA to treat as missing, empty to reset to default"),
             value = '')
         )
       }),
+
       list(actionButton(
         inputId = 'addF',
-        label = HTML("<img src='icons/plus.png' width = '25px'>"), # '+',
+        label = tooltip(HTML("<img src='icons/plus.png' width = '25px'>"),
+                        "Add one formant"), # '+',
         class = "buttonInline"
       )),
+
       list(actionButton(
         inputId = 'defaultFmtBtn',
-        label = HTML("<img src='icons/update.png' width = '30px'>"),
+        label = tooltip(HTML("<img src='icons/update.png' width = '30px'>"),
+                        "Reset formant values to defaults as measured"),
         class = "buttonInline"
-      )),
-      list(
-        shinyBS:::bsPopover(id = 'fDiv_1', title = NULL, content = 'Click to select, type a number to correct, any text or NA to treat as missing, empty to reset to default', placement = "right", trigger = "hover", options = list(delay = tooltip_options)),
-        shinyBS::bsPopover(id='remF', title = NULL, content = 'Remove one formant', placement = "right", trigger = "hover", options = list(delay = tooltip_options)),
-        shinyBS::bsPopover(id='addF', title = NULL, content = 'Add one formant', placement = "right", trigger = "hover", options = list(delay = tooltip_options)),
-        shinyBS::bsPopover(id='defaultFmtBtn', title = NULL, content = 'Reset formant values to defaults as measured', placement = "right", trigger = "hover", options = list(delay = tooltip_options))
-      )
+      ))
     )
   })
 
@@ -560,6 +549,12 @@ server = function(input, output, session) {
     }
   })
 
+  observeEvent(
+    c(input$windowLength_lpc, input$step_lpc, input$wn_lpc, input$zp_lpc,
+      input$dynamicRange_lpc, input$silence, input$minformant, input$maxbw), {
+      extractFormants()
+    })
+
   observe({
     # keep track of the maximum number of formant ever analyzed
     # to make sure the output table has enough columns
@@ -601,26 +596,24 @@ server = function(input, output, session) {
       } else {
         if (input$specType != 'reassigned') {
           # rasterized spectrogram
-          soundgen:::filled.contour.mod(
+          try(soundgen:::filled.contour.mod(
             x = as.numeric(colnames(myPars$spec_trimmed)),
             y = as.numeric(rownames(myPars$spec_trimmed)),
             z = t(myPars$spec_trimmed),
             col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
-            log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
             xaxt = 'n',
-            xaxs = 'i', xlab = '',
+            xlab = '',
             ylab = '',
             main = '',
             ylim = input$spec_ylim
-          )
+          ))
         } else {
           # unrasterized reassigned spectrogram
-          soundgen:::plotUnrasterized(
+          try(soundgen:::plotUnrasterized(
             myPars$reassigned,
             col = soundgen:::switchColorTheme(input$spec_colorTheme)(input$nColors),
-            log = '',
             yScale = 'linear',
             xlim = myPars$spec_xlim,
             xaxt = 'n',
@@ -629,7 +622,7 @@ server = function(input, output, session) {
             main = '',
             ylim = input$spec_ylim,
             cex = input$reass_cex
-          )
+          ))
         }
 
         # Add text label of file name
@@ -1869,7 +1862,9 @@ server = function(input, output, session) {
     removeModal()
   })
   observeEvent(input$terminate_yes, {
-    stopApp(returnValue = myPars$out)
+    stopApp(returnValue = list(formants = myPars$out,
+                               settings = reactiveValuesToList(input)))
+    rm(formant_app_defaults, envir = .GlobalEnv)
   })
 
   observeEvent(input$about, {
@@ -1938,78 +1933,4 @@ server = function(input, output, session) {
     }
   }
   observeEvent(input$synthBtn, synthAndPlay())
-
-  ### TOOLTIPS - have to be here instead of UI b/c otherwise problems with regulating delay
-  # (see https://stackoverflow.com/questions/47477237/delaying-and-expiring-a-shinybsbstooltip)
-  ## Analysis
-  # LPC
-  shinyBS::addTooltip(session, id='reset_to_def', title = 'Reset all settings to default values', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='audioMethod', title = "Play audio with javascript (recommended in Firefox, doesn't work in Chrome) or with R (browser-independent, but then the cursor doesn't move, and you can't stop playback)", placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='samplingRate_mult', title = 'Speed up or slow down the original and synthesized audio for playback purposes only, without affecting the measurements (eg to make it sound more human-like)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-
-  # LPC
-  shinyBS::addTooltip(session, id='nFormants', title = 'Number of formants to analyze', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='silence', title = 'Frames below this threshold are not analyzed', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='coeffs', title = 'The number of LPC coefficients (see ?phonTools::findformants)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='minformant', title = 'Lowest accepted formant frequency (see ?phonTools::findformants)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='maxbw', title = 'Maximum accepted formant bandwidth (see ?phonTools::findformants)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-
-  # Windowing
-  shinyBS::addTooltip(session, id='windowLength_lpc', title = 'Length of STFT window for LPC analysis, ms. Independent of the window used for plotting the spectrogram', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='step_lpc', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  # shinyBS::addTooltip(session, id='overlap_lpc', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='dynamicRange_lpc', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zp_lpc', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='wn_lpc', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = tooltip_options))
-
-  # Vocal tract
-  shinyBS::addTooltip(session, id='vtl_method', title = 'Method of calculating vocal tract length (VTL). See ?estimateVTL', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='speedSound', title = 'VTL estimate depends on the assumed speed of sound inside the vocal tract', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='interceptZero', title = 'Set the regression intercept to zero to reduce the influence of lower formants (careful with whether you are using closed-open or open-open tube approximation) ', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='tube', title = 'The vocal tract can be modeled as a uniform tube either closed at one end and open at the other, or else as having both ends either closed or open', placement="right", trigger="hover", options = list(delay = tooltip_options))
-
-  ## Plotting
-  # spectrogram
-  shinyBS::addTooltip(session, id='spec_ylim', title = "Range of displayed frequencies, kHz", placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='windowLength', title = 'Length of STFT window for plotting the spectrogram', placement="rights", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='step', title = 'Step between analysis frames, ms', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='specType', title = 'Spectrogram type, argument "specType" in spectrogram(). Visualization only, does NOT affect formant tracking with LPC', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  # shinyBS::addTooltip(session, id='overlap', title = 'Overlap between analysis frames, %', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='dynamicRange', title = 'Dynamic range, dB', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='spec_cex', title = "Magnification coefficient controlling the size of points showing formant candidates", placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='specContrast', title = 'Regulates the contrast of the spectrogram', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='specBrightness', title = 'Regulates the brightness of the spectrogram', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='nColors', title = 'The number of distinct colors in the spectrogram', placement="below", trigger="hover", options = tooltip_options)
-  shinyBS::addTooltip(session, id='blur_freq', title = 'Gaussian filter of frequency: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='blur_time', title = 'Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zp', title = 'Zero padding: 8 means 2^8 = 256, etc.', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='wn', title = 'Type of STFT window', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='spec_maxPoints', title = 'The number of points to plot in the spectrogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-
-  # oscillogram
-  shinyBS::addTooltip(session, id='osc', title = 'The type of oscillogram to show', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='osc_maxPoints', title = 'The number of points to plot in the oscillogram (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-
-  # spectrum
-  shinyBS::addTooltip(session, id='spectrum_xlim', title = 'Range of displayed frequencies, kHz (normally tied to spectrogram range)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='spectrum_len', title = 'The number of points to plot in the spectrum (smaller = faster, but low resolution)', placement="below", trigger="hover", options = list(delay = tooltip_options))
-
-  # action buttons
-  shinyBS:::addTooltip(session, id='lastFile', title='Save and return to the previous file (PageUp)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS:::addTooltip(session, id='nextFile', title='Save and proceed to the next file (PageDown)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS:::addTooltip(session, id='selection_stop', title='Stop playback', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS:::addTooltip(session, id='selection_play', title='Play selection (SPACEBAR)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS:::addTooltip(session, id='selection_annotate', title='Create a new annotation (A or DOUBLE-CLICK)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS:::addTooltip(session, id='selection_delete', title='Remove annotation (DELETE / BACKSPACE)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='saveRes', title = 'Download results (see ?pitch_app for recovering unsaved data after a crash)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='synthBtn', title = 'Synthesize and play a vowel with formants as measured in the current annotation (P). Check ?playme() if no sound', placement="bottom", trigger="hover", options = list(delay = tooltip_options))
-
-  # navigation / zoom
-  shinyBS::addTooltip(session, id='zoomIn_freq', title = 'Zoom in frequency (+)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zoomOut_freq', title = 'Zoom out frequency (-)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='scrollLeft', title = 'Scroll left (arrow LEFT)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zoomOut', title = 'Zoom out time (arrow DOWN)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zoomToSel', title = 'Zoom to selection (S)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='zoomIn', title = 'Zoom in time (arrow UP)', placement="right", trigger="hover", options = list(delay = tooltip_options))
-  shinyBS::addTooltip(session, id='scrollRight', title = 'Scroll right (arrow RIGHT)', placement="right", trigger="hover", options = list(delay = tooltip_options))
 }

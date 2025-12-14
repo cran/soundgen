@@ -85,7 +85,7 @@
 #'   samplingRate = samplingRate, play = playback)
 #'
 #' # Compare to a similar sound created with soundgen()
-#' # (unvoiced only, a single formant at 4 kHz)
+#' # (aperiodic noise only, a single formant at 4 kHz)
 #' noise_s = soundgen(pitch = NULL,
 #'   noise = data.frame(time = c(0, 1000), value = c(0, 0)),
 #'   formants = list(f1 = data.frame(freq = 4000, amp = 80, width = 20)),

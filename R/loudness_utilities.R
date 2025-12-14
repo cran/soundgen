@@ -1,3 +1,42 @@
+#' Phon-sone conversion
+#'
+#' Conversion between phon and sone loudness scales. Source: Timoney, J.,
+#' Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004). Implementing loudness
+#' models in matlab.
+#' @param phon loudness level, phon (vectorized)
+#' @export
+#' @examples
+#' phon = seq(0, 120, 2)
+#' sone = soundgen:::phon2sone(phon)
+#' plot(phon, sone, type = 'b')
+#' plot(phon, log2(sone), type = 'b')
+#'
+#' phon2 = soundgen:::sone2phon(sone)
+#' plot(phon, phon2); abline(0, 1)
+phon2sone = function(phon) {
+  sone = phon
+  idx1 = which(phon < 40)
+  idx2 = which(phon >= 40)
+  sone[idx1] = (phon[idx1] / 40) ^ 2.642
+  # alternative formula http://www.sengpielaudio.com/calculatorSonephon.htm
+  # sone[idx1] = (phon[idx1] / 40) ^ 2.86 - .005
+  sone[idx2] = 2 ^ ((phon[idx2] - 40) / 10)
+  sone
+}
+
+#' @rdname phon2sone
+#' @param sone loudness in sones (vectorized)
+#' @export
+sone2phon = function(sone) {
+  phon = sone
+  idx1 = which(sone < 1)
+  idx2 = which(sone >= 1)
+  phon[idx1] = sone[idx1] ^ (1/2.642) * 40
+  phon[idx2] = 40 + 10 * log2(sone[idx2])
+  phon
+}
+
+
 #' Scale SPL
 #'
 #' Internal soundgen function
@@ -103,31 +142,6 @@ iso226 = function(phon, nBarks = 22) {
     curve29 = data.frame(freq = f, spl = Lp),
     curveBark = b
   )
-}
-
-
-#' Convert phon to sone
-#'
-#' Internal soundgen function
-#'
-#' Source: Timoney, J., Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004).
-#' Implementing loudness models in matlab.
-#' @param phon loudness level, phon (vectorized)
-#' @keywords internal
-#' @examples
-#' phon = seq(0, 120, 2)
-#' sone = soundgen:::phon2sone(phon)
-#' plot(phon, sone, type = 'b')
-#' plot(phon, log2(sone), type = 'b')
-phon2sone = function(phon) {
-  sone = phon
-  idx1 = which(phon < 40)
-  idx2 = which(phon >= 40)
-  sone[idx1] = (phon[idx1] / 40) ^ 2.642
-  # alternative formula http://www.sengpielaudio.com/calculatorSonephon.htm
-  # sone[idx1] = (phon[idx1] / 40) ^ 2.86 - .005
-  sone[idx2] = 2 ^ ((phon[idx2] - 40) / 10)
-  sone
 }
 
 

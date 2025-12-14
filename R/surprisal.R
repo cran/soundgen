@@ -87,7 +87,8 @@
 #'
 #' # increase spectral and temporal resolution (slow)
 #' surp = getSurprisal(sound, 16000, winSurp = 2000,
-#'   audSpec_pars = list(nFilters = 128, step = 10, yScale = 'bark', bandwidth = 1/12))
+#'   audSpec_pars = list(nFilters = 128, step = 10,
+#'   yScale = 'bark', bandwidth = 1/12))
 #'
 #' # weight by increase in loudness instead of "pure" surprisal
 #' spectrogram(sound, 16000, extraContour = surp$detailed$surprisalLoudness /
@@ -642,11 +643,19 @@ getSurprisal_vector = function(x, method = c('acf', 'np')[1], best_lag = NULL) {
       # * abs(best_acf) to make a change more surprising if highly regular until now
       surprisal = (best_acf - best_next_point) * len * abs(best_acf)
 
-      # or KL divergence, but then need non-negatives to reinterpret autocor as ~probability
+      # or KL divergence, but then need non-negatives to reinterpret autocor
+      # ~as probability
       # surprisal = best_acf * (log(best_acf) - log(best_next_point)) * len
+
+      # or just how different the observed next point is from the last point at
+      # best_lag (doesn't really seem to work)
+      # obs = .subset(x, len)
+      # expt = .subset(x, len - best_lag)
+      # surprisal = abs((obs - expt) / (obs + expt)) # * best_acf
     } else {
-      # a possible alternative - compare all peaks, not just one (so not limited to 1 lag)
-      # (doesn't seem to work; also tried just summing the entire ACFs)
+      # a possible alternative - compare all peaks, not just one
+      # (so not limited to 1 lag; doesn't seem to work; also tried just summing
+      # the entire ACFs)
       autocor = as.numeric(acf(x1, lag.max = len - 2, plot = FALSE)$acf)[-1]
       # plot(autocor, type = 'b')
       peaks = which(diff(sign(diff(autocor))) == -2) + 1

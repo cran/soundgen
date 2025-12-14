@@ -4,15 +4,31 @@
 \alias{pitch_app}
 \title{Interactive pitch tracker}
 \usage{
-pitch_app()
+pitch_app(...)
+}
+\arguments{
+\item{...}{presets like \code{windowLength = 25, pitchMethods = c('auocor',
+'cep')}. Full list: dynamicRange, zp, entropyThres, nCands, minVoicedCands,
+domThres, domSmooth, autocorThres, autocorSmooth, autocorUpsample,
+autocorBestPeak, cepThres, cepZp, specThres, specPeak, specRatios,
+specHNRslope, specSmooth, specMerge, specSinglePeakCert, hpsThres, hpsNum,
+hpsNorm, hpsPenalty, zcThres, zcWin, certWeight, smooth, interpolCert,
+spec_maxPoints, specContrast, specBrightness, blur_freq, blur_time,
+reass_cex, osc_maxPoints, windowLength, step, silence, pitchFloor,
+pitchCeiling, priorMean, priorSD, shortestSyl, shortestPause, interpolWin,
+interpolTol, spec_cex, nColors, reass_windowLength, reass_step,
+pitchMethods, summaryFun, summaryFun_text, pathfinding, spec_ylim,
+spec_colorTheme, osc, wn}
 }
 \value{
-When proceeding to the next file in the cue, two types of backups are
+A list with the last used settings ($settings) plus the output of
+  analyze() for each file with two additional columns: "time" and "pitch".
+  When proceeding to the next file in the cue, two types of backups are
   created. (1) A global object called "my_pitch" is created or updated. This
   list becomes visible when the app is terminated, and it contains the usual
   outputs of analyze() ($detailed and $summary) plus lists of manually
-  corrected voiced and unvoiced frames. (2) The app saves to disk a .csv file
-  with one row per audio file. Apart from the usual descriptives from
+  corrected voiced and voiceless frames. (2) The app saves to disk a .csv
+  file with one row per audio file. Apart from the usual descriptives from
   analyze(), there are two additional columns: "time" with time stamps (the
   midpoint of each STFT frame, ms) and "pitch" with the manually corrected
   pitch values for each frame (Hz). When the orange "Download results" button
@@ -83,6 +99,24 @@ path_to_audio = '~/Downloads/temp'  # our audio lives here
 my_pitch = pitch_app()  # runs in default browser such as Firefox or Chrome
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
+
+# You can pass presets with your preferred parameter values:
+my_pitch = pitch_app(windowLength = 20, step = 10,
+  pitchMethods = c('dom', 'autocor', 'cep'), ylim = c(0.1, 3))
+# full list of parameters that can be passed to pitch_app():
+# paste0(c(names(input)[which(names(input) \%in\% rownames(defaults_analyze))],
+#  'pitchMethods', 'summaryFun', 'summaryFun_text', 'pathfinding', 'spec_ylim',
+#  'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+
+# Object "my_pitch" contains the output, notably the time-pitch matrix
+plot(my_pitch[[1]]$detailed$time, my_pitch[[1]]$detailed$pitch, type = 'b',
+  xlab = 'Time, ms', ylab = 'Pitch, Hz')
+
+# Run the app with previously used settings
+my_pitch2 = do.call(pitch_app, my_pitch$settings)
+
+# save the complete output, including the settings used
+saveRDS(my_pitch2, 'my_pitch_analysis.rds')
 
 # STEP 2: run analyze() with manually corrected pitch contours to obtain
 # accurate descriptives like the proportion of energy in harmonics above f0,

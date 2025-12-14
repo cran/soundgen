@@ -188,6 +188,8 @@ and \code{\link[graphics]{contour}} (see \code{\link{spectrogram}})}
 \value{
 Returns a list with the following components:
 \itemize{
+\item \code{$summary} dataframe with summaries of roughness, amMsFreq, and
+amMsPurity
 \item \code{$original} modulation spectrum prior to blurring and log-warping,
 but after squaring if \code{power = TRUE}, a matrix of nonnegative values.
 Colnames are temporal modulation frequencies (Hz). Rownames are spectral
@@ -195,6 +197,8 @@ modulation frequencies (cycles/kHz) if \code{msType = '2D'} and frequencies
 of filters or spectrograms bands (kHz) if \code{msType = '1D'}.
 \item \code{$original_list} a list of modulation spectra for each analyzed
 fragment (is \code{amRes} is not NULL)
+\item \code{$modulation_spectrogram} a spectrogram-like representation showing
+how the modulation spectrum changes over time
 \item \code{$processed} modulation spectrum after blurring and log-warping
 \item \code{$complex} untransformed complex modulation spectrum (returned
 only if returnComplex = TRUE)
@@ -205,6 +209,8 @@ amRes is numeric and the sound is long enough, otherwise a single number
 \item \code{$roughness_list} a list containing frequencies, amplitudes, and
 roughness values for each analyzed frequency band (1D) or frequency
 modulation band (2D)
+\item \code{roughness_spectrogram} a spectrogram showing roughness instead of
+amplitude per time-frequency bin
 \item \code{$amMsFreq} frequency of the highest peak, within \code{amRange}, of
 the folded AM function (average AM across all FM bins for both negative and
 positive AM frequencies), where a peak is a local maximum over \code{amRes}
@@ -213,8 +219,7 @@ numbers or vectors, depending on whether the sound is analyzed as a whole or
 in chunks
 \item \code{$amMsPurity} ratio of the peak at amMsFreq to the median AM over
 \code{amRange}, dB
-\item \code{$summary} dataframe with summaries of roughness, amMsFreq, and
-amMsPurity
+\item \code{$ampl} Room Mean Square amplitude of each analyzed fragment
 }
 }
 \description{
@@ -265,6 +270,14 @@ ms = modulationSpectrum(s, samplingRate = 16000, logMPS = TRUE,
   xlab = 'Temporal modulation, Hz', ylab = 'Spectral modulation, 1/kHz',
   colorTheme = 'matlab', main = 'Modulation spectrum', lty = 3)
 
+# Plot a modulation spectrogram (the peak at 100 Hz shows AM)
+spectrogram(s, 16000, specManual = ms$modulation_spectrogram,
+  ylab = 'Modulation frequency, kHz', main = 'Modulation spectrogram')
+
+# Plot a roughness spectrogram
+spectrogram(s, 16000, specManual = ms$roughness_spectrogram, yScale = 'ERB',
+  main = 'Roughness spectrogram')
+
 # 1D instead of 2D
 modulationSpectrum(s, 16000, msType = '1D', quantiles = NULL,
   col = soundgen:::jet.col(50))
@@ -281,7 +294,7 @@ plot(x = seq(1, 1500, length.out = length(ms$amMsFreq)), y = ms$amMsFreq,
      cex = 10^(ms$amMsPurity/20) * 10, xlab = 'Time, ms', ylab = 'AM frequency, Hz')
 # plot roughness over time
 spectrogram(s_long, 16000, ylim = c(0, 4),
-  extraContour = list(ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
+  extraContour = list(x = ms$roughness / max(ms$roughness) * 4000, col = 'blue'))
 
 # As with spectrograms, there is a tradeoff in time-frequency resolution
 s = soundgen(pitch = 500, amFreq = 50, amDep = 100, sylLen = 500,

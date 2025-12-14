@@ -25,12 +25,27 @@ soundgen_app = function() {
 #' can verify the pitch contours first, and then feed them back into
 #' \code{analyze} (see examples).
 #'
-#' @return When proceeding to the next file in the cue, two types of backups are
+#' @param ... presets like \code{windowLength = 25, pitchMethods = c('auocor',
+#'   'cep')}. Full list: dynamicRange, zp, entropyThres, nCands, minVoicedCands,
+#'   domThres, domSmooth, autocorThres, autocorSmooth, autocorUpsample,
+#'   autocorBestPeak, cepThres, cepZp, specThres, specPeak, specRatios,
+#'   specHNRslope, specSmooth, specMerge, specSinglePeakCert, hpsThres, hpsNum,
+#'   hpsNorm, hpsPenalty, zcThres, zcWin, certWeight, smooth, interpolCert,
+#'   spec_maxPoints, specContrast, specBrightness, blur_freq, blur_time,
+#'   reass_cex, osc_maxPoints, windowLength, step, silence, pitchFloor,
+#'   pitchCeiling, priorMean, priorSD, shortestSyl, shortestPause, interpolWin,
+#'   interpolTol, spec_cex, nColors, reass_windowLength, reass_step,
+#'   pitchMethods, summaryFun, summaryFun_text, pathfinding, spec_ylim,
+#'   spec_colorTheme, osc, wn
+#'
+#' @return A list with the last used settings ($settings) plus the output of
+#'   analyze() for each file with two additional columns: "time" and "pitch".
+#'   When proceeding to the next file in the cue, two types of backups are
 #'   created. (1) A global object called "my_pitch" is created or updated. This
 #'   list becomes visible when the app is terminated, and it contains the usual
 #'   outputs of analyze() ($detailed and $summary) plus lists of manually
-#'   corrected voiced and unvoiced frames. (2) The app saves to disk a .csv file
-#'   with one row per audio file. Apart from the usual descriptives from
+#'   corrected voiced and voiceless frames. (2) The app saves to disk a .csv
+#'   file with one row per audio file. Apart from the usual descriptives from
 #'   analyze(), there are two additional columns: "time" with time stamps (the
 #'   midpoint of each STFT frame, ms) and "pitch" with the manually corrected
 #'   pitch values for each frame (Hz). When the orange "Download results" button
@@ -98,6 +113,24 @@ soundgen_app = function() {
 #' # To change system default browser, run something like:
 #' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 #'
+#' # You can pass presets with your preferred parameter values:
+#' my_pitch = pitch_app(windowLength = 20, step = 10,
+#'   pitchMethods = c('dom', 'autocor', 'cep'), ylim = c(0.1, 3))
+#' # full list of parameters that can be passed to pitch_app():
+#' # paste0(c(names(input)[which(names(input) %in% rownames(defaults_analyze))],
+#' #  'pitchMethods', 'summaryFun', 'summaryFun_text', 'pathfinding', 'spec_ylim',
+#' #  'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+#'
+#' # Object "my_pitch" contains the output, notably the time-pitch matrix
+#' plot(my_pitch[[1]]$detailed$time, my_pitch[[1]]$detailed$pitch, type = 'b',
+#'   xlab = 'Time, ms', ylab = 'Pitch, Hz')
+#'
+#' # Run the app with previously used settings
+#' my_pitch2 = do.call(pitch_app, my_pitch$settings)
+#'
+#' # save the complete output, including the settings used
+#' saveRDS(my_pitch2, 'my_pitch_analysis.rds')
+#'
 #' # STEP 2: run analyze() with manually corrected pitch contours to obtain
 #' # accurate descriptives like the proportion of energy in harmonics above f0,
 #' # etc. This also gives you formants and loudness estimates (disabled in
@@ -122,7 +155,23 @@ soundgen_app = function() {
 #' # the folder with your audio, run pitch_app(), and load the audio + csv
 #' # together. The saved pitch contours are treated as manual anchors
 #' }
-pitch_app = function() {
+pitch_app = function(...) {
+  pitch_app_defaults = as.list(defaults_analyze[, 'default'])
+  names(pitch_app_defaults) = rownames(defaults_analyze)
+  pitch_app_defaults$spec_ylim = c(0, pitch_app_defaults$spec_ylim)
+  pitch_app_defaults = c(pitch_app_defaults, list(
+    'pitchMethods' = c('dom', 'autocor'),
+    'summaryFun', selected = c('mean', 'sd'),
+    'summaryFun_text' = '',
+    'pathfinding' = 'fast',
+    'spec_colorTheme' = 'bw',
+    'osc' = 'linear',
+    'wn' = 'gaussian'
+  ))
+  # use user-input presets, if any, to update the inputs
+  pitch_app_defaults = modifyList(pitch_app_defaults, list(...))
+  pitch_app_defaults <<- pitch_app_defaults
+
   appDir = system.file("shiny", "pitch_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",
@@ -157,20 +206,59 @@ pitch_app = function() {
 #'
 #' @seealso \code{\link{pitch_app}}
 #'
-#' @return Every time a new annotation is added, the app creates a backup csv
-#'   file and creates or updates a global object called "my_formants", which
-#'   contains all the annotations. When the app is terminated, it also returns
-#'   the results as a dataframe.
+#' @param ... presets like \code{windowLength = 25}. Full list:
+#'   samplingRate_mult, nFormants, minformant, maxbw, dynamicRange_lpc, zp_lpc,
+#'   spec_ylim, dynamicRange, specContrast, specBrightness, blur_freq,
+#'   blur_time, reass_cex, zp, spec_maxPoints, osc_maxPoints, spectrum_smooth,
+#'   spectrum_xlim, spectrum_len, silence, windowLength_lpc, step_lpc,
+#'   windowLength, step, spectrum_xlim, spec_ylim, spec_colorTheme, osc, wn,
+#'   wn_lpc, vtl_method, speedSound, coeffs, interceptZero, tube
+#'
+#' @return A list of the last used settings ($settings) plus a data.frame with
+#'   the formant measurements. Every time a new annotation is added, the app
+#'   creates a backup csv file and creates or updates a global object called
+#'   "my_formants", which contains all the annotations.
 #'
 #' @export
 #' @examples
 #' \dontrun{
 #' f = formant_app()  # runs in default browser such as Firefox or Chrome
 #'
+#' f1 = formant_app(specType = 'reassigned', windowLength = 5, step = 1)
+#' # full list of parameters that can be passed to formant_app():
+#' # paste0(c(names(input)[which(names(input) %in% rownames(def_form))],
+#' # 'spectrum_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn', 'wn_lpc',
+#' # 'vtl_method', 'speedSound', 'coeffs', 'interceptZero', 'tube'), collapse = ', ')
+#'
+#' # run the app with previously used settings
+#' f2 = do.call(formant_app, f1$settings)
+#'
+#' # save the complete output, including the settings used
+#' saveRDS(f2, 'my_formant_analysis.rds')
+#'
 #' # To change system default browser, run something like:
 #' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 #' }
-formant_app = function() {
+formant_app = function(...) {
+  formant_app_defaults = as.list(def_form[, 'default'])
+  names(formant_app_defaults) = rownames(def_form)
+  formant_app_defaults$spectrum_xlim = c(0, formant_app_defaults$spectrum_xlim)
+  formant_app_defaults$spec_ylim = c(0, formant_app_defaults$spec_ylim)
+  formant_app_defaults = c(formant_app_defaults, list(
+    'wn' = 'gaussian',
+    'wn_lpc' = 'gaussian',
+    'spec_colorTheme' = 'bw',
+    'osc' = 'linear',
+    'vtl_method' = 'regression',
+    'speedSound' = 35400,
+    'coeffs' = '',
+    'interceptZero' = TRUE,
+    'tube' = 'closed-open'
+  ))
+  # use user-input presets, if any, to update the inputs
+  formant_app_defaults = modifyList(formant_app_defaults, list(...))
+  formant_app_defaults <<- formant_app_defaults
+
   appDir = system.file("shiny", "formant_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",
@@ -185,20 +273,46 @@ formant_app = function() {
 #' Starts a shiny app for annotating audio. This is a simplified and faster
 #' version of \code{\link{formant_app}} intended only for making annotations.
 #'
-#' @return Every time a new annotation is added, the app creates a backup csv
-#'   file and creates or updates a global object called "my_annot", which
-#'   contains all the annotations. When the app is terminated, it also returns
-#'   the results as a dataframe.
+#' @param ... presets like \code{windowLength = 25}. Full list: dynamicRange,
+#'   specContrast, specBrightness, blur_freq, blur_time, reass_cex, zp,
+#'   spec_maxPoints, osc_maxPoints, windowLength, step, spec_xlim, spec_ylim,
+#'   spec_colorTheme, osc, wn
+#'
+#' @return A list of the last used settings ($settings) plus a data.frame with
+#'   the annotations. Every time a new annotation is added, the app creates a
+#'   backup csv file and creates or updates a global object called "my_annot",
+#'   which contains all the annotations.
 #'
 #' @export
 #' @examples
 #' \dontrun{
 #' ann = annotation_app()  # runs in default browser such as Firefox or Chrome
 #'
+#' ann = annotation_app(specType = 'reassigned', windowLength = 5, step = 1)
+#' # full list of parameters that can be passed to annotation_app():
+#' # paste0(c(names(input)[which(names(input) %in% rownames(def_form))],
+#' #  'spec_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+#'
+#' # save the complete output, including the settings used
+#' saveRDS(ann, 'my_annotations.rds')
+#'
 #' # To change system default browser, run something like:
 #' options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 #' }
-annotation_app = function() {
+annotation_app = function(...) {
+  annotation_app_defaults = as.list(def_form[, 'default'])
+  names(annotation_app_defaults) = rownames(def_form)
+  annotation_app_defaults$spec_ylim = c(0, annotation_app_defaults$spec_ylim)
+  annotation_app_defaults = c(annotation_app_defaults, list(
+    'wn' = 'gaussian',
+    'spec_xlim' = c(0, def_form['spec_xlim','default']),
+    'spec_colorTheme' = 'bw',
+    'osc' = 'linear'
+  ))
+  # use user-input presets, if any, to update the inputs
+  annotation_app_defaults = modifyList(annotation_app_defaults, list(...))
+  annotation_app_defaults <<-annotation_app_defaults
+
   appDir = system.file("shiny", "annotation_app", package = "soundgen")
   if (appDir == "") {
     stop("Could not find app directory. Try re-installing `soundgen`.",

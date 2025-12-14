@@ -202,11 +202,11 @@ modulation, Hz (\code{fmFreq}): a vector of length 2}
 
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
-if unvoiced)}
+if voiceless)}
 
 \item{shortestPause}{the smallest gap between voiced syllables (ms): large
 value = interpolate and merge, small value = treat as separate syllables
-separated by an unvoiced gap}
+separated by a voiceless gap}
 
 \item{interpol}{a list of parameters (currently \code{win, tol, cert}) passed
 to \code{soundgen:::pathfinder} for interpolating missing pitch candidates
