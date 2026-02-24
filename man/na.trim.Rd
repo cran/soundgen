@@ -11,8 +11,8 @@ na.trim(x)
 }
 \description{
 Internal soundgen function. Nearly 10 times faster than zoo::na.trim.
-Slightly slower solution: a[!cumprod(is.na(a)) &
-rev(!cumprod(is.na(rev(a))))]. See
+Slightly slower solution: \code{a[!cumprod(is.na(a)) &
+rev(!cumprod(is.na(rev(a))))]}. See
 https://stackoverflow.com/questions/42759027/remove-leading-and-trailing-na
 }
 \examples{

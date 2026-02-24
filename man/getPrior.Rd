@@ -51,8 +51,8 @@ confidence in candidates with very high or very low frequency as unlikely but
 still remotely possible. You can think of this as a "soft" alternative to
 setting absolute pitch floor and ceiling. Algorithm: the multiplier for each
 pitch candidate is the density of prior distribution with mean = priorMean
-(Hz) and sd = priorSD (semitones) normalized so max = 1 over [pitchFloor,
-pitchCeiling]. Useful for previewing the prior given to
+(Hz) and sd = priorSD (semitones) normalized so max = 1 over \code{[pitchFloor,
+pitchCeiling]}. Useful for previewing the prior given to
 \code{\link{analyze}}.
 }
 \examples{

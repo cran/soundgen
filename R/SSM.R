@@ -1,14 +1,19 @@
 #' Self-similarity matrix
 #'
-#' Calculates the self-similarity matrix and novelty vector of a sound.
+#' Calculates the self-similarity matrix and novelty vector of a sound. The
+#' self-similarity matrix is produced by cross-correlating different segments of
+#' the input sound. Novelty is calculated by convolving the self-similarity
+#' matrix with a tapered checkerboard kernel. The positive lobes of the kernel
+#' represent coherence (self-similarity within the regions on either side of the
+#' center point) and the negative lobes anti-coherence (cross-similarity
+#' between these two regions). Since novelty is the dot product of the
+#' checkerboard kernel with the SSM, it is high when the two regions are
+#' self-similar (internally consistent) but different from each other.
 #'
 #' @seealso \code{\link{spectrogram}} \code{\link{modulationSpectrum}}
 #'   \code{\link{segment}}
 #'
 #' @references \itemize{
-#'   \item El Badawy, D., Marmaroli, P., & Lissek, H. (2013). Audio
-#'   Novelty-Based Segmentation of Music Concerts. In Acoustics 2013 (No.
-#'   EPFL-CONF-190844)
 #'   \item Foote, J. (1999, October). Visualizing music and
 #'   audio using self-similarity. In Proceedings of the seventh ACM
 #'   international conference on Multimedia (Part 1) (pp. 77-80). ACM.
@@ -16,20 +21,25 @@
 #'   Foote, J. (2000). Automatic audio segmentation using a measure of audio
 #'   novelty. In Multimedia and Expo, 2000. ICME 2000. 2000 IEEE International
 #'   Conference on (Vol. 1, pp. 452-455). IEEE.
-#'   }
+#' }
 #' @inheritParams spectrogram
 #' @inheritParams analyze
-#' @param ssmWin window for averaging SSM, ms (has a smoothing effect and speeds
-#'   up the processing)
 #' @param sparse if TRUE, the entire SSM is not calculated, but only the central
 #'   region needed to extract the novelty contour (speeds up the processing)
-#' @param maxFreq highest band edge of mel filters, Hz. Defaults to
-#'   \code{samplingRate / 2}. See \code{\link[tuneR]{melfcc}}
-#' @param nBands number of warped spectral bands to use. Defaults to \code{100 *
-#'   windowLength / 20}. See \code{\link[tuneR]{melfcc}}
-#' @param input the spectral representation used to calculate the SSM
+#' @param input the spectral representation used to calculate the SSM: "audSpec"
+#'   = auditory spectrogram returned by \code{\link{audSpectrogram}}, "mfcc" =
+#'   Mel-Frequency Cepstral coefficients, "melspec" = Mel-transformed STFT
+#'   spectrogram, "spec" = STFT power spectrogram (all three returned by
+#'   \code{\link[tuneR]{melfcc}}). Any custom spectrogram-like matrix of
+#'   features (time in columns labeled in s, features in rows) is also accepted
+#'   (see examples)
+#' @param takeLog if TRUE, the input is log-transformed prior to calculating
+#'   self-similarity
 #' @param MFCC which mel-frequency cepstral coefficients to use; defaults to
 #'   \code{2:13}
+#' @param melfcc_pars a list of parameters passed to \code{\link[tuneR]{melfcc}}
+#' @param audSpec_pars a list of parameters passed to
+#'   \code{\link{audSpectrogram}} (if input = 'audSpec')
 #' @param norm if TRUE, the spectrum of each STFT frame is normalized
 #' @param simil method for comparing frames: "cosine" = cosine similarity, "cor"
 #'   = Pearson's correlation
@@ -38,6 +48,10 @@
 #' @param kernelSD SD of checkerboard kernel for calculating novelty
 #' @param padWith how to treat edges when calculating novelty: NA = treat sound
 #'   before and after the recording as unknown, 0 = treat it as silence
+#' @param ssmWin window for averaging SSM, frames (has a smoothing effect and
+#'   speeds up the processing)
+#' @param output what to return (drop "ssm" to save memory when analyzing a lot
+#'   of files)
 #' @param plot if TRUE, plots the SSM
 #' @param heights relative sizes of the SSM and spectrogram/novelty plot
 #' @param main plot title
@@ -66,32 +80,48 @@
 #' \dontrun{
 #' ssm(sound, samplingRate = 16000,
 #'     input = 'mfcc', simil = 'cor', norm = TRUE,
-#'     ssmWin = 25,  # speed up the processing
+#'     ssmWin = 10,  # speed up the processing
 #'     kernelLen = 300,  # global features
 #'     specPars = list(colorTheme = 'seewave'),
 #'     ssmPars = list(col = rainbow(100)),
 #'     noveltyPars = list(type = 'l', lty = 3, lwd = 2))
+#'
+#' # Custom input: produce a nice spectrogram first, then feed it into ssm()
+#' sp = spectrogram(sound, 16000, windowLength = c(5, 40), contrast = .3,
+#'   output = 'processed')  # return the modified spectrogram
+#' colnames(sp) = as.numeric(colnames(sp)) / 1000  # convert ms to s
+#' ssm(sound, 16000, kernelLen = 400, input = sp)
+#'
+#' # Custom input: use acoustic features returned by analyze()
+#' an = analyze(sound, 16000, windowLength = 20, novelty = NULL)
+#' input_an = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
+#' input_an = t(apply(input_an, 1, scale))  # z-transform all variables
+#' input_an[is.na(input_an)] = 0  # get rid of NAs
+#' colnames(input_an) = an$detailed$time / 1000  # time stamps in s
+#' rownames(input_an) = 1:nrow(input_an)
+#' image(t(input_an))  # not a spectrogram, just a feature matrix
+#' ssm(sound, 16000, kernelLen = 500, input = input_an, takeLog = FALSE,
+#'   specPars = list(ylab = 'Feature'))
 #' }
 ssm = function(
     x,
     samplingRate = NULL,
     from = NULL,
     to = NULL,
-    windowLength = 25,
-    step = 5,
-    overlap = NULL,
-    ssmWin = NULL,
     sparse = FALSE,
-    maxFreq = NULL,
-    nBands = NULL,
+    input = c('melspec', 'mfcc', 'spec', 'audSpec')[1],
+    melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
     MFCC = 2:13,
-    input = c('mfcc', 'melspec', 'spectrum')[2],
+    audSpec_pars = list(nFilters = 16, step = 10),
+    takeLog = FALSE,
     norm = FALSE,
     simil = c('cosine', 'cor')[1],
-    kernelLen = 100,
+    kernelLen = 1000,
     kernelSD = .5,
     padWith = 0,
+    ssmWin = NULL,
     summaryFun = c('mean', 'sd'),
+    output = c('ssm', 'novelty', 'summary'),
     reportEvery = NULL,
     cores = 1,
     plot = TRUE,
@@ -103,13 +133,10 @@ ssm = function(
     units = 'px',
     res = NA,
     specPars = list(
-      levels = seq(0, 1, length = 30),
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-      xlab = 'Time, s',
-      ylab = 'kHz'
+      xlab = 'Time, s'
     ),
     ssmPars = list(
-      levels = seq(0, 1, length = 30),
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
       xlab = 'Time, s',
       ylab = 'Time, s'
@@ -125,15 +152,14 @@ ssm = function(
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
     'x', 'samplingRate', 'from', 'to', 'savePlots', 'reportEvery', 'cores',
-    'summaryFun', 'specPars', 'ssmPars', 'noveltyPars', 'ssmWin')]
+    'summaryFun', 'specPars', 'ssmPars', 'noveltyPars', 'ssmWin',
+    'melfcc_pars', 'audSpec_pars')]
   myPars$specPars = specPars
   myPars$ssmPars = ssmPars
   myPars$noveltyPars = noveltyPars
-  if (is.null(ssmWin)) {
-    myPars$win = 1
-  } else {
-    myPars$win = max(1, round(ssmWin / step / 2) * 2 - 1)
-  }
+  myPars$melfcc_pars = melfcc_pars
+  myPars$audSpec_pars = audSpec_pars
+  myPars$win = ssmWin
 
   # analyze
   pa = processAudio(
@@ -190,12 +216,8 @@ ssm = function(
     ssm = lapply(pa$result, function(x) x[['ssm']])
     novelty = lapply(pa$result, function(x) x[['novelty']])
   }
-
-  invisible(list(
-    ssm = ssm,
-    novelty = novelty,
-    summary = mysum_all
-  ))
+  out = list(ssm = ssm, novelty = novelty, summary = mysum_all)
+  invisible(out[which(names(out) %in% output)])
 }
 
 
@@ -207,20 +229,19 @@ ssm = function(
 #' @keywords internal
 .ssm = function(
     audio,
-    windowLength = 25,
-    step = 5,
-    overlap = NULL,
-    win = 1,
     sparse = FALSE,
-    maxFreq = NULL,
-    nBands = NULL,
+    input = c('melspec', 'mfcc', 'spec', 'audSpec')[1],
+    melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
     MFCC = 2:13,
-    input = c('mfcc', 'melspec', 'spectrum')[2],
+    audSpec_pars = list(nFilters = 16, step = 10),
+    takeLog = FALSE,
     norm = FALSE,
     simil = c('cosine', 'cor')[1],
     kernelLen = 100,
     kernelSD = .5,
     padWith = 0,
+    win = 1,
+    output = c('ssm', 'novelty', 'summary'),
     plot = TRUE,
     main = NULL,
     heights = c(2, 1),
@@ -229,13 +250,11 @@ ssm = function(
     units = 'px',
     res = NA,
     specPars = list(
-      levels = seq(0, 1, length = 30),
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
       xlab = 'Time, s',
       ylab = 'kHz'
     ),
     ssmPars = list(
-      levels = seq(0, 1, length = 30),
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
       xlab = 'Time, s',
       ylab = 'Time, s'
@@ -246,54 +265,94 @@ ssm = function(
       col = 'black',
       lwd = 3
     )) {
-  ## set pars
-  if (!is.numeric(windowLength) | windowLength <= 0 |
-      windowLength > (audio$duration / 2 * 1000)) {
-    windowLength = min(50, round(audio$duration / 2 * 1000))
-    warning(paste0(
-      '"windowLength" must be between 0 and half the sound duration (in ms);
-            resetting to ', windowLength, ' ms')
-    )
-  }
-  if (is.null(step)) step = windowLength * (1 - overlap / 100)
-  if (is.null(nBands)) {
-    nBands = round(100 * windowLength / 20)
-  }
-  if (is.null(step)) {
-    step = windowLength / 4
-  }
-  windowLength_points = floor(windowLength / 1000 * audio$samplingRate / 2) * 2
-  frame_points = round(audio$samplingRate * step / 1000)
-  kernelSize = max(4, round(kernelLen * audio$samplingRate / 1000 / frame_points /
-                              2) * 2)  # kernel size in frames, guaranteed to be even
-  if (is.null(maxFreq)) {
-    maxFreq = floor(audio$samplingRate / 2)  # Nyquist
-  }
+  nyquist = audio$samplingRate / 2
+  if (is.matrix(input)) {
+    # custom input to SSM - use as is
+    target_spec = as.matrix(input)
+    step = diff(as.numeric(colnames(target_spec))[1:2])
+    frame_points = round(audio$samplingRate * step)
+    input = 'custom'
+  } else {
+    ## compute mel-filtered spectrum and MFCCs
+    if (input == 'audSpec') {
+      # call audSpectrogram()
+      if (is.null(audSpec_pars$nFilters)) audSpec_pars$nFilters = 32
+      if (is.null(audSpec_pars$step)) audSpec_pars$step = 20
+      frame_points = round(audio$samplingRate * audSpec_pars$step / 1000)
 
-  ## compute mel-filtered spectrum and MFCCs
-  sound = tuneR::Wave(left = audio$sound, samp.rate = audio$samplingRate, bit = 16)
-  mel = tuneR::melfcc(
-    sound,
-    wintime = windowLength / 1000,
-    hoptime = step / 1000,
-    maxfreq = maxFreq,
-    nbands = nBands,
-    spec_out = TRUE,
-    numcep = max(MFCC)
-  )
-  if (input == 'mfcc') {
-    # the first cepstrum presumably makes no sense with amplitude normalization
-    # (?), and it overestimates the similarity of different frames
-    target_spec = t(mel$cepstra)[MFCC, ]
-    target_spec[is.na(target_spec)] = 0  # MFCC are NaN for silent frames
-  } else if (input == 'melspec') {
-    target_spec = t(mel$aspectrum)
-  } else if (input == 'spectrum') {
-    target_spec = t(mel$pspectrum)
+      target_spec = do.call(.audSpectrogram, c(audSpec_pars, list(
+        audio = audio,
+        plot = FALSE
+      )))$audSpec  # cols = time, rows = freq
+      colnames(target_spec) = as.numeric(colnames(target_spec)) / 1000  # ms to s
+    } else if (input %in% c('mfcc', 'spec', 'melspec')) {
+      # call tuneR::melfcc()
+      if (is.null(melfcc_pars$windowLength)) melfcc_pars$windowLength = 25
+      if (is.null(melfcc_pars$step)) melfcc_pars$step = 5
+      frame_points = round(audio$samplingRate * melfcc_pars$step / 1000)
+      if (!is.numeric(melfcc_pars$windowLength) | melfcc_pars$windowLength <= 0 |
+          melfcc_pars$windowLength > (audio$duration / 2 * 1000)) {
+        melfcc_pars$windowLength = min(50, round(audio$duration / 2 * 1000))
+        warning(paste0(
+          '"windowLength" must be between 0 and half the sound duration (in ms);
+            resetting to ', melfcc_pars$windowLength, ' ms')
+        )
+      }
+      if (is.null(melfcc_pars$step))
+        melfcc_pars$step = melfcc_pars$windowLength / 4
+      if (is.null(melfcc_pars$nbands)) {
+        melfcc_pars$nbands = round(100 * melfcc_pars$windowLength / 20)
+      }
+      windowLength_points = floor(melfcc_pars$windowLength / 1000 *
+                                    audio$samplingRate / 2) * 2
+      if (is.null(melfcc_pars$maxfreq)) {
+        melfcc_pars$maxfreq = floor(audio$samplingRate / 2)  # Nyquist
+      }
+
+      sound = tuneR::Wave(left = audio$sound, samp.rate = audio$samplingRate, bit = 16)
+      mel = do.call(tuneR::melfcc, c(
+        melfcc_pars[which(!names(melfcc_pars) %in% c('windowLength', 'step'))],
+        list(
+          samples = sound,
+          wintime = melfcc_pars$windowLength / 1000,
+          hoptime = melfcc_pars$step / 1000,
+          spec_out = TRUE,
+          numcep = max(MFCC)
+        )))
+      if (input == 'mfcc') {
+        # the first cepstrum presumably makes no sense with amplitude normalization
+        # (?), and it overestimates the similarity of different frames
+        target_spec = t(mel$cepstra)[MFCC, ]
+        target_spec[is.na(target_spec)] = 0  # MFCC are NaN for silent frames
+        colnames(target_spec) = seq(audio$timeShift, audio$duration,
+                                    length.out = ncol(target_spec))
+        rownames(target_spec) = 1:nrow(target_spec)
+      } else if (input == 'melspec') {
+        target_spec = t(mel$aspectrum)  # cols = time, rows = freq
+        colnames(target_spec) = seq(audio$timeShift, audio$duration,
+                                    length.out = ncol(target_spec))
+        rownames(target_spec) = otherToHz(
+          seq(0, HzToOther(nyquist, "mel"),
+              length.out = nrow(target_spec)), "mel") / 1000
+      } else if (input == 'spec') {
+        target_spec = t(mel$pspectrum)  # cols = time, rows = freq
+        colnames(target_spec) = seq(audio$timeShift, audio$duration,
+                                    length.out = ncol(target_spec))
+        rownames(target_spec) = seq(0, nyquist,
+                                    length.out = nrow(target_spec)) / 1000
+      }
+    }
   }
-  # image(t(log(target_spec + 1e-10)))
+  if (takeLog) {
+    target_spec = target_spec - min(target_spec, na.rm = TRUE)
+    target_spec = log(target_spec + min(target_spec[target_spec > 0], na.rm = TRUE))
+  }
+  # image(t(target_spec))
 
   ## compute self-similarity matrix
+  # kernel size in frames, guaranteed to be even
+  kernelSize = max(4, round(kernelLen * audio$samplingRate / 1000 /
+                              frame_points / 2) * 2)
   s = selfsim(
     m = target_spec,
     norm = norm,
@@ -316,14 +375,6 @@ ssm = function(
         width = width, height = height, units = units, res = res)
   }
   if (plot) {
-    # log-transform and normalize spectrogram
-    if (input == 'melspec') {
-      spec = log(zeroOne(mel$aspectrum) + 1e-4)  # dynamic range ~ 80 dB or 1e-4
-    } else {
-      spec = log(zeroOne(mel$pspectrum) + 1e-4)
-    }
-    spec = zeroOne(spec)
-
     if (is.null(main)) {
       if (audio$filename_base == 'sound') {
         main = ''
@@ -339,30 +390,54 @@ ssm = function(
         yaxt = 's')
 
     # spectrogram
-    specPars1 = list(
-      levels = seq(0, 1, length = 30),
-      colorTheme = 'seewave',
-      xlab = 'Time, s',
-      ylab = 'kHz',
-      ylim = c(0, maxFreq / 1000)
-    )
-    for (i in seq_along(specPars)) {
-      n = names(specPars)[i]
-      specPars1[[n]] = specPars[[n]]
+    if (input == 'audSpec') {
+      # spec = zeroOne(t(log(target_spec + 1e-4)))
+      spec = t(target_spec)
+      specPars1 = list(
+        colorTheme = 'seewave',
+        xlab = 'Time, s',
+        ylab = 'kHz'
+      )
+      specPars1[names(specPars)] = specPars
+      specPars1$color.palette = switchColorTheme(specPars1$colorTheme)
+      specPars1[['colorTheme']] = NULL
+      do.call(filled.contour.mod, c(list(
+        x = as.numeric(rownames(spec)),
+        y = as.numeric(colnames(spec)),
+        z = spec,
+        yScale = if (is.null(audSpec_pars$yScale)) 'bark' else audSpec_pars$yScale
+      ), specPars1))
+      specPars1$xlim = range(as.numeric(rownames(spec)))
+      specPars1$ylim = range(as.numeric(colnames(spec)))
+    } else {
+      # # log-transform and normalize spectrogram
+      # if (input == 'melspec') {
+      #   spec = log(zeroOne(mel$aspectrum) + 1e-4)  # dynamic range ~ 80 dB or 1e-4
+      # } else {
+      #   spec = log(zeroOne(mel$pspectrum) + 1e-4)
+      # }
+      # spec = zeroOne(spec)
+      spec = t(target_spec)
+      specPars1 = list(
+        colorTheme = 'seewave',
+        xlab = 'Time, s',
+        ylab = if (input %in% c('custom', 'mfcc')) input  else 'kHz'
+      )
+      specPars1[names(specPars)] = specPars
+      specPars1$color.palette = switchColorTheme(specPars1$colorTheme)
+      specPars1[['colorTheme']] = NULL
+      do.call(filled.contour.mod, c(list(
+        x = as.numeric(rownames(spec)),
+        y = as.numeric(colnames(spec)),
+        z = spec,
+        yScale = if (input == 'melspec') 'mel' else 'linear'
+      ), specPars1
+      ))
     }
-    specPars1$color.palette = switchColorTheme(specPars1$colorTheme)
-    specPars1[['colorTheme']] = NULL
-
-    do.call(filled.contour.mod, c(list(
-      x = seq(audio$timeShift, audio$duration, length.out = nrow(spec)),
-      y = seq(
-        0,
-        (audio$samplingRate / 2) - (audio$samplingRate / windowLength_points),
-        length.out = ncol(spec)
-      ) / 1000,
-      z = spec
-    ), specPars1
-    ))
+    specPars1$xlim = c(audio$timeShift, audio$duration)
+    specPars1$ylim = range(as.numeric(rownames(target_spec)))
+    if (input == 'melspec')
+      specPars1$ylim = HzToOther(specPars1$ylim * 1000, 'mel')
 
     # novelty
     noveltyPars1 = list(
@@ -371,13 +446,10 @@ ssm = function(
       col = 'black',
       lwd = 3
     )
-    for (i in seq_along(noveltyPars)) {
-      n = names(noveltyPars)[i]
-      noveltyPars1[[n]] = noveltyPars[[n]]
-    }
+    noveltyPars1[names(noveltyPars)] = noveltyPars
     do.call(lines, c(list(
-      x = seq(audio$timeShift, audio$duration, length.out = length(novelty)),
-      y = novelty / max(novelty, na.rm = TRUE) * maxFreq / 1000 * .95
+      x = seq(specPars1$xlim[1], specPars1$xlim[2], length.out = length(novelty)),
+      y = zeroOne(novelty) * specPars1$ylim[2] * .95
     ), noveltyPars1
     ))
     axis(side = 1, labels = TRUE)
@@ -394,10 +466,7 @@ ssm = function(
       ylab = 'Time, s',
       main = main
     )
-    for (i in seq_along(ssmPars)) {
-      n = names(ssmPars)[i]
-      ssmPars1[[n]] = ssmPars[[n]]
-    }
+    ssmPars1[names(ssmPars)] = ssmPars
     ssmPars1$color.palette = switchColorTheme(ssmPars1$colorTheme)
     ssmPars1[['colorTheme']] = NULL
     timestamps_ssm = seq(0, audio$duration, length.out = nrow(s))
@@ -413,7 +482,8 @@ ssm = function(
     if (is.character(audio$savePlots)) dev.off()
   }
 
-  invisible(list(ssm = s, novelty = novelty))
+  out = list(ssm = s, novelty = novelty)
+  invisible(out[which(names(out) %in% output)])
 }
 
 

@@ -6,7 +6,7 @@
 #' phase portrait, and the color shows the density of trajectories at each point
 #' of the phase portrait.
 #'
-#' Algorithm: the input sound is normalized to [-1, 1] and divided into
+#' Algorithm: the input sound is normalized to \code{[-1, 1]} and divided into
 #' consecutive frames \code{windowLength} ms long without multiplying by any
 #' windowing function (unlike in STFT). For each frame, a phase portrait is
 #' obtained by time-shifting the frame by \code{timeLag} ms. A Poincare section
@@ -63,7 +63,7 @@
 #' @return Returns a list of three components: "orig" = the full phasegram;
 #'   "rasterized" = a rasterized version. For both, $time is the middle of each
 #'   frame (ms), $x is the coordinate along a Poincare section (since the audio
-#'   is normalized, the scale is [-1, 1]), and $y is the density of
+#'   is normalized, the scale is \code{[-1, 1])}, and $y is the density of
 #'   intersections of system trajectories with the Poincare section. The third
 #'   component is $descriptives, which gives the result of nonlinear analysis
 #'   per frame. Currently implemented: shannon = Shannon entropy of Poincare

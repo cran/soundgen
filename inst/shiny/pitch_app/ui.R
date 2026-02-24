@@ -724,6 +724,7 @@ ui = page_fluid(
       ),  # end of column "Sidebar"
 
       fluidRow(
+        style="margin-top: -15px; margin-bottom: -15px;",
         column(
           width = 3,
           fileInput(
@@ -763,6 +764,7 @@ ui = page_fluid(
       ),
 
       fluidRow(
+        style="margin-top: -15px; margin-bottom: -15px;",
         column(
           width = 1,
           actionButton(

@@ -46,8 +46,8 @@
 #' @param maxFreq parts of the spectra above \code{maxFreq} Hz are not compared
 #' @return Returns a dataframe with two columns: "method" for the method(s)
 #'   used, and "sim" for the similarity between the two sounds calculated with
-#'   that method. The range of similarity measures is [-1, 1] for "cor",
-#'   [0, 1] for "cosine" and "diff", and (-Inf, Inf) for "dtw".
+#'   that method. The range of similarity measures is \code{[-1, 1]} for "cor",
+#'   \code{[0, 1]} for "cosine" and "diff", and \code{(-Inf, Inf)} for "dtw".
 #' @export
 #' @examples
 #' data(orni, peewit, package = 'seewave')

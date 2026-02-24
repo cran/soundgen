@@ -40,8 +40,8 @@
 speaker "M1" (implemented: "aoieu0") or a list of formant times,
 frequencies, amplitudes, and bandwidths (see examples). NA or NULL means no
 formants, only lip radiation. Time stamps for formants and mouthOpening can
-be specified in ms relative to \code{sylLen} or on a scale of [0, 1]. See
-\code{\link{getSpectralEnvelope}} for more details}
+be specified in ms relative to \code{sylLen} or on a scale of \code{[0,
+1]}. See \code{\link{getSpectralEnvelope}} for more details}
 
 \item{spectralEnvelope}{(optional): as an alternative to specifying formant
 frequencies, we can provide the exact filter - a vector of non-negative

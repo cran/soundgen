@@ -95,7 +95,7 @@
 #'   returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 #'   step as in current call to analyze. A named list with pitch vectors per
 #'   file is also OK (eg as returned by pitch_app)
-#' @param entropyThres pitch tracking is only performed for frames with Weiner
+#' @param entropyThres pitch tracking is only performed for frames with Wiener
 #'   entropy below \code{entropyThres}, but other spectral descriptives are
 #'   still calculated (NULL = analyze everything)
 #' @param pitchFloor,pitchCeiling absolute bounds for pitch candidates (Hz)
@@ -206,11 +206,12 @@
 #'   of pitch quality, the ratio of the highest peak in the cepstrum to the
 #'   regression line drawn through it)} \item{dom}{lowest dominant frequency
 #'   band (Hz) (see "Pitch tracking methods / Dominant frequency" in the
-#'   vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
-#'   frame. Close to 0: pure tone or tonal sound with nearly all energy in
-#'   harmonics; close to 1: white noise} \item{entropySh}{Normalized Shannon
-#'   entropy of the spectrum of the current frame: 0 = pure tone, 1 = white
-#'   noise} \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the
+#'   vignette)} \item{entropy}{Wiener entropy of the spectrum of the current
+#'   frame (=spectral flatness). Close to 0: pure tone or tonal sound with
+#'   nearly all energy in harmonics; close to 1: white noise}
+#'   \item{entropySh}{Normalized Shannon entropy of the spectrum of the current
+#'   frame: 0 = pure tone, 1 = white noise} \item{f1_freq, f1_width, ...}{the
+#'   frequency and bandwidth of the
 #'   first nFormants formants per STFT frame, as calculated by
 #'   phonTools::findformants} \item{flux}{feature-based flux, the rate of change
 #'   in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
@@ -416,7 +417,7 @@ analyze = function(
     formants = list(),
     loudness = list(SPL_measured = 70),
     roughness = list(msType = '1D', windowLength = 25, step = 2, amRes = 5),
-    novelty = list(input = 'melspec', kernelLen = 100),
+    novelty = list(input = 'melspec', kernelLen = 1000),
     pitchMethods = c('dom', 'autocor'),
     pitchManual = NULL,
     entropyThres = 0.6,
@@ -619,8 +620,10 @@ analyze = function(
 
   # reformat loudness/novelty etc lists, if any
   if (!is.null(novelty)) {
-    if (is.null(novelty$windowLength)) novelty$windowLength = windowLength
-    if (is.null(novelty$step)) novelty$step = step
+    if (is.null(novelty$melfcc_pars$windowLength))
+      novelty$melfcc_pars$windowLength = windowLength
+    if (is.null(novelty$melfcc_pars$step))
+      novelty$melfcc_pars$step = step
   }
   if (!is.null(loudness)) {
     if (is.null(loudness$SPL_measured)) loudness$SPL_measured = 70
@@ -1040,8 +1043,8 @@ analyze = function(
     rowHigh = nrow(s)
   }
   if (length(rowHigh) < 1 | !is.finite(rowHigh)) rowHigh = nrow(s)
-  entropy = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'weiner')
-  entropySh = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'weiner', normalize = TRUE)
+  entropy = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'wiener')
+  entropySh = apply(s[rowLow:rowHigh, ], 2, getEntropy, type = 'wiener', normalize = TRUE)
   # if the frame is too quiet or too noisy, we will not analyze it
   cond_silence = ampl >= silence & colSums(s) > 0
   # (need both b/c s frames are not 100% synchronized with ampl frames)
@@ -1463,16 +1466,17 @@ analyze = function(
   }
 
   ## Novelty calculation
-  if (is.null(novelty)) {
-    result$novelty = NA
-  } else {
-    novel = do.call(.ssm, c(
-      list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration')],
+  result$novelty = NA
+  if (!is.null(novelty)) {
+    novel = try(do.call(.ssm, c(
+      list(audio = audio[c('sound', 'samplingRate', 'ls', 'duration', 'timeShift')],
            sparse = TRUE, plot = FALSE),
-      novelty))$novelty
-    result$novelty = .resample(list(sound = novel), len = nr,
-                               lowPass = FALSE, plot = FALSE)
-    result$novelty[!cond_silence] = NA
+      novelty))$novelty)
+    if (!inherits(novel, 'try-error')) {
+      result$novelty = .resample(list(sound = novel), len = nr,
+                                 lowPass = FALSE, plot = FALSE)
+      # result$novelty[!cond_silence] = NA  # silent sections can be surprising
+    }
   }
 
   # AM from envelope

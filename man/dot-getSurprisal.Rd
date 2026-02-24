@@ -7,17 +7,20 @@
 .getSurprisal(
   audio,
   winSurp,
-  input = c("audSpec", "spec", "env")[1],
+  input = c("audSpec", "env", "spectrogram", "pspec", "melspec")[1],
+  takeLog = TRUE,
   audSpec_pars = list(filterType = "butterworth", nFilters = 32, step = 20, yScale =
     "bark"),
   spec_pars = list(windowLength = c(5, 40), step = NULL),
   env_pars = list(windowLength = 40, step = 20),
+  melfcc_pars = list(windowLength = 25, step = 5, maxfreq = NULL, nbands = NULL),
   method = c("acf", "np")[1],
-  sameLagAllFreqs = TRUE,
+  sameLagAllFreqs = FALSE,
   weightByAmpl = TRUE,
+  weightByPrecision = TRUE,
+  onlyPeakAutocor = TRUE,
   rescale = FALSE,
   plot = TRUE,
-  whatToPlot = c("surprisal", "surprisalLoudness")[1],
   osc = c("none", "linear", "dB")[2],
   heights = c(3, 1),
   ylim = NULL,
@@ -42,40 +45,60 @@
 )
 }
 \arguments{
-\item{winSurp}{surprisal analysis window, ms (Inf = from sound onset to each
-point)}
+\item{winSurp}{surprisal analysis window, ms (Inf = from sound onset)}
 
 \item{input}{\code{audSpec} = auditory spectrogram
-(\code{\link{audSpectrogram}}, speed ~= 0.4x), \code{spec} = ordinary STFT
-spectrogram (\code{\link{spectrogram}}, speed ~= 0.25x), \code{env} =
-analytic envelope (\code{\link{getRMS}}, speed ~= 33x)}
+(\code{\link{audSpectrogram}}, speed with default settings ~= 1x),
+\code{spectrogram} = STFT spectrogram with (\code{\link{spectrogram}},
+speed ~= 0.25x), \code{pspec} = STFT power spectrogram with
+(\code{\link[tuneR]{melfcc}}, speed ~= 0.2x), \code{melspec} = STFT
+mel-spectrogram with (\code{\link[tuneR]{melfcc}}, speed ~= 0.45x),
+\code{env} = analytic envelope (\code{\link{getRMS}}, speed ~= 27x) Any
+custom spectrogram-like matrix of features (time in columns labeled in s,
+features in rows) is also accepted (see examples)}
 
-\item{audSpec_pars, spec_pars, env_pars}{a list of parameters passed to
-\code{\link{audSpectrogram}} (if input = 'audSpec'),
-\code{\link{spectrogram}} (if input = 'spec'), or \code{\link{getRMS}} (if
-input = 'env')}
+\item{takeLog}{if TRUE, the input is log-transformed prior to calculating
+surprisal. Negative values are treated as in \code{\link{audSpectrogram}} -
+note that the chosen dynamic range affects this normalization (the default
+is 80 dB). If \code{input = audSpec} or \code{input = spectrogram}, there
+can be other internal preprocessing like modifying contrast based on
+\code{audSpec_pars} or \code{spec_pars}}
 
-\item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
-is VERY slow)}
+\item{audSpec_pars, spec_pars, melfcc_pars, env_pars}{a list of parameters
+passed to \code{\link{audSpectrogram}} (if input = 'audSpec'),
+\code{\link{spectrogram}} (if input = 'spectrogram'),
+\code{\link[tuneR]{melfcc}} (if input = 'melspec' or 'pspec'), or
+\code{\link{getRMS}} (if input = 'env')}
 
-\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the best_lag is
-calculated by averaging the ACFs of all channels, and the same best_lag is
+\item{method}{(for $surprisal only, has no effect on $info and $kl)
+\code{acf} = change in maximum autocorrelation after adding the final
+point; \code{np} = nonlinear prediction (see \code{\link{nonlinPred}} -
+works but is VERY slow); \code{none} = do not calculate $surprisal to save
+time and only return $info and $kl}
+
+\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the bestLag is
+calculated by averaging the ACFs of all channels, and the same bestLag is
 used to calculate the surprisal in each frequency channel (we expect the
-same "rhythm" for all frequencies); if FALSE, the best_lag is calculated
+same "rhythm" for all frequencies); if FALSE, the bestLag is calculated
 separately for each frequency channel (we can track different "rhythms" at
 different frequencies)}
 
 \item{weightByAmpl}{if TRUE, ACFs and surprisal are weighted by max amplitude
 per frequency channel}
 
-\item{rescale}{if TRUE, surprisal is normalized from (-Inf, Inf) to [-1, 1]}
+\item{weightByPrecision}{if TRUE, surprisal is weighted by the current
+autocorrelation, so deviations from a previous pattern are more surprising
+if this pattern is strong}
+
+\item{onlyPeakAutocor}{if TRUE, only peaks of ACFs are considered (so bestLag
+can never be 1, and the first change after a string of static values
+results in surprisal = NA)}
+
+\item{rescale}{if TRUE, surprisal is normalized from \code{(-Inf, Inf)} to
+\code{[-1, 1]}}
 
 \item{plot}{if TRUE, plots the auditory spectrogram and the
 \code{suprisalLoudness} contour}
-
-\item{whatToPlot}{"surprisal" = pure surprisal, "surprisalLoudness" =
-surprisal x increase in subjective loudness}
 
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
 in decibels}

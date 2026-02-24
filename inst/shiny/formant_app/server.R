@@ -20,7 +20,7 @@ server = function(input, output, session) {
 
   myPars = reactiveValues(
     print = FALSE,          # if TRUE, some functions print a meassage to the console when called
-    debugQn = T,        # for debugging - click "?" to step into the code
+    debugQn = FALSE,        # for debugging - click "?" to step into the code
     zoomFactor = 2,         # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
     drawSpec = TRUE,
@@ -101,7 +101,7 @@ server = function(input, output, session) {
       suppressWarnings(try(updateNumericInput(session, v, value = new_value)))
     }
     updateSelectInput(session, 'wn', selected = formant_app_defaults$wn)
-    updateSelectInput(session, 'wn_lpc', selected = formant_app_defaults$wn_lpc)
+    updateSelectInput(session, 'wn_lpc', selected =formant_app_defaults$wn_lpc)
     updateSliderInput(session, 'spec_ylim', value = formant_app_defaults$spec_ylim)
     updateSliderInput(session, 'spectrum_xlim',
                       value = formant_app_defaults$spectrum_xlim)
@@ -224,7 +224,7 @@ server = function(input, output, session) {
     myPars$dur = length(myPars$temp_audio@left) * 1000 / myPars$temp_audio@samp.rate
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
-    if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
+    # if (!is.finite(myPars$spec_xlim[2])) browser()  # weird glitches
     myPars$regionToAnalyze = myPars$spec_xlim
     myPars$myAudio_list = list(
       sound = myPars$myAudio,

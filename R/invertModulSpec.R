@@ -14,8 +14,8 @@
 #'
 #' @seealso \code{\link{invertSpectrogram}} \code{\link{filterMS}}
 #'
-#' @return Returns the filtered audio as a numeric vector normalized to [-1, 1]
-#'   with the same sampling rate as input.
+#' @return Returns the filtered audio as a numeric vector normalized to
+#'   \code{[-1, 1]} with the same sampling rate as input.
 #' @inheritParams modulationSpectrum
 #' @inheritParams filterMS
 #' @inheritParams invertSpectrogram

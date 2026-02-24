@@ -138,7 +138,7 @@ pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
 'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band, 'hps' =
 harmonic product spectrum, NULL = no pitch analysis}
 
-\item{entropyThres}{pitch tracking is only performed for frames with Weiner
+\item{entropyThres}{pitch tracking is only performed for frames with Wiener
 entropy below \code{entropyThres}, but other spectral descriptives are
 still calculated (NULL = analyze everything)}
 

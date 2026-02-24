@@ -35,7 +35,8 @@ Internal soundgen function.
 \details{
 Internal helper function for postprocessing of pitch contour. Returns the
 total force acting on a snake (sum of internal and external gradients, i.e.
-of the elastic force trying to straighten the snake [internal] and of the
-force pushing the snake towards the most certain pitch estimates [external])
+of the elastic force trying to straighten the snake ("internal") and of the
+force pushing the snake towards the most certain pitch estimates
+("external").
 }
 \keyword{internal}

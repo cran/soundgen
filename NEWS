@@ -1,3 +1,13 @@
+          CHANGES IN SOUNDGEN VERSION 2.9.0 [24-Feb-2026]
+MAJOR:
+  * getSurprisal(): largely rewritten, many new arguments and outputs
+  * ssm(): new supported inputs (audSpec, custom), new arguments (audSpec_pars, spec_pars, etc.), ssmWin specified in frames not ms, custom input accepted
+
+MINOR:
+  * analyze(): new defaults and format for the "novelty" argument passed to ssm()
+  * ?soundgen-package: added package documentation with a list of main functions
+
+
           CHANGES IN SOUNDGEN VERSION 2.8.0 [13-Dec-2025]
 NEW FUNCTIONS:
   * phon2sone(), sone2phon(): conversion between phon and sone loudness scales

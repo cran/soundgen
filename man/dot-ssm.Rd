@@ -6,20 +6,19 @@
 \usage{
 .ssm(
   audio,
-  windowLength = 25,
-  step = 5,
-  overlap = NULL,
-  win = 1,
   sparse = FALSE,
-  maxFreq = NULL,
-  nBands = NULL,
+  input = c("melspec", "mfcc", "spec", "audSpec")[1],
+  melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
   MFCC = 2:13,
-  input = c("mfcc", "melspec", "spectrum")[2],
+  audSpec_pars = list(nFilters = 16, step = 10),
+  takeLog = FALSE,
   norm = FALSE,
   simil = c("cosine", "cor")[1],
   kernelLen = 100,
   kernelSD = 0.5,
   padWith = 0,
+  win = 1,
+  output = c("ssm", "novelty", "summary"),
   plot = TRUE,
   main = NULL,
   heights = c(2, 1),
@@ -27,40 +26,37 @@
   height = 500,
   units = "px",
   res = NA,
-  specPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "kHz"),
-  ssmPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "Time, s"),
+  specPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
+    "Time, s", ylab = "kHz"),
+  ssmPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
+    "Time, s", ylab = "Time, s"),
   noveltyPars = list(type = "b", pch = 16, col = "black", lwd = 3)
 )
 }
 \arguments{
 \item{audio}{a list returned by \code{readAudio}}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
-
-\item{overlap}{overlap between successive FFT frames, \%}
-
 \item{sparse}{if TRUE, the entire SSM is not calculated, but only the central
 region needed to extract the novelty contour (speeds up the processing)}
 
-\item{maxFreq}{highest band edge of mel filters, Hz. Defaults to
-\code{samplingRate / 2}. See \code{\link[tuneR]{melfcc}}}
+\item{input}{the spectral representation used to calculate the SSM: "audSpec"
+= auditory spectrogram returned by \code{\link{audSpectrogram}}, "mfcc" =
+Mel-Frequency Cepstral coefficients, "melspec" = Mel-transformed STFT
+spectrogram, "spec" = STFT power spectrogram (all three returned by
+\code{\link[tuneR]{melfcc}}). Any custom spectrogram-like matrix of
+features (time in columns labeled in s, features in rows) is also accepted
+(see examples)}
 
-\item{nBands}{number of warped spectral bands to use. Defaults to \code{100 *
-windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
+\item{melfcc_pars}{a list of parameters passed to \code{\link[tuneR]{melfcc}}}
 
 \item{MFCC}{which mel-frequency cepstral coefficients to use; defaults to
 \code{2:13}}
 
-\item{input}{the spectral representation used to calculate the SSM}
+\item{audSpec_pars}{a list of parameters passed to
+\code{\link{audSpectrogram}} (if input = 'audSpec')}
+
+\item{takeLog}{if TRUE, the input is log-transformed prior to calculating
+self-similarity}
 
 \item{norm}{if TRUE, the spectrum of each STFT frame is normalized}
 
@@ -74,6 +70,9 @@ windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
 
 \item{padWith}{how to treat edges when calculating novelty: NA = treat sound
 before and after the recording as unknown, 0 = treat it as silence}
+
+\item{output}{what to return (drop "ssm" to save memory when analyzing a lot
+of files)}
 
 \item{plot}{if TRUE, plots the SSM}
 

@@ -6,7 +6,7 @@
 \usage{
 getEntropy(
   x,
-  type = c("weiner", "shannon")[1],
+  type = c("wiener", "shannon")[1],
   normalize = FALSE,
   convertNonPositive = 1e-10
 )
@@ -14,17 +14,17 @@ getEntropy(
 \arguments{
 \item{x}{vector of positive floats}
 
-\item{type}{'shannon' for Shannon (information) entropy, 'weiner' for Weiner
+\item{type}{'shannon' for Shannon (information) entropy, 'wiener' for Wiener
 entropy}
 
 \item{normalize}{if TRUE, Shannon entropy is normalized by the length of
-input vector to range from 0 to 1. It has no affect on Weiner entropy}
+input vector to range from 0 to 1. It has no affect on Wiener entropy}
 
 \item{convertNonPositive}{all non-positive values are converted to
 \code{convertNonPositive}}
 }
 \description{
-Returns Weiner or Shannon entropy of an input vector such as the spectrum of
+Returns Wiener or Shannon entropy of an input vector such as the spectrum of
 a sound. Non-positive input values are converted to a small positive number
 (convertNonPositive). If all elements are zero, returns NA.
 }
@@ -37,7 +37,7 @@ s = list(
   rep(1, 9)                         # white noise
 )
 
-# Weiner entropy is ~0 for periodic, NA for silent, 1 for white noise
+# Wiener entropy is ~0 for periodic, NA for silent, 1 for white noise
 sapply(s, function(x) round(getEntropy(x), 2))
 
 # Shannon entropy is ~0 for periodic with a single harmonic, moderate for

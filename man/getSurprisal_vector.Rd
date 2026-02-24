@@ -4,19 +4,35 @@
 \alias{getSurprisal_vector}
 \title{Get surprisal per vector}
 \usage{
-getSurprisal_vector(x, method = c("acf", "np")[1], best_lag = NULL)
+getSurprisal_vector(
+  x,
+  method = c("acf", "np", "none")[1],
+  bestLag = NULL,
+  weightByPrecision = TRUE,
+  onlyPeakAutocor = FALSE
+)
 }
 \arguments{
 \item{x}{numeric vector representing the time sequence of interest, eg
 amplitudes in a frequency bin over multiple STFT frames}
 
-\item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
-is VERY slow)}
+\item{method}{(for $surprisal only, has no effect on $info and $kl)
+\code{acf} = change in maximum autocorrelation after adding the final
+point; \code{np} = nonlinear prediction (see \code{\link{nonlinPred}} -
+works but is VERY slow); \code{none} = do not calculate $surprisal to save
+time and only return $info and $kl}
 
-\item{best_lag}{(only for method = 'acf') if specified, we don't calculate
-the ACF but simply compare autocorrelation at best_lag with vs without the
+\item{bestLag}{(only for method = 'acf') if specified, we don't calculate
+the ACF but simply compare autocorrelation at bestLag with vs without the
 final point}
+
+\item{weightByPrecision}{if TRUE, surprisal is weighted by the current
+autocorrelation, so deviations from a previous pattern are more surprising
+if this pattern is strong}
+
+\item{onlyPeakAutocor}{if TRUE, only peaks of ACFs are considered (so bestLag
+can never be 1, and the first change after a string of static values
+results in surprisal = NA)}
 }
 \description{
 Internal soundgen function called by \code{\link{getSurprisal}}.

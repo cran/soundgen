@@ -924,15 +924,13 @@ addFormants = function(
       if (movingFormants) {
         z = z * spectralEnvelope
       } else {
-        z = apply(z, 2, function(x)
-          x * spectralEnvelope)
+        z = sweep(z, MARGIN = 1, spectralEnvelope, `*`)
       }
     } else if (action == 'remove') {
       if (movingFormants) {
         z = z / spectralEnvelope
       } else {
-        z = apply(z, 2, function(x)
-          x / spectralEnvelope)
+        z = sweep(z, MARGIN = 1, spectralEnvelope, `/`)
       }
     }
 

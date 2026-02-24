@@ -10,6 +10,8 @@ getSurprisal_matrix(
   method = c("acf", "np")[1],
   sameLagAllFreqs = TRUE,
   weightByAmpl = TRUE,
+  weightByPrecision = TRUE,
+  onlyPeakAutocor = FALSE,
   rescale = FALSE
 )
 }
@@ -19,21 +21,32 @@ frequency)}
 
 \item{win}{length of analysis window}
 
-\item{method}{acf = change in maximum autocorrelation after adding the final
-point, np = nonlinear prediction (see \code{\link{nonlinPred}} - works but
-is VERY slow)}
+\item{method}{(for $surprisal only, has no effect on $info and $kl)
+\code{acf} = change in maximum autocorrelation after adding the final
+point; \code{np} = nonlinear prediction (see \code{\link{nonlinPred}} -
+works but is VERY slow); \code{none} = do not calculate $surprisal to save
+time and only return $info and $kl}
 
-\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the best_lag is
-calculated by averaging the ACFs of all channels, and the same best_lag is
+\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the bestLag is
+calculated by averaging the ACFs of all channels, and the same bestLag is
 used to calculate the surprisal in each frequency channel (we expect the
-same "rhythm" for all frequencies); if FALSE, the best_lag is calculated
+same "rhythm" for all frequencies); if FALSE, the bestLag is calculated
 separately for each frequency channel (we can track different "rhythms" at
 different frequencies)}
 
 \item{weightByAmpl}{if TRUE, ACFs and surprisal are weighted by max amplitude
 per frequency channel}
 
-\item{rescale}{if TRUE, surprisal is normalized from (-Inf, Inf) to [-1, 1]}
+\item{weightByPrecision}{if TRUE, surprisal is weighted by the current
+autocorrelation, so deviations from a previous pattern are more surprising
+if this pattern is strong}
+
+\item{onlyPeakAutocor}{if TRUE, only peaks of ACFs are considered (so bestLag
+can never be 1, and the first change after a string of static values
+results in surprisal = NA)}
+
+\item{rescale}{if TRUE, surprisal is normalized from \code{(-Inf, Inf)} to
+\code{[-1, 1]}}
 }
 \description{
 Internal soundgen function called by \code{\link{getSurprisal}}.

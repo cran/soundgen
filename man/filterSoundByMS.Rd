@@ -90,8 +90,8 @@ the MS of the output sound}
 \code{\link[grDevices]{png}} if the plot is saved}
 }
 \value{
-Returns the filtered audio as a numeric vector normalized to [-1, 1]
-  with the same sampling rate as input.
+Returns the filtered audio as a numeric vector normalized to
+  \code{[-1, 1]} with the same sampling rate as input.
 }
 \description{
 Manipulates the modulation spectrum (MS) of a sound so as to remove certain

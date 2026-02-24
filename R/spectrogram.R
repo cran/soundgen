@@ -675,9 +675,9 @@ spectrogram = function(
       }) # freq domain
     }
     if (qTime > 0) {
-      Z1 = t(apply(Z1, 1, function(x) {
-        x - quantile(x, probs = qTime)
-      }))  # for each freq bin, subtract median or another quantile
+      # for each freq bin, subtract median or another quantile
+      qx = apply(Z1, 1, quantile, probs = qTime)
+      Z1 = sweep(Z1, 1, qx)
     }
   }
 
@@ -702,7 +702,8 @@ spectrogram = function(
     if (length(idx) > 0) {
       noise_spectrum = as.numeric(apply (Z1[idx, , drop = FALSE], 2, mean))
       # plot(noise_spectrum, type = 'l')
-      Z1 = t(apply(Z1, 1, function(x) x - noiseReduction * noise_spectrum))
+      # Z1 = t(apply(Z1, 1, function(x) x - noiseReduction * noise_spectrum))
+      Z1 = sweep(Z1, 2, noiseReduction * noise_spectrum)
     }
     # re-normalize
     Z1[Z1 <= 0] = 0

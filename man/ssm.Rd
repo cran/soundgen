@@ -9,21 +9,20 @@ ssm(
   samplingRate = NULL,
   from = NULL,
   to = NULL,
-  windowLength = 25,
-  step = 5,
-  overlap = NULL,
-  ssmWin = NULL,
   sparse = FALSE,
-  maxFreq = NULL,
-  nBands = NULL,
+  input = c("melspec", "mfcc", "spec", "audSpec")[1],
+  melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
   MFCC = 2:13,
-  input = c("mfcc", "melspec", "spectrum")[2],
+  audSpec_pars = list(nFilters = 16, step = 10),
+  takeLog = FALSE,
   norm = FALSE,
   simil = c("cosine", "cor")[1],
-  kernelLen = 100,
+  kernelLen = 1000,
   kernelSD = 0.5,
   padWith = 0,
+  ssmWin = NULL,
   summaryFun = c("mean", "sd"),
+  output = c("ssm", "novelty", "summary"),
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
@@ -34,10 +33,10 @@ ssm(
   height = 500,
   units = "px",
   res = NA,
-  specPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "kHz"),
-  ssmPars = list(levels = seq(0, 1, length = 30), colorTheme = c("bw", "seewave",
-    "heat.colors", "...")[2], xlab = "Time, s", ylab = "Time, s"),
+  specPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
+    "Time, s"),
+  ssmPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
+    "Time, s", ylab = "Time, s"),
   noveltyPars = list(type = "b", pch = 16, col = "black", lwd = 3)
 )
 }
@@ -52,33 +51,27 @@ numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
-
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
-
-\item{overlap}{overlap between successive FFT frames, \%}
-
-\item{ssmWin}{window for averaging SSM, ms (has a smoothing effect and speeds
-up the processing)}
-
 \item{sparse}{if TRUE, the entire SSM is not calculated, but only the central
 region needed to extract the novelty contour (speeds up the processing)}
 
-\item{maxFreq}{highest band edge of mel filters, Hz. Defaults to
-\code{samplingRate / 2}. See \code{\link[tuneR]{melfcc}}}
+\item{input}{the spectral representation used to calculate the SSM: "audSpec"
+= auditory spectrogram returned by \code{\link{audSpectrogram}}, "mfcc" =
+Mel-Frequency Cepstral coefficients, "melspec" = Mel-transformed STFT
+spectrogram, "spec" = STFT power spectrogram (all three returned by
+\code{\link[tuneR]{melfcc}}). Any custom spectrogram-like matrix of
+features (time in columns labeled in s, features in rows) is also accepted
+(see examples)}
 
-\item{nBands}{number of warped spectral bands to use. Defaults to \code{100 *
-windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
+\item{melfcc_pars}{a list of parameters passed to \code{\link[tuneR]{melfcc}}}
 
 \item{MFCC}{which mel-frequency cepstral coefficients to use; defaults to
 \code{2:13}}
 
-\item{input}{the spectral representation used to calculate the SSM}
+\item{audSpec_pars}{a list of parameters passed to
+\code{\link{audSpectrogram}} (if input = 'audSpec')}
+
+\item{takeLog}{if TRUE, the input is log-transformed prior to calculating
+self-similarity}
 
 \item{norm}{if TRUE, the spectrum of each STFT frame is normalized}
 
@@ -93,10 +86,16 @@ windowLength / 20}. See \code{\link[tuneR]{melfcc}}}
 \item{padWith}{how to treat edges when calculating novelty: NA = treat sound
 before and after the recording as unknown, 0 = treat it as silence}
 
+\item{ssmWin}{window for averaging SSM, frames (has a smoothing effect and
+speeds up the processing)}
+
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
 eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
 are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
 take care of NAs yourself}
+
+\item{output}{what to return (drop "ssm" to save memory when analyzing a lot
+of files)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
 left every ... iterations (NULL = default, NA = don't report)}
@@ -129,7 +128,15 @@ Returns a list of two components: $ssm contains the self-similarity
   matrix, and $novelty contains the novelty vector.
 }
 \description{
-Calculates the self-similarity matrix and novelty vector of a sound.
+Calculates the self-similarity matrix and novelty vector of a sound. The
+self-similarity matrix is produced by cross-correlating different segments of
+the input sound. Novelty is calculated by convolving the self-similarity
+matrix with a tapered checkerboard kernel. The positive lobes of the kernel
+represent coherence (self-similarity within the regions on either side of the
+center point) and the negative lobes anti-coherence (cross-similarity
+between these two regions). Since novelty is the dot product of the
+checkerboard kernel with the SSM, it is high when the two regions are
+self-similar (internally consistent) but different from each other.
 }
 \examples{
 sound = c(soundgen(),
@@ -147,18 +154,32 @@ s2$novelty  # novelty contour
 \dontrun{
 ssm(sound, samplingRate = 16000,
     input = 'mfcc', simil = 'cor', norm = TRUE,
-    ssmWin = 25,  # speed up the processing
+    ssmWin = 10,  # speed up the processing
     kernelLen = 300,  # global features
     specPars = list(colorTheme = 'seewave'),
     ssmPars = list(col = rainbow(100)),
     noveltyPars = list(type = 'l', lty = 3, lwd = 2))
+
+# Custom input: produce a nice spectrogram first, then feed it into ssm()
+sp = spectrogram(sound, 16000, windowLength = c(5, 40), contrast = .3,
+  output = 'processed')  # return the modified spectrogram
+colnames(sp) = as.numeric(colnames(sp)) / 1000  # convert ms to s
+ssm(sound, 16000, kernelLen = 400, input = sp)
+
+# Custom input: use acoustic features returned by analyze()
+an = analyze(sound, 16000, windowLength = 20, novelty = NULL)
+input_an = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
+input_an = t(apply(input_an, 1, scale))  # z-transform all variables
+input_an[is.na(input_an)] = 0  # get rid of NAs
+colnames(input_an) = an$detailed$time / 1000  # time stamps in s
+rownames(input_an) = 1:nrow(input_an)
+image(t(input_an))  # not a spectrogram, just a feature matrix
+ssm(sound, 16000, kernelLen = 500, input = input_an, takeLog = FALSE,
+  specPars = list(ylab = 'Feature'))
 }
 }
 \references{
 \itemize{
-  \item El Badawy, D., Marmaroli, P., & Lissek, H. (2013). Audio
-  Novelty-Based Segmentation of Music Concerts. In Acoustics 2013 (No.
-  EPFL-CONF-190844)
   \item Foote, J. (1999, October). Visualizing music and
   audio using self-similarity. In Proceedings of the seventh ACM
   international conference on Multimedia (Part 1) (pp. 77-80). ACM.
@@ -166,7 +187,7 @@ ssm(sound, samplingRate = 16000,
   Foote, J. (2000). Automatic audio segmentation using a measure of audio
   novelty. In Multimedia and Expo, 2000. ICME 2000. 2000 IEEE International
   Conference on (Vol. 1, pp. 452-455). IEEE.
-  }
+}
 }
 \seealso{
 \code{\link{spectrogram}} \code{\link{modulationSpectrum}}

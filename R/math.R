@@ -239,15 +239,15 @@ log01 = function(v) {
 
 #' Entropy
 #'
-#' Returns Weiner or Shannon entropy of an input vector such as the spectrum of
+#' Returns Wiener or Shannon entropy of an input vector such as the spectrum of
 #' a sound. Non-positive input values are converted to a small positive number
 #' (convertNonPositive). If all elements are zero, returns NA.
 #'
 #' @param x vector of positive floats
-#' @param type 'shannon' for Shannon (information) entropy, 'weiner' for Weiner
+#' @param type 'shannon' for Shannon (information) entropy, 'wiener' for Wiener
 #'   entropy
 #' @param normalize if TRUE, Shannon entropy is normalized by the length of
-#'   input vector to range from 0 to 1. It has no affect on Weiner entropy
+#'   input vector to range from 0 to 1. It has no affect on Wiener entropy
 #' @param convertNonPositive all non-positive values are converted to
 #'   \code{convertNonPositive}
 #' @export
@@ -260,7 +260,7 @@ log01 = function(v) {
 #'   rep(1, 9)                         # white noise
 #' )
 #'
-#' # Weiner entropy is ~0 for periodic, NA for silent, 1 for white noise
+#' # Wiener entropy is ~0 for periodic, NA for silent, 1 for white noise
 #' sapply(s, function(x) round(getEntropy(x), 2))
 #'
 #' # Shannon entropy is ~0 for periodic with a single harmonic, moderate for
@@ -271,13 +271,13 @@ log01 = function(v) {
 #' sapply(s, function(x) round(getEntropy(x,
 #'   type = 'shannon', normalize = TRUE), 2))
 getEntropy = function(x,
-                      type = c('weiner', 'shannon')[1],
+                      type = c('wiener', 'shannon')[1],
                       normalize = FALSE,
                       convertNonPositive = 1e-10) {
   sum_x = sum(x)
   if (sum_x == 0) return (NA)  # empty frames
   x[x <= 0] = convertNonPositive  # otherwise log0 gives NaN
-  if (type == 'weiner') {
+  if (type == 'wiener') {
     geom_mean = exp(mean(log(x)))
     ar_mean = sum_x / length(x)
     entropy = geom_mean / ar_mean
@@ -289,7 +289,7 @@ getEntropy = function(x,
       entropy = -sum(p * log2(p))
     }
   } else {
-    stop('Implemented entropy types: "shannon" or "weiner"')
+    stop('Implemented entropy types: "shannon" or "wiener"')
   }
   entropy
 }
@@ -1795,8 +1795,8 @@ averageMatrices = function(mat_list,
 #' Trim leading and trailing NAs
 #'
 #' Internal soundgen function. Nearly 10 times faster than zoo::na.trim.
-#' Slightly slower solution: a[!cumprod(is.na(a)) &
-#' rev(!cumprod(is.na(rev(a))))]. See
+#' Slightly slower solution: \code{a[!cumprod(is.na(a)) &
+#' rev(!cumprod(is.na(rev(a))))]}. See
 #' https://stackoverflow.com/questions/42759027/remove-leading-and-trailing-na
 #'
 #' @param x numeric vector

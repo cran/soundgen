@@ -23,7 +23,7 @@ analyze(
   formants = list(),
   loudness = list(SPL_measured = 70),
   roughness = list(msType = "1D", windowLength = 25, step = 2, amRes = 5),
-  novelty = list(input = "melspec", kernelLen = 100),
+  novelty = list(input = "melspec", kernelLen = 1000),
   pitchMethods = c("dom", "autocor"),
   pitchManual = NULL,
   entropyThres = 0.6,
@@ -158,7 +158,7 @@ returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
 file is also OK (eg as returned by pitch_app)}
 
-\item{entropyThres}{pitch tracking is only performed for frames with Weiner
+\item{entropyThres}{pitch tracking is only performed for frames with Wiener
 entropy below \code{entropyThres}, but other spectral descriptives are
 still calculated (NULL = analyze everything)}
 
@@ -317,11 +317,12 @@ Returns a list with \code{$detailed} frame-by-frame descriptives and
   of pitch quality, the ratio of the highest peak in the cepstrum to the
   regression line drawn through it)} \item{dom}{lowest dominant frequency
   band (Hz) (see "Pitch tracking methods / Dominant frequency" in the
-  vignette)} \item{entropy}{Weiner entropy of the spectrum of the current
-  frame. Close to 0: pure tone or tonal sound with nearly all energy in
-  harmonics; close to 1: white noise} \item{entropySh}{Normalized Shannon
-  entropy of the spectrum of the current frame: 0 = pure tone, 1 = white
-  noise} \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the
+  vignette)} \item{entropy}{Wiener entropy of the spectrum of the current
+  frame (=spectral flatness). Close to 0: pure tone or tonal sound with
+  nearly all energy in harmonics; close to 1: white noise}
+  \item{entropySh}{Normalized Shannon entropy of the spectrum of the current
+  frame: 0 = pure tone, 1 = white noise} \item{f1_freq, f1_width, ...}{the
+  frequency and bandwidth of the
   first nFormants formants per STFT frame, as calculated by
   phonTools::findformants} \item{flux}{feature-based flux, the rate of change
   in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"

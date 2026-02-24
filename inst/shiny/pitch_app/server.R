@@ -98,7 +98,8 @@ server = function(input, output, session) {
 
   observeEvent(input$loadAudio, {
     if (myPars$print) print('Loading audio...')
-    reset()  # also triggers done()
+    done()
+    reset()
 
     # work only with audio files
     idx_audio = which(apply(matrix(input$loadAudio$type), 1, function(x) {
@@ -146,7 +147,9 @@ server = function(input, output, session) {
           frame_i = round(time_i / input$step)
           step_i = time_i[2] - time_i[1]
           if (step_i != input$step)
-            pitch_i = .resample(audio = list(sound = pitch_i), len = length(unique(frame_i)), lowPass = FALSE, na.rm = FALSE)
+            pitch_i = soundgen:::.resample(
+              audio = list(sound = pitch_i),
+              len = length(unique(frame_i)), lowPass = FALSE, na.rm = FALSE)
           manual_i = data.frame(
             frame = unique(frame_i), freq = pitch_i
           )
@@ -1424,10 +1427,11 @@ server = function(input, output, session) {
   done = function() {
     # meaning we have finished editing pitch contour for a sound - prepares
     # the output
-    if (myPars$print) print('Running done()...')
+    if (myPars$print) print('Calling done()...')
     if (!is.null(myPars$myAudio_path) &&
-        !is.null(myPars$result) && !
-        is.null(myPars$pitch)) {
+        !is.null(myPars$result) &&
+        !is.null(myPars$pitch)) {
+      if (myPars$print) print('Running done()...')
       new = data.frame(
         file = basename(myPars$myAudio_filename),
         time = paste(round(myPars$X), collapse = ', '),

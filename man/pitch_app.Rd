@@ -22,20 +22,24 @@ spec_colorTheme, osc, wn}
 }
 \value{
 A list with the last used settings ($settings) plus the output of
-  analyze() for each file with two additional columns: "time" and "pitch".
-  When proceeding to the next file in the cue, two types of backups are
-  created. (1) A global object called "my_pitch" is created or updated. This
-  list becomes visible when the app is terminated, and it contains the usual
-  outputs of analyze() ($detailed and $summary) plus lists of manually
-  corrected voiced and voiceless frames. (2) The app saves to disk a .csv
-  file with one row per audio file. Apart from the usual descriptives from
-  analyze(), there are two additional columns: "time" with time stamps (the
-  midpoint of each STFT frame, ms) and "pitch" with the manually corrected
-  pitch values for each frame (Hz). When the orange "Download results" button
-  is clicked, a context menu pops up offering to terminate the app - if that
-  happens, the results are also returned directly into R. To process pitch
-  contours further in R, work directly with my_pitch[[myfile]]$time and
-  my_pitch[[myfile]]$pitch or, if loading the csv file, do something like:
+  analyze() for each file from the last file queue with two additional
+  columns: "time" and "pitch". NB: only the results of the most recent file
+  queue are returned, so don't press "Load audio" repeatedly if you need the
+  output returned to R (the csv file with results should still be saved
+  correctly). When proceeding to the next file in the cue, two types of
+  backups are created. (1) A global object called "my_pitch" is created or
+  updated. This list becomes visible when the app is terminated, and it
+  contains the usual outputs of analyze() ($detailed and $summary) plus lists
+  of manually corrected voiced and voiceless frames. (2) The app saves to
+  disk a .csv file with one row per audio file. Apart from the usual
+  descriptives from analyze(), there are two additional columns: "time" with
+  time stamps (the midpoint of each STFT frame, ms) and "pitch" with the
+  manually corrected pitch values for each frame (Hz). When the orange
+  "Download results" button is clicked, a context menu pops up offering to
+  terminate the app - if that happens, the results are also returned directly
+  into R. To process pitch contours further in R, work directly with
+  \code{my_pitch[[myfile]]$time} and \code{my_pitch[[myfile]]$pitch} or, if
+  loading the csv file, do something like:
 
 \preformatted{
 a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
@@ -80,7 +84,7 @@ without saving the results, this backup file preserves your data. To recover
 it, access this file manually on disk or simply restart pitch_app() - a
 dialog box will pop up and ask whether you wank to append the old data to the
 new one. Path to backup file:
-"[R_installation_folder]/soundgen/shiny/pitch_app/www/temp.csv", for example,
+"R_installation_folder/soundgen/shiny/pitch_app/www/temp.csv", for example,
 "/home/allgoodguys/R/x86_64-pc-linux-gnu-library/3.6/soundgen/shiny/pitch_app/www/temp.csv"
 }
 \description{
