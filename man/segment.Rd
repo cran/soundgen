@@ -12,32 +12,34 @@ segment(
   to = NULL,
   shortestSyl = 40,
   shortestPause = 40,
-  method = c("env", "spec", "mel")[3],
+  input = c("mel", "env", "spec"),
   propNoise = NULL,
   SNR = NULL,
+  specDiffMeasure = c("cosine", "logSpecDist", "specDiff"),
+  amplWeight = c("add", "gate", "scale", "none"),
   noiseLevelStabWeight = c(1, 0.25),
   windowLength = 40,
-  step = windowLength/5,
+  step = NULL,
   overlap = 80,
-  reverbPars = list(reverbDelay = 70, reverbSpread = 130, reverbLevel = -35,
-    reverbDensity = 50),
+  reverb_pars = list(reverbDelay = 70, reverbSpread = 130, reverbLevel = -35,
+    reverbDensity = 50, echoLevel = -Inf),
   interburst = NULL,
-  peakToTrough = SNR + 3,
-  troughLocation = c("left", "right", "both", "either")[4],
+  peakToTrough = NULL,
   summaryFun = c("median", "sd"),
-  maxDur = 30,
+  maxDur = 120,
   ptvStep = NULL,
   ptvTime = 0.5,
   ptvFreq = 1,
   reportEvery = NULL,
   cores = 1,
   plot = FALSE,
-  savePlots = NULL,
-  saveAudio = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
+  saveAudio = FALSE,
   addSilence = 50,
   main = NULL,
   xlab = "",
-  ylab = "Signal, dB",
+  ylab = NULL,
   showLegend = FALSE,
   width = 900,
   height = 500,
@@ -59,8 +61,8 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
@@ -70,158 +72,196 @@ from...to (s)}
 \item{shortestPause}{minimum acceptable break between syllables, ms
 (syllables separated by shorter pauses are merged)}
 
-\item{method}{the signal used to search for syllables: 'env' =
-Hilbert-transformed amplitude envelope, 'spec' = spectrogram, 'mel' =
-mel-transformed spectrogram (see tuneR::melfcc)}
+\item{input}{the contour used to search for syllables: 'env' = smoothed RMS
+amplitude envelope; 'spec' = power spectrum returned by
+\code{tuneR::melfcc}; 'mel' = mel-filterbank amplitude spectrum from
+\code{tuneR::melfcc}}
 
-\item{propNoise}{the proportion of non-zero sound assumed to represent
-background noise, 0 to 1 (note that complete silence is not considered, so
-padding with silence won't affect the algorithm). Set to 0 to skip
-correcting SNR by background noise level}
+\item{propNoise}{the proportion of analysis frames assumed to represent
+background noise, 0 to 1. If NULL, this proportion is estimated
+automatically in each chunk. If 0, correction for background noise is
+skipped, in which case \code{SNR} must be specified}
 
 \item{SNR}{expected signal-to-noise ratio (dB above noise), which determines
-the threshold for syllable detection. The meaning of "dB" here is
-approximate since the "signal" may be different from sound intensity,
-depending on the \code{method}}
+the threshold for syllable detection. If NULL, SNR is estimated
+automatically in each chunk unless \code{propNoise = 0}. The meaning of
+"dB" here is approximate because the detection contour may not be sound
+intensity, depending on \code{input}}
+
+\item{specDiffMeasure}{similarity measure used to compare each spectrum with
+the estimated noise spectrum (ignored when \code{input = 'env'}): \describe{
+\item{cosine}{cosine distance without centering}
+\item{logSpecDist}{root-mean-square log-spectral distance}
+\item{specDiff}{mean absolute log-spectral difference}}}
+
+\item{amplWeight}{amplitude weighting applied to the spectral contrast
+(ignored when \code{input = 'env'}): \describe{
+\item{add}{combines spectral distinctiveness with amplitude elevation; the
+default behavior in soundgen v2.x when \code{specDiffMeasure = 'cosine'}}
+\item{gate}{amplitude-gated contrast: spectral contrast contributes mainly
+when the frame is also above the estimated noise amplitude}
+\item{scale}{spectral contrast scaled to the dynamic range of the amplitude
+contour}
+\item{none}{unnormalized spectral contrast, mainly useful for diagnostics}}}
 
 \item{noiseLevelStabWeight}{a vector of length 2 specifying the relative
-weights of the overall signal level vs. stability when attempting to
-automatically locate the regions that represent noise. Increasing the
-weight of stability tends to accentuate the beginning and end of each
-syllable.}
+weights of the overall signal level vs. stability (time derivative) when
+attempting to automatically locate the regions that represent noise.
+Increasing the weight of stability prioritizes sudden changes as marking
+the beginning and end of a syllable}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{overlap}{overlap between successive windows, \%}
 
-\item{reverbPars}{parameters passed on to \code{\link{reverb}} to attempt to
+\item{reverb_pars}{parameters passed on to \code{\link{reverb}} to attempt to
 cancel the effects of reverberation or echo, which otherwise tend to merge
-short and loud segments like rapid barks}
+short and loud segments like rapid barks. This is particularly useful if
+you have a recording of an impulse response in the same environment to pass
+on to \code{\link{reverb}}. The default disables echo by setting
+\code{echoLevel = -Inf}. Set to NULL to use a static detection threshold
+without reverb compensation}
 
-\item{interburst}{minimum time between two consecutive bursts (ms). Defaults
-to the average detected \code{(syllable + pause) / 2}}
+\item{interburst}{minimum time between two consecutive bursts, ms. Also
+determines the analysis window used for detecting burst peaks. Defaults to
+the median detected \code{sylLen + pauseLen} in each chunk, falling
+back to \code{shortestSyl} if no syllables are detected}
 
 \item{peakToTrough}{to qualify as a burst, a local maximum has to be at least
-\code{peakToTrough} dB above the left and/or right local trough(s)
-(controlled by \code{troughLocation}) over the analysis window (controlled
-by \code{interburst}). Defaults to SNR + 3 dB}
-
-\item{troughLocation}{should local maxima be compared to the trough on the
-left and/or right of it? Values: 'left', 'right', 'both', 'either'}
+\code{peakToTrough} dB above the surrounding contour. Defaults to
+\code{SNR + 3} dB in each chunk when \code{peakToTrough = NULL}}
 
 \item{summaryFun}{functions used to summarize each acoustic characteristic;
 see \code{\link{analyze}}}
 
 \item{maxDur}{long files are split into chunks \code{maxDur} s in duration to
-avoid running out of RAM; the outputs for all fragments are glued together,
-but plotting is switched off. Note that noise profile is estimated in each
-chunk separately, so set it low if the background noise is highly variable}
+avoid running out of RAM. The outputs for all fragments are glued together,
+but plotting is switched off for chunked files. Note that the noise profile
+is estimated in each chunk separately, so set it low if the background
+noise is highly variable}
 
 \item{ptvStep, ptvTime, ptvFreq}{the instantaneous proportion of time
 vocalizing (PTV) is calculated by producing a binary (sound on/off) contour
 with a step of \code{ptvStep} ms and convolving it with a half-Gaussian
-filter with SD = \code{ptvTime} ($ptv_conv) and by low-pass filtering it
-over \code{ptvFreq} ($ptv_lowpass). \code{ptvStep} defaults to the same
-value as \code{step}}
+filter with SD = \code{ptvTime} seconds (\code{$ptv_conv}), and by
+low-pass filtering it over \code{ptvFreq} Hz (\code{$ptv_lowpass}).
+\code{ptvStep} defaults to the same value as \code{step}}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{if TRUE, produces a segmentation plot}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
-\item{addSilence}{if syllables are saved as separate audio files, they can be
-padded with some silence (ms)}
+\item{saveAudio}{if TRUE, saves the extracted syllables in a "/segment"
+subdirectory created in the input directory (if input is a file or folder)
+or in the working directory}
+
+\item{addSilence}{if syllables are saved as separate audio files, they are
+padded with this much silence before and after, ms}
 
 \item{xlab, ylab, main}{main plotting parameters}
 
 \item{showLegend}{if TRUE, shows a legend for thresholds}
 
-\item{width, height, units, res}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
+\item{width, height, units, res}{graphical parameters for saving plots passed to
+\code{png}}
 
-\item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
-and spectrogram; good for quickly plotting long audio files; defaults to
-c(1e5, 5e5); does not affect reassigned spectrograms}
+\item{maxPoints}{maximum number of points to plot for the waveform and the
+segmentation contour. Longer contours are downsampled to avoid slow
+plotting}
 
 \item{specPlot}{a list of graphical parameters for displaying the spectrogram
-(if \code{method = 'spec' or 'mel'}); set to NULL to hide the spectrogram}
+(if \code{input = 'spec' or 'mel'}); set to NULL to hide the spectrogram}
 
 \item{contourPlot}{a list of graphical parameters for displaying the signal
-contour used to detect syllables (see details)}
+contour used to detect syllables}
 
-\item{sylPlot}{a list of graphical parameters for displaying the syllables}
+\item{sylPlot}{a list of graphical parameters for displaying the syllable
+threshold}
 
 \item{burstPlot}{a list of graphical parameters for displaying the bursts}
 
-\item{...}{other graphical parameters passed to graphics::plot}
+\item{...}{other graphical parameters passed to \code{graphics::plot}}
 }
 \value{
-Returns a list with the following components:
-  \describe{\item{syllables}{location and duration of each syllable and the
-  pause before it (ms) plus the PTV calculated for each pause-syllable pair}
-  \item{bursts}{the time and amplitude of each burst plus the pause before
-  it (ms)} \item{summary}{a summary of temporal descriptives per file,
-  including PTV = sum of all syllable durations / total duration of audio}
-  \item{noise}{the spectrum of background noise} \item{ptv}{contours of
-  instantaneous proportion of time vocalizing: time = time in ms, on = 1 if
-  this frame is part of a syllable and 0 otherwise, ptv_lowpass = "on" after
-  applying a low-pass filter over \code{ptvFreq} Hz, ptv_conv = "on" after
-  convolution with a half-Gaussian filter with SD = \code{ptvTime}}
-  \item{signal}{a dataframe containing the time and value of the contour used
-  to segment the sound (some form of envelope or the difference of spectrum
-  from background noise, depending on the method)}}
+A list with the following components:
+  \describe{
+  \item{syllables}{data frame with columns \code{syllable}, \code{start},
+  \code{end}, \code{pauseLen}, \code{sylLen}, \code{sylRate}, and
+  \code{ptv}. Times are in ms. \code{start} and \code{end} correspond to
+  syllable edges; \code{pauseLen} is the time between the end of the previous
+  syllable and the start of the current syllable. $ptv gives the proportion
+  of time vocalizing for each syllable-pause pair.}
+  \item{bursts}{data frame with columns \code{time}, \code{ampl}, and
+  \code{interburst}. \code{time} and \code{interburst} are in ms}
+  \item{summary}{data frame summarizing temporal descriptives per file,
+  including global PTV = sum of all syllable durations / total duration of
+  audio. NULL if \code{summaryFun = NULL}}
+  \item{ptv}{contour of instantaneous proportion of time vocalizing, with
+  columns \code{time} (ms), \code{on} (1 if this frame is part of a syllable,
+  0 otherwise), \code{ptv_lowpass}, and \code{ptv_conv}. If PTV cannot be
+  computed (e.g., if there are <2 syllables), this may be NA or 0}
+  }
+  If more than one file is analyzed, \code{syllables}, \code{bursts}, and
+  \code{ptv} are lists with one element per file, while \code{summary} remains
+  a single data frame.
 }
 \description{
-Finds syllables and bursts separated by background noise in long recordings
-(up to 1-2 hours of audio per file). Syllables are defined as continuous
-segments that seem to be different from noise based on amplitude and/or
-spectral similarity thresholds. Bursts are defined as local maxima in signal
-envelope that are high enough both in absolute terms (relative to the global
-maximum) and with respect to the surrounding region (relative to local
-minima). See vignette('acoustic_analysis', package = 'soundgen') for details.
+Finds syllables and bursts / beats separated by background noise in long
+recordings (up to 1-2 hours of audio per file). Syllables are defined as
+continuous segments that differ from background noise based on amplitude
+and/or spectral contrast. Bursts are defined as local maxima in the detection
+contour that are high enough relative to the surrounding region. A note on
+long recordings: an hour of audio takes ~1 min to process, but watch your
+memory usage and perhaps decrease \code{maxDur} to avoid running out of RAM.
+This has little effect on processing speed, but dramatically cuts memory
+requirements. Another advantage of using shorter \code{maxDur} is that
+signal-noise separation may improve because noise amounts and profiles can be
+estimated in each chunk, adjusting for variable recording conditions over
+time. The downside is that small segments at chunk boundaries may be missed.
 }
 \details{
-Algorithm: for each chunk at most \code{maxDur} long, first the audio
-recording is partitioned into signal and noise regions: the quietest and most
-stable regions are located, and noise threshold is defined from a
-user-specified proportion of noise in the recording (\code{propNoise}) or, if
-\code{propNoise = NULL}, from the lowest local maximum in the density
-function of a weighted product of amplitude and stability (that is, we assume
-that quiet and stable regions are likely to represent noise). Once we know
-what the noise looks like - in terms of its typical amplitude and/or spectrum
-- we derive signal contour as its difference from noise at each time point.
-If \code{method = 'env'}, this is Hilbert transform minus noise, and if
-\code{method = 'spec' or 'mel'}, this is the inverse of cosine similarity
-between the spectrum of each frame and the estimated spectrum of noise
-weighted by amplitude. By default, signal-to-noise ratio (SNR) is estimated
-as half-median of above-noise signal, but it is recommended that this
-parameter is adjusted by hand to suit the purposes of segmentation, as it is
-the key setting that controls the balance between false negatives (missing
-faint signals) and false positives (hallucinating signals that are actually
-noise). Note also that effects of echo or reverberation can be taken into
-account: syllable detection threshold may be raised following powerful
-acoustic bursts with the help of the \code{reverbPars} argument. At the final
-stage, continuous "islands" SNR dB above noise level are detected as
-syllables, and "peaks" on the islands are detected as bursts. The algorithm
-is very flexible, but the parameters may be hard to optimize by hand. If you
-have an annotated sample of the sort of audio you are planning to analyze,
-with syllables and/or bursts counted manually, you can use it for automatic
-optimization of control parameters (see \code{\link{optimizePars}}).
+Algorithm: the sound is analyzed in chunks of at most \code{maxDur} seconds.
+In each chunk, the quietest and most stable regions are located, and a noise
+threshold is derived either from a user-specified proportion of noise
+(\code{propNoise}) or, if \code{propNoise = NULL}, automatically from the
+distribution of a weighted product of amplitude and stability. The detection
+contour is then compared against the estimated noise. If \code{input = 'env'},
+the contour is a smoothed log RMS amplitude envelope. If
+\code{input = 'spec'} or \code{'mel'}, the contour is computed by comparing
+the spectrum of each frame with the estimated noise spectrum using
+\code{specDiffMeasure} and \code{amplWeight}.
+
+Syllables are detected as continuous regions of the contour that exceed the
+noise threshold by approximately \code{SNR} dB. Pauses shorter than
+\code{shortestPause} are merged. Syllable start and end times correspond to
+the edges of envelope bins, and \code{pauseLen} is the time between the end
+of the previous syllable and the start of the current syllable.
+
+Bursts are detected as local maxima of the contour above the syllable
+detection threshold. The minimum spacing/scale for burst detection is
+controlled by \code{interburst}, and the required peak prominence is
+controlled by \code{peakToTrough}.
 }
 \examples{
 sound = soundgen(nSyl = 4, sylLen = 100, pauseLen = 70,
@@ -230,7 +270,7 @@ sound = soundgen(nSyl = 4, sylLen = 100, pauseLen = 70,
 # add noise so SNR decreases from 20 to 0 dB from syl1 to syl4
 sound = sound + runif(length(sound), -10 ^ (-20 / 20), 10 ^ (-20 / 20))
 # osc(sound, samplingRate = 16000, dB = TRUE)
-# spectrogram(sound, samplingRate = 16000, osc = TRUE)
+# spectrogram(sound, samplingRate = 16000)
 # playme(sound, samplingRate = 16000)
 
 s = segment(sound, samplingRate = 16000, plot = TRUE)
@@ -245,26 +285,30 @@ segment(sound, samplingRate = 16000, plot = TRUE,
         showLegend = TRUE,
         main = 'My awesome plot')
 
+# set SNR manually to control detection threshold
+s = segment(sound, samplingRate = 16000, SNR = 1, plot = TRUE)
+
+# simple intensity threshold (anything >5 dB is signal)
+segment(sound, 16000, input = 'env', SNR = 5, plot = TRUE,
+  # less smoothing gives more precise timing
+  windowLength = 10, step = 5,
+  # don't correct SNR based on estimated background noise
+  propNoise = 0,
+  # don't use dynamic thresholds to cancel reverb
+  reverb_pars = NULL
+)
+
+# same with automatic threshold setting
+segment(sound, 16000, input = 'env', plot = TRUE,
+  windowLength = 10, step = 5, reverb_pars = NULL)
+
+\dontrun{
 # plot the PTV contour (proportion of time vocalizing)
 plot(s$ptv$time, s$ptv$on, type = 'l', xlab = 'Time, ms',
   ylab = 'Prop. time voc.')
 points(s$ptv$time, s$ptv$ptv_conv, type = 'l', col = 'blue')
 points(s$ptv$time, s$ptv$ptv_lowpass, type = 'l', col = 'red')
 s$summary$ptv; mean(s$ptv$ptv_conv); mean(s$ptv$ptv_lowpass) # similar
-
-\dontrun{
-# set SNR manually to control detection threshold
-s = segment(sound, samplingRate = 16000, SNR = 1, plot = TRUE)
-
-# simple intensity threshold (anything >5 dB is signal)
-segment(sound, 16000, method = 'env', SNR = 5, plot = TRUE,
-  # very little smoothing for maximally precise timing
-  windowLength = 5, step = 1,
-  # don't correct SNR based on estimated background noise
-  propNoise = 0,
-  # don't use dynamic thresholds to cancel reverb
-  reverbPars = NULL
-)
 
 # different ways to calculate instantaneous PTV
 s2 = segment(sound, 16000, ptvTime = 2, ptvFreq = 5)
@@ -276,23 +320,11 @@ points(s2$ptv$time, s2$ptv$ptv_lowpass, type = 'l', col = 'yellow')
 points(s3$ptv$time, s3$ptv$ptv_conv, type = 'l', col = 'purple')
 points(s3$ptv$time, s3$ptv$ptv_lowpass, type = 'l', col = 'orange')
 
-# Download 260 sounds from the supplements to Anikin & Persson (2017) at
-# http://cogsci.se/publications.html
-# unzip them into a folder, say '~/Downloads/temp'
-myfolder = '~/Downloads/temp260'  # 260 .wav files live here
-s = segment(myfolder, propNoise = .05, SNR = 3)
-
-# Check accuracy: import a manual count of syllables (our "key")
-key = segmentManual  # a vector of 260 integers
-trial = as.numeric(s$summary$nBursts)
-cor(key, trial, use = 'pairwise.complete.obs')
-boxplot(trial ~ as.integer(key), xlab='key')
-abline(a=0, b=1, col='red')
-
-# or look at the detected syllables instead of bursts:
-cor(key, s$summary$nSyl, use = 'pairwise.complete.obs')
+# segment all files in a folder and save the segments as separate files
+segment('~/Downloads/temp',
+  saveAudio = TRUE, savePlots = TRUE)
 }
 }
 \seealso{
-\code{\link{analyze}}  \code{\link{ssm}}
+\code{\link{analyze}}  \code{\link{ssm}} \code{\link{segment_ann}}
 }

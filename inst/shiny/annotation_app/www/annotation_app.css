@@ -15,7 +15,7 @@
   display: grid;
   padding: 3px;
   grid-gap: 0;
-  grid-template-columns: min-content 1fr;
+  grid-template-columns: min-content 300px 1fr;
   grid-template-areas: 'left right';
 }
 
@@ -206,8 +206,8 @@ label {
   font-weight: bold;
 }
 
-#fileList.item {
-  font-size: .75em;  /* not working */
+#fileList {
+  font-size: .75em;
 }
 
 #ann_table {

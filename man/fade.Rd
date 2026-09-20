@@ -8,22 +8,20 @@ fade(
   x,
   fadeIn = 50,
   fadeOut = 50,
-  fadeIn_points = NULL,
-  fadeOut_points = NULL,
   samplingRate = NULL,
   scale = NULL,
-  shape = c("lin", "exp", "log", "cos", "logistic", "gaussian")[1],
+  shape = c("lin", "exp", "log", "cos", "logistic", "gaussian"),
   steepness = 1,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
-  res = NA,
-  ...
+  res = NA
 )
 }
 \arguments{
@@ -34,50 +32,56 @@ numeric vectors}
 \item{fadeIn, fadeOut}{length of segments for fading in and out, ms (0 = no
 fade)}
 
-\item{fadeIn_points, fadeOut_points}{length of segments for fading in and out,
-points (if specified, override \code{fadeIn/fadeOut})}
-
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{shape}{controls the type of fade function: 'lin' = linear, 'exp' =
 exponential, 'log' = logarithmic, 'cos' = cosine, 'logistic' = logistic
-S-curve}
+S-curve, 'gaussian' = Gaussian curve}
 
 \item{steepness}{scaling factor regulating the steepness of fading curves
 (except for shapes 'lin' and 'cos'): 0 = linear, >1 = steeper than default}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{plot}{if TRUE, produces an oscillogram of the waveform after fading}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{...}{other graphical parameters}
+\code{png}}
 }
 \value{
-Returns a numeric vector of the same length as input
+A numeric vector of the same length as input
 }
 \description{
 Applies fade-in and/or fade-out of variable length, shape, and steepness. The
 resulting effect softens the attack and release of a waveform.
 }
 \examples{
-#' # Fading a real sound: say we want fast attack and slow release
-s = soundgen(attack = 0, windowLength = 10,
+# Fading a real sound: say we want fast attack and slow release
+s = soundgen(attackLen = 0, windowLength = 10,
              sylLen = 500, addSilence = 0)
 # playme(s)
 s1 = fade(s, fadeIn = 40, fadeOut = 350,
@@ -85,26 +89,26 @@ s1 = fade(s, fadeIn = 40, fadeOut = 350,
 # playme(s1)
 
 # Illustration of fade shapes
-x = runif(5000, min = -1, max = 1)  # make sure to zero-center input!!!
+x = runif(4000, min = -1, max = 1)  # make sure to zero-center input!!!
 # plot(x, type = 'l')
-y = fade(x, fadeIn_points = 1000, fadeOut_points = 0, plot = TRUE)
-y = fade(x, fadeIn_points = 1000, fadeOut_points = 1500,
+y = fade(x, samplingRate = 1000, fadeIn = 1000, fadeOut = 0, plot = TRUE)
+y = fade(x, samplingRate = 1000, fadeIn = 1000, fadeOut = 1500,
          shape = 'exp', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 500,
          shape = 'log', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 500,
          shape = 'log', steepness = 3, plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 1500,
          shape = 'cos', plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 1500,
          shape = 'logistic', steepness = 1, plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 1500,
          shape = 'logistic', steepness = 3, plot = TRUE)
-y = fade(x, fadeIn_points = 1500, fadeOut_points = 1500,
+y = fade(x, samplingRate = 1000, fadeIn = 1500, fadeOut = 1500,
          shape = 'gaussian', steepness = 1.5, plot = TRUE)
 
 \dontrun{
-  fade('~/Downloads/temp', fadeIn = 500, fadeOut = 500, savePlots = '')
+fade('~/Downloads/temp', fadeIn = 500, fadeOut = 500, savePlots = TRUE)
 }
 }
 \seealso{

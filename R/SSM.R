@@ -1,7 +1,7 @@
 #' Self-similarity matrix
 #'
 #' Calculates the self-similarity matrix and novelty vector of a sound. The
-#' self-similarity matrix is produced by cross-correlating different segments of
+#' self-similarity matrix is produced by comparing all pairs of frames in
 #' the input sound. Novelty is calculated by convolving the self-similarity
 #' matrix with a tapered checkerboard kernel. The positive lobes of the kernel
 #' represent coherence (self-similarity within the regions on either side of the
@@ -22,36 +22,72 @@
 #'   novelty. In Multimedia and Expo, 2000. ICME 2000. 2000 IEEE International
 #'   Conference on (Vol. 1, pp. 452-455). IEEE.
 #' }
-#' @inheritParams spectrogram
-#' @inheritParams analyze
-#' @param sparse if TRUE, the entire SSM is not calculated, but only the central
-#'   region needed to extract the novelty contour (speeds up the processing)
-#' @param input the spectral representation used to calculate the SSM: "audSpec"
-#'   = auditory spectrogram returned by \code{\link{audSpectrogram}}, "mfcc" =
-#'   Mel-Frequency Cepstral coefficients, "melspec" = Mel-transformed STFT
-#'   spectrogram, "spec" = STFT power spectrogram (all three returned by
-#'   \code{\link[tuneR]{melfcc}}). Any custom spectrogram-like matrix of
-#'   features (time in columns labeled in s, features in rows) is also accepted
-#'   (see examples)
-#' @param takeLog if TRUE, the input is log-transformed prior to calculating
+#'
+#' @inheritParams .roxygen_defaults
+#' @param specFun the function used to extract a spectrogram-like feature matrix.
+#'   Can be a string or a custom function that takes audio (numeric vector) as the
+#'   first argument and returns a spectrogram-like matrix with time in columns
+#'   and features in rows (see examples). A precomputed matrix is also accepted
+#'   (features in rows, time [ms] in columns, numeric rownames for plotting).
+#'   Supported strings:
+#'   \describe{
+#'     \item{\code{\link{stft_simple}}}{
+#'       \code{'stft'} / \code{STFT} / \code{'stft_simple'} (amplitude spectrogram)
+#'       Parameters in \code{specFun_pars}: \code{samplingRate} (optional if
+#'       frequency and time labels are not needed), \code{wl} (samples),
+#'       \code{step} (samples), \code{wn}, \code{zp}, \code{padWithSilence}.
+#'     }
+#'     \item{\code{\link{spectrogram}}}{
+#'       \code{'spectrogram'} (amplitude spectrogram - a wrapper around
+#'       stft_simple with more options).
+#'       Parameters in \code{specFun_pars}: see \code{\link{spectrogram}}.
+#'     }
+#'     \item{\code{\link[tuneR:powspec]{powspec}}}{
+#'       \code{'powerspec'} (power spectrogram with tuneR).
+#'       Parameters in \code{specFun_pars}: \code{wintime} (s) or
+#'       \code{windowLength} (ms), \code{steptime} (s) or \code{step} (ms),
+#'       \code{dither}.
+#'     }
+#'     \item{\code{\link[tuneR:melfcc]{melfcc}}}{
+#'       \code{'melspec'} (mel-spectrogram), \code{'mfcc'} / \code{'melfcc'} (MFCCs).
+#'       Parameters in \code{specFun_pars}: \code{windowLength} (ms), \code{step} (ms),
+#'       \code{nbands}, \code{maxfreq} (Hz), \code{MFCC} (integer vector).
+#'     }
+#'     \item{\code{\link{audSpectrogram}}}{
+#'       \code{'audSpectrogram'} / \code{'audSpec'} (auditory spectrogram).
+#'       Parameters in \code{specFun_pars}: see \code{\link{audSpectrogram}}.
+#'     }
+#'     \item{\code{\link{getRMS}}}{
+#'       \code{'getRMS'} / \code{'rms'} (RMS amplitude envelope).
+#'       Parameters in \code{specFun_pars}: see \code{\link{getRMS}}.
+#'     }
+#'     \item{\code{\link{getEnv}}}{
+#'       \code{'getEnv'} / \code{'env'} ("various smoothed envelopes: RMS,
+#'       analytical, peak, etc.). Parameters in \code{specFun_pars}: see
+#'       \code{\link{getEnv}}.
+#'     }
+#' }
+#' @param specFun_pars a list of parameters passed to \code{specFun}. Defaults
+#'   for \code{specFun = "melspec": list(windowLength = 125, step = 25, nbands =
+#'   50)}; defaults for \code{specFun = "audSpec": list(nFilters = 16, step =
+#'   10)}
+#' @param logSpec if TRUE, the input is log-transformed prior to calculating
 #'   self-similarity
-#' @param MFCC which mel-frequency cepstral coefficients to use; defaults to
-#'   \code{2:13}
-#' @param melfcc_pars a list of parameters passed to \code{\link[tuneR]{melfcc}}
-#' @param audSpec_pars a list of parameters passed to
-#'   \code{\link{audSpectrogram}} (if input = 'audSpec')
-#' @param norm if TRUE, the spectrum of each STFT frame is normalized
+#' @param normalize if TRUE, the spectrum of each STFT frame (or each column of
+#'   feature matrix) is normalized to the same range prior to calculating
+#'   self-similarity
 #' @param simil method for comparing frames: "cosine" = cosine similarity, "cor"
 #'   = Pearson's correlation
 #' @param kernelLen length of checkerboard kernel for calculating novelty, ms
 #'   (larger values favor global, slow vs. local, fast novelty)
-#' @param kernelSD SD of checkerboard kernel for calculating novelty
-#' @param padWith how to treat edges when calculating novelty: NA = treat sound
-#'   before and after the recording as unknown, 0 = treat it as silence
+#' @param kernelSD SD of checkerboard kernel evaluated over [-1, 1]: for
+#'   ex., if kernelSD = 0.5, the kernel spans approximately ±2 SDs
+#' @param padWith how to treat edges when calculating novelty: NA = pad with NA
+#'   (ignores edges in correlation), 0 = pad with zeros
 #' @param ssmWin window for averaging SSM, frames (has a smoothing effect and
 #'   speeds up the processing)
-#' @param output what to return (drop "ssm" to save memory when analyzing a lot
-#'   of files)
+#' @param output what to include in \code{$detailed} (drop "ssm" to save memory
+#'   when analyzing a lot of files); options: 'ssm', 'novelty', 'all'
 #' @param plot if TRUE, plots the SSM
 #' @param heights relative sizes of the SSM and spectrogram/novelty plot
 #' @param main plot title
@@ -61,8 +97,26 @@
 #'   affecting the plot of SSM
 #' @param noveltyPars graphical parameters passed to
 #'   \code{\link[graphics]{lines}} and affecting the novelty contour
-#' @return Returns a list of two components: $ssm contains the self-similarity
-#'   matrix, and $novelty contains the novelty vector.
+#' @param summaryFun functions used to summarize novelty, eg \code{c('mean',
+#'   'sd')}; user-defined functions are fine (see examples); NAs are omitted
+#'   automatically for mean/median/sd/min/max/range/sum, otherwise take care of
+#'   NAs yourself
+#'
+#' @return A list with two top-level elements: \code{$detailed} and
+#'   \code{$summary}.
+#'
+#'   \code{$detailed} contains per-file results selected with the \code{output}
+#'   argument. If multiple sounds are analyzed, \code{$detailed} is a named list
+#'   of per-sound lists. If a single sound is analyzed, it is simplified to a
+#'   single list. Each list may contain:
+#'   \describe{
+#'     \item{ssm}{self-similarity matrix}
+#'     \item{novelty}{novelty vector}
+#'   }
+#'
+#'   \code{$summary} is a dataframe with summaries of novelty per sound (one
+#'   row per file), or \code{NULL} if \code{summaryFun = NULL}.
+#'
 #' @export
 #' @examples
 #' sound = c(soundgen(),
@@ -70,16 +124,15 @@
 #'           formants = NA, pitch = c(500, 330)))
 #' # playme(sound)
 #' # detailed, local features (captures each syllable)
-#' s1 = ssm(sound, samplingRate = 16000, kernelLen = 100,
-#'          sparse = TRUE)  # much faster with 'sparse'
+#' s1 = ssm(sound, samplingRate = 16000, kernelLen = 100)
 #' # more global features (captures the transition b/w the two sounds)
-#' s2 = ssm(sound, samplingRate = 16000, kernelLen = 400, sparse = TRUE)
+#' s2 = ssm(sound, samplingRate = 16000, kernelLen = 400)
 #'
 #' s2$summary
-#' s2$novelty  # novelty contour
+#' s2$detailed$novelty  # novelty contour
 #' \dontrun{
 #' ssm(sound, samplingRate = 16000,
-#'     input = 'mfcc', simil = 'cor', norm = TRUE,
+#'     specFun = 'mfcc', simil = 'cor', normalize = TRUE,
 #'     ssmWin = 10,  # speed up the processing
 #'     kernelLen = 300,  # global features
 #'     specPars = list(colorTheme = 'seewave'),
@@ -89,18 +142,17 @@
 #' # Custom input: produce a nice spectrogram first, then feed it into ssm()
 #' sp = spectrogram(sound, 16000, windowLength = c(5, 40), contrast = .3,
 #'   output = 'processed')  # return the modified spectrogram
-#' colnames(sp) = as.numeric(colnames(sp)) / 1000  # convert ms to s
-#' ssm(sound, 16000, kernelLen = 400, input = sp)
+#' ssm(sound, 16000, kernelLen = 400, specFun = sp)
 #'
 #' # Custom input: use acoustic features returned by analyze()
 #' an = analyze(sound, 16000, windowLength = 20, novelty = NULL)
-#' input_an = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
-#' input_an = t(apply(input_an, 1, scale))  # z-transform all variables
-#' input_an[is.na(input_an)] = 0  # get rid of NAs
-#' colnames(input_an) = an$detailed$time / 1000  # time stamps in s
-#' rownames(input_an) = 1:nrow(input_an)
-#' image(t(input_an))  # not a spectrogram, just a feature matrix
-#' ssm(sound, 16000, kernelLen = 500, input = input_an, takeLog = FALSE,
+#' feature_mat = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
+#' feature_mat = t(apply(feature_mat, 1, scale))  # z-transform all variables
+#' feature_mat[is.na(feature_mat)] = 0  # get rid of NAs
+#' colnames(feature_mat) = an$detailed$time  # time stamps in ms
+#' rownames(feature_mat) = 1:nrow(feature_mat)
+#' image(t(feature_mat))  # not a spectrogram, just a feature matrix
+#' ssm(sound, 16000, kernelLen = 500, specFun = feature_mat, logSpec = FALSE,
 #'   specPars = list(ylab = 'Feature'))
 #' }
 ssm = function(
@@ -108,24 +160,22 @@ ssm = function(
     samplingRate = NULL,
     from = NULL,
     to = NULL,
-    sparse = FALSE,
-    input = c('melspec', 'mfcc', 'spec', 'audSpec')[1],
-    melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
-    MFCC = 2:13,
-    audSpec_pars = list(nFilters = 16, step = 10),
-    takeLog = FALSE,
-    norm = FALSE,
-    simil = c('cosine', 'cor')[1],
+    specFun = 'melspec',
+    specFun_pars = list(),
+    logSpec = FALSE,
+    normalize = FALSE,
+    simil = c('cosine', 'cor'),
     kernelLen = 1000,
     kernelSD = .5,
     padWith = 0,
-    ssmWin = NULL,
+    ssmWin = 1,
     summaryFun = c('mean', 'sd'),
-    output = c('ssm', 'novelty', 'summary'),
+    output = c('ssm', 'novelty'),
     reportEvery = NULL,
     cores = 1,
     plot = TRUE,
-    savePlots = NULL,
+    savePlots = FALSE,
+    embed = FALSE,
     main = NULL,
     heights = c(2, 1),
     width = 900,
@@ -134,32 +184,40 @@ ssm = function(
     res = NA,
     specPars = list(
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-      xlab = 'Time, s'
+      xlab = 'Time'
     ),
     ssmPars = list(
       colorTheme = c('bw', 'seewave', 'heat.colors', '...')[2],
-      xlab = 'Time, s',
-      ylab = 'Time, s'
+      xlab = 'Time',
+      ylab = 'Time'
     ),
     noveltyPars = list(
-      type = 'b',
-      pch = 16,
+      type = 'l',
       col = 'black',
-      lwd = 3
+      lwd = 1
     )) {
+  # deprecated parameters
+  call_arg_names = names(match.call())
+  if (any(c('input', 'melfcc_pars', 'MFCC', 'audSpec_pars') %in%
+          call_arg_names))
+    stop(paste('Changes in soundgen >3.0: "input" is deprecated and replaced by "specFun";',
+               '"melfcc_pars", "MFCC", "audSpec_pars" are now passed in "specFun_pars"'))
+  rm('call_arg_names')
+
+  if (is.character(specFun)) specFun = specFun[1]
+  output = match.arg(output, c('ssm', 'novelty', 'all'), several.ok = TRUE)
+  if ('all' %in% output) output = c('ssm', 'novelty')
+  simil = match.arg(simil)
+
   ## Prepare a list of arguments to pass to .ssm()
   myPars = as.list(environment())
   # exclude unnecessary args
   myPars = myPars[!names(myPars) %in% c(
-    'x', 'samplingRate', 'from', 'to', 'savePlots', 'reportEvery', 'cores',
-    'summaryFun', 'specPars', 'ssmPars', 'noveltyPars', 'ssmWin',
-    'melfcc_pars', 'audSpec_pars')]
+    'x', 'samplingRate', 'from', 'to', 'savePlots', 'embed', 'reportEvery',
+    'cores', 'summaryFun', 'output', 'specPars', 'ssmPars', 'noveltyPars')]
   myPars$specPars = specPars
   myPars$ssmPars = ssmPars
   myPars$noveltyPars = noveltyPars
-  myPars$melfcc_pars = melfcc_pars
-  myPars$audSpec_pars = audSpec_pars
-  myPars$win = ssmWin
 
   # analyze
   pa = processAudio(
@@ -167,82 +225,105 @@ ssm = function(
     samplingRate = samplingRate,
     from = from,
     to = to,
-    funToCall = '.ssm',
+    funToCall = .ssm,
+    suffix = 'ssm',
+    savePlots = savePlots,
     myPars = myPars,
     reportEvery = reportEvery,
-    cores = cores,
-    savePlots = savePlots
+    cores = cores
   )
 
-  # htmlPlots
-  if (!is.null(pa$input$savePlots) && pa$input$n > 1) {
-    try(htmlPlots(pa$input, savePlots = savePlots, changesAudio = FALSE,
-                  suffix = "ssm", width = paste0(width, units)))
-  }
+  if (pa$input$n == 0) stop('Failed to analyze any input')
 
-  # prepare output
+  # htmlPlots
+  if (isTRUE(savePlots) && pa$input$n > 1)
+    try(htmlPlots(pa$input, width = paste0(width, units), embed = embed))
+
+  # prepare summary
   if (!is.null(summaryFun) && any(!is.na(summaryFun))) {
     temp = vector('list', pa$input$n)
-    for (i in 1:pa$input$n) {
+    for (i in seq_len(pa$input$n)) {
       if (!pa$input$failed[i]) {
-        temp[[i]] = summarizeAnalyze(
-          data.frame(novelty = pa$result[[i]]$novelty),
+        res = pa$result[[i]]
+        temp[[i]] = try(summarizeAnalyze(
+          data.frame(novelty = res$novelty),
           summaryFun = summaryFun,
-          var_noSummary = NULL)
+          var_noSummary = NULL), silent = TRUE)
+        if (inherits(temp[[i]], 'try-error')) temp[[i]] = NULL
       }
     }
+    # Identify failed files (either processAudio failed or summarizeAnalyze failed)
     idx_failed = which(pa$input$failed)
+    for (i in seq_len(pa$input$n)) {
+      if (is.null(temp[[i]])) idx_failed = c(idx_failed, i)
+    }
+    idx_failed = unique(idx_failed)
+    idx_ok = which(!seq_len(pa$input$n) %in% idx_failed)
+
     if (length(idx_failed) > 0) {
-      idx_ok = which(!pa$input$failed)
       if (length(idx_ok) > 0) {
-        filler = temp[[idx_ok[1]]] [1, ]
+        filler = temp[[idx_ok[1]]][1, , drop = FALSE]
         filler[1, ] = NA
       } else {
-        stop('Failed to analyze any input')
+        # All files failed: generate a safe NA filler
+        filler = try(summarizeAnalyze(
+          data.frame(novelty = NA),
+          summaryFun = summaryFun,
+          var_noSummary = NULL), silent = TRUE)
+        if (inherits(filler, 'try-error')) {
+          filler = data.frame(matrix(NA, nrow = 1, ncol = length(summaryFun)))
+        } else {
+          filler[1, ] = NA
+        }
       }
       for (i in idx_failed) temp[[i]] = filler
     }
-    mysum_all = cbind(data.frame(file = pa$input$filenames_base),
-                      do.call('rbind', temp))
+    mysum_all = try(cbind(data.frame(file = pa$input$filenames_base),
+                          rbind_fill_list(temp)))
+    if (inherits(mysum_all, 'try-error')) mysum_all = NULL
   } else {
     mysum_all = NULL
   }
 
-  if (pa$input$n == 1) {
-    # unlist
-    ssm = pa$result[[1]]$ssm
-    novelty = pa$result[[1]]$novelty
-  } else {
-    ssm = lapply(pa$result, function(x) x[['ssm']])
-    novelty = lapply(pa$result, function(x) x[['novelty']])
+  # prepare detailed output
+  detailed = vector('list', pa$input$n)
+  names(detailed) = pa$input$filenames_base
+
+  failed_template = as.list(rep(NA, length(output)))
+  names(failed_template) = output
+
+  for (i in seq_len(pa$input$n)) {
+    if (pa$input$failed[i]) {
+      detailed[[i]] = failed_template
+    } else {
+      detailed[[i]] = pa$result[[i]][output]
+    }
   }
-  out = list(ssm = ssm, novelty = novelty, summary = mysum_all)
-  invisible(out[which(names(out) %in% output)])
+  if (pa$input$n == 1) detailed = detailed[[1]]
+
+  invisible(list(
+    detailed = detailed,
+    summary = mysum_all
+  ))
 }
 
 
 #' SSM per sound
-#'
-#' Internal soundgen function.
-#' @inheritParams ssm
 #' @param audio a list returned by \code{readAudio}
-#' @keywords internal
+#' @noRd
 .ssm = function(
     audio,
-    sparse = FALSE,
-    input = c('melspec', 'mfcc', 'spec', 'audSpec')[1],
-    melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
-    MFCC = 2:13,
-    audSpec_pars = list(nFilters = 16, step = 10),
-    takeLog = FALSE,
-    norm = FALSE,
-    simil = c('cosine', 'cor')[1],
+    specFun = 'melspec',
+    specFun_pars = list(),
+    logSpec = FALSE,
+    normalize = FALSE,
+    simil = 'cosine',
     kernelLen = 100,
     kernelSD = .5,
     padWith = 0,
-    win = 1,
+    ssmWin = 1,
     output = c('ssm', 'novelty', 'summary'),
-    plot = TRUE,
+    plot = FALSE,
     main = NULL,
     heights = c(2, 1),
     width = 900,
@@ -260,93 +341,64 @@ ssm = function(
       ylab = 'Time, s'
     ),
     noveltyPars = list(
-      type = 'b',
-      pch = 16,
+      type = 'l',
       col = 'black',
-      lwd = 3
+      lwd = 1
     )) {
   nyquist = audio$samplingRate / 2
-  if (is.matrix(input)) {
+  if (is.null(specFun_pars)) specFun_pars = list()
+  if (is.character(specFun)) specFun = specFun[1]
+
+  if (is.matrix(specFun) || is.data.frame(specFun)) {
     # custom input to SSM - use as is
-    target_spec = as.matrix(input)
-    step = diff(as.numeric(colnames(target_spec))[1:2])
-    frame_points = round(audio$samplingRate * step)
-    input = 'custom'
+    target_spec = as.matrix(specFun)
   } else {
-    ## compute mel-filtered spectrum and MFCCs
-    if (input == 'audSpec') {
-      # call audSpectrogram()
-      if (is.null(audSpec_pars$nFilters)) audSpec_pars$nFilters = 32
-      if (is.null(audSpec_pars$step)) audSpec_pars$step = 20
-      frame_points = round(audio$samplingRate * audSpec_pars$step / 1000)
-
-      target_spec = do.call(.audSpectrogram, c(audSpec_pars, list(
-        audio = audio,
-        plot = FALSE
-      )))$audSpec  # cols = time, rows = freq
-      colnames(target_spec) = as.numeric(colnames(target_spec)) / 1000  # ms to s
-    } else if (input %in% c('mfcc', 'spec', 'melspec')) {
-      # call tuneR::melfcc()
-      if (is.null(melfcc_pars$windowLength)) melfcc_pars$windowLength = 25
-      if (is.null(melfcc_pars$step)) melfcc_pars$step = 5
-      frame_points = round(audio$samplingRate * melfcc_pars$step / 1000)
-      if (!is.numeric(melfcc_pars$windowLength) | melfcc_pars$windowLength <= 0 |
-          melfcc_pars$windowLength > (audio$duration / 2 * 1000)) {
-        melfcc_pars$windowLength = min(50, round(audio$duration / 2 * 1000))
-        warning(paste0(
-          '"windowLength" must be between 0 and half the sound duration (in ms);
-            resetting to ', melfcc_pars$windowLength, ' ms')
-        )
+    # ssm()-specific defaults for common spectrogram extractors
+    if (is.character(specFun)) {
+      if (specFun %in% c('melspec', 'mfcc', 'melfcc')) {
+        if (is.null(specFun_pars$windowLength)) specFun_pars$windowLength = 125
+        if (is.null(specFun_pars$step)) specFun_pars$step = 25
+        if (is.null(specFun_pars$nbands)) specFun_pars$nbands = 50
+        if (is.null(specFun_pars$MFCC)) specFun_pars$MFCC = 2:13
+      } else if (specFun %in% c('audSpectrogram', 'audSpec')) {
+        if (is.null(specFun_pars$nFilters)) specFun_pars$nFilters = 16
+        if (is.null(specFun_pars$step)) specFun_pars$step = 10
       }
-      if (is.null(melfcc_pars$step))
-        melfcc_pars$step = melfcc_pars$windowLength / 4
-      if (is.null(melfcc_pars$nbands)) {
-        melfcc_pars$nbands = round(100 * melfcc_pars$windowLength / 20)
+    } else if (specFun %in% c('powerspec', 'powspec')) {
+      # allow ms-style arguments for convenience, but tuneR::powspec uses s
+      if (is.null(specFun_pars$wintime) &&
+          !is.null(specFun_pars$windowLength)) {
+        specFun_pars$wintime = specFun_pars$windowLength / 1000
       }
-      windowLength_points = floor(melfcc_pars$windowLength / 1000 *
-                                    audio$samplingRate / 2) * 2
-      if (is.null(melfcc_pars$maxfreq)) {
-        melfcc_pars$maxfreq = floor(audio$samplingRate / 2)  # Nyquist
+      if (is.null(specFun_pars$steptime) &&
+          !is.null(specFun_pars$step)) {
+        specFun_pars$steptime = specFun_pars$step / 1000
       }
-
-      sound = tuneR::Wave(left = audio$sound, samp.rate = audio$samplingRate, bit = 16)
-      mel = do.call(tuneR::melfcc, c(
-        melfcc_pars[which(!names(melfcc_pars) %in% c('windowLength', 'step'))],
-        list(
-          samples = sound,
-          wintime = melfcc_pars$windowLength / 1000,
-          hoptime = melfcc_pars$step / 1000,
-          spec_out = TRUE,
-          numcep = max(MFCC)
-        )))
-      if (input == 'mfcc') {
-        # the first cepstrum presumably makes no sense with amplitude normalization
-        # (?), and it overestimates the similarity of different frames
-        target_spec = t(mel$cepstra)[MFCC, ]
-        target_spec[is.na(target_spec)] = 0  # MFCC are NaN for silent frames
-        colnames(target_spec) = seq(audio$timeShift, audio$duration,
-                                    length.out = ncol(target_spec))
-        rownames(target_spec) = 1:nrow(target_spec)
-      } else if (input == 'melspec') {
-        target_spec = t(mel$aspectrum)  # cols = time, rows = freq
-        colnames(target_spec) = seq(audio$timeShift, audio$duration,
-                                    length.out = ncol(target_spec))
-        rownames(target_spec) = otherToHz(
-          seq(0, HzToOther(nyquist, "mel"),
-              length.out = nrow(target_spec)), "mel") / 1000
-      } else if (input == 'spec') {
-        target_spec = t(mel$pspectrum)  # cols = time, rows = freq
-        colnames(target_spec) = seq(audio$timeShift, audio$duration,
-                                    length.out = ncol(target_spec))
-        rownames(target_spec) = seq(0, nyquist,
-                                    length.out = nrow(target_spec)) / 1000
-      }
+      specFun_pars$windowLength = NULL
+      specFun_pars$step = NULL
     }
+
+    target_spec = getSpec(audio,
+                          specFun = specFun,
+                          specFun_pars = specFun_pars)
   }
-  if (takeLog) {
-    target_spec = target_spec - min(target_spec, na.rm = TRUE)
-    target_spec = log(target_spec + min(target_spec[target_spec > 0], na.rm = TRUE))
+
+  # estimate the time step from the extracted representation
+  if (ncol(target_spec) >= 2) {
+    if (is.null(colnames(target_spec))) {
+      step = audio$duration / max(1, ncol(target_spec) - 1)
+    } else {
+      step = diff(as.numeric(colnames(target_spec))[1:2])
+    }
+  } else {
+    step = audio$duration
   }
+  if (length(step) != 1 || !is.finite(step) || step <= 0) {
+    step = audio$duration / max(1, ncol(target_spec))
+  }
+  frame_points = max(1, round(audio$samplingRate * step / 1000), na.rm = TRUE)
+
+  if (logSpec) target_spec = floor_log(target_spec, dynamicRange = 90)
   # image(t(target_spec))
 
   ## compute self-similarity matrix
@@ -355,11 +407,9 @@ ssm = function(
                               frame_points / 2) * 2)
   s = selfsim(
     m = target_spec,
-    norm = norm,
+    normalize = normalize,
     simil = simil,
-    win = win,
-    sparse = sparse,
-    kernelSize = kernelSize
+    ssmWin = ssmWin
   )
   # s = zeroOne(s^2)  # hist(s)
   # image(s)
@@ -369,10 +419,11 @@ ssm = function(
                        kernelSD = kernelSD, padWith = padWith)
 
   ## PLOTTING
-  if (is.character(audio$savePlots)) {
+  if (isTRUE(audio$savePlots)) {
     plot = TRUE
-    png(filename = paste0(audio$savePlots, audio$filename_noExt, "_ssm.png"),
+    png(filename = file.path(audio$path_output, paste0(audio$filename_noExt, ".png")),
         width = width, height = height, units = units, res = res)
+    on.exit(dev.off())
   }
   if (plot) {
     if (is.null(main)) {
@@ -384,13 +435,17 @@ ssm = function(
     }
 
     op = par(c('mar', 'xaxt', 'yaxt', 'mfrow')) # save user's original pars
+    on.exit(par(op), add = TRUE)
     layout(matrix(c(2, 1), nrow = 2, byrow = TRUE), heights = heights)
     par(mar = c(5.1, 4.1, 0, 2.1),
         xaxt = 's',
         yaxt = 's')
 
     # spectrogram
-    if (input == 'audSpec') {
+    yScale = if (!is.null(specFun_pars$yScale)) specFun_pars$yScale else
+      if (isTRUE(specFun == 'melspec')) 'mel' else 'linear'
+
+    if (isTRUE(specFun %in% c('audSpec', 'audSpectrogram'))) {
       # spec = zeroOne(t(log(target_spec + 1e-4)))
       spec = t(target_spec)
       specPars1 = list(
@@ -405,58 +460,50 @@ ssm = function(
         x = as.numeric(rownames(spec)),
         y = as.numeric(colnames(spec)),
         z = spec,
-        yScale = if (is.null(audSpec_pars$yScale)) 'bark' else audSpec_pars$yScale
+        yScale = if (is.null(specFun_pars$yScale)) 'ERB' else specFun_pars$yScale
       ), specPars1))
-      specPars1$xlim = range(as.numeric(rownames(spec)))
-      specPars1$ylim = range(as.numeric(colnames(spec)))
     } else {
-      # # log-transform and normalize spectrogram
-      # if (input == 'melspec') {
-      #   spec = log(zeroOne(mel$aspectrum) + 1e-4)  # dynamic range ~ 80 dB or 1e-4
-      # } else {
-      #   spec = log(zeroOne(mel$pspectrum) + 1e-4)
-      # }
-      # spec = zeroOne(spec)
       spec = t(target_spec)
       specPars1 = list(
         colorTheme = 'seewave',
         xlab = 'Time, s',
-        ylab = if (input %in% c('custom', 'mfcc')) input  else 'kHz'
+        ylab = ''
       )
       specPars1[names(specPars)] = specPars
       specPars1$color.palette = switchColorTheme(specPars1$colorTheme)
       specPars1[['colorTheme']] = NULL
+
       do.call(filled.contour.mod, c(list(
         x = as.numeric(rownames(spec)),
         y = as.numeric(colnames(spec)),
         z = spec,
-        yScale = if (input == 'melspec') 'mel' else 'linear'
+        yScale = yScale
       ), specPars1
       ))
     }
-    specPars1$xlim = c(audio$timeShift, audio$duration)
-    specPars1$ylim = range(as.numeric(rownames(target_spec)))
-    if (input == 'melspec')
-      specPars1$ylim = HzToOther(specPars1$ylim * 1000, 'mel')
 
     # novelty
     noveltyPars1 = list(
-      type = 'b',
-      pch = 16,
+      type = 'l',
       col = 'black',
-      lwd = 3
+      lwd = 1
     )
     noveltyPars1[names(noveltyPars)] = noveltyPars
+
+    # rescale novelty contour to ylim of the newly created spectrogram
+    ranges = par("usr")
+    xlim = ranges[1:2]
+    ylim = ranges[3:4]
     do.call(lines, c(list(
-      x = seq(specPars1$xlim[1], specPars1$xlim[2], length.out = length(novelty)),
-      y = zeroOne(novelty) * specPars1$ylim[2] * .95
+      x = seq(ranges[1], ranges[2], length.out = length(novelty)),
+      y = ranges[3] + zeroOne(novelty) * (ranges[4] - ranges[3]) * .95
     ), noveltyPars1
     ))
     axis(side = 1, labels = TRUE)
     par(mar = c(0, 4.1, 2.1, 2.1),
         xaxt = 'n',
         yaxt = 's')
-    xlab = ''
+    # xlab = ''
 
     # SSM
     ssmPars1 = list(
@@ -477,9 +524,6 @@ ssm = function(
       y_Hz = FALSE
     ), ssmPars1
     ))
-    # restore original pars
-    par('mar' = op$mar, 'xaxt' = op$xaxt, 'yaxt' = op$yaxt, 'mfrow' = op$mfrow)
-    if (is.character(audio$savePlots)) dev.off()
   }
 
   out = list(ssm = s, novelty = novelty)
@@ -488,205 +532,134 @@ ssm = function(
 
 
 #' Compute self-similarity
-#'
-#' Internal soundgen function.
-#'
-#' Called by \code{\link{ssm}}.
 #' @param m input matrix such as a spectrogram
 #' @inheritParams ssm
-#' @param win the length of window for averaging self-similarity, frames
-#' @return Returns a square self-similarity matrix.
-#' @keywords internal
+#' @param ssmWin the length of window for averaging self-similarity, frames
+#' @return A square self-similarity matrix.
+#' @noRd
 #' @examples
 #' m = matrix(rnorm(40), nrow = 5)
-#' soundgen:::selfsim(m, sparse = TRUE, kernelSize = 2)
+#' soundgen:::selfsim(m)
 selfsim = function(m,
-                   norm = FALSE,
-                   simil = c('cosine', 'cor')[1],
-                   win = 1,
-                   sparse = FALSE,
-                   kernelSize = NULL) {
+                   normalize = FALSE,
+                   simil = 'cosine',
+                   ssmWin = 1) {
   nc = ncol(m)
-  if (win > floor(nc / 2)) {
-    win = floor(nc / 2)
-    warning(paste('"win" must be smaller than half the number of frames',
+  if (ssmWin > floor(nc / 2)) {
+    ssmWin = floor(nc / 2)
+    warning(paste('"ssmWin" must be smaller than half the number of frames',
                   'resetting to', floor(nc / 2)))
   }
-  if (win %% 2 == 0) {
-    win = max(ceiling(win / 2) * 2 - 1, 1)
-  } # win must be odd
+  if (ssmWin %% 2 == 0) {
+    ssmWin = max(ceiling(ssmWin / 2) * 2 - 1, 1)
+  }
 
   # normalize input by column, if needed
-  if (norm) {
-    m = apply(m, 2, zeroOne, na.rm = TRUE)
+  if (normalize) {
+    m = apply(m, 2, zeroOne)
     m[is.na(m)] = 0
   }
 
-  # calculate windows for averaging self-similarity
-  winIdx = unique(round(seq(1, nc - win + 1, length.out = ceiling(nc / win))))
+  # window start indices
+  winIdx = unique(round(seq(1, nc - ssmWin + 1,
+                            length.out = ceiling(nc / ssmWin))))
   numWins = length(winIdx)
 
-  # calculate the lower triangle of self-similarity matrix
-  out = matrix(NA, nrow = numWins, ncol = numWins)
-  rownames(out) = colnames(out) = winIdx
-  if (!sparse) j_idx = seq_len(numWins)
-  for (i in seq_along(winIdx)) {
-    if (sparse) {
-      j_idx = max(1, i - kernelSize) : max(1, (i - 1))
-    } else {
-      j_idx = 1:max(1, (i - 1))
-    }
-    for (j in j_idx) {
-      mi = as.vector(m[, winIdx[i]:(winIdx[i] + win - 1)])
-      mj = as.vector(m[, winIdx[j]:(winIdx[j] + win - 1)])
-      if (any(mi != 0) && any(mj != 0)) {
-        if (simil == 'cosine') {
-          # http://stackoverflow.com/questions/6597005/cosine-similarity-between-two-vectors-in-language-r
-          out[i, j] = crossprod(mi, mj) / sqrt(crossprod(mi) * crossprod(mj))
-        } else if (simil == 'cor') {
-          out[i, j] = cor(mi, mj)
-        }
-      } else {
-        # if at least one is a vector of zeros, set result to 0 (otherwise NA)
-        out[i, j] = 0
-      }
-    }
+  # build blocks matrix (each column = one flattened window)
+  nr = nrow(m)
+  blockLen = nr * ssmWin
+  blocks = matrix(0, nrow = blockLen, ncol = numWins)
+  for (k in seq_len(numWins)) {
+    blocks[, k] = as.vector(m[, winIdx[k]:(winIdx[k] + ssmWin - 1), drop = FALSE])
   }
-  # fill up the upper triangle as well
+
+  # compute full similarity matrix via vectorized operations
+  if (simil == 'cosine') {
+    colNorms = sqrt(colSums(blocks^2))
+    # mark zero-norm columns (will yield 0 similarity)
+    zeroCols = which(colNorms == 0)
+    colNorms[colNorms == 0] = 1  # avoid division by zero
+    blocks_unit = blocks / rep(colNorms, each = blockLen)
+    out = crossprod(blocks_unit)  # numWins x numWins
+    if (length(zeroCols) > 0) {
+      out[zeroCols, ] = 0
+      out[, zeroCols] = 0
+    }
+  } else {
+    # Pearson correlation; cor() is already vectorized over columns
+    out = cor(blocks)
+    out[is.na(out)] = 0  # constant columns produce NA
+  }
   diag(out) = 1
-  out1 = t(out)
-  out1[lower.tri(out1)] = out[lower.tri(out)]
-  # isSymmetric(out1)
-  # image(out1)
-  zeroOne(t(out1), na.rm = TRUE)
-}
-
-
-#' Checkerboard kernel
-#'
-#' Internal soundgen function.
-#'
-#' Prepares a square matrix \code{size x size} specifying a gaussian kernel for
-#' measuring novelty of self-similarity matrices. Called by
-#' \code{\link{getNovelty}}
-#' @param size kernel size (points), preferably an even number
-#' @param kernel_mean,kernelSD mean and SD of the gaussian kernel
-#' @param plot if TRUE, shows a perspective plot of the kernel
-#' @param checker if TRUE, inverts two quadrants
-#' @return Returns a square matrix with \code{size} rows and columns.
-#' @keywords internal
-#' @examples
-#' kernel = soundgen:::getCheckerboardKernel(size = 64, kernelSD = 0.1, plot = TRUE)
-#' dim(kernel)
-#' kernel = soundgen:::getCheckerboardKernel(size = 19, kernelSD = .5,
-#'   checker = FALSE, plot = TRUE)
-#' kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
-#'   checker = FALSE, plot = TRUE)
-#' kernel = soundgen:::getCheckerboardKernel(size = c(9, 45), kernelSD = .5,
-#'   checker = TRUE, plot = TRUE)
-getCheckerboardKernel = function(size,
-                                 kernel_mean = 0,
-                                 kernelSD = 0.5,
-                                 plot = FALSE,
-                                 checker = TRUE) {
-  if (length(size) == 1) {
-    x = y = seq(-1, 1, length.out = size)
-    size = c(size, size)
-  } else if (length(size) == 2) {
-    x = seq(-1, 1, length.out = size[1])
-    y = seq(-1, 1, length.out = size[2])
-  } else {
-    stop('size must be of length 1 or 2')
-  }
-
-  kernelSD = kernelSD  # just to get rid of the "unused arg" warning in CMD check :-)
-  if (max(size) < 50) {
-    # faster than mvtnorm::dmvnorm for small kernels
-    kernel = matrix(NA, ncol = size[2], nrow = size[1])
-    for (i in seq_len(nrow(kernel))) {
-      for (j in seq_len(ncol(kernel))) {
-        kernel[i, j] = dnorm(x[i], mean = kernel_mean, sd = kernelSD) *
-          dnorm(y[j], mean = kernel_mean, sd = kernelSD)
-      }
-    }
-  } else {
-    # this is faster for large kernels
-    sigma = diag(2) * kernelSD
-    kernel_long = expand.grid(x1 = x, x2 = y)
-    kernel_long$dd = mvtnorm::dmvnorm(x = kernel_long,
-                                      mean = c(kernel_mean, kernel_mean),
-                                      sigma = sigma)
-    kernel = matrix(kernel_long$dd, nrow = size[1])
-    # kernel[1:5, 1:5]
-  }
-
-  if (checker) {
-    fl_row = floor(size[1] / 2)
-    fl_col = floor(size[2] / 2)
-    cl_row = ceiling(size[1] / 2)
-    cl_col = ceiling(size[2] / 2)
-    # quadrant 0 to 3 o'clock
-    kernel[seq_len(fl_row), (cl_col + 1):size[2]] = -kernel[seq_len(fl_row), (cl_col + 1):size[2]]
-    # quadrant 6 to 9 o'clock
-    kernel[(cl_row + 1):size[1], seq_len(cl_col)] = -kernel[(cl_row + 1):size[1], seq_len(cl_col)]
-  }
-  kernel = kernel / max(kernel)
-
-  if (plot) {
-    persp(
-      kernel,
-      theta = -20,
-      phi = 25,
-      # zlim = c(-1, 4),
-      ticktype = 'detailed'
-    )
-  }
-  kernel
+  rownames(out) = colnames(out) = winIdx
+  zeroOne(out)
 }
 
 
 #' SSM novelty
-#'
-#' Internal soundgen function.
-#'
 #' Calculates novelty in a self-similarity matrix. Called by \code{\link{ssm}}.
 #' @param ssm self-similarity matrix, as produced by \code{\link{selfsim}}
-#' @param kernelSize the size of gausisan kernel (points)
-#' @param kernelSD the SD of gaussian kernel
-#' @param normalize if TRUE, normalizes so that max = 1
-#' @return Returns a numeric vector of length \code{nrow(ssm)}
-#' @keywords internal
+#' @param kernelSize the size of Gaussian kernel (points, even number >=2)
+#' @param kernelSD the SD of Gaussian kernel
+#' @return A numeric vector of length \code{nrow(ssm)}.
+#' @noRd
 getNovelty = function(ssm,
                       kernelSize,
                       kernelSD,
-                      padWith = 0,
-                      normalize = TRUE) {
+                      padWith = 0) {
+  kernelSize = kernelSize + (kernelSize %% 2)  # ensure even
   kernel = getCheckerboardKernel(size = kernelSize, kernelSD = kernelSD)
-  ## pad matrix with size / 2 zeros, so that we can correlate it with the
-  #  kernel starting from the very edge
-  ssm_padded = matrix(padWith,
-                      nrow = nrow(ssm) + kernelSize,
-                      ncol = nrow(ssm) + kernelSize)
-  halfK = kernelSize / 2
-  # indices in the padded matrix where we'll paste the original ssm
-  idx = c(halfK + 1, nrow(ssm_padded) - halfK)
-  # paste original. Now we have a padded ssm
-  ssm_padded[idx[1]:idx[2], idx[1]:idx[2]] = ssm
+  N = nrow(ssm)
+  K = kernelSize
+  halfK = K / 2
 
-  ## get novelty
-  novelty = rep(0, nrow(ssm))
-  # for each point on the main diagonal, novelty = correlation between the
-  # checkerboard kernel and the ssm. See Badawy, "Audio novelty-based
-  # segmentation of music concerts"
-  for (i in idx[1]:idx[2]) {
-    n = (i - halfK):(i + halfK - 1)
-    # suppress warnings, b/c otherwise cor complains of sd = 0 for silent segments
-    mat_i = ssm_padded[n, n]
-    diag(mat_i) = NA
-    novelty[i - halfK] =  suppressWarnings(
-      cor(as.vector(mat_i), as.vector(kernel), use = 'pairwise.complete.obs')
-    )
+  # Pad the SSM so the kernel can slide from the very edge
+  ssm_padded = matrix(padWith, nrow = N + K, ncol = N + K)
+  ssm_padded[(halfK + 1):(N + halfK), (halfK + 1):(N + halfK)] = ssm
+
+  # Indices of diagonal elements within a K x K block (column-major order)
+  diag_idx = seq(1L, K * K, by = K + 1L)
+  off_diag_idx = setdiff(seq_len(K * K), diag_idx)
+  n_off = length(off_diag_idx)  # K^2 - K
+
+  # Kernel vector, off-diagonal only
+  kernel_vec = as.vector(kernel)[off_diag_idx]
+
+  ## Rare path: NAs present (padWith = NA or NAs in ssm): fall back to the
+  ## original loop
+  if (is.na(padWith) || anyNA(ssm)) {
+    novelty = rep(0, N)
+    for (p in seq_len(N)) {
+      mat_p = ssm_padded[p:(p + K - 1), p:(p + K - 1)]
+      diag(mat_p) = NA
+      novelty[p] = suppressWarnings(
+        cor(as.vector(mat_p), as.vector(kernel),
+            use = 'pairwise.complete.obs'))
+    }
+    novelty[is.na(novelty)] = 0
+    return(novelty)
   }
-  novelty[is.na(novelty)] = 0
-  novelty
+
+  ## Fast vectorized path (no NAs): extract all N diagonal blocks at once.
+  # For block p, element (r,c) lives at ssm_padded[p+r-1, p+c-1].
+  row_off = rep(seq_len(K), times = K)   # row offset within block
+  col_off = rep(seq_len(K), each = K)   # col offset within block
+  all_rows = outer(seq_len(N), row_off - 1L, `+`)  # N x K^2
+  all_cols = outer(seq_len(N), col_off - 1L, `+`)  # N x K^2
+  X = matrix(
+    ssm_padded[cbind(as.vector(all_rows), as.vector(all_cols))],
+    nrow = N, ncol = K * K
+  )[, off_diag_idx]  # N x n_off (drop diagonal elements)
+
+  # Pearson correlation of each row of X with the fixed kernel_vec:
+  #   cor(x, y) = (x_c . y_c) / sqrt( ss_x * ss_y )
+  y_c = kernel_vec - mean(kernel_vec)
+  ss_y = sum(y_c^2)                        # scalar (constant)
+  x_c = X - rowMeans(X)                   # center each row; R recycles
+  ss_x = rowSums(x_c^2)                    # length N
+  numerator = as.vector(x_c %*% y_c)       # N dot products in one BLAS call
+  denom = sqrt(ss_x * ss_y)
+  novelty = numerator / denom
+  novelty[is.na(novelty) | denom == 0] = 0
+  return(novelty)
 }

@@ -8,8 +8,8 @@ addFormants(
   x,
   samplingRate = NULL,
   formants = NULL,
-  spectralEnvelope = NULL,
-  action = c("add", "remove")[1],
+  formantFilter = NULL,
+  action = c("add", "remove"),
   dB = NULL,
   specificity = 1,
   zFun = NULL,
@@ -17,7 +17,7 @@ addFormants(
   formantDep = 1,
   formantDepStoch = 1,
   formantWidth = 1,
-  formantCeiling = 2,
+  formantCeiling = NULL,
   lipRad = 6,
   noseRad = 4,
   mouthOpenThres = 0,
@@ -25,12 +25,14 @@ addFormants(
   temperature = 0.025,
   formDrift = 0.3,
   formDisp = 0.2,
-  smoothing = list(),
-  windowLength_points = 800,
+  smoothing = list(interpol = "splineFC"),
+  windowLength = 50,
+  step = NULL,
   overlap = 75,
-  normalize = c("max", "orig", "none")[1],
+  wn = "gaussian",
+  normalize = c("orig", "max", "none"),
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   reportEvery = NULL,
   cores = 1,
   ...
@@ -41,28 +43,31 @@ addFormants(
 'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
 numeric vectors}
 
-\item{samplingRate}{sampling frequency, Hz}
+\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
+numeric vector)}
 
-\item{formants}{either a character string referring to default presets for
-speaker "M1" (implemented: "aoieu0") or a list of formant times,
-frequencies, amplitudes, and bandwidths (see examples). NA or NULL means no
-formants, only lip radiation. Time stamps for formants and mouthOpening can
-be specified in ms relative to \code{sylLen} or on a scale of \code{[0,
-1]}. See \code{\link{getSpectralEnvelope}} for more details}
+\item{formants}{a vector of formant frequencies (assuming formants are static
+throughout the sound); a list of formant times, frequencies, amplitudes,
+and bandwidths; or a character string referring to default presets for
+speaker "M1" (implemented: "aoieu0"). NA or NULL means no formants, only
+lip radiation (but a schwa is generated if \code{vocalTract} is specified).
+Time stamps for formants and mouth can be specified in ms relative to
+ \code{sylLen} or on a scale of \code{[0, 1]}. See
+ \code{\link{getFormantFilter}} for more details}
 
-\item{spectralEnvelope}{(optional): as an alternative to specifying formant
+\item{formantFilter}{(optional): as an alternative to specifying formant
 frequencies, we can provide the exact filter - a vector of non-negative
-numbers specifying the power in each frequency bin on a linear scale
-(interpolated to length equal to windowLength_points/2). A matrix
-specifying the filter for each STFT step is also accepted. The easiest way
-to create this matrix is to call soundgen:::getSpectralEnvelope or to use
-the spectrum of a recorded sound}
+numbers specifying the amplitude in each frequency bin on a linear scale. A
+matrix specifying the filter for each STFT step with frequency bins in rows
+and STFT frames in columns is also accepted. The easiest way to create this
+matrix is to call \code{\link{getFormantFilter}} or to use the spectrum
+of a recorded sound}
 
-\item{action}{'add' = add formants to the sound, 'remove' = remove formants
-(inverse filtering)}
+\item{action}{'add' = add formants to the sound (default), 'remove' = remove
+formants (inverse filtering)}
 
 \item{dB}{if NULL (default), the spectral envelope is applied on the original
-scale; otherwise, it is set to range from 1 to 10 ^ (dB / 20)}
+scale; otherwise, it is set to range up to 10^(dB / 20)}
 
 \item{specificity}{a way to sharpen or blur the spectral envelope (spectrum ^
 specificity) : 1 = no change, >1 = sharper, <1 = blurred}
@@ -84,9 +89,11 @@ above the highest specified formant, dB (only if temperature > 0)}
 
 \item{formantWidth}{scale factor of formant bandwidth (1 = no change)}
 
-\item{formantCeiling}{frequency to which stochastic formants are calculated,
-in multiples of the Nyquist frequency; increase up to ~10 for long vocal
-tracts to avoid losing energy in the upper part of the spectrum}
+\item{formantCeiling}{frequency to which stochastic formants are calculated
+to avoid losing energy in the upper part of the spectrum due to unmodeled
+resonances above the Nyquist frequencies, specified in multiples of
+Nyquist. If NULL (default), a faster theoretical correction is used (may
+fail for unusual sounds)}
 
 \item{lipRad}{the effect of lip radiation on source spectrum, dB/oct (the
 default of +6 dB/oct produces a high-frequency boost when the mouth is
@@ -107,54 +114,65 @@ in sound generation}
 \item{formDrift, formDisp}{scaling factors for the effect of temperature on
 formant drift and dispersal, respectively}
 
-\item{smoothing}{a list of parameters passed to
-\code{\link{getSmoothContour}} to control the interpolation and smoothing
-of contours: interpol (approx / spline / loess), loessSpan, discontThres,
-jumpThres}
+\item{smoothing}{a list of parameters passed to \code{\link{interpolate}} to
+control the interpolation and smoothing of contours drawn through anchors}
 
-\item{windowLength_points}{length of FFT window, points}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{overlap}{FFT window overlap, \%. For allowed values, see
-\code{\link[seewave]{istft}}}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
+
+\item{overlap}{overlap between successive windows, \%}
+
+\item{wn}{window type accepted by \code{\link{winFun}}: character string or
+function}
 
 \item{normalize}{"orig" = same as input (default), "max" = maximum possible
-peak amplitude, "none" = no normalization}
+peak amplitude for the given input scale, "none" = no normalization}
 
-\item{play}{if TRUE, plays the synthesized sound using the default player on
-your system. If character, passed to \code{\link[tuneR]{play}} as the name
-of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
-setting another default player for \code{\link[tuneR]{play}}}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{saveAudio}{path + filename for saving the output, e.g.
-'~/Downloads/temp.wav'. If NULL = doesn't save}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{...}{other plotting parameters passed to \code{\link{spectrogram}}}
+\item{...}{extra parameters passed to \code{zFun}}
+}
+\value{
+The filtered waveform as a numeric vector of the original length with
+  the original sampling rate, or a list if there are multiple inputs.
 }
 \description{
 A spectral filter that either adds or removes formants from a sound - that
 is, amplifies or dampens certain frequency bands, as in human vowels. See
-\code{\link{soundgen}} and \code{\link{getSpectralEnvelope}} for more
+\code{\link{soundgen}} and \code{\link{getFormantFilter}} for more
 information. With \code{action = 'remove'} this function can perform inverse
 filtering to remove formants and obtain raw glottal output, provided that you
 can specify the correct formant structure. Instead of formants, any arbitrary
-spectral filtering function can be applied using the \code{spectralEnvelope}
-argument (eg for a low/high/bandpass filter).
+spectral filtering function can be applied using the \code{formantFilter}
+argument (e.g., for a low/high/bandpass filter).
 }
 \details{
 Algorithm: converts input from a time series (time domain) to a spectrogram
-(frequency domain) through short-time Fourier transform (STFT), multiples by
+(frequency domain) through short-time Fourier transform (STFT), multiplies by
 the spectral filter containing the specified formants, and transforms back to
 a time series via inverse STFT. This is a subroutine for voice synthesis in
 \code{\link{soundgen}}, but it can also be applied to a recording.
 }
 \examples{
-sound = c(rep(0, 1000), runif(8000) * 2 - 1, rep(0, 1000))  # white noise
-# NB: pad with silence to avoid artefacts if removing formants
+sound = c(rep(0, 1000), rnorm(8000) * 2 - 1, rep(0, 1000))  # white noise
+# NB: pad with silence to avoid artifacts if removing formants
 # playme(sound)
 # spectrogram(sound, samplingRate = 16000)
 
@@ -174,8 +192,7 @@ sound_inverse_filt = addFormants(sound_filtered,
 
 \dontrun{
 ## Perform some user-defined manipulation of the spectrogram with zFun
-# Ex.: noise removal - silence all bins under threshold,
-# say -0 dB below the max value
+# Ex.: noise removal - silence all bins 50 dB below the max value
 s_noisy = soundgen(sylLen = 200, addSilence = 0,
                    noise = list(time = c(-100, 300), value = -20))
 spectrogram(s_noisy, 16000)
@@ -191,29 +208,26 @@ s_denoised = addFormants(s_noisy, samplingRate = 16000,
 spectrogram(s_denoised, 16000)
 # playme(s_denoised)
 
-# If neither formants nor spectralEnvelope are defined, only lipRad has an effect
+# If neither formants nor formantFilter are defined, only lipRad has an effect
 # For ex., we can boost low frequencies by 6 dB/oct
-noise = runif(8000)
+noise = rnorm(8000)
 noise1 = addFormants(noise, 16000, lipRad = -6)
-seewave::meanspec(noise1, f = 16000, dB = 'max0')
+meanSpectrum(noise1, 16000, yScale = 'max0')
 
-# Arbitrary spectra can be defined with spectralEnvelope. For ex., we can
+# Arbitrary spectra can be defined with formantFilter. For ex., we can
 # have a flat spectrum up to 2 kHz (Nyquist / 4) and -3 dB/kHz above:
 freqs = seq(0, 16000 / 2, length.out = 100)
 n = length(freqs)
 idx = (n / 4):n
 sp_dB = c(rep(0, n / 4 - 1), (freqs[idx] - freqs[idx[1]]) / 1000 * (-3))
 plot(freqs, sp_dB, type = 'b')
-noise2 = addFormants(noise, 16000, lipRad = 0, spectralEnvelope = 10 ^ (sp_dB / 20))
-seewave::meanspec(noise2, f = 16000, dB = 'max0')
+noise2 = addFormants(noise, 16000, lipRad = 0, formantFilter = 10 ^ (sp_dB / 20))
+meanSpectrum(noise2, 16000, yScale = 'max0')
 
-## Use the spectral envelope of an existing recording (bleating of a sheep)
-# (see also the same example with noise as source in ?generateNoise)
+## Use the spectral envelope of another recording
 # (NB: this can also be achieved with a single call to transplantFormants)
-data(sheep, package = 'seewave')  # import a recording from seewave
-sound_orig = as.numeric(scale(sheep@left))
-samplingRate = sheep@samp.rate
-sound_orig = sound_orig / max(abs(sound_orig))  # range -1 to +1
+sound_orig = soundgen(sylLen = 300, formants = 'a', addSilence = 5)
+samplingRate = 16000
 # playme(sound_orig, samplingRate)
 
 # get a few pitch anchors to reproduce the original intonation
@@ -223,35 +237,32 @@ pitch = pitch[!is.na(pitch)]
 
 # extract a frequency-smoothed version of the original spectrogram
 # to use as filter
-specEnv_bleating = spectrogram(sound_orig, windowLength = 5,
- samplingRate = samplingRate, output = 'original', plot = FALSE)
-# image(t(log(specEnv_bleating)))
+specEnv_orig = spectrogram(sound_orig, blur = c(300, 50),
+ samplingRate = samplingRate, output = 'original', plot = TRUE)
 
 # Synthesize source only, with flat spectrum
 sound_unfilt = soundgen(sylLen = 2500, pitch = pitch,
-  rolloff = 0, rolloffOct = 0, rolloffKHz = 0,
-  temperature = 0, jitterDep = 0, subDep = 0,
-  formants = NULL, lipRad = 0, samplingRate = samplingRate,
+  rolloff = 0, rolloffOct = 0,
+  temperature = 0, formants = NULL, lipRad = 0,
+  samplingRate = samplingRate,
   invalidArgAction = 'ignore')  # prevent soundgen from increasing samplingRate
 # playme(sound_unfilt, samplingRate)
-# seewave::meanspec(sound_unfilt, f = samplingRate, dB = 'max0')  # ~flat
+# meanSpectrum(sound_unfilt, samplingRate, yScale = 'max0')  # ~flat
 
 # Force spectral envelope to the shape of target
 sound_filt = addFormants(sound_unfilt, formants = NULL,
-  spectralEnvelope = specEnv_bleating, samplingRate = samplingRate)
+  formantFilter = specEnv_orig, samplingRate = samplingRate)
 # playme(sound_filt, samplingRate)  # playme(sound_orig, samplingRate)
 # spectrogram(sound_filt, samplingRate)  # spectrogram(sound_orig, samplingRate)
 
 # The spectral envelope is now similar to the original recording. Compare:
 par(mfrow = c(1, 2))
-seewave::meanspec(sound_orig, f = samplingRate, dB = 'max0', alim = c(-50, 20))
-seewave::meanspec(sound_filt, f = samplingRate, dB = 'max0', alim = c(-50, 20))
+meanSpectrum(sound_orig, samplingRate, yScale = 'max0', alim = c(-50, 20))
+meanSpectrum(sound_filt, samplingRate, yScale = 'max0', alim = c(-50, 20))
 par(mfrow = c(1, 1))
-# NB: but the source of excitation in the original is actually a mix of
-# harmonics and noise, while the new sound is purely tonal
 }
 }
 \seealso{
-\code{\link{getSpectralEnvelope}} \code{\link{transplantFormants}}
+\code{\link{getFormantFilter}} \code{\link{transplantFormants}}
   \code{\link{soundgen}}
 }

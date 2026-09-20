@@ -2,82 +2,77 @@
 
 #' Smooth contour from anchors
 #'
-#' Returns a smooth contour based on an arbitrary number of anchors. Used by
-#' \code{\link{soundgen}} for generating intonation contour, mouth opening, etc.
-#' This function is mostly intended to be used internally by soundgen, more
-#' precisely to construct (upsample) smooth curves from a number of anchors. For
-#' general upsampling or downsampling of audio, use \code{\link{resample}}. Note
-#' that pitch contours are treated as a special case: values are log-transformed
-#' prior to smoothing, so that with 2 anchors we get a linear transition on a
-#' log scale (as if we were operating with musical notes rather than frequencies
-#' in Hz). Pitch plots have two Y axes: one showing Hz and the other showing
-#' musical notation.
+#' Returns a smooth contour based on an arbitrary number of anchors - points
+#' through which we wish to draw a curve, and which may or may not be
+#' equidistant along the x (time) dimension. \code{getSmoothContour} is
+#' used extensively by \link{soundgen} for generating intonation contour, mouth
+#' opening, etc. Pitch contours are treated as a special case: values are
+#' log-transformed prior to smoothing, so that with 2 anchors we get a linear
+#' transition on a log scale (as if we were operating with musical notes rather
+#' than frequencies in Hz).
+#'
 #' @param anchors a numeric vector of values or a list/dataframe with one column
-#'   (value) or two columns (time and value). \code{achors$time} can be in ms
-#'   (with len=NULL) or in arbitrary units, eg 0 to 1 (with duration determined
-#'   by len, which must then be provided in ms). So anchors$time is assumed to
-#'   be in ms if len=NULL and relative if len is specified. \code{anchors$value}
-#'   can be on any scale.
+#'   (value) or two columns (time and value). \code{anchors$time} can be in ms
+#'   or in arbitrary units, eg 0 to 1. \code{anchors$value} can be on any scale.
 #' @param len the required length of the output contour. If NULL, it will be
-#'   calculated based on the maximum time value (in ms) and \code{samplingRate}
-#' @param thisIsPitch (boolean) is this a pitch contour? If true, log-transforms
+#'   calculated based on the maximum time value (in ms) and \code{samplingRate}.
+#'   If \code{len == 1}, returns the mean of anchors
+#' @param thisIsPitch (boolean) is this a pitch contour? If TRUE, log-transforms
 #'   before smoothing and plots in both Hz and musical notation
 #' @param normalizeTime if TRUE, normalizes anchors$time values to range from 0 to 1
-#' @param interpol method of interpolation between anchors: "approx" = linear
-#'   with \code{\link{approx}}, "spline" = cubic splines with
-#'   \code{\link{spline}}, "loess" = local polynomial regression with
-#'   \code{\link{loess}}
-#' @param loessSpan controls the amount of smoothing when interpolating between
-#'   anchors with \code{\link[stats]{loess}}, so only has an effect if interpol
-#'   = 'loess' (1 = strong, 0.5 = weak smoothing)
+#' @param interpol the method of interpolation (only used for upsampling,
+#'   not downsampling); see \link{interpolate} for details
 #' @param discontThres if two anchors are closer in time than
 #'   \code{discontThres} (on a 0-1 scale, ie specified as proportion of total
 #'   length), the contour is broken into segments with a linear transition
-#'   between these segments
+#'   between these segments; set to 0 to avoid ever splitting into segments
 #' @param jumpThres if anchors are closer than \code{jumpThres}, a new section
-#'   starts with no transition at all (e.g. for adding pitch jumps)
-#' @param valueFloor,valueCeiling lowser/upper bounds for the contour
+#'   starts with no transition at all (e.g. for adding pitch jumps); normally,
+#'   \code{jumpThres <= discontThres}
+#' @param valueFloor,valueCeiling lower/upper bounds for the contour
 #' @param plot (boolean) produce a plot?
 #' @param samplingRate sampling rate used to convert time values to points (Hz)
-#' @param voiced,contourLabel graphical pars for plotting breathing contours
-#'   (see examples below)
-#' @param NA_to_zero if TRUE, all NAs are replaced with zero
+#' @param voiced,contourLabel graphical parameters for plotting breathing
+#'   contours (see examples below)
+#' @param NA_to_zero if TRUE, all NAs are replaced with zero; if FALSE, NAs
+#'   propagate and can be upsampled
 #' @param xlim,ylim,xlab,ylab,main plotting options
 #' @param ... other plotting options passed to \code{plot()}
-#' @export
-#' @return Returns a numeric vector of length \code{len}.
+#'
+#' @return A numeric vector of length \code{len}.
+#' @keywords internal
 #' @examples
 #' # long format: anchors are a dataframe
-#' a = getSmoothContour(anchors = data.frame(
+#' a = soundgen:::getSmoothContour(anchors = data.frame(
 #'   time = c(50, 137, 300), value = c(0.03, 0.78, 0.5)),
 #'   normalizeTime = FALSE,
 #'   voiced = 200, valueFloor = 0, plot = TRUE, main = '',
 #'   samplingRate = 16000) # breathing
 #'
 #' # short format: anchors are a vector (equal time steps assumed)
-#' a = getSmoothContour(anchors = c(350, 800, 600),
+#' a = soundgen:::getSmoothContour(anchors = c(350, 800, 600),
 #'   len = 5500, thisIsPitch = TRUE, plot = TRUE,
 #'   samplingRate = 3500) # pitch
 #'
 #' # a single anchor gives constant value
-#' a = getSmoothContour(anchors = 800,
+#' a = soundgen:::getSmoothContour(anchors = 800,
 #'   len = 500, thisIsPitch = TRUE, plot = TRUE, samplingRate = 500)
 #'
 #' # two pitch anchors give loglinear F0 change
-#' a = getSmoothContour(anchors = c(220, 440),
+#' a = soundgen:::getSmoothContour(anchors = c(220, 440),
 #'   len = 500, thisIsPitch = TRUE, plot = TRUE, samplingRate = 500)
 #'
 #' ## Two closely spaced anchors produce a pitch jump
-#' # one loess for the entire contour
-#' a1 = getSmoothContour(anchors = list(time = c(0, .15, .2, .7, 1),
+#' # one curve through all anchors
+#' a1 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .2, .7, 1),
 #'     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
 #'     plot = TRUE, samplingRate = 500)
 #' # two segments with a linear transition
-#' a2 = getSmoothContour(anchors = list(time = c(0, .15, .17, .7, 1),
+#' a2 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .17, .7, 1),
 #'     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
 #'     plot = TRUE, samplingRate = 500)
 #' # two segments with an abrupt jump
-#' a3 = getSmoothContour(anchors = list(time = c(0, .15, .155, .7, 1),
+#' a3 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .155, .7, 1),
 #'     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
 #'     plot = TRUE, samplingRate = 500)
 #' # compare:
@@ -85,22 +80,24 @@
 #' plot(a3)  # NB: the segment before the jump is upsampled to compensate
 #'
 #' ## Control the amount of smoothing
-#' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-#'   loessSpan = NULL)  # default amount of smoothing (depends on dur)
-#' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-#'   loessSpan = .85)   # more smoothing than default
-#' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-#'   loessSpan = .5)    # less smoothing
-#' getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-#'   interpol = 'approx')  # linear interpolation (no smoothing)
+#' # linear - no smoothing
+#' soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+#'   interpol = 'linear')
+#' # spline (smooth, but may overshoot slightly)
+#' soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+#'   interpol = 'splineFC')
+#' # cosine - goes strictly through anchors, no overshoot, but possible ripples
+#' soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+#'   interpol = 'cosine')
+#' # see ?interpolate for more options
 #'
 #' ## Upsample preserving leading and trailing NAs
 #' anchors = data.frame(time =  c(1,  4,  5,  7,  10, 20, 23, 25, 30),
 #'                      value = c(NA, NA, 10, 15, 12, NA, 17, 15, NA))
 #' plot(anchors, type = 'b')
-#' anchors_ups = getSmoothContour(
+#' anchors_ups = soundgen:::getSmoothContour(
 #'   anchors, len = 200,
-#'   interpol = 'approx',  # only approx can propagate NAs
+#'   interpol = 'linear',
 #'   NA_to_zero = FALSE,   # preserve NAs
 #'   discontThres = 0)     # don't break into sub-contours
 #' plot(anchors_ups, type = 'b')
@@ -109,8 +106,7 @@ getSmoothContour = function(
     len = NULL,
     thisIsPitch = FALSE,
     normalizeTime = TRUE,
-    interpol = c('approx', 'spline', 'loess')[3],
-    loessSpan = NULL,
+    interpol = 'splineFC',
     discontThres = .05,
     jumpThres = .01,
     valueFloor = NULL,
@@ -127,17 +123,9 @@ getSmoothContour = function(
     NA_to_zero = TRUE,
     ...) {
   anchors = reformatAnchors(anchors, normalizeTime = normalizeTime)
-  if (!is.null(len) && len == 1) return(anchors$value[1])
-  if (is.list(anchors)) {
-    if (nrow(anchors) > 10 & nrow(anchors) < 50 & interpol == 'loess') {
-      interpol = 'spline'
-      # warning('More than 10 anchors; changing interpolation method from loess to spline')
-    } else if (nrow(anchors) > 50) {
-      interpol = 'approx'
-    }
-  } else {
-    stop('Invalid format of the "anchors" argument')
-  }
+  if (!is.null(len) && len == 1) return(mean(anchors$value))
+  # each segment must have >=3 points
+  discontThres = min(discontThres, 3 / length(anchors$value))
 
   if (!is.null(valueFloor)) {
     anchors$value[anchors$value < valueFloor] = valueFloor
@@ -147,26 +135,33 @@ getSmoothContour = function(
   }
   if (thisIsPitch) {
     anchors$value = HzToSemitones(anchors$value)
-    if (!is.null(valueFloor))
-      valueFloor = HzToSemitones(valueFloor)
-    if (!is.null(valueCeiling))
-      valueCeiling = HzToSemitones(valueCeiling)
+    if (!is.null(valueFloor) && is.numeric(valueFloor))
+      if (valueFloor < 0)
+        stop('valueFloor must be positive if thisIsPitch = TRUE')
+    valueFloor = HzToSemitones(valueFloor)
+    if (!is.null(valueCeiling) && is.numeric(valueCeiling))
+      if (valueCeiling < 0)
+        stop('valueCeiling must be positive if thisIsPitch = TRUE')
+    valueCeiling = HzToSemitones(valueCeiling)
   }
 
   if (is.null(len)) {
     # if len is null, we expect that anchors$time encoded
     # the desired duration, in ms
-    duration_ms = max(anchors$time) - min(anchors$time)
+    duration_ms = diff(range(anchors$time))
     len = floor(duration_ms * samplingRate / 1000)
   } else {
-    anchors$time = anchors$time - min(anchors$time)
-    anchors$time = anchors$time / max(anchors$time) # strictly 0 to 1
     duration_ms = len / samplingRate * 1000
   }
+  anchors_bckp = anchors  # original time scale for plotting
+  anchors$time = anchors$time - min(anchors$time)
+  mt = max(anchors$time)
+  if (mt != 0)
+    anchors$time = anchors$time / mt # strictly 0 to 1
 
-  if (!is.numeric(duration_ms) | !is.numeric(len)) {
+  if (!is.numeric(duration_ms) || !is.numeric(len)) {
     return(NA)
-  } else if (duration_ms == 0 | len == 0) {
+  } else if (duration_ms == 0 || len == 0) {
     return(NA)
   }
   if (NA_to_zero) anchors$value[is.na(anchors$value)] = 0
@@ -178,16 +173,17 @@ getSmoothContour = function(
     smoothContour = anchors$value
   } else if (nr > len) {
     # downsample
-    smoothContour = suppressWarnings(.resample(list(sound = anchors$value),
-                                               mult = len / nr))
-  } else if (discontThres <= 0 | nr < 3) {
+    smoothContour = suppressWarnings(.resample(list(
+      sound = anchors$value),len = len, lowPass = TRUE, interpol = interpol))
+  } else if (discontThres <= 0 || nr < 3) {
     # upsample in one go
-    smoothContour = drawContour(len = len,
-                                anchors = anchors,
-                                interpol = interpol,
-                                loessSpan = loessSpan,
-                                valueFloor = valueFloor,
-                                duration_ms = duration_ms)
+    if (nr == 1) {
+      smoothContour = rep(anchors$value, len)
+    } else {
+      smoothContour = drawContour(len = len,
+                                  anchors = anchors,
+                                  interpol = interpol)
+    }
   } else {
     # some anchors might be too close, so we split the contour into segments
     # to avoid weird behavior of loess etc
@@ -195,22 +191,17 @@ getSmoothContour = function(
                             discontThres = discontThres,
                             jumpThres = jumpThres)
     smoothContour = vector()
-    for (i in seq_len(nrow(sections))) {
-      segm_len = round((anchors$time[sections$end[i]] -
-                          anchors$time[sections$start[i]]) /
-                         diff(range(anchors$time)) * len)
+    for (i in 1:nrow(sections)) {
+      segm_len = max(1, round((anchors$time[sections$end[i]] -
+                                 anchors$time[sections$start[i]]) * len))
       cont = drawContour(len = segm_len,
                          anchors = anchors[sections$start[i]:sections$end[i], ],
-                         interpol = interpol,
-                         loessSpan = loessSpan,
-                         valueFloor = valueFloor,
-                         duration_ms = duration_ms)
+                         interpol = interpol)
       transition = vector()
       if (i < nrow(sections)) {
         trans_len = round((anchors$time[sections$start[i + 1]] -
-                             anchors$time[sections$end[i]]) /
-                            diff(range(anchors$time)) * len)
-        if (sections$jump[i] & length(cont) > 0) {
+                             anchors$time[sections$end[i]]) * len)
+        if (sections$jump[i] && length(cont) > 0) {
           # upsample the segment before the jump to make up for skipped transition
           cont = approx(cont, n = length(cont) + trans_len)$y
         } else {
@@ -223,225 +214,171 @@ getSmoothContour = function(
       smoothContour = c(smoothContour, cont, transition)
     }
     if (length(smoothContour) != len) {
-      smoothContour = approx(smoothContour, n = len)$y
+      # shouldn't happen, but you never know
+      smoothContour = spline(smoothContour, n = len)$y
     }
   }
   # plot(smoothContour, type='p')
 
-  if (plot) {
-    idx = seq(1, len, length.out = min(len, 100))
+  if (plot && any(!is.na(smoothContour))) {
     op = par("mar") # save user's original margin settings
-    if (len > 100) {
-      # for plotting, shorten smoothContour to max 100 points
-      # to reduce processing load
-      smoothContour_downsampled = smoothContour[idx]
-    } else {
-      smoothContour_downsampled = smoothContour
-    }
-    # plot(smoothContour_downsampled)
+    on.exit(par(mar = op))
 
     # presuming that len was specified and anchors$time are on a
     # relative scale, we transform to ms for plotting
-    if (!max(anchors$time) > 1) {
-      anchors$time = anchors$time * duration_ms
-      time = seq(0, len, length.out = len)
-      x = time[idx] / samplingRate * 1000
+    if (max(anchors_bckp$time) <= 1) {
+      anchors_bckp$time = anchors_bckp$time * duration_ms
+      time = seq(0, len / samplingRate * 1000, length.out = len)
     } else {  # time is already in ms
-      time = seq(anchors$time[1], anchors$time[nrow(anchors)], length.out = len)
-      x = time[idx]
+      time = seq(anchors_bckp$time[1], anchors_bckp$time[nrow(anchors)],
+                 length.out = len)
     }
+    ran = range(smoothContour, na.rm = TRUE)
 
     if (thisIsPitch) {
       # pitch - log-transformed
       if (!is.numeric(ylim)) {
         ylim = c(
-          min(smoothContour_downsampled) / 1.1,  # can't be negative
-          max(smoothContour_downsampled) * 1.1
+          ran[1] / 1.1,  # can't be negative
+          ran[2] * 1.1
         )
       } else {
         ylim = HzToSemitones(ylim)
-        if (min(smoothContour_downsampled) < ylim[1])
-          ylim[1] = min(smoothContour_downsampled) / 1.1
-        if (max(smoothContour_downsampled) > ylim[2])
-          ylim[2] = max(smoothContour_downsampled) * 1.1
+        if (ran[1] < ylim[1])
+          ylim[1] = ran[1] / 1.1
+        if (ran[2] > ylim[2])
+          ylim[2] = ran[2] * 1.1
       }
       lbls_semitones = unique(seq(ylim[1], ylim[2], length.out = 5))
       # unique to remove duplicates, max 5 labels
-      lbls_notes = soundgen::notesDict$note[round(lbls_semitones) + 1]
+      lbls_notes = notesDict$note[round(lbls_semitones) + 1]
       lbls_Hz = round(semitonesToHz(lbls_semitones))
-      if (!exists('xlab')) xlab = 'Time, ms'
-      if (!exists('ylab')) ylab = 'Frequency, Hz'
 
       par(mar = c(5, 4, 4, 3)) # c(bottom, left, top, right)
-      plot(x, smoothContour_downsampled,
+      plot(time, smoothContour,
            type = 'l', yaxt = "n", ylab = ylab, xlab = xlab,
            ylim = ylim, main = main, ...)
       axis(2, at = lbls_semitones, labels = lbls_Hz, las = 1)
       axis(4, at = lbls_semitones, labels = lbls_notes, las = 1)
-      points(anchors$time, anchors$value, col = 'blue', cex = 3)
+      points(anchors_bckp$time, anchors_bckp$value, col = 'blue', cex = 3)
     } else {
       # not pitch - not log-transformed
-      # if (!max(anchors$time) > 1) {
-      #   anchors$time = anchors$time * duration_ms
-      # } # presuming that len was specified and anchors$time are on a
-      # # relative scale, we transform to ms for plotting
       par(mar = c(5, 4, 4, 3)) # c(bottom, left, top, right)
       if (is.null(xlim)) {
-        xlim = c(min(0, anchors$time[1]), anchors$time[length(anchors$time)])
+        xlim = c(min(0, anchors_bckp$time[1]),
+                 anchors_bckp$time[length(anchors$time)])
       }
       if (is.null(ylim)) {
-        m1 = min(c(smoothContour, anchors$value))
+        m1 = min(c(ran, anchors_bckp$value))
         m1 = ifelse(m1 > 0, m1 / 1.1, m1 * 1.1)
-        m2 = max(c(smoothContour, anchors$value))
-        m2 = ifelse(m2 > 0, m2 * 1.1, m1 / 1.1)
+        m2 = max(c(ran, anchors_bckp$value))
+        m2 = ifelse(m2 > 0, m2 * 1.1, m2 / 1.1)
         ylim = c(m1, m2)
-        # ylim = c(min(0, min(anchors$value)), max(0, max(anchors$value)))
       }
 
-      plot(x, y = smoothContour_downsampled, type = 'l', ylab = ylab,
+      plot(time, smoothContour, type = 'l', ylab = ylab,
            xlab = xlab, xlim = xlim, ylim = ylim, main = main, ...)
-      points(anchors$time, anchors$value, col = 'blue', cex = 3)
+      points(anchors_bckp$time, anchors_bckp$value, col = 'blue', cex = 3)
       if (is.numeric(voiced)) {
         lines(x = c(0, voiced), y = c(0, 0), col = 'blue', lwd = 10)
         text(x = voiced / 2, y = abs(ylim[2] - ylim[1]) / 25,
              adj = 0.5, labels = 'voiced part', col = 'blue')
-        text(x = anchors$time[nrow(anchors)],
-             y = anchors$value[nrow(anchors)] - (ylim[2] - ylim[1]) / 25,
+        text(x = anchors_bckp$time[nrow(anchors_bckp)],
+             y = anchors_bckp$value[nrow(anchors_bckp)] - (ylim[2] - ylim[1]) / 25,
              adj = 1, labels = contourLabel, col = 'red')
       }
     }
-    par("mar" = op)  # restore original margin settings
   }
-  # NA's may arise if the first anchor time > 0
-  if (nrow(anchors) > 0 & NA_to_zero)
-    smoothContour[is.na(smoothContour)] = 0
+  # NAs may arise if the first anchor time > 0 or if input vector contains NAs
+  if (NA_to_zero) smoothContour[is.na(smoothContour)] = 0
 
   # floor / ceiling
-  smoothContour[smoothContour < valueFloor] = valueFloor
-  smoothContour[smoothContour > valueCeiling] = valueCeiling
+  if (!is.null(valueFloor)) smoothContour[smoothContour < valueFloor] = valueFloor
+  if (!is.null(valueCeiling)) smoothContour[smoothContour > valueCeiling] = valueCeiling
   if (thisIsPitch) {
-    semitonesToHz(smoothContour)
+    return(semitonesToHz(smoothContour))
   } else {
-    smoothContour
+    return(smoothContour)
   }
 }
 
 
 #' Draw contour
 #'
-#' Internal soundgen function
-#'
-#' The core part of getSmoothContour() that actually performs the interpolation
-#' between anchors.
-#' @inheritParams getSmoothContour
-#' @param duration_ms contour duration, ms
-#' @keywords internal
+#' NAs are propagated.
+#' @noRd
+#' @param len length of output
+#' @param anchors preformatted anchors with time between [0, 1]
+#' @param interpol the method of interpolation
 drawContour = function(len,
                        anchors,
-                       interpol,
-                       valueFloor,
-                       duration_ms = 500,
-                       loessSpan = NULL) {
-  time = seq_len(len)
+                       interpol) {
+  time = 1:len
   nr = nrow(anchors)
   if (nr == len) return(anchors$value)
   if (nr == 1) {
     # flat
-    smoothContour = rep(.subset2(anchors$value, 1), len)
+    smoothContour = rep(anchors$value[1], len)
   } else if (nr == 2) {
-    # linear
-    smoothContour = seq(.subset2(anchors$value, 1),
-                        .subset2(anchors$value, 2),
+    # just a line between two values
+    smoothContour = seq(anchors$value[1],
+                        anchors$value[2],
                         length.out = len)
   } else {
-    # smooth contour
-    if (interpol == 'approx') {
-      # approx can handle NAs, but we only really care about leading/trailing
-      # NAs, because NAs in the middle can be handled automatically
-      if (is.na(.subset2(anchors$value, 1)) |
-          is.na(.subset2(anchors$value, nr))) {
+    # many anchors. Any NAs?
+    idx_notNA = which(!is.na(anchors$value))
+    if (!any(is.na(anchors$value))) {
+      # there are no NAs - just call interpolate(), and we are done
+      smoothContour = interpolate(x = anchors$time, y = anchors$value,
+                                  xout = seq(anchors$time[1], anchors$time[nr], length.out = len),
+                                  method = interpol)
+    } else {
+      # there are NAs: we'll have to go through .resample()
+      # STEP 1: use approx to make anchors equidistant
+      time_steps = diff(anchors$time)
+      # NB: time is strictly [0, 1], so time_step gives us the time resolution we need
+      len_interm = min(nrow(anchors) * 100, round(1 / min(time_steps)) + 1)
+      if (max(diff(time_steps)) > 0.01) {
+        # anchors not equidistant in time - need to standardize before calling `resample`
+        # first, let's tackle NAs
         # if there are leading and/or trailing NAs, we have to upsample them separately
         # replace trailing NA with the first / last non-NA values
         idx_notNA = which(!is.na(anchors$value))
-        idx_na = which(is.na(anchors$value))
-        n_leading_na = round(len * anchors$time[.subset2(idx_notNA, 1)])
-        n_trailing_na = round(len * (1 - anchors$time[.subset2(idx_notNA, length(idx_notNA))]))
-        n_mid = len - n_leading_na - n_trailing_na
-
-        leading_na = trailing_na = numeric(0)
-        if (n_leading_na > 0)
-          leading_na = rep(NA, n_leading_na)
-        if (n_trailing_na > 0)
-          trailing_na = rep(NA, n_trailing_na)
+        n_leading_na = round(len_interm * anchors$time[idx_notNA[1]])
+        n_trailing_na = round(len_interm * (1 - anchors$time[tail(idx_notNA, 1)]))
+        n_mid = len_interm - n_leading_na - n_trailing_na
         mid_new = approx(x = anchors$time, y = anchors$value, n = n_mid, na.rm = FALSE)$y
-        smoothContour = c(leading_na, mid_new, trailing_na)
+        # NB: approx drops leading and trailing NAs, so this just upsamples the middle part
+        curve_interm = c(
+          rep(NA, n_leading_na),
+          mid_new,
+          rep(NA, n_trailing_na)
+        )
       } else {
-        smoothContour = approx(anchors$value, n = len, x = anchors$time, na.rm = FALSE)$y
+        curve_interm = anchors$value
       }
-      # plot(smoothContour, type='l')
-    } else if (interpol == 'spline') {
-      smoothContour = spline(anchors$value, n = len, x = anchors$time)$y
-      # plot(smoothContour, type='l')
-    } else if (interpol == 'loess') {
-      anchor_time_points = anchors$time - min(anchors$time)
-      anchor_time_points = anchor_time_points / max(anchor_time_points) * len
-      anchor_time_points[anchor_time_points == 0] = 1
-      anchors_long = as.vector(rep(NA, len))
-      anchors_long[anchor_time_points] = anchors$value # plot(anchors_long)
 
-      # let's draw a smooth curve through the given anchors
-      if (is.null(loessSpan)) {
-        span = (1 / (1 + exp(duration_ms / 500)) + 0.5) /
-          1.1 ^ (nrow(anchors) - 3)
-      } else {
-        span = loessSpan
-      }
-      # NB: need to compensate for variable number of points, namely decrease
-      # smoothing as the number of points increases, hence the "1.1^..." term
-      # duration_ms = 50:9000
-      # span = 1 / (1 + exp(duration_ms / 500)) + 0.5
-      # plot(duration_ms, span, type = 'l')
-      l = suppressWarnings(loess(anchors_long ~ time, span = span))
-      # plot(time, anchors_long)
-      smoothContour = try(predict(l, time), silent = TRUE)
-      # plot(time, smoothContour)
-
-      # for long duration etc, larger span may be needed to avoid error in loess
-      if (is.null(loessSpan)) {
-        while(inherits(smoothContour, 'try-error')) {
-          span = span + 0.1
-          l = suppressWarnings(loess(anchors_long ~ time, span = span))
-          smoothContour = try(predict(l, time), silent = TRUE)
-        }
-        # plot(smoothContour, type = 'l')
-
-        while(any(smoothContour < valueFloor - 1e-6, na.rm = TRUE)) {
-          # in case we get values below valueFloor, less smoothing should be used
-          # NB: -1e-6 avoids floating point problem, otherwise we get
-          # weird cases of -120 (float) < -120 (integer)
-          span = span / 1.1
-          l = suppressWarnings(loess(anchors_long ~ time, span = span))
-          smoothContour = try(predict(l, time), silent = TRUE)
-        }
-      }
+      # STEP 2: call `resample` to down- or upsample `curve_interm` to the right length
+      # (`resample` respects NAs, and now the time steps between points are all identical)
+      smoothContour = .resample(
+        list(sound = curve_interm, samplingRate = len_interm),
+        len = len, lowPass = FALSE, interpol = interpol)
     }
-    smoothContour
   }
+  smoothContour
 }
 
 
 #' Split contour
 #'
-#' Internal soundgen function
-#'
-#' Splits a smooth contour into several segments. A new segments is started if
+#' Splits a smooth contour into several segments. A new segment is started if
 #' the time step between two anchors is smaller than discontThres.
 #' @param anchors a dataframe with two columns: time and value (time on any scale)
 #' @inheritParams getSmoothContour
-#' @return Returns a dataframe containing the index of anchor rows for start and
+#' @return A dataframe containing the index of anchor rows for start and
 #'   end of each segment and whether we want a transition or a jump between
 #'   segments.
-#' @keywords internal
+#' @noRd
 #' @examples
 #' soundgen:::splitContour(data.frame(time = c(0, 370, 650, 655, 1050, 1400),
 #'   value = c(360, 316, 345, 550, 610, 590)))
@@ -456,17 +393,21 @@ drawContour = function(len,
 #'   value = c(360, 590)))
 splitContour = function(anchors,
                         discontThres = .05,
-                        jumpThres = .01) {
+                        jumpThres = .01,
+                        nSections_max = 5) {
   discont = which(diff(anchors$time) / diff(range(anchors$time)) < discontThres)
+  # limit max number of sections
+  if (length(discont) > nSections_max)
+    discont = sample(discont, nSections_max)
   jumps = which(diff(anchors$time) / diff(range(anchors$time)) < jumpThres)
   if (length(discont) > 0) {
     sections = data.frame(start = 1,
                           end = rep(nrow(anchors), length(discont) + 1),
                           jump = FALSE)
     for (j in seq_along(discont)) {
-      sections$end[j] = .subset2(discont, j)
-      sections$start[j + 1] = .subset2(discont, j) + 1
-      sections$jump[j] = any(jumps == .subset2(discont, j))
+      sections$end[j] = discont[j]
+      sections$start[j + 1] = discont[j] + 1
+      sections$jump[j] = any(jumps == discont[j])
     }
   } else {
     sections = data.frame(start = 1, end = nrow(anchors), jump = FALSE)
@@ -476,17 +417,15 @@ splitContour = function(anchors,
 
 
 #' Discrete smooth contour from anchors
-#'
-#' Internal soundgen function.
-#'
 #' A discrete version of \code{\link{getSmoothContour}} with modified plotting.
-#' Intended for plotting variation in parameters across syllables.
+#' Intended for plotting variation in parameters across syllables. The time in
+#' `anchors` should be between [0, 1].
 #' @param len the number of syllables (equivalently, the length of generated
 #'   contour)
 #' @inheritParams getSmoothContour
 #' @param ylim ylim for plotting
-#' @return Numeric vector.
-#' @keywords internal
+#' @return A numeric vector.
+#' @noRd
 #' @examples
 #' # for a bout consisting of 10 syllables
 #' soundgen:::getDiscreteContour(len = 10, interpol = 'spline', plot = TRUE,
@@ -494,8 +433,8 @@ splitContour = function(anchors,
 #'   value = c(0, -3, 1, 0)))
 getDiscreteContour = function(
     len,
-    anchors = data.frame(time = c(0, 1), value = c(1, 1)),
-    interpol = c('spline', 'loess')[2],
+    anchors,
+    interpol = 'splineFC',
     valueFloor = NULL,
     valueCeiling = NULL,
     ylim = NULL,
@@ -513,122 +452,10 @@ getDiscreteContour = function(
       ylim = c(min(min(contour), min(anchors$value)),
                max(max(contour), max(anchors$value)))
     }
-    plot (contour, type = 'b', xlab = 'Syllable', col = 'red', bg = 'red',
-          cex = 1, pch = 23, ylim = ylim, ...)
-    points (x = anchors$time * (len - 1) + 1, y = anchors$value, col = 'blue',
-            cex = 3)
+    plot(contour, type = 'b', xlab = 'Syllable', col = 'red', bg = 'red',
+         cex = 1, pch = 23, ylim = ylim, ...)
+    points(x = anchors$time * (len - 1) + 1, y = anchors$value, col = 'blue',
+           cex = 3)
   }
   contour
 }
-
-
-#' Reformat anchors
-#'
-#' Internal soundgen function.
-#'
-#' Checks that the anchors are formatted in a valid way and expands them to a
-#' standard dataframe with two columns: time and value. NB: works for all
-#' anchors except "noise", whose anchors have to be scaled by sylLen and are
-#' therefore processed directly in soundgen()
-#' @param anchors a numeric vector of values or a list/dataframe with one column
-#'   (value) or two columns (time and value)
-#' @param normalizeTime if TRUE, normalizes anchors$time values to range from 0 to 1
-#' @keywords internal
-#' @examples
-#' soundgen:::reformatAnchors(150)
-#' soundgen:::reformatAnchors(c(150, 200, 220))
-#' soundgen:::reformatAnchors(anchors = list(value=c(150, 200, 220)))
-#' soundgen:::reformatAnchors(anchors = list(time = c(0, 10, 100),
-#'                                           value = c(150, 200, 220)))
-#' # returns NA
-#' soundgen:::reformatAnchors('aha')
-#' \dontrun{
-#' # returns NA with a warning
-#' soundgen:::reformatAnchors(anchors = list(time = c(0, .1, 1),
-#'                                           freq = c(150, 200, 220)))
-#'
-#' # throws a warning and rearranges in order of time stamps
-#' soundgen:::reformatAnchors(anchors = list(time = c(0, .8, .7, 1),
-#'                                           value = c(150, 200, 150, 220)))
-#' }
-reformatAnchors = function(anchors, normalizeTime = TRUE) {
-  if (is.numeric(anchors)) {
-    # for numeric vectors, assume these are equally spaced anchor values
-    anchors_df = data.frame(
-      time = seq(0, 1, length.out = max(2, length(anchors))),
-      value = anchors
-    )
-  } else if (is.list(anchors)) {
-    # for dataframes or lists, reformat if necessary
-    if (!is.data.frame(anchors)) {
-      anchors_df = as.data.frame(anchors)
-    } else {
-      anchors_df = anchors
-    }
-    if (ncol(anchors_df) == 1) {
-      # if there is only one vector, again assume these are values
-      anchors_df = data.frame(
-        time = seq(0, 1, length.out = max(2, nrow(anchors_df))),
-        value = anchors_df[, 1]
-      )
-    } else if (!identical(colnames(anchors_df), c('time', 'value'))) {
-      warning(paste('An anchor should be either numeric or a dataframe',
-                    'with two columns: time and value.'))
-      return(NA)
-    }
-  } else {
-    return(NA)
-  }
-
-  # make sure time values are in the right order
-  if (any(diff(anchors_df$time) < 0)) {
-    anchors_df = anchors_df[order(anchors_df$time), ]
-    warning('Time stamps of anchors should increase monotonically; re-ordering...')
-  }
-
-  # make sure time ranges from 0 to 1
-  if (normalizeTime) anchors_df$time = zeroOne(anchors_df$time)
-  anchors_df
-}
-
-# microbenchmark(getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'approx'),
-#                getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'spline'),
-#                getSmoothContour(anchors = c(350, 800, 600), len = 5500, interpol = 'loess'),
-#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'approx', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'spline', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                drawContour(len = 5500, anchors = data.frame(time = c(0, .5, .1), value = c(350, 800, 600)), interpol = 'loess', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                approx(c(350, 800, 600), n = 5500)$y,
-#                spline(c(350, 800, 600), n = 5500)$y,
-#                times = 1000)
-# time (microseconds)
-#      min        lq       mean    median        uq       max neval
-#  704.830  781.8485  865.22542  829.1670  878.4180  9170.474  1000
-#  675.657  749.0710  829.25274  795.4405  843.2735 11977.453  1000
-# 2092.073 2339.1290 2647.36506 2482.8935 2622.5545 12141.226  1000
-#  266.278  296.8205  343.99792  315.7885  336.1955  8445.818  1000
-#  228.576  262.6020  287.56813  278.0920  298.9910   560.949  1000
-# 1625.574 1819.5360 2115.95818 1933.1375 2060.6220 14818.076  1000
-#   60.539   78.0055   89.63406   84.9255   95.0585  1274.741  1000
-#   39.215   51.7755   77.17996   57.1855   64.7655  8999.126  1000
-
-# more anchors
-# anchors = rnorm(25)
-# microbenchmark(getSmoothContour(anchors = anchors, len = 5500, interpol = 'approx'),
-#                getSmoothContour(anchors = anchors, len = 5500, interpol = 'spline'),
-#                getSmoothContour(anchors = anchors, len = 5500, interpol = 'loess'),
-#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'approx', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'spline', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                drawContour(len = 5500, anchors = data.frame(time = seq(0, 1, length.out = length(anchors)), value = anchors), interpol = 'loess', loessSpan = .8, valueFloor = -Inf, duration_ms = 500),
-#                approx(anchors, n = 5500)$y,
-#                spline(anchors, n = 5500)$y,
-#                times = 1000)
-
- #     min       lq       mean    median        uq        max neval
- # 4080.377 4363.306 4700.50518 4542.5675 4790.0665  18021.480  1000
- # 4089.236 4362.154 5259.55009 4550.4395 4791.3250 548357.525  1000
- # 4061.613 4373.808 4760.14351 4550.9450 4793.2425  24379.357  1000
- #  280.955  313.286  354.89594  327.7435  346.8805  11438.639  1000
- #  226.346  261.227  291.07545  273.7860  292.3795  11430.247  1000
- # 1522.295 1707.689 1827.32047 1775.8700 1867.1540  13665.532  1000
- #   83.992   99.073  107.21616  104.5375  110.9490   1020.392  1000
- #   41.920   54.735   60.25429   60.1025   65.0695     95.647  1000

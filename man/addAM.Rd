@@ -9,14 +9,20 @@ addAM(
   samplingRate = NULL,
   amDep = 25,
   amFreq = 30,
-  amType = c("logistic", "sine")[1],
+  amType = c("logistic", "sine"),
   amShape = 0,
-  invalidArgAction = c("adjust", "abort", "ignore")[1],
-  plot = FALSE,
+  invalidArgAction = c("adjust", "abort", "ignore"),
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
+  plot = FALSE,
+  savePlots = FALSE,
+  embed = FALSE,
   reportEvery = NULL,
-  cores = 1
+  cores = 1,
+  width = 900,
+  height = 500,
+  units = "px",
+  res = NA
 )
 }
 \arguments{
@@ -32,34 +38,56 @@ amplitude range equal to the dynamic range of the sound (anchor format)}
 
 \item{amFreq}{AM frequency, Hz (anchor format)}
 
-\item{amType}{"sine" = sinusoidal, "logistic" = logistic (default)}
+\item{amType}{"logistic" = logistic (default), "sine" = sinusoidal}
 
-\item{amShape}{ignore if amType = "sine", otherwise determines the shape of
+\item{amShape}{ignored if amType = "sine", otherwise determines the shape of
 non-sinusoidal AM: 0 = ~sine, -1 = notches, +1 = clicks (anchor format)}
 
 \item{invalidArgAction}{what to do if an argument is invalid or outside the
-range in \code{permittedValues}: 'adjust' = reset to default value, 'abort'
-= stop execution, 'ignore' = throw a warning and continue (may crash)}
+permitted range: 'adjust' = reset to default value, 'abort' = stop
+execution, 'ignore' = throw a warning and continue (may crash)}
 
-\item{plot}{if TRUE, plots the amplitude modulation}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{play}{if TRUE, plays the processed audio}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
-\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
-= don't save, '' = same as input folder (NB: overwrites the originals!)}
+\item{plot}{if TRUE, produces a plot of the results}
+
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
+
+\item{width, height, units, res}{graphical parameters for saving plots passed to
+\code{png}}
+}
+\value{
+Returns the modified audio as a numeric vector with the original
+  sampling rate.
 }
 \description{
-Adds sinusoidal or logistic amplitude modulation to a sound. This produces
-additional harmonics in the spectrum at ±am_freq around each original
-harmonic and makes the sound rough. The optimal frequency for creating a
-perception of roughness is ~70 Hz (Fastl & Zwicker "Psychoacoustics").
-Sinusoidal AM creates a single pair of new harmonics, while non-sinusoidal AM
-creates more extra harmonics (see examples).
+Adds sinusoidal or logistic amplitude modulation to a sound. Sinusoidal AM
+creates a single pair of sidebands at ±amFreq around each original harmonic,
+whereas non-sinusoidal AM creates broader sidebands with more extra harmonics
+(see examples).
 }
 \examples{
 sound1 = soundgen(pitch = c(200, 300), addSilence = 0)
@@ -72,8 +100,9 @@ s2 = addAM(sound1, 16000,
                       value = c(0, 0, 35, 25, 0, 0)),
          plot = TRUE, play = TRUE)
 
-# Sinusoidal AM produces exactly 2 extra harmonics at ±am_freq
-# around each f0 harmonic:
+# Sinusoidal AM produces exactly 2 extra harmonics at ±amFreq
+# around each f0 harmonic (amFreq, and thus the width of sidebands,
+# may vary over time):
 s3 = addAM(sound1, 16000, amDep = 30, amFreq = c(50, 80),
            amType = 'sine', plot = TRUE, play = TRUE)
 spectrogram(s3, 16000, windowLength = 150, ylim = c(0, 2))
@@ -97,17 +126,16 @@ s6 = addAM(sound1, 16000,
            plot = TRUE, play = TRUE)
 spectrogram(s6, 16000, windowLength = 150, ylim = c(0, 2))
 
-# If am_freq is locked to an integer ratio of f0, we can get subharmonics
+# If amFreq is locked to an integer ratio of f0, we can get subharmonics
 # For ex., here is with pitch 400-600-400 Hz (soundgen interpolates pitch
-# on a log scale and am_freq on a linear scale, so we align them by extracting
+# on a log scale and amFreq on a linear scale, so we align them by extracting
 # a long contour on a log scale for both)
-con = getSmoothContour(anchors = c(400, 600, 400),
+con = soundgen:::getSmoothContour(anchors = c(400, 600, 400),
                        len = 20, thisIsPitch = TRUE)
 s = soundgen(sylLen = 1500, pitch = con, amFreq = con/3, amDep = 30,
              plot = TRUE, play = TRUE, ylim = c(0, 3))
 
 # Process all files in a folder and save the modified audio
-addAM('~/Downloads/temp', saveAudio = '~/Downloads/temp/AM',
-      amFreq = 70, amDep = c(0, 50))
+addAM('~/Downloads/temp', saveAudio = TRUE, amFreq = 70, amDep = c(0, 50))
 }
 }

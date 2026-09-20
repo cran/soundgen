@@ -3,32 +3,27 @@ formantsPerVowel = data.frame(  # Ladefoged 2012 "Vowels & consonants, 3rd ed.",
   f1 = c(250, 380, 550, 650, 720, 620, 570, 430, 300),
   f2 = c(2300, 1950, 1800, 1750, 1100, 1200, 850, 1050, 880)
 )
+pv = soundgen:::permittedValues
+defaults = soundgen:::defaults
 
 server = function(input, output, session) {
-  # clean-up of www/ folder: remove all files except temp.wav
-  files = list.files('www/', pattern = '.wav')
-  files = files[files != 'temp.wav']
-  for (f in files){
-    file.remove(paste0('www/', f))
-  }
-
   ## S E T U P
-  myPars = reactiveValues('myfile' = NULL,
-                          'sound' = as.numeric(tuneR::readWave('www/temp.wav')@left),
-                          # w/o as.numeric we get integers and spec complains
-                          'pitch' = defaults$pitch,
-                          'pitchGlobal' = defaults$pitchGlobal,
-                          'noise' = defaults$noise,
-                          'mouth' = defaults$mouth,
-                          'ampl' = defaults$ampl,
-                          'amplGlobal' = defaults$amplGlobal,
-                          'formants' = defaults$formants,
-                          'formantsPicked' = c(NA, NA),
-                          'formantsNoise' = NA,
-                          'updateDur' = TRUE,
-                          'loaded_presets' = list(),
-                          'sylDur_previous' = defaults$sylLen,
-                          updateVTL = FALSE
+  myPars = reactiveValues(
+    'sound' = soundgen(),
+    'pitch' = defaults$pitch,
+    'pitchGlobal' = defaults$pitchGlobal,
+    'noise' = defaults$noise,
+    'mouth' = defaults$mouth,
+    'ampl' = defaults$ampl,
+    'amplGlobal' = defaults$amplGlobal,
+    'formants' = defaults$formants,
+    'formantsPicked' = c(NA, NA),
+    'formantsNoise' = NA,
+    'updateDur' = TRUE,
+    'loaded_presets' = list(),
+    'sylDur_previous' = defaults$sylLen,
+    'updateVTL' = FALSE,
+    'audio_uri' = ""
   )
 
   durTotal = reactive({
@@ -40,19 +35,16 @@ server = function(input, output, session) {
   })
 
   durSyl_withNoise = reactive({ # the duration of a single syllable with noise
-    ifelse(!sum(myPars$noise$value > -input$dynamicRange) > 0,
+    ifelse(!any(myPars$noise$value > -input$dynamicRange),
            input$sylLen,
-           min(0, myPars$noise$time[1]) +
-             max(input$sylLen,
-                 myPars$noise$time[length(myPars$noise$time)]))
+           max(input$sylLen,
+               myPars$noise$time[length(myPars$noise$time)]) -
+             min(0, myPars$noise$time[1]))
   })
 
 
 
   ## R E S E T T I N G
-  sliders_to_reset = c('')
-
-  # This key function is EXTREMELY bug-prone - careful with what you change!
   # The right order is crucial
   reset_all = reactive({
     # print('running reset_all()')
@@ -63,8 +55,19 @@ server = function(input, output, session) {
     myPars$updateVTL = FALSE
 
     # first reset everything to defaults
-    for (v in rownames(permittedValues)[1:which(rownames(permittedValues) == 'rolloffNoiseExp')]) {
-      updateSliderInput(session, v, value = permittedValues[v,'default'])
+    simple_sliders = c('repeatBout', 'nSyl', 'sylLen', 'pauseLen',
+                       'temperature', 'maleFemale', 'creakyBreathy',
+                       'nonlinBalance', 'subRatio', 'subDep', 'shortestEpoch',
+                       'jitterDep', 'jitterLen', 'vibratoFreq', 'vibratoDep',
+                       'shimmerDep', 'shimmerLen', 'attackLen', 'glottis',
+                       'rolloff', 'rolloffOct', 'rolloffKHz', 'lipRad',
+                       'noseRad', 'mouthOpenThres', 'formantDep',
+                       'formantDepStoch', 'formantWidth', 'formantCeiling',
+                       'formantLocking', 'amDep', 'amFreq', 'amShape',
+                       'samplingRate', 'windowLength', 'dynamicRange',
+                       'rolloffNoise', 'rolloffNoiseExp')
+    for (v in simple_sliders) {
+      updateSliderInput(session, v, value = pv[v,'default'])
     }
     lists_to_default = c('pitch', 'pitchGlobal', 'mouth',
                          'noise', 'ampl', 'amplGlobal',
@@ -85,7 +88,7 @@ server = function(input, output, session) {
       preset_text = paste0('list', preset_text)  # start with 'list('
       preset = try(eval(parse(text = preset_text)), silent = TRUE)
     }
-    if (is.list(preset)) {
+    if (is.list(preset) && length(preset) > 0) {
       if(is.character(preset$formants)) {
         preset$vowelString = preset$formants  # in case formants = 'aui' etc
       }
@@ -95,7 +98,7 @@ server = function(input, output, session) {
         if (is.numeric(preset[[v]])) {
           new_value = preset[[v]][1]  # the first value if a vector
         } else if (is.list(preset[[v]])) {
-          if (!names(preset)[v] %in% c('formants', 'formantsNoise')) {
+          if (!v %in% c('formants', 'formantsNoise')) {
             v1 = try(preset[[v]]$value[1])
             if (inherits(v1, 'try-error')) {
               print(preset[[v]])
@@ -124,7 +127,7 @@ server = function(input, output, session) {
             time = seq(0,
                        ifelse(is.numeric(preset$sylLen),
                               preset$sylLen,
-                              permittedValues['sylLen', 'default']),
+                              pv['sylLen', 'default']),
                        length.out = max(2, length(preset$noise))),
             value = preset$noise
           )
@@ -212,14 +215,15 @@ server = function(input, output, session) {
     }
 
     # update VTL if preset contains formants, but does not contain an explicit VTL value
-    if ((is.numeric(preset$formants) |
+    if (is.list(preset) &&
+        (is.numeric(preset$formants) |
          is.list(preset$formants) |
-         is.character(preset$formants)) &
+         is.character(preset$formants)) &&
         !is.numeric(preset$vocalTract)) {
       v = estimateVTL(preset$formants)
       if (is.numeric(v)) {
-        if (v < permittedValues['vocalTract', 'low']) v = permittedValues['vocalTract', 'low']
-        if (v > permittedValues['vocalTract', 'high']) v = permittedValues['vocalTract', 'high']
+        if (v < pv['vocalTract', 'low']) v = pv['vocalTract', 'low']
+        if (v > pv['vocalTract', 'high']) v = pv['vocalTract', 'high']
         updateSliderInput(session, inputId = 'vocalTract', value = v)
       }
     }
@@ -248,7 +252,8 @@ server = function(input, output, session) {
     choices = list(Breathing = 'b')
     if (!is.null(cons)) {
       if (length(cons) > 0) {
-        lbls = sapply(presets[[input$speaker]]$Formants$consonants, function(x) x$label)
+        lbls = vapply(presets[[input$speaker]]$Formants$consonants,
+                      function(x) x$label, character(1))
         choices = c(choices, as.list(cons))
         names(choices)[2:length(choices)] = lbls
       }
@@ -313,7 +318,7 @@ server = function(input, output, session) {
     # has to be updated manually, b/c noise are the only time anchors
     # expressed in ms rather than 0 to 1 (b/c we don't want to rescale
     # pre-syllable aspiration depending on the syllable duration)
-    if (myPars$updateDur == TRUE) {
+    if (myPars$updateDur) {
       # doesn't run if updateDur == FALSE (set to F in reset_all())
       myPars$noise$time = soundgen:::scaleNoiseAnchors(
         noiseTime = myPars$noise$time,
@@ -337,8 +342,8 @@ server = function(input, output, session) {
       if (myPars$updateVTL & input$estimateVTL) {
         v = estimateVTL(myPars$formants)
         if (is.numeric(v)) {
-          if (v < permittedValues['vocalTract', 'low']) v = permittedValues['vocalTract', 'low']
-          if (v > permittedValues['vocalTract', 'high']) v = permittedValues['vocalTract', 'high']
+          if (v < pv['vocalTract', 'low']) v = pv['vocalTract', 'low']
+          if (v > pv['vocalTract', 'high']) v = pv['vocalTract', 'high']
           updateSliderInput(session, inputId = 'vocalTract', value = v)
         }
       }
@@ -366,7 +371,7 @@ server = function(input, output, session) {
   # observeEvent(myPars$pitch, updatePitchRange())
 
   observeEvent(input$generateVoiced, {
-    if (input$generateVoiced == FALSE) {
+    if (!input$generateVoiced) {
       myPars$pitch = NULL
       myPars$pitchGlobal = NULL
     } else {
@@ -383,13 +388,14 @@ server = function(input, output, session) {
     if (is.list(myPars$pitch)) {
       # pitch_y_lwr = min(input$pitchRange[1], min(myPars$pitch$value) / 1.1)
       # pitch_y_upr = max(input$pitchRange[2], max(myPars$pitch$value) * 1.1)
-      getSmoothContour(anchors = myPars$pitch,
-                       len = input$sylLen * input$pitchRange[2]/ 1000,
-                       ylim = input$pitchRange,
-                       valueFloor = input$pitchFloorCeiling[1],
-                       valueCeiling = input$pitchFloorCeiling[2],
-                       samplingRate = input$pitchRange[2],
-                       thisIsPitch = TRUE, plot = TRUE)
+      soundgen:::getSmoothContour(
+        anchors = myPars$pitch,
+        len = input$sylLen * input$pitchRange[2]/ 1000,
+        ylim = input$pitchRange,
+        valueFloor = input$pitchFloorCeiling[1],
+        valueCeiling = input$pitchFloorCeiling[2],
+        samplingRate = input$pitchRange[2],
+        thisIsPitch = TRUE, plot = TRUE)
     } else {
       plot(1:10, 1:10, type = 'n', xlab = '', ylab = '', axes = FALSE)
       text(x = 5, y = 5, labels = 'No voiced component', adj = .5, col = 'blue', cex = 1)
@@ -399,7 +405,7 @@ server = function(input, output, session) {
   observeEvent(input$plotIntonation_click, {
     if (is.list(myPars$pitch)) {
       click_x = round(input$plotIntonation_click$x / input$sylLen, 2)
-      click_y = round(semitonesToHz(input$plotIntonation_click$y))
+      click_y = round(soundgen:::semitonesToHz(input$plotIntonation_click$y))
       # if the click is below or above thresholds, move within thresholds
       if (click_y < input$pitchRange[1]) {
         click_y = input$pitchRange[1]
@@ -439,7 +445,7 @@ server = function(input, output, session) {
     if (is.list(myPars$pitch)) {
       ref = as.data.frame(myPars[['pitch']])
       ref$time = ref$time * input$sylLen
-      ref$value = semitonesToHz(ref$value)
+      ref$value = soundgen:::semitonesToHz(ref$value)
       closestPoint = nearPoints(ref, input$plotIntonation_dblclick,
                                 xvar = 'time', yvar = 'value',
                                 threshold = 100000, maxpoints = 1)
@@ -482,7 +488,7 @@ server = function(input, output, session) {
     myPitchContourGlobal()
   })
 
-  myPitchContourGlobal <- reactive({
+  myPitchContourGlobal = reactive({
     if (input$nSyl > 1 & is.list(myPars$pitchGlobal)) {
       soundgen:::getDiscreteContour(
         anchors = myPars$pitchGlobal,
@@ -490,10 +496,10 @@ server = function(input, output, session) {
         interpol = 'spline',
         plot = TRUE,
         ylab = 'Semitones',
-        valueFloor = permittedValues['pitchDeltas', 'low'],
-        valueCeiling = permittedValues['pitchDeltas', 'high'],
-        ylim = c(permittedValues['pitchDeltas', 'low'],
-                 permittedValues['pitchDeltas', 'high'])
+        valueFloor = pv['pitchDeltas', 'low'],
+        valueCeiling = pv['pitchDeltas', 'high'],
+        ylim = c(pv['pitchDeltas', 'low'],
+                 pv['pitchDeltas', 'high'])
       )
     } else {
       plot(1:10, 1:10, type = 'n', xlab = '', ylab = '', axes = FALSE)
@@ -507,11 +513,11 @@ server = function(input, output, session) {
       click_x = (input$plotIntonation_clickGlobal$x - 1) / timeRange  # ranges 0 to 1
       click_y = round(input$plotIntonation_clickGlobal$y, 1)
       # if the click is below or above thresholds, move within thresholds
-      if (click_y < permittedValues['pitchDeltas', 'low']) {
-        click_y = permittedValues['pitchDeltas', 'low']
+      if (click_y < pv['pitchDeltas', 'low']) {
+        click_y = pv['pitchDeltas', 'low']
       }
-      if (click_y > permittedValues['pitchDeltas', 'high']) {
-        click_y = permittedValues['pitchDeltas', 'high']
+      if (click_y > pv['pitchDeltas', 'high']) {
+        click_y = pv['pitchDeltas', 'high']
       }
 
       closest_point_in_time = which.min(abs(myPars$pitchGlobal$time - click_x))
@@ -531,7 +537,9 @@ server = function(input, output, session) {
           'value' = c(myPars$pitchGlobal$value, click_y)
         ) # convoluted, but otherwise problems with unwanted dataframe-list conversion, etc
       }
-      # sort the updated dataframe of pitch anchors to make sure the point are in the right order (otherwise it's hard to keep track of which are the first and last anchors - and we have to, since those cannot be removed)
+      # sort the updated dataframe of pitch anchors to make sure the point are
+      # in the right order (otherwise it's hard to keep track of which are the
+      # first and last anchors - and we have to, since those cannot be removed)
       idx_order = order(myPars$pitchGlobal$time)
       myPars$pitchGlobal$time = myPars$pitchGlobal$time[idx_order]
       myPars$pitchGlobal$value = myPars$pitchGlobal$value[idx_order]
@@ -579,38 +587,39 @@ server = function(input, output, session) {
   digits = 2, align = 'c', rownames = FALSE)
 
 
-  ## UNVOICED
+  ## NOISE
   output$plotNoise = renderPlot({
-    myUnvoicedContour()
+    myNoiseContour()
   })
 
-  myUnvoicedContour = reactive({
+  myNoiseContour = reactive({
     br_xlim_low = min(input$noiseTime[1], 0)
     br_xlim_high = max(input$noiseTime[2], input$sylLen)
-    br_ylim_low = -input$dynamicRange  # permittedValues['noiseAmpl', 'low']
-    br_ylim_high = permittedValues['noiseAmpl', 'high']
+    br_ylim_low = -input$dynamicRange  # pv['noiseAmpl', 'low']
+    br_ylim_high = pv['noiseAmpl', 'high']
     nTicks = length(seq(br_ylim_low, br_ylim_high, by = 20)) - 1
-    getSmoothContour(anchors = myPars$noise,
-                     normalizeTime = FALSE,
-                     xlim = c(br_xlim_low, br_xlim_high),
-                     ylim = c(br_ylim_low, br_ylim_high),
-                     voiced = input$sylLen,
-                     contourLabel = 'noise',
-                     valueFloor = br_ylim_low,
-                     valueCeiling = br_ylim_high,
-                     yaxp = c(br_ylim_low, br_ylim_high, nTicks),
-                     plot = TRUE)
+    soundgen:::getSmoothContour(
+      anchors = myPars$noise,
+      normalizeTime = FALSE,
+      xlim = c(br_xlim_low, br_xlim_high),
+      ylim = c(br_ylim_low, br_ylim_high),
+      voiced = input$sylLen,
+      contourLabel = 'noise',
+      valueFloor = br_ylim_low,
+      valueCeiling = br_ylim_high,
+      yaxp = c(br_ylim_low, br_ylim_high, nTicks),
+      plot = TRUE)
   })
 
   observeEvent(input$plotNoise_click, {
     click_x = round(input$plotNoise_click$x)
     click_y = round(input$plotNoise_click$y)
     # if the click is outside the allowed range of y, re-interpret the click as within the range
-    if (click_y < permittedValues['noiseAmpl', 'low']) {
-      click_y = permittedValues['noiseAmpl', 'low']
+    if (click_y < pv['noiseAmpl', 'low']) {
+      click_y = pv['noiseAmpl', 'low']
     }
-    if (click_y > permittedValues['noiseAmpl', 'high']) {
-      click_y = permittedValues['noiseAmpl', 'high']
+    if (click_y > pv['noiseAmpl', 'high']) {
+      click_y = pv['noiseAmpl', 'high']
     }
 
     closest_point_in_time = which.min(abs(myPars$noise$time - click_x))
@@ -669,16 +678,16 @@ server = function(input, output, session) {
   })
 
   myMouthOpening = reactive({
-    getSmoothContour(
+    soundgen:::getSmoothContour(
       anchors = myPars$mouth,
       len = durSyl_withNoise() / 1000 * 1000,
       samplingRate = 1000,
       contourLabel = 'mouth',
       xlim = c(0, durSyl_withNoise()),
       xaxs = "i",
-      ylim = c(permittedValues['mouthOpening', 'low'], permittedValues['mouthOpening', 'high']),
-      valueFloor = permittedValues['mouthOpening', 'low'],
-      valueCeiling = permittedValues['mouthOpening', 'high'],
+      ylim = c(pv['mouthOpening', 'low'], pv['mouthOpening', 'high']),
+      valueFloor = pv['mouthOpening', 'low'],
+      valueCeiling = pv['mouthOpening', 'high'],
       plot = TRUE)
     # ylab = 'Mouth opening (0.5 = neutral)')
     # xaxs = "i" to enforce exact axis limits, otherwise we exceed the range.
@@ -690,11 +699,11 @@ server = function(input, output, session) {
     click_y = round(input$plotMouth_click$y, 2)
     # if the click is outside the allowed range of y, re-interpret the click
     # as within the range
-    if (click_y < permittedValues['mouthOpening', 'low']) {
-      click_y = permittedValues['mouthOpening', 'low']
+    if (click_y < pv['mouthOpening', 'low']) {
+      click_y = pv['mouthOpening', 'low']
     }
-    if (click_y > permittedValues['mouthOpening', 'high']) {
-      click_y = permittedValues['mouthOpening', 'high']
+    if (click_y > pv['mouthOpening', 'high']) {
+      click_y = pv['mouthOpening', 'high']
     }
 
     closest_point_in_time = which.min(abs(myPars$mouth$time - click_x))
@@ -753,14 +762,15 @@ server = function(input, output, session) {
   })
 
   amplEnvelope_syl = reactive({
-    getSmoothContour(anchors = myPars$ampl,
-                     xaxs = "i",
-                     xlim = c(0, input$sylLen),
-                     ylim = c(-input$dynamicRange, 0),
-                     valueFloor = -input$dynamicRange,
-                     valueCeiling = 0,
-                     len = input$sylLen / 1000 * 1000,
-                     samplingRate = 1000, plot = TRUE)
+    soundgen:::getSmoothContour(
+      anchors = myPars$ampl,
+      xaxs = "i",
+      xlim = c(0, input$sylLen),
+      ylim = c(-input$dynamicRange, 0),
+      valueFloor = -input$dynamicRange,
+      valueCeiling = 0,
+      len = input$sylLen / 1000 * 1000,
+      samplingRate = 1000, plot = TRUE)
     # xaxs = "i" to enforce exact axis limits, otherwise we exceed the range
   })
 
@@ -921,10 +931,10 @@ server = function(input, output, session) {
     soundgen:::divideIntoSyllables(sylLen = input$sylLen,
                                    nSyl = input$nSyl,
                                    pauseLen = input$pauseLen,
-                                   sylDur_min = permittedValues['sylLen', 'low'],
-                                   sylDur_max = permittedValues['sylLen', 'high'],
-                                   pauseDur_min = permittedValues['pauseLen', 'low'],
-                                   pauseDur_max = permittedValues['pauseLen', 'high'],
+                                   sylDur_min = pv['sylLen', 'low'],
+                                   sylDur_max = pv['sylLen', 'high'],
+                                   pauseDur_min = pv['pauseLen', 'low'],
+                                   pauseDur_max = pv['pauseLen', 'high'],
                                    temperature = input$temperature, plot = TRUE)
   })
 
@@ -932,10 +942,10 @@ server = function(input, output, session) {
     soundgen:::divideIntoSyllables(sylLen = input$sylLen,
                                    nSyl = input$nSyl,
                                    pauseLen = input$pauseLen,
-                                   sylDur_min = permittedValues['sylLen', 'low'],
-                                   sylDur_max = permittedValues['sylLen', 'high'],
-                                   pauseDur_min = permittedValues['pauseLen', 'low'],
-                                   pauseDur_max = permittedValues['pauseLen', 'high'],
+                                   sylDur_min = pv['sylLen', 'low'],
+                                   sylDur_max = pv['sylLen', 'high'],
+                                   pauseDur_min = pv['pauseLen', 'low'],
+                                   pauseDur_max = pv['pauseLen', 'high'],
                                    temperature = input$temperature, plot = TRUE)
   })
 
@@ -943,10 +953,10 @@ server = function(input, output, session) {
     soundgen:::divideIntoSyllables(sylLen = input$sylLen,
                                    nSyl = input$nSyl,
                                    pauseLen = input$pauseLen,
-                                   sylDur_min = permittedValues['sylLen', 'low'],
-                                   sylDur_max = permittedValues['sylLen', 'high'],
-                                   pauseDur_min = permittedValues['pauseLen', 'low'],
-                                   pauseDur_max = permittedValues['pauseLen', 'high'],
+                                   sylDur_min = pv['sylLen', 'low'],
+                                   sylDur_max = pv['sylLen', 'high'],
+                                   pauseDur_min = pv['pauseLen', 'low'],
+                                   pauseDur_max = pv['pauseLen', 'high'],
                                    temperature = input$temperature, plot = TRUE)
   })
 
@@ -954,22 +964,20 @@ server = function(input, output, session) {
     plot(x = 1:input$sylLen,
          y = input$vibratoDep * sin(2 * pi * (1:input$sylLen) *
                                       input$vibratoFreq / 1000),
-         ylim = c(-permittedValues['vibratoDep', 'high'],
-                  permittedValues['vibratoDep', 'high']),
+         ylim = c(-pv['vibratoDep', 'high'],
+                  pv['vibratoDep', 'high']),
          type = 'l',
          xlab = 'Time, ms',
          ylab = 'F0 delta, semitones')
   })
 
   output$plotRolloff = renderPlot({
-    # seewave::meanspec(myPars$sound, f = input$samplingRate, dB = 'max0',
-    #   wl = floor(input$specWindowLength*input$samplingRate/1000/2)*2,
-    #   flim = c(0,10), main = 'Spectrum')
-    getRolloff(pitch_per_gc = range(myPars$pitch$value),
+    # Fallback to a dummy range if voiced component is disabled
+    pitch_vals = if (is.null(myPars$pitch)) c(100, 200) else myPars$pitch$value
+
+    getRolloff(pitch_per_gc = range(pitch_vals),
                rolloff = input$rolloff,
                rolloffOct = input$rolloffOct,
-               rolloffParab = input$rolloffParab,
-               rolloffParabHarm = input$rolloffParabHarm,
                rolloffKHz = input$rolloffKHz,
                baseline = 200,
                dynamicRange = input$dynamicRange,
@@ -981,41 +989,41 @@ server = function(input, output, session) {
   output$plotFormants = renderPlot({
     nr = floor(input$specWindowLength * input$samplingRate / 1000 / 2)
     if (input$formants_spectrogram_or_spectrum == 'spectrum') {
-      s = getSpectralEnvelope(nr = nr,
-                              nc = 100,
-                              formants = myPars$formants,
-                              formantDep = input$formantDep,
-                              formantDepStoch = input$formantDepStoch,
-                              formantWidth = input$formantWidth,
-                              lipRad = input$lipRad,
-                              mouth = myPars$mouth,
-                              vocalTract = vocalTract(),
-                              temperature = input$temperature,
-                              samplingRate = input$samplingRate,
-                              plot = FALSE
+      s = getFormantFilter(nr = nr,
+                           nc = 100,
+                           formants = myPars$formants,
+                           formantDep = input$formantDep,
+                           formantDepStoch = input$formantDepStoch,
+                           formantWidth = input$formantWidth,
+                           lipRad = input$lipRad,
+                           mouth = myPars$mouth,
+                           vocalTract = vocalTract(),
+                           temperature = input$temperature,
+                           samplingRate = input$samplingRate,
+                           plot = FALSE
       )
       lta = rowSums(s)
       freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
       plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
            ylab = 'Power, dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
     } else if (input$formants_spectrogram_or_spectrum == 'spectrogram') {
-      getSpectralEnvelope(nr = nr,
-                          nc = 100,
-                          formants = myPars$formants,
-                          formantDep = input$formantDep,
-                          formantDepStoch = input$formantDepStoch,
-                          formantWidth = input$formantWidth,
-                          lipRad = input$lipRad,
-                          mouth = myPars$mouth,
-                          vocalTract = vocalTract(),
-                          temperature = input$temperature,
-                          samplingRate = input$samplingRate,
-                          plot = TRUE,
-                          duration = durSyl_withNoise(),
-                          xlab = 'Time, ms',
-                          ylab = 'Frequency, kHz',
-                          ylim = input$spec_ylim,
-                          colorTheme = input$spec_colorTheme
+      getFormantFilter(nr = nr,
+                       nc = 100,
+                       formants = myPars$formants,
+                       formantDep = input$formantDep,
+                       formantDepStoch = input$formantDepStoch,
+                       formantWidth = input$formantWidth,
+                       lipRad = input$lipRad,
+                       mouth = myPars$mouth,
+                       vocalTract = vocalTract(),
+                       temperature = input$temperature,
+                       samplingRate = input$samplingRate,
+                       plot = TRUE,
+                       duration = durSyl_withNoise(),
+                       xlab = 'Time, ms',
+                       ylab = 'Frequency, kHz',
+                       ylim = input$spec_ylim,
+                       colorTheme = input$spec_colorTheme
       )
     } else if (input$formants_spectrogram_or_spectrum == 'formantPicker') {
       plot(formantsPerVowel$f1, formantsPerVowel$f2, type = 'n',
@@ -1067,8 +1075,8 @@ server = function(input, output, session) {
     trill = (.5 - sig) * input$amDep
     plot(x = 1:input$sylLen,
          y = trill,
-         ylim = c(-permittedValues['amDep', 'high'],
-                  permittedValues['amDep', 'high']),
+         ylim = c(-pv['amDep', 'high'],
+                  pv['amDep', 'high']),
          type = 'l',
          xlab = 'Time, ms',
          ylab = 'Amplitude delta, %')
@@ -1076,17 +1084,17 @@ server = function(input, output, session) {
 
   output$plotNonlin = renderPlot({
     # see source.R, "get a random walk for intra-syllable variation"
-    p = myPitchContour()
-    rw = soundgen:::zeroOne(soundgen:::getRandomWalk(
-      len = length(p),
+    len_p = input$sylLen * input$pitchRange[2]/ 1000
+    rw = soundgen:::getRandomWalk(
+      len = len_p,
       rw_range = input$temperature,
       trend = c(.1, -.1), # randomWalk_trendStrength
-      rw_smoothing = .95
-    )) * 100
+      rw_smoothing = .2
+    )
     rw_bin = soundgen:::getIntegerRandomWalk(
-      rw,
+      soundgen:::zeroOne(rw) * 100,
       nonlinBalance = input$nonlinBalance,
-      minLength = ceiling(input$shortestEpoch / 1000 * p),
+      minLength = ceiling(input$shortestEpoch / 1000 * len_p),
       plot = TRUE
     )
   })
@@ -1097,41 +1105,41 @@ server = function(input, output, session) {
         is.character(myPars$formantsNoise)) {
       nr = floor(input$specWindowLength * input$samplingRate / 1000 / 2)
       if (input$formantsNoise_spectrogram_or_spectrum == 'spectrum') {
-        s = getSpectralEnvelope(nr = nr,
-                                nc = 100,
-                                formants = myPars$formantsNoise,
-                                formantDep = input$formantDep,
-                                formantDepStoch = 0,
-                                formantWidth = input$formantWidth,
-                                lipRad = input$lipRad,
-                                mouth = myPars$mouth,
-                                vocalTract = input$vocalTract,
-                                temperature = input$temperature,
-                                samplingRate = input$samplingRate,
-                                plot = FALSE
+        s = getFormantFilter(nr = nr,
+                             nc = 100,
+                             formants = myPars$formantsNoise,
+                             formantDep = input$formantDep,
+                             formantDepStoch = 0,
+                             formantWidth = input$formantWidth,
+                             lipRad = input$lipRad,
+                             mouth = myPars$mouth,
+                             vocalTract = input$vocalTract,
+                             temperature = input$temperature,
+                             samplingRate = input$samplingRate,
+                             plot = FALSE
         )
         lta = rowSums(s)
         freqs = seq(1, round(input$samplingRate / 2), length.out = nr)
         plot(freqs, 20 * log10(lta), type = 'l', xlab = 'Frequency, Hz',
              ylab = 'dB', xlim = c(input$spec_ylim[1], input$spec_ylim[2]) * 1000)
       } else {
-        getSpectralEnvelope(nr = nr,
-                            nc = 100,
-                            formants = myPars$formantsNoise,
-                            formantDep = input$formantDep,
-                            formantDepStoch = 0,
-                            formantWidth = input$formantWidth,
-                            lipRad = input$lipRad,
-                            mouth = myPars$mouth,
-                            vocalTract = vocalTract(),
-                            temperature = input$temperature,
-                            samplingRate = input$samplingRate,
-                            plot = TRUE,
-                            duration = durSyl_withNoise(),
-                            xlab = 'Time, ms',
-                            ylab = 'Frequency, kHz',
-                            ylim = input$spec_ylim,
-                            colorTheme = input$spec_colorTheme
+        getFormantFilter(nr = nr,
+                         nc = 100,
+                         formants = myPars$formantsNoise,
+                         formantDep = input$formantDep,
+                         formantDepStoch = 0,
+                         formantWidth = input$formantWidth,
+                         lipRad = input$lipRad,
+                         mouth = myPars$mouth,
+                         vocalTract = vocalTract(),
+                         temperature = input$temperature,
+                         samplingRate = input$samplingRate,
+                         plot = TRUE,
+                         duration = durSyl_withNoise(),
+                         xlab = 'Time, ms',
+                         ylab = 'Frequency, kHz',
+                         ylim = input$spec_ylim,
+                         colorTheme = input$spec_colorTheme
         )
       }
     } else {
@@ -1164,11 +1172,11 @@ server = function(input, output, session) {
         ylim = c(input$spec_ylim[1], input$spec_ylim[2])
       )
     } else {
-      seewave::meanspec(myPars$sound, f = input$samplingRate, dB = 'max0',
-                        wl = floor(input$specWindowLength * input$samplingRate / 1000 / 2) * 2,
-                        flim = c(input$spec_ylim[1], input$spec_ylim[2]),
-                        alim = c(-input$dynamicRange, 0),
-                        main = 'Spectrum')
+      meanSpectrum(myPars$sound, input$samplingRate, yScale = 'max0',
+                   windowLength = input$specWindowLength,
+                   xlim = c(input$spec_ylim[1], input$spec_ylim[2]),
+                   ylim = c(-input$dynamicRange, 0),
+                   main = 'Spectrum')
     }
   })
 
@@ -1196,8 +1204,6 @@ server = function(input, output, session) {
       attackLen = input$attackLen,
       rolloff = input$rolloff,
       rolloffOct = input$rolloffOct,
-      rolloffParab = input$rolloffParab,
-      rolloffParabHarm = input$rolloffParabHarm,
       rolloffKHz = input$rolloffKHz,
       lipRad = input$lipRad,
       noseRad = input$noseRad,
@@ -1208,9 +1214,7 @@ server = function(input, output, session) {
       formantWidth = input$formantWidth,
       vocalTract = vocalTract(),
       subRatio = input$subRatio,
-      subFreq = input$subFreq,
       subDep = input$subDep,
-      subWidth = input$subWidth,
       shortestEpoch = input$shortestEpoch,
       amDep = input$amDep,
       amFreq = input$amFreq,
@@ -1230,61 +1234,68 @@ server = function(input, output, session) {
       dynamicRange = input$dynamicRange
     )
     # simplify arg_list by removing values that are the same as defaults
-    idx_same = apply(matrix(seq_along(arg_list)), 1, function(x) {
-      temp = all.equal(arg_list[[x]],
-                       defaults[[names(arg_list)[x]]],
-                       check.attributes = FALSE)
-      if (is.character(temp)) temp = FALSE
-      temp
-    })
+    idx_same = vapply(seq_along(arg_list), function(i) {
+      temp = all.equal(arg_list[[i]], defaults[[names(arg_list)[i]]], check.attributes = FALSE)
+      if (is.character(temp)) FALSE else temp
+    }, logical(1))
     not_defaults = which(idx_same != TRUE)
     arg_list = arg_list[not_defaults]
     arg_list
   })
 
-  # show simplified function call as string to user for copy-pasting
-  observeEvent(mycall(), {
-    call_string = soundgen:::objectToString(mycall())
-    call_string  = paste0('soundgen', substr(call_string, 5, nchar(call_string)))
-    updateTextInput(session, inputId = 'mycall', value = call_string)
-  })
-
-  output$htmlAudio = renderUI(
-    tags$audio(src = "temp.wav", type = "audio/wav",
-               autoplay = NA, controls = NA,
-               style="transform: scale(0.75); transform-origin: 0 0;")
-  )
-
   observeEvent(input$generateAudio, {
     generate()
   })
 
+  output$htmlAudio = renderUI({
+    req(myPars$audio_uri) # Wait until a sound has been generated
+    tags$audio(src = myPars$audio_uri, type = "audio/wav",
+               autoplay = FALSE, controls = TRUE,
+               style = "transform: scale(0.75); transform-origin: 0 0;")
+  })
+
   generate = reactive({
     withProgress(message = 'Synthesizing the sound...', value = 0.5, {
-      # first remove the previous sound file to avoid cluttering up the www/ folder
-      if (!is.null(myPars$myfile)){
-        file.remove(paste0('www/', myPars$myfile))
+
+      # evaluate the call once (for updating text area with soundgen call)
+      current_call = mycall()
+
+      # synthesize audio
+      myPars$sound = try(do.call('soundgen', current_call), silent = TRUE)
+      if (inherits(myPars$sound, 'try-error')) {
+        showNotification("Synthesis failed", type = "error", duration = 5)
+        return()
       }
-      myPars$sound = do.call('soundgen', mycall()) # eval(parse(text = mycall()))  # generate audio
-      randomID = paste(sample(c(letters, 0:9), 8, replace = TRUE), collapse = '')
-      myPars$myfile = paste0(randomID, '.wav')
-      # this is the new sound file. NB: has to be saved in www/ !!!
-      seewave::savewav(myPars$sound, f = input$samplingRate,
-                       filename = paste0('www/', myPars$myfile),
-                       extensible = FALSE)
-      output$htmlAudio = renderUI(
-        tags$audio(src = myPars$myfile, type = "audio/wav", autoplay = NA, controls = NA)
-      )
+
+      # embed in html to avoid writing a file to disk
+      tmp_file = tempfile(fileext = ".wav")
+      soundgen:::writeAudio(
+        myPars$sound,
+        audio = soundgen:::readAudio(myPars$sound, samplingRate = input$samplingRate),
+        filename = tmp_file,
+        scale_used = max(abs(myPars$sound)))
+      audio_uri = base64enc::dataURI(file = tmp_file, mime = "audio/wav")
+      myPars$audio_uri = audio_uri
+      file.remove(tmp_file)
+
+      # update the text area with the exact code that was just synthesized
+      call_string = soundgen:::objectToString(current_call)
+      call_string = paste0('soundgen', substr(call_string, 5, nchar(call_string)))
+      updateTextInput(session, inputId = 'mycall', value = call_string)
     })
   })
 
   output$saveAudio = downloadHandler(
-    filename = function() as.character(myPars$myfile), # to have '.csv' instead of '.wav'
+    filename = function(){
+      randomID = paste(sample(c(letters, 0:9), 8, replace = TRUE), collapse = '')
+      paste0(randomID, '.wav')
+    },
     content = function(filename) {
-      seewave::savewav(myPars$sound,
-                       f = input$samplingRate,
-                       filename = filename,
-                       extensible = FALSE)
+      soundgen:::writeAudio(
+        myPars$sound,
+        audio = soundgen:::readAudio(myPars$sound, samplingRate = input$samplingRate),
+        filename = filename,
+        scale_used = max(abs(myPars$sound)))
     }
   )
 
@@ -1295,20 +1306,27 @@ server = function(input, output, session) {
       new_preset_text = paste0('list', new_preset_text)
       new_preset_list = try(eval(parse(text = new_preset_text)), silent = TRUE)
 
-      # create a new preset
-      new_presetID = paste(sample(c(letters, 0:9), 8, replace = TRUE),
-                           collapse = '')
-      myPars$loaded_presets[[new_presetID]] = new_preset_list
+      # Ensure it parsed successfully AND is a list
+      if (!inherits(new_preset_list, 'try-error') && is.list(new_preset_list)) {
+        # create a new preset
+        new_presetID = paste(sample(c(letters, 0:9), 8, replace = TRUE),
+                             collapse = '')
+        myPars$loaded_presets[[new_presetID]] = new_preset_list
 
-      # update sliders
-      reset_all()
-      mycall()
+        # update sliders
+        reset_all()
+        mycall()
+      } else {
+        showNotification(ui = "Invalid preset format. Must be a valid soundgen() call.",
+                         duration = 5, type = 'error')
+      }
     }
   })
 
   observeEvent(input$about, {
-    id <<- showNotification(
-      ui = paste0("Interactive voice synthesizer: soundgen ", packageVersion('soundgen'), ". More info: http://cogsci.se/soundgen.html"),
+    showNotification(
+      ui = paste0("Interactive voice synthesizer: soundgen ", packageVersion('soundgen'),
+                  ". More info: http://cogsci.se/soundgen.html"),
       duration = 10,
       closeButton = TRUE,
       type = 'default'

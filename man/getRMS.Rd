@@ -13,7 +13,7 @@ getRMS(
   windowLength = 50,
   step = NULL,
   overlap = 70,
-  stereo = c("left", "right", "average", "both")[1],
+  stereo = c("left", "right", "average", "both"),
   killDC = FALSE,
   normalize = TRUE,
   windowDC = 200,
@@ -21,7 +21,8 @@ getRMS(
   reportEvery = NULL,
   cores = 1,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   main = NULL,
   xlab = "",
   ylab = "",
@@ -43,68 +44,80 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength}{length of analysis window, ms (longer windows = more
+smoothing)}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{overlap}{overlap between successive windows, \%}
 
 \item{stereo}{'left' = only left channel, 'right' = only right channel,
 'average' = take the mean of the two channels, 'both' = return RMS for both
 channels separately}
 
-\item{killDC}{if TRUE, removed DC offset (see also \code{\link{flatEnv}})}
+\item{killDC}{if TRUE, removes DC offset (see also \code{\link{flatEnv}})}
 
 \item{normalize}{if TRUE, the RMS amplitude is returned as proportion of
 the maximum possible amplitude as given by \code{scale}}
 
 \item{windowDC}{the window for calculating DC offset, ms}
 
-\item{summaryFun}{functions used to summarize each acoustic characteristic;
-see \code{\link{analyze}}}
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg \code{c('mean', 'sd')}; user-defined functions are fine (see examples);
+NAs are omitted automatically for mean/median/sd/min/max/range/sum,
+otherwise take care of NAs yourself}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plot a contour of RMS amplitude}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{xlab, ylab, main}{general graphical parameters}
 
 \item{type, col, lwd}{graphical parameters pertaining to the RMS envelope}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{...}{other graphical parameters}
 }
 \value{
-Returns a list containing: \describe{
-  \item{$detailed: }{a list of RMS amplitudes per frame for each sound, on the scale of input; names give time stamps for the center of each frame, in ms.}
+A list containing: \describe{
+  \item{$detailed: }{a list of RMS amplitudes per frame for each sound, on
+  the scale of input; names give time stamps for the center of each frame, in
+  ms.}
   \item{$summary: }{a dataframe with summary measures, one row per sound}
 }
 }
 \description{
 Calculates root mean square (RMS) amplitude in overlapping windows, providing
-an envelope of RMS amplitude - a measure of sound intensity. Longer windows
-provide smoother, more robust estimates; shorter windows and more overlap
-improve temporal resolution, but they also increase processing time and make
-the contour less smooth.
+an envelope of sound intensity. Longer windows provide smoother, more robust
+estimates; shorter windows and more overlap improve temporal resolution, but
+they also increase processing time and make the contour less smooth.
 }
 \details{
 Note that you can also get similar estimates per frame from
@@ -122,6 +135,7 @@ r = getRMS(s, samplingRate = 16000, from = .05,
   windowLength = 40, overlap = 50, killDC = TRUE,
   plot = TRUE, type = 'l', lty = 2, main = 'RMS envelope')
 r
+
 # short window = jagged envelope
 r = getRMS(s, samplingRate = 16000,
   windowLength = 5, overlap = 0, killDC = TRUE,
@@ -139,15 +153,15 @@ r = getRMS(s, samplingRate = 16000,
    stereo = 'both', plot = TRUE)$summary
 
 \dontrun{
-r = getRMS('~/Downloads/temp', savePlots = '~/Downloads/temp/plots')
+r = getRMS('~/Downloads/temp', savePlots = TRUE)
 r$summary
 
 # Compare:
 analyze('~/Downloads/temp', pitchMethods = NULL,
-        plot = FALSE)$ampl_mean
+        plot = FALSE)$summary$ampl_mean
 # (per STFT frame, but should be very similar)
 
-User-defined summary functions:
+# User-defined summary functions:
 ran = function(x) diff(range(x))
 meanSD = function(x) {
   paste0('mean = ', round(mean(x), 2), '; sd = ', round(sd(x), 2))

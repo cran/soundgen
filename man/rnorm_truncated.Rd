@@ -2,6 +2,7 @@
 % Please edit documentation in R/math.R
 \name{rnorm_truncated}
 \alias{rnorm_truncated}
+\alias{rnorm_truncated2}
 \title{Random draw from a truncated normal distribution}
 \usage{
 rnorm_truncated(
@@ -11,7 +12,17 @@ rnorm_truncated(
   low = NULL,
   high = NULL,
   roundToInteger = FALSE,
-  invalidArgAction = c("adjust", "abort", "ignore")[1]
+  invalidArgAction = "adjust"
+)
+
+rnorm_truncated2(
+  n = 1,
+  mean = 0,
+  sd = 1,
+  low = NULL,
+  high = NULL,
+  roundToInteger = FALSE,
+  invalidArgAction = "adjust"
 )
 }
 \arguments{
@@ -37,7 +48,12 @@ using rnorm(), but forced to remain within the specified low/high bounds. All
 proposals outside the boundaries (exclusive) are discarded, and the sampling
 is repeated until there are enough values within the specified range. Fully
 vectorized. Note: "truncnorm::truncnorm" is much faster, but it only accepts
-static low/high boundaries.
+static low/high boundaries. \code{rnorm_truncated2} is a simplified version
+of \code{rnorm_truncated}, in which values outside the bounds are simply
+reset to the low/high bounds. The shape of the resulting distribution is no
+longer Gaussian, but this is obviously much faster. Unlike in
+\code{rnorm_truncated}, "low" and "high" should be scalars, not vectors (ie
+static boundaries).
 }
 \examples{
 soundgen:::rnorm_truncated(n = 3, mean = 10, sd = 5, low = 7, high = NULL,
@@ -50,5 +66,19 @@ soundgen:::rnorm_truncated(n = 3, mean = 10, sd = .1,
 #... or ignore the boundaries
 soundgen:::rnorm_truncated(n = 3, mean = 10, sd = .1,
   low = c(15, 0, 0), high = c(100, 100, 8), invalidArgAction = 'ignore')
+
+hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = 5, low = 7, high = NULL,
+  roundToInteger = c(TRUE, FALSE, FALSE)))
+hist(soundgen:::rnorm_truncated2(n = 100, mean = c(10, 50, 100), sd = c(5, 0, 20),
+  roundToInteger = TRUE)) # vectorized
+# in case of conflicts between mean and bounds, either sample at random
+# between the boundaries...
+hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = .1,
+  low = 10, high = 15, invalidArgAction = 'adjust'))
+#... or ignore the boundaries
+hist(soundgen:::rnorm_truncated2(n = 100, mean = 10, sd = .1,
+  low = 15, high = 100, invalidArgAction = 'ignore'))
+soundgen:::rnorm_truncated2(n = 6, mean = c(0, 0, 0, 0, 0, 3),
+  sd = .05, low = 0, high = 6)
 }
 \keyword{internal}

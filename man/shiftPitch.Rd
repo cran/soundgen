@@ -6,23 +6,24 @@
 \usage{
 shiftPitch(
   x,
+  samplingRate = NULL,
   multPitch = 1,
   multFormants = multPitch,
   timeStretch = 1,
-  samplingRate = NULL,
   freqWindow = NULL,
   dynamicRange = 80,
   windowLength = 40,
-  step = 2,
-  overlap = NULL,
-  wn = "gaussian",
-  interpol = c("approx", "spline")[1],
-  propagation = c("time", "adaptive")[1],
-  preserveEnv = NULL,
+  step = NULL,
+  overlap = 90,
+  wn = "hanning",
+  interpol = "splineFC",
+  propagation = c("time", "adaptive"),
+  specEnvMethod = c("cepstral", "gauss", "movavg", "peak"),
+  preserveEnv = FALSE,
   transplantEnv_pars = list(windowLength = 10),
-  normalize = c("max", "orig", "none")[2],
+  normalize = c("orig", "max", "none"),
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   reportEvery = NULL,
   cores = 1
 )
@@ -32,67 +33,84 @@ shiftPitch(
 'file2.mp3'), Wave object, numeric vector, or a list of Wave objects or
 numeric vectors}
 
-\item{multPitch}{1 = no change, >1 = raise pitch (eg 1.1 = 10\% up, 2 = one
-octave up), <1 = lower pitch. Anchor format accepted for multPitch /
-multFormant / timeStretch (see \code{\link{soundgen}})}
-
-\item{multFormants}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
-one octave up), <1 = lower formants}
-
-\item{timeStretch}{1 = no change, >1 = longer, <1 = shorter}
-
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{freqWindow}{the width of spectral smoothing window, Hz. Defaults to
-detected f0 prior to pitch shifting - see \code{\link{shiftFormants}} for
-discussion and examples}
+\item{multPitch}{1 = no change, >1 = raise pitch (eg 1.1 = 10\% up, 2 = one
+octave up), <1 = lower pitch. Anchor format accepted for multPitch /
+multFormants / timeStretch (see \code{\link{soundgen}})}
 
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
+\item{multFormants}{1 = no change, >1 = raise formants (eg 1.1 = 10\% up, 2 =
+one octave up), <1 = lower formants. The default behavior is for formants
+to follow pitch with \code{multFormants = multPitch}}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{timeStretch}{1 = no change, >1 = longer, <1 = shorter}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{freqWindow}{the width of spectral smoothing window, Hz - see
+\code{\link{shiftFormants}} for discussion and examples. Defaults to
+detected f0 prior to pitch shifting times \code{mean(multPitch)}. Note that
+formant shifting is applied AFTER pitch shifting, so \code{freqWindow}
+should be multiplied by \code{multPitch} compared to what you would use on
+the original audio}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{dynamicRange}{dynamic range (dB) that silences spectrogram regions
+below \code{-dyamicRange} dB and also control the \code{tol} parameter in
+\code{istft_timevar}}
 
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{interpol}{the method for interpolating scaled spectra and anchors}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{propagation}{the method for propagating phase: "time" = horizontal
-propagation (default), "adaptive" = an experimental implementation of
-"vocoder done right" (Prusa & Holighaus 2017)}
+\item{overlap}{overlap between successive windows, \%}
+
+\item{wn}{window type accepted by \code{\link{winFun}}: character string or
+function}
+
+\item{interpol}{the method for interpolating scaled spectra and anchors: any
+method supported by \code{\link{interpolate}}, defaults to "splineFC"}
+
+\item{propagation}{the method for propagating phase: "time" (default) =
+single-pass horizontal propagation, several times faster; "adaptive" =
+a modified "vocoder done right" (Prusa & Holighaus 2017), high-quality
+but relatively slow}
+
+\item{specEnvMethod}{the method of extracting a smoothed spectral envelope:
+"cepstral" = Gaussian liftering of the real cepstrum (default), "gauss" =
+Gaussian blur of the log spectrum, "movavg" = moving average of the log
+spectrum, "peak" = moving maximum (upper envelope). See
+\code{\link{getSpecEnv}} for details}
 
 \item{preserveEnv}{if TRUE, transplants the amplitude envelope from the
-original to the modified sound with \code{\link{transplantEnv}}. Defaults
-to TRUE if no time stretching is performed and FALSE otherwise}
+original to the modified sound with \code{\link{transplantEnv}}. Mostly
+this makes sense if there is no time stretching}
 
 \item{transplantEnv_pars}{a list of parameters passed on to
 \code{\link{transplantEnv}} if \code{preserveEnv = TRUE}}
 
 \item{normalize}{"orig" = same as input (default), "max" = maximum possible
-peak amplitude, "none" = no normalization}
+peak amplitude for the given input scale, "none" = no normalization}
 
-\item{play}{if TRUE, plays the synthesized sound using the default player on
-your system. If character, passed to \code{\link[tuneR]{play}} as the name
-of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
-setting another default player for \code{\link[tuneR]{play}}}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
+}
+\value{
+The processed waveform as a numeric vector (a list if there are
+  multiple inputs).
 }
 \description{
 Raises or lowers pitch with or without also shifting the formants (resonance
@@ -100,59 +118,86 @@ frequencies) and performing a time-stretch. The three operations (pitch
 shift, formant shift, and time stretch) are independent and can be performed
 in any combination, statically or dynamically. \code{shiftPitch} can also be
 used to shift formants without changing pitch or duration, but the dedicated
-\code{\link{shiftFormants}} is faster for that task.
+\code{\link{shiftFormants}} is faster for that task. Likewise, use the much
+faster \code{\link{timeStretch}} for slowing down or speeding up a recording
+without preserving either pitch or formants. Tip: increase overlap to >90\%
+for best quality.
 }
 \details{
 Algorithm: phase vocoder. Pitch shifting is accomplished by performing a time
 stretch (at present, with horizontal or adaptive phase propagation) followed
 by resampling. This shifts both pitch and formants; to preserve the original
-formant frequencies or modify them independently of pitch, a variant of
-\code{\link{transplantFormants}} is performed to "transplant" the original or
-scaled formants onto the time-stretched new sound. See Prusa 2017 "Phase
-vocoder done right", Royer 2019 "Pitch-shifting algorithm design and
-applications in music".
+formant frequencies or modify them independently of pitch, the recipient's
+spectral envelope is flattened and the donor envelope is imposed on the same
+spectrogram before iSTFT. See Prusa 2017 "Phase vocoder done right", Royer
+2019 "Pitch-shifting algorithm design and applications in music".
 }
 \examples{
-s = soundgen(sylLen = 200, ampl = c(0,-10),
-             pitch = c(250, 350), rolloff = c(-9, -15),
-             noise = -40,
-             formants = 'aii', addSilence = 50)
-# playme(s)
-s1 = shiftPitch(s, samplingRate = 16000, freqWindow = 400,
-                multPitch = 1.25, multFormants = .8)
-# playme(s1)
+data(speechEx, package = 'soundgen')
+samplingRate = speechEx@samp.rate
+# playme(speechEx)
+spectrogram(speechEx, yScale = 'ERB')
+
+# raise pitch, lower formants
+s1 = shiftPitch(speechEx, freqWindow = 200, multPitch = 1.2, multFormants = .85)
+# spectrogram(s1, samplingRate, yScale = 'ERB')
+# playme(s1, samplingRate)
 
 \dontrun{
+# Tips for best quality: high overlap (slow), pad with silence
+# and fade a bit before processing; try adaptive phase propagation (slow)
+s = c(
+  rep(0, 1000),
+  fade(speechEx@left, samplingRate, fadeIn = 50, fadeOut = 50),
+  rep(0, 1000)
+)
+s1a = shiftPitch(s, samplingRate, freqWindow = 200, multPitch = 1.2,
+  multFormants = .85, propagation = 'adaptive', overlap = 95)
+spectrogram(s1a, samplingRate, yScale = 'ERB')
+playme(s1a, samplingRate)
+# cf:
+playme(s1, samplingRate)
+
 ## Dynamic manipulations
-# Add a chevron-shaped pitch contour
-s2 = shiftPitch(s, samplingRate = 16000, multPitch = c(1.1, 1.3, .8))
-playme(s2)
+# Add a chevron-shaped contour to both pitch and formants
+s2 = shiftPitch(speechEx, multPitch = c(1.1, 1.3, .8))
+playme(s2, samplingRate)
+spectrogram(s2, samplingRate, yScale = 'ERB')
 
 # Time-stretch only the middle
-s3 = shiftPitch(s, samplingRate = 16000, timeStretch = list(
+s3 = shiftPitch(speechEx, overlap = 95, timeStretch = list(
   time = c(0, .25, .31, .5, .55, 1),
   value = c(1, 1, 3, 3, 1, 1))
 )
-playme(s3)
+playme(s3, samplingRate)
 
+# Raise pitch and formants by 3 semitones, shorten
+s4 = shiftPitch(speechEx, multPitch = 2 ^ (3 / 12), timeStretch = 0.75)
+playme(s4, samplingRate)
+spectrogram(s4, samplingRate, yScale = 'ERB')
 
-## Various combinations of 3 manipulations
-data(sheep, package = 'seewave')  # import a recording from seewave
-playme(sheep)
-spectrogram(sheep)
+# Just speed up
+shiftPitch(speechEx, multPitch = 1, timeStretch = 0.75, play = TRUE)
 
-# Raise pitch and formants by 3 semitones, shorten by half
-sheep1 = shiftPitch(sheep, multPitch = 2 ^ (3 / 12), timeStretch = 0.5)
-playme(sheep1, sheep@samp.rate)
-spectrogram(sheep1, sheep@samp.rate)
+# Raise pitch, preserve formants
+s5 = shiftPitch(speechEx, multPitch = 1.2, multFormants = 1, freqWindow = 150)
+playme(s5, samplingRate)
+spectrogram(s5, samplingRate, yScale = 'ERB')
 
-# Just shorten
-shiftPitch(sheep, multPitch = 1, timeStretch = 0.25, play = TRUE)
-
-# Raise pitch preserving formants
-sheep2 = shiftPitch(sheep, multPitch = 1.2, multFormants = 1, freqWindow = 150)
-playme(sheep2, sheep@samp.rate)
-spectrogram(sheep2, sheep@samp.rate)
+# Only modify voiced frames, preserving consonants / breathing etc
+s1 = soundgen(nSyl = 2, sylLen = 300, pauseLen = 500, pitch = c(250, 200))
+s2 = soundgen(sylLen = 150, noise = 0, pitch = NA, formants = list(f1 = 5000))
+s = addVectors(s1, s2, insertionPoint = 16000 * .5)
+s = s + rnorm(length(s), 0, .01)
+spectrogram(s, 16000, yScale = 'ERB')
+playme(s, 16000)  # we want to ignore the central /tch/ when shifting f0
+# run analyze to get f0 contours, correct manually with pitch_app if needed
+an = analyze(s, 16000, windowLength = 25, step = 5, plot = TRUE, yScale = 'ERB')
+pitch = an$detailed$pitch
+multPitch = ifelse(is.na(pitch), 1, 1.25)
+s_shifted = fade(shiftPitch(s, 16000, multPitch = multPitch, wn = 'hanning', overlap = 90))
+spectrogram(s_shifted, 16000, yScale = 'ERB')
+playme(s_shifted, 16000)  # the /tch/ in the middle is unaffected by pitch-shifting
 }
 }
 \seealso{

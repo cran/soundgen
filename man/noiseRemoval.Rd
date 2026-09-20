@@ -7,20 +7,23 @@
 noiseRemoval(
   x,
   samplingRate = NULL,
-  scale = NULL,
+  from = NULL,
+  to = NULL,
   noise,
   dB = 6,
   specificity = 1,
   windowLength = 50,
-  step = windowLength/2,
+  step = NULL,
+  overlap = 75,
   dynamicRange = 120,
-  normalize = c("max", "orig", "none")[2],
+  normalize = c("orig", "max", "none"),
   reportEvery = NULL,
   cores = 1,
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
@@ -36,79 +39,90 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{from, to}{if specified (in seconds), only this section of input is
+denoised}
 
 \item{noise}{a numeric vector of length two specifying the location of pure
 noise in input audio (in s); a matrix representing pure noise as a spectrum
-with frequency bins in rows; any input accepted by
-\code{\link{spectrogram}} if pure noise is found in a separate recording
-(eg path to file, numeric vector, etc.)}
+with frequency bins in rows; path to file, Wave object, or numeric vector
+(with the same sampling rate as \code{x}) representing pure noise}
 
-\item{dB}{if NULL (default), the spectral envelope is applied on the original
-scale; otherwise, it is set to range from 1 to 10 ^ (dB / 20)}
+\item{dB}{controls the amount of noise removal: larger values are more
+aggressive}
 
 \item{specificity}{a way to sharpen or blur the noise spectrum (we take noise
 spectrum ^ specificity) : 1 = no change, >1 = sharper (the loudest noise
 frequencies are preferentially removed), <1 = blurred (even quiet noise
 frequencies are removed)}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
+\item{overlap}{overlap between successive windows, \%}
 
-\item{normalize}{if TRUE, scales input prior to FFT}
+\item{dynamicRange}{regions under \code{-dynamicRange} dB are treated as silent}
+
+\item{normalize}{"orig" = same as input (default), "max" = maximum possible
+peak amplitude for the given input scale, "none" = no normalization}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{play}{if TRUE, plays the synthesized sound using the default player on
-your system. If character, passed to \code{\link[tuneR]{play}} as the name
-of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
-setting another default player for \code{\link[tuneR]{play}}}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{saveAudio}{path + filename for saving the output, e.g.
-'~/Downloads/temp.wav'. If NULL = doesn't save}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
-\item{...}{other graphical parameters}
+\item{...}{extra graphical parameters passed to \code{\link{spectrogram}}}
 }
 \value{
-Returns the denoised audio
+The denoised audio as a numeric vector (multiple inputs return a list).
 }
 \description{
-Removes noise by spectral substraction. If a recording is affected by a
+Removes noise by log-spectral subtraction. If a recording is affected by a
 steady noise with a relatively stable amplitude and spectrum (e.g.,
-microphone hiss, crickets, MRI buzz, etc.), its spectrum can be simply
-subtracted from the signal. Algorithm: STFT to produce a spectrogram, divide
-by normalized noise spectrum, inverse STFT to reconstitute the signal. Most
-of the work is done by \code{\link{addFormants}}.
+microphone hiss, crickets, MRI buzz, etc.), its log-spectrum can be simply
+subtracted from that of the signal. Algorithm: STFT to produce a
+log-spectrogram, subtract normalized noise spectrum, iSTFT to reconstitute
+the signal. Most of the work is done by \code{\link{addFormants}}.
 }
 \examples{
-s = soundgen(noise = list(time = c(-100, 400), value = -20),
+s = soundgen(noise = list(time = c(-100, 400), value = -10),
   formantsNoise = list(f1 = list(freq = 3000, width = 25)),
   addSilence = 50, temperature = .001, plot = TRUE)
 # Option 1: use part of the recording as noise profile
 s1 = noiseRemoval(s, samplingRate = 16000, noise = c(0.05, 0.15),
   dB = 40, plot = TRUE)
 
+\dontrun{
 # Option 2: use a separate recording as noise profile
 noise = soundgen(pitch = NA, noise = 0,
   formantsNoise = list(f1 = list(freq = 3000, width = 25)))
@@ -123,14 +137,13 @@ spec_noise = spectrogram(
 s3 = noiseRemoval(s, samplingRate = 16000, noise = spec_noise,
   dB = 40, plot = TRUE)
 
-\dontrun{
-# play with gain and sensitivity
-noiseRemoval(s, samplingRate = 16000, noise = c(0.05, 0.15),
+# play with gain and specificity
+s4 = noiseRemoval(s, samplingRate = 16000, noise = c(0.05, 0.15),
   dB = 60, specificity = 2, plot = TRUE)
 
 # remove noise only from a section of the audio
-noiseRemoval(s, samplingRate = 16000, from = .3, to = .4,
-  noise = c(0.05, 0.15), dB = 60, plot = TRUE, play = TRUE)
+s5 = noiseRemoval(s, samplingRate = 16000, from = .3, to = .5,
+  noise = c(0.05, 0.15), dB = 60, plot = TRUE)
 }
 }
 \seealso{

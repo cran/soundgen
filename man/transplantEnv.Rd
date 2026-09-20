@@ -6,23 +6,23 @@
 \usage{
 transplantEnv(
   donor,
-  samplingRateD = NULL,
   recipient,
-  samplingRateR = samplingRateD,
-  windowLength = 50,
-  method = c("hil", "rms", "peak")[3],
+  samplingRateR = NULL,
+  samplingRateD = samplingRateR,
+  windowLength = 30,
+  method = c("rms", "hil", "peak", "mean"),
   killDC = FALSE,
-  dynamicRange = 80,
+  dynamicRange = 30,
   plot = FALSE
 )
 }
 \arguments{
 \item{donor}{the sound that "donates" the amplitude envelope}
 
-\item{samplingRateD, samplingRateR}{sampling rate of the donor and recipient,
-respectively (only needed for vectors, not files)}
-
 \item{recipient}{the sound that needs to have its amplitude envelope adjusted}
+
+\item{samplingRateD, samplingRateR}{sampling rate of the donor and recipient,
+respectively (only needed for vectors, not files); they don't hav to match}
 
 \item{windowLength}{the length of smoothing window, ms}
 
@@ -39,21 +39,22 @@ not be amplified}
 the compressed sound}
 }
 \value{
-Returns the recipient sound with the donor's amplitude envelope - a
-  numeric vector with the same sampling rate as the recipient
+The recipient sound with the donor's amplitude envelope - a numeric
+  vector with the same sampling rate and length as the recipient.
 }
 \description{
 Extracts a smoothed amplitude envelope of the \code{donor} sound and applies
-it to the \code{recipient} sound. Both sounds are provided as numeric
-vectors; they can differ in length and sampling rate. Note that the result
-depends on the amount of smoothing (controlled by \code{windowLength}) and
-the chosen method of calculating the envelope. Very similar to
-\code{\link[seewave]{setenv}}, but with a different smoothing algorithm and
-with a choice of several types of envelope: hil, rms, or peak.
+it to the \code{recipient} sound. The sounds can differ in length and
+sampling rate. Note that the result depends on the amount of smoothing
+(controlled by \code{windowLength}) and the chosen method of calculating the
+envelope. This is similar to "setenv" from the seewave package, but with a
+different smoothing algorithm and with a choice of several types of envelope:
+rms, hil, peak, etc. - see \code{\link{flatEnv}}.
 }
 \examples{
-donor = rnorm(500) * seq(1, 0, length.out = 500)
-recipient = soundgen(sylLen = 600, addSilence = 50)
+donor = c(rep(0, 50), rnorm(500)) * seq(1, 0, length.out = 550)
+data('speechEx', package = 'soundgen')
+recipient = speechEx@left[1000:4000]
 transplantEnv(donor, samplingRateD = 200,
                recipient, samplingRateR = 16000,
                windowLength = 50, method = 'hil', plot = TRUE)
@@ -62,5 +63,5 @@ transplantEnv(donor, samplingRateD = 200,
                windowLength = 10, method = 'peak', plot = TRUE)
 }
 \seealso{
-\code{\link{flatEnv}} \code{\link[seewave]{setenv}}
+\code{\link{flatEnv}}
 }

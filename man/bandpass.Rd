@@ -9,7 +9,7 @@ bandpass(
   samplingRate = NULL,
   lwr = NULL,
   upr = NULL,
-  action = c("pass", "stop")[1],
+  action = c("pass", "stop"),
   dB = Inf,
   bw = 0,
   na.rm = TRUE,
@@ -18,9 +18,10 @@ bandpass(
   normalize = FALSE,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
@@ -48,11 +49,11 @@ depending on 'action'}
 Inf - complete removal of selected frequencies)}
 
 \item{bw}{bandwidth of the filter cutoffs, Hz. Defaults to 0 (abrupt, step
-function), a positive number corresponds to the standard deviation of a
-Gaussian curve, and two numbers set different bandwidths for the lower and
-upper cutoff points}
+function - avoid!), a positive number corresponds to the standard deviation
+of a Gaussian curve, and two numbers set different bandwidths for the lower
+and upper cutoff points}
 
-\item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
+\item{na.rm}{if TRUE, NAs are interpolated; otherwise, they are preserved in
 the output}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
@@ -62,36 +63,52 @@ from...to (s)}
 filtering often reduces the amplitude)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{saveAudio}{full path to the folder in which to save the processed audio}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
-\item{...}{other graphical parameters passed to \code{plot()} as well as to
-\code{\link[seewave]{meanspec}}}
+\item{...}{other graphical parameters passed to \code{plot()} and
+\code{\link{meanSpectrum}}}
+}
+\value{
+Numeric vector of the same length as input.
 }
 \description{
 Filtering in the frequency domain with FFT-iFFT: low-pass, high-pass,
-bandpass, and bandstop filters. Similar to \code{\link[seewave]{ffilter}},
-but here we use FFT instead of STFT - that is, the entire sound is processed
-at once. This works best for relatively short sounds (seconds), but gives us
-maximum precision (e.g., for precise notch filtering) and doesn't affect the
-attack and decay. NAs are accepted and can be interpolated or preserved in
-the output. Because we don't do STFT, arbitrarily short vectors are also fine
-as input - for example, we can apply a low-pass filter prior to decimation
-when changing the sampling rate without aliasing. Note that, unlike
-\code{\link{pitchSmoothPraat}}, \code{bandpass} by default applies an abrupt
-cutoff instead of a smooth gaussian filter, but this behavior can be adjusted
-with the \code{bw} argument.
+bandpass, and bandstop filters with flexible filter depth (dB) and adjustable
+bandwidths at filter boundaries. Similar to the "ffilter" function from the
+seewave package, but here we use FFT instead of STFT - that is, the entire
+sound is processed at once. This works best for relatively short sounds
+(seconds), but gives us maximum precision (e.g., for precise notch filtering)
+and doesn't affect the attack and decay. NAs are accepted and can be
+interpolated or preserved in the output. Because we don't do STFT,
+arbitrarily short vectors are also fine as input - for example, we can apply
+a low-pass filter prior to decimation when changing the sampling rate without
+aliasing. Note that, unlike \code{\link{pitchSmoothPraat}}, \code{bandpass}
+by default applies an abrupt cutoff instead of a smooth gaussian filter, but
+this behavior can be adjusted with the \code{bw} argument.
 }
 \details{
 Algorithm: fill in NAs with constant interpolation at the edges and linear
@@ -101,53 +118,50 @@ NAs back in.
 }
 \examples{
 # Filter white noise
-s1 = fade(c(rnorm(2000, 0, 1)), samplingRate = 16000)
+s1 = fade(c(rnorm(2000, 0, 1), NA), samplingRate = 16000)
 
 # low-pass
-bandpass(s1, 16000, upr = 2000, plot = TRUE)
+s1_lp = bandpass(s1, 16000, upr = 2000, bw = 100, plot = TRUE)
+meanSpectrum(s1_lp, 16000)
 
 # high-pass by 40 dB
-bandpass(s1, 16000, lwr = 2000, dB = 40, plot = TRUE, wl = 1024)
-# wl is passed to seewave::meanspec for plotting
+s1_hp = bandpass(s1, 16000, lwr = 2000, dB = 40, bw = 50,
+  plot = TRUE, windowLength = 5)
+# windowLength is passed to meanSpectrum for plotting (ignore the warnings)
 
 # bandstop
-bandpass(s1, 16000, lwr = 1000, upr = 1800, action = 'stop', plot = TRUE)
+bandpass(s1, 16000, lwr = 1000, upr = 1800, bw = 50, action = 'stop', plot = TRUE)
 
-# bandpass
-s2 = bandpass(s1, 16000, lwr = 2000, upr = 2100, plot = TRUE)
-# playme(rep(s2, 5))
-# spectrogram(s2, 16000)
+# bandpass (turns noise into a whistle)
+s1_bp = bandpass(s1, 16000, lwr = 2000, upr = 2100, bw = 25, plot = TRUE)
+# playme(rep(s1_bp, 5))
+# spectrogram(s1_bp, 16000)
 
 # low-pass and interpolate a short vector with some NAs
 x = rnorm(150, 10) + 3 * sin((1:50) / 5)
 x[sample(seq_along(x), 50)] = NA
 plot(x, type = 'l')
-x_bandp = bandpass(x, samplingRate = 100, upr = 10)
+x_bandp = bandpass(x, samplingRate = 100, upr = 10, bw = 1)
 points(x_bandp, type = 'l', col = 'blue')
 
-\dontrun{
-# add 20 dB with a Gaussian-shaped filter instead of step function
+# boost or attenuate a particular frequency band by 20 dB
 s3 = bandpass(s1, 16000, lwr = 1700, upr = 2100, bw = 200,
   dB = 20, plot = TRUE)
-spectrogram(s3, 16000)
+# spectrogram(s3, 16000)
 s4 = bandpass(s1, 16000, lwr = 2000, upr = 4300, bw = c(100, 500),
   dB = 60, action = 'stop', plot = TRUE)
-spectrogram(s4, 16000)
+# spectrogram(s4, 16000)
 
 # precise notch filtering is possible, even in low frequencies
-whiteNoise = runif(16000, -1, 1)
-s3 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40, normalize = TRUE,
-              plot = TRUE, xlim = c(0, 500))
-playme(rep(s3, 5))
-spectrogram(s3, 16000, windowLength = 150, yScale = 'log')
+whiteNoise = rnorm(16000)
+s5 = bandpass(whiteNoise, 16000, lwr = 30, upr = 40, normalize = TRUE,
+              plot = TRUE, xlim = c(0, 0.5))
+spectrum(s5, 16000, xlim = c(0, 0.1))
+# playme(s5)
+# spectrogram(s5, 16000, windowLength = 150, yScale = 'log')
 
-# compare the same with STFT
-s4 = seewave::ffilter(whiteNoise, f = 16000, from = 30, to = 40)
-spectrogram(s4, 16000, windowLength = 150, yScale = 'log')
-# (note: works better as wl approaches length(s4))
-
+\dontrun{
 # high-pass all audio files in a folder
-bandpass('~/Downloads/temp', saveAudio = '~/Downloads/temp/hp2000/',
-         lwr = 2000, savePlots = '~/Downloads/temp/hp2000/')
+bandpass('~/Downloads/temp', lwr = 2000, saveAudio = TRUE, savePlots = TRUE)
 }
 }

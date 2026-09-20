@@ -3,12 +3,12 @@
 #' Estimates the length of vocal tract based on formant frequencies. If
 #' \code{method = 'meanFormant'}, vocal tract length (VTL) is calculated
 #' separately for each formant, and then the resulting VTLs are averaged. The
-#' equation used is \eqn{(2 * formant_number - 1) * speedSound / (4 *
-#' formant_frequency)} for a closed-open tube (mouth open) and
-#' \eqn{formant_number * speedSound / (2 * formant_frequency)} for an open-open
-#' or closed-closed tube (eg closed mouth in mmm or open mouth and open glottis
-#' in whispering). If \code{method = 'meanDispersion'}, formant dispersion is
-#' calculated as the mean distance between formants, and then VTL is calculated
+#' equation used is \eqn{(2 * n - 1) * speedSound / (4 *
+#' Fn)} for a closed-open tube (mouth open) and
+#' \eqn{n * speedSound / (2 * Fn)} for an open-open or closed-closed tube (eg
+#' closed mouth in mmm or open mouth and open glottis in whispering). If
+#' \code{method = 'meanDispersion'}, formant dispersion is calculated as the
+#' mean distance between formants, and then VTL is calculated
 #' as \eqn{speed of sound / 2 / formant dispersion}. If \code{method =
 #' 'regression'}, formant dispersion is estimated using the regression method
 #' described in Reby et al. (2005) and Anikin et al. (2024). For a review of
@@ -23,9 +23,8 @@
 #'   Clutton-Brock, T. (2005). Red deer stags use formants as assessment cues
 #'   during intrasexual agonistic interactions. Proceedings of the Royal Society
 #'   B: Biological Sciences, 272(1566), 941-947.
-#'   \item Pisanski, K., Fraccaro, P. J., Tigue, C. C., O'Connor, J. J., Röder,
-#'   S., Andrews, P. W., ... & Feinberg, D. R. (2014). Vocal indicators of body
-#'   size in men and women: a meta-analysis. Animal Behaviour, 95, 89-99.
+#'   \item Pisanski et al. (2014). Vocal indicators of body size in men and
+#'   women: a meta-analysis. Animal Behaviour, 95, 89-99.
 #'   \item Anikin, A., Barreda, S. & Reby, D. (2024) A practical guide to
 #'   calculating vocal tract length and scale-invariant formant patterns.
 #'   Behavior Research Methods 56, 5588–5604.
@@ -34,13 +33,13 @@
 #' @param formants formant frequencies in any format recognized by
 #'   \code{\link{soundgen}}: a vector of formant frequencies like \code{c(550,
 #'   1600, 3200)}; a list with multiple values per formant like \code{list(f1 =
-#'   c(500, 550), f2 = 1200))}; or a character string like \code{aaui} referring
+#'   c(500, 550), f2 = 1200)}; or a character string like \code{aaui} referring
 #'   to default presets for speaker "M1" in soundgen presets
-#' @param method the method of estimating vocal tract length (see details)
+#' @param method the method of estimating vocal tract length (see Description):
+#'   "regression" (default), "meanDispersion", or "meanFormant"
 #' @param interceptZero if TRUE, forces the regression curve to pass through the
-#'   origin. This reduces the influence of highly variable lower formants, but
-#'   we have to commit to a particular model of the vocal tract: closed-open or
-#'   open-open/closed-closed (method = "regression" only)
+#'   origin, reducing the influence of highly variable lower formants (method =
+#'   "regression" only)
 #' @param tube the vocal tract is assumed to be a cylindrical tube that is
 #'   either "closed-open" or "open-open" (same as closed-closed)
 #' @param speedSound speed of sound in warm air, by default 35400 cm/s. Stevens
@@ -48,13 +47,14 @@
 #' @param checkFormat if FALSE, only a list of properly formatted formant
 #'   frequencies is accepted
 #' @param output "simple" (default) = just the VTL; "detailed" = a list of
-#'   additional stats (see Value below)
+#'   additional stats (for method = "regression" only)
 #' @param plot if TRUE, plots the regression line whose slope gives formant
-#'   dispersion (method = "regression" only). Label sizes show the influence of
-#'   each formant, and the blue line corresponds to each formant being an
+#'   dispersion dF (method = "regression" only). Label sizes show the influence
+#'   of each formant, and the blue line corresponds to each formant being an
 #'   integer multiple of F1 (as when harmonics are misidentified as formants);
 #'   the second plot shows how VTL varies depending on the number of formants
 #'   used
+#'
 #' @return If \code{output = 'simple'} (default), returns the estimated vocal
 #'   tract length in cm. If \code{output = 'detailed'} and \code{method =
 #'   'regression'}, returns a list with extra stats used for plotting. Namely,
@@ -68,7 +68,9 @@
 #' estimateVTL(NA)
 #' estimateVTL(500)
 #' estimateVTL(c(600, 1850, 2800, 3600, 5000), plot = TRUE)
-#' estimateVTL(c(600, 1850, 2800, 3600, 5000), plot = TRUE, output = 'detailed')
+#' es = estimateVTL(c(600, 1850, 2800, 3600, 5000), plot = TRUE, output = 'detailed')
+#' es
+#'
 #' estimateVTL(c(1200, 2000, 2800, 3800, 5400, 6400),
 #'   tube = 'open-open', interceptZero = FALSE, plot = TRUE)
 #' estimateVTL(c(1200, 2000, 2800, 3800, 5400, 6400),
@@ -97,9 +99,8 @@
 #' estimateVTL(c(500, 1400, 2800, 4100), method = 'meanFormant')
 #' estimateVTL(c(500, 1100, 2300, 4100), method = 'meanFormant') # much longer
 #'
-#' \dontrun{
 #' # Compare the results produced by the three methods
-#' nIter = 1000
+#' nIter = 100
 #' out = data.frame(meanFormant = rep(NA, nIter), meanDispersion = NA, regression = NA)
 #' for (i in 1:nIter) {
 #'   # generate a random formant configuration
@@ -112,20 +113,19 @@
 #' cor(out)
 #' # 'meanDispersion' is pretty different, while 'meanFormant' and 'regression'
 #' # give broadly comparable results
-#' }
 estimateVTL = function(
     formants,
-    method = c('regression', 'meanDispersion', 'meanFormant')[1],
+    method = c('regression', 'meanDispersion', 'meanFormant'),
     interceptZero = TRUE,
-    tube = c('closed-open', 'open-open')[1],
+    tube = c('closed-open', 'open-open', 'open-closed', 'closed-closed'),
     speedSound = 35400,
     checkFormat = TRUE,
-    output = c('simple', 'detailed')[1],
+    output = c('simple', 'detailed'),
     plot = FALSE
 ) {
-  if (!method %in% c('meanFormant', 'meanDispersion', 'regression')) {
-    stop('Invalid method; valid methods are: meanFormant, meanDispersion, regression')
-  }
+  tube = match.arg(tube)
+  method = match.arg(method)
+  output = match.arg(output)
   if (checkFormat) {
     # convert to a properly formatted list
     formants = reformatFormants(formants, output = 'freqs', keepNonInteger = FALSE)
@@ -134,38 +134,44 @@ estimateVTL = function(
   # if we don't know vocalTract, but at least one formant is defined,
   # we guess the length of vocal tract
   if (method == 'meanFormant') {
-    formant_freqs = unlist(sapply(formants, function(f) mean(f$freq)))
+    formant_freqs = unlist(lapply(formants, function(f) mean(f$freq)))
     nf = length(formant_freqs)
-    if (tube %in% c('closed-open', 'open-closed')) {
-      vtls = (2 * (seq_len(nf)) - 1) * speedSound / 4 / formant_freqs
-    } else if (tube %in% c('open-open', 'closed-closed')) {
-      vtls = seq_len(nf) * speedSound / 2 / formant_freqs
+    if (nf > 0) {
+      if (tube %in% c('closed-open', 'open-closed')) {
+        vtls = (2 * (1:nf) - 1) * speedSound / 4 / formant_freqs
+      } else if (tube %in% c('open-open', 'closed-closed')) {
+        vtls = 1:nf * speedSound / 2 / formant_freqs
+      }
+      vocalTract = mean(vtls, na.rm = TRUE)
     } else {
-      stop('the tube can be closed-open or open-open')
+      vocalTract = NA
     }
-    vocalTract = mean(vtls, na.rm = TRUE)
-    formantDispersion = NA
+    dF = NA
   } else if (method %in% c('meanDispersion', 'regression')) {
-    fd = getFormantDispersion(formants,
-                              speedSound = speedSound,
-                              method = method,
-                              interceptZero = interceptZero,
-                              tube = tube,
-                              plot = plot,
-                              checkFormat = FALSE,
-                              output = output)
+    fd = getdF(formants,
+               speedSound = speedSound,
+               method = method,
+               interceptZero = interceptZero,
+               tube = tube,
+               plot = plot,
+               checkFormat = FALSE,
+               output = output)
     if (is.list(fd)) {
-      formantDispersion = fd$formantDispersion
+      dF = fd$dF
     } else {
-      formantDispersion = fd
+      dF = fd
     }
-    vocalTract = speedSound / 2 / formantDispersion
+    vocalTract = speedSound / 2 / dF
   }
-  if (output == 'detailed') {
-    return(c(list(vocalTract = vocalTract,
-                  vocalTract_95CI = rev(speedSound / 2 / fd$formantDispersion_95CI),
-                  formantDispersion = formantDispersion,
-                  formantDispersion_95CI = fd$formantDispersion_95CI)))
+  if (output == 'detailed' && method == 'regression') {
+    return(list(
+      vocalTract = vocalTract,
+      vtl_95CI = rev(speedSound / 2 / fd$dF_95CI),
+      dF = dF,
+      dF_95CI = fd$dF_95CI,
+      regressionInfo = fd$regressionInfo,
+      vtlPerFormant = fd$vtlPerFormant
+    ))
   } else {
     return(vocalTract)
   }
@@ -191,20 +197,10 @@ estimateVTL = function(
 #' want to generate a sound with particular relative formant frequencies (e.g.
 #' high F1 and low F2 relative to the schwa for this vocal tract),
 #' \code{schwa()} calculates the corresponding formant frequencies in Hz. See
-#' examples below for an illustration of these three suggested uses.
-#'
-#' Algorithm: the expected formant dispersion is given by \eqn{(2 *
-#' formant_number - 1) * speedSound / (4 * formant_frequency)} for a closed-open
-#' tube (mouth open) and \eqn{formant_number * speedSound / (2 *
-#' formant_frequency)} for an open-open or closed-closed tube. F1 is schwa is
-#' expected at half the value of formant dispersion. See e.g. Stevens (2000)
-#' "Acoustic phonetics", p. 139. Basically, we estimate vocal tract length and
-#' see if each formant is higher or lower than expected for this vocal tract.
-#' For this to work, we have to know either the frequencies of enough formants
-#' (not just the first two) or the true length of the vocal tract. See also
-#' \code{\link{estimateVTL}} on the algorithm for estimating formant dispersion
-#' if VTL is not known (note that \code{schwa} calls \code{\link{estimateVTL}}
-#' with the option \code{method = 'regression'}).
+#' examples below for an illustration of these three suggested uses and
+#' \code{\link{estimateVTL}} for details on the algorithm for estimating formant
+#' dispersion if VTL is not known (note that \code{schwa} calls
+#' \code{\link{estimateVTL}} with the option \code{method = 'regression'}).
 #'
 #' @seealso \code{\link{estimateVTL}}
 #'
@@ -215,11 +211,11 @@ estimateVTL = function(
 #'   Behavior Research Methods 56, 5588–5604.
 #' }
 #'
-#' @return Returns a list with the following components: \describe{
+#' @return A list with the following components: \describe{
 #'   \item{vtl_measured}{VTL as provided by the user, cm}
-#'   \item{vocalTract_apparent}{VTL estimated based on formants frequencies
-#'   provided by the user, cm}
-#'   \item{formantDispersion}{average distance between formants, Hz}
+#'   \item{vtl_apparent}{VTL estimated based on formants frequencies provided by
+#'   the user, cm}
+#'   \item{dF}{average distance between formants, Hz}
 #'   \item{ff_measured}{formant frequencies as
 #'   provided by the user, Hz}
 #'   \item{ff_schwa}{formant frequencies corresponding
@@ -243,17 +239,17 @@ estimateVTL = function(
 #' @param vocalTract the length of vocal tract, cm
 #' @param formants_relative a numeric vector of target relative formant
 #'   frequencies, \% deviation from schwa (see examples)
-#' @param nForm the number of formants to estimate (integer)
+#' @param nFormants the number of formants to estimate (integer)
 #' @param plot if TRUE, plots vowel quality in speaker-normalized F1-F2 space
-#' @inheritParams getSpectralEnvelope
+#' @inheritParams getFormantFilter
 #' @inheritParams estimateVTL
 #' @export
 #' @examples
 #' ## CASE 1: known VTL
 #' # If vocal tract length is known, we calculate expected formant frequencies
 #' schwa(vocalTract = 17.5)
-#' schwa(vocalTract = 13, nForm = 5)
-#' schwa(vocalTract = 13, nForm = 5, tube = 'open-open')
+#' schwa(vocalTract = 13, nFormants = 5)
+#' schwa(vocalTract = 13, nFormants = 5, tube = 'open-open')
 #'
 #' ## CASE 2: known (observed) formant frequencies
 #' # Let's take formant frequencies in four vocalizations, namely
@@ -264,8 +260,8 @@ estimateVTL = function(
 #' # We get an estimate of VTL (s_a$vtl_apparent),
 #' #   same as with estimateVTL(formants_a)
 #' # We also get theoretical schwa formants: s_a$ff_schwa
-#' # And we get the difference (% and semitones) in observed vs expected
-#' #   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones')]
+#' # And we get the difference (%, semitones, or dF units) in observed vs expected
+#' #   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones', 'ff_relative_dF')]
 #' # [a]: F1 much higher than expected, F2 slightly lower (see plot)
 #'
 #' formants_i = c(300, 2700, 3400, 4400, 5300, 6400)
@@ -308,22 +304,23 @@ estimateVTL = function(
 schwa = function(formants = NULL,
                  vocalTract = NULL,
                  formants_relative = NULL,
-                 nForm = 8,
+                 nFormants = 8,
                  interceptZero = TRUE,
-                 tube = c('closed-open', 'open-open')[1],
+                 tube = c('closed-open', 'open-open', 'open-closed', 'closed-closed'),
                  speedSound = 35400,
                  plot = FALSE) {
   # check input
-  if (is.null(formants) & is.null(vocalTract)) {
-    stop('Please pecify formant frequencies and/or vocal tract length')
+  tube = match.arg(tube)
+  if (is.null(formants) && is.null(vocalTract)) {
+    stop('Please specify formant frequencies and/or vocal tract length')
   }
   if (!is.null(formants_relative)) {
     if (!is.numeric(formants_relative)) {
-      stop('formants_relative must be positive numbers (Hz)')
+      stop('formants_relative must be numeric')
     }
   }
   if (!is.null(vocalTract)) {
-    if (!is.numeric(vocalTract) | vocalTract < 0) {
+    if (!is.numeric(vocalTract) || vocalTract < 0) {
       stop('vocalTract must be a positive number (cm)')
     }
   }
@@ -338,80 +335,76 @@ schwa = function(formants = NULL,
     # calculate formant dispersion and apparent VTL
     if (is.null(formants)) {
       # we don't know formants, we know VTL
-      formantDispersion = speedSound / (2 * vocalTract)
-      vocalTract_apparent = NULL
+      dF = speedSound / (2 * vocalTract)
+      vtl_apparent = NULL
     } else {
       # we know formants
       if (is.null(vocalTract)) {
         # we don't know VTL
-        formantDispersion = getFormantDispersion(
+        dF = getdF(
           formants,
           speedSound = speedSound,
           method = 'regression',
           interceptZero = interceptZero,
           tube = tube)
-        vocalTract_apparent = speedSound / (2 * formantDispersion)
+        vtl_apparent = speedSound / (2 * dF)
       } else {
         # we know VTL
-        formantDispersion_apparent = getFormantDispersion(
+        dF_apparent = getdF(
           formants,
           speedSound = speedSound,
           method = 'regression',
           interceptZero = interceptZero,
           tube = tube
         )
-        formantDispersion = speedSound / (2 * vocalTract)
-        vocalTract_apparent = speedSound / (2 * formantDispersion_apparent)
+        dF = speedSound / (2 * vocalTract)
+        vtl_apparent = speedSound / (2 * dF_apparent)
       }
     }
 
     # calculate relative formant frequencies
     if (is.null(formants)) {
-      idx = seq_len(nForm)
+      idx = 1:nFormants
     } else {
       idx = seq_along(formants)
     }
     if (tube %in% c('closed-open', 'open-closed')) {
-      ff_schwa = (2 * idx - 1) / 2 * formantDispersion
+      ff_schwa = (2 * idx - 1) / 2 * dF
     } else if (tube %in% c('open-open', 'closed-closed')) {
-      ff_schwa = idx * formantDispersion
-    } else {
-      stop('the tube can be closed-open or open-open')
+      ff_schwa = idx * dF
     }
     ff_relative = (formants / ff_schwa - 1) * 100
     ff_relative_semitones = HzToSemitones(formants) - HzToSemitones(ff_schwa)
-    ff_relative_dF = (formants - ff_schwa) / formantDispersion
+    ff_relative_dF = (formants - ff_schwa) / dF
     ff_theoretical = NULL
   } else {
     ## we know formants_relative and vocalTract and want to convert ff to Hz
 
-    # make sure formants_relative is at least nForm long
-    if (length(formants_relative) < nForm) {
+    # make sure formants_relative is at least nFormants long
+    if (length(formants_relative) < nFormants) {
       formants_relative = c(formants_relative,
-                            rep(0, nForm - length(formants_relative)))
+                            rep(0, nFormants - length(formants_relative)))
     }
 
     # calculate formants in Hz
-    formantDispersion = speedSound / (2 * vocalTract)
+    dF = speedSound / (2 * vocalTract)
     idx = seq_along(formants_relative)
     if (tube %in% c('closed-open', 'open-closed')) {
-      ff_schwa = (2 * idx - 1) / 2 * formantDispersion
+      ff_schwa = (2 * idx - 1) / 2 * dF
     } else if (tube %in% c('open-open', 'closed-closed')) {
-      ff_schwa = idx * formantDispersion
-    } else {
-      stop('the tube can be closed-open or open-open')
+      ff_schwa = idx * dF
     }
     ff_theoretical = ff_schwa * (1 + formants_relative / 100)
-    vocalTract_apparent = NULL
+    vtl_apparent = NULL
     ff_relative = formants_relative
     ff_relative_semitones = 12 * log2(ff_theoretical / ff_schwa)
-    ff_relative_dF = (ff_theoretical - ff_schwa) / formantDispersion
+    ff_relative_dF = (ff_theoretical - ff_schwa) / dF
   }
 
   # prepare the output
   out = list(vtl_measured = vocalTract,
-             vtl_apparent = vocalTract_apparent,
-             formantDispersion = formantDispersion,
+             vtl_apparent = vtl_apparent,
+             dF = dF,
              ff_measured = formants,
              ff_schwa = ff_schwa,
              ff_theoretical = ff_theoretical,
@@ -421,6 +414,7 @@ schwa = function(formants = NULL,
 
   # plotting
   if (plot) {
+    hillenbrand = get('hillenbrand')  # otherwise CMD check complains
     fmrs = out$ff_relative_dF[1:2]
     if (!any(!is.finite(fmrs))) {
       if (!is.null(out$vtl_apparent)) {
@@ -434,7 +428,6 @@ schwa = function(formants = NULL,
       }
       xlim = range(c(hillenbrand$F1Rel, fmrs[1]))
       ylim = range(c(hillenbrand$F2Rel, fmrs[2]))
-      hillenbrand = hillenbrand  # otherwise CMD check complains
       plot(hillenbrand$F1Rel, hillenbrand$F2Rel, type = 'n',
            xlab = 'F1', ylab = 'F2',
            xlim = xlim, ylim = ylim, main = main)
@@ -451,24 +444,26 @@ schwa = function(formants = NULL,
 
 #' Get formant dispersion
 #'
-#' Internal soundgen function.
-#'
 #' Estimates formant dispersion based on one or more formant frequencies.
 #' @inheritParams estimateVTL
-#' @keywords internal
+#' @noRd
 #' @examples
-#' soundgen:::getFormantDispersion(
-#'   list(f1 = c(570, 750), f2 = NA, f3 = c(2400, 2200, NA)))
-getFormantDispersion = function(
+#' soundgen:::getdF(list(f1 = c(570, 750), f2 = NA, f3 = c(2400, 2200, NA)))
+#' soundgen:::getdF(list(f1 = c(570, 750), f2 = NA, f3 = c(2400, 2200, NA)),
+#'   output = 'detailed')
+getdF = function(
     formants,
-    method = c('meanDispersion', 'regression')[2],
-    tube = c('closed-open', 'open-open')[1],
+    method = c('regression', 'meanDispersion'),
+    tube = c('closed-open', 'open-open', 'open-closed', 'closed-closed'),
     interceptZero = TRUE,
     speedSound = 35400,
     plot = FALSE,
     checkFormat = TRUE,
-    output = c('simple', 'detailed')[1]
+    output = c('simple', 'detailed')
 ) {
+  tube = match.arg(tube)
+  method = match.arg(method)
+  output = match.arg(output)
   if (plot) output = 'detailed'
   if (checkFormat) {
     formants = reformatFormants(formants,
@@ -476,20 +471,29 @@ getFormantDispersion = function(
                                 keepNonInteger = FALSE)
   }
   nf = length(formants)
-  if (!is.list(formants) |     # expect a preformatted list...
-      nf < 1 |   # ...with at least one formant...
-      !any(!is.na(formants))) return(NA)  # ...and at least one non-NA
+  if (!is.list(formants) ||     # expect a preformatted list...
+      nf < 1 ||   # ...with at least one formant...
+      # ...and at least one non-NA
+      !any(is.finite(unlist(lapply(formants, function(x) x$freq)))) ) return(NA)
   if (method == 'meanDispersion') {
-    formant_freqs = unlist(sapply(formants, function(f) mean(f$freq)))
-    if (nf > 1) {
-      formantDispersion = mean(diff(formant_freqs), na.rm = TRUE)
-    } else {
+    formant_freqs = as.numeric(unlist(lapply(formants, function(f)
+      mean(f$freq, na.rm = TRUE))))
+    idx_notNA = which(is.finite(formant_freqs))
+    if (length(idx_notNA) < 1) {
+      dF = NA
+    } else if (length(idx_notNA) == 1) {
       # a single formant
-      if (!is.na(formants$f1)) {
-        formantDispersion = 2 * formant_freqs
-      } else {
-        formantDispersion = NA
+      if (tube %in% c('closed-open', 'open-closed')) {
+        # Fn = dF * (2n-1)/2
+        dF = 2 * formant_freqs[idx_notNA] / (2 * idx_notNA - 1)
+      } else if (tube %in% c('open-open', 'closed-closed')) {
+        # Fn = dF * n
+        dF = formant_freqs[idx_notNA] / idx_notNA
       }
+    } else {
+      ran_notNA = range(idx_notNA)
+      dF = (formant_freqs[ran_notNA[2]] - formant_freqs[ran_notNA[1]]) /
+        (ran_notNA[2] - ran_notNA[1])
     }
   } else if (method == 'regression') {
     # Reby et al. (2005) "Red deer stags use formants..."
@@ -501,7 +505,7 @@ getFormantDispersion = function(
           formant_idx = i,
           formant = paste0('F', i),
           formantSpacing = i - 0.5, # same as (2 * i - 1) / 2,
-          freq = formants[[i, drop = FALSE]]$freq,
+          freq = formants[[i]]$freq,
           infl = NA)
         if (is.null(fdf)) fdf = temp else fdf = rbind(fdf, temp)
       }
@@ -511,36 +515,63 @@ getFormantDispersion = function(
           formant_idx = i,
           formant = paste0('F', i),
           formantSpacing = i,
-          freq = formants[[i, drop = FALSE]]$freq,
+          freq = formants[[i]]$freq,
           infl = NA)
         if (is.null(fdf)) fdf = temp else fdf = rbind(fdf, temp)
       }
-    } else {
-      stop('the tube can be closed-open or open-open')
     }
+
     if (interceptZero) {
       # no intercept, i.e. forced to pass through 0 (closed-open tube)
-      mod = suppressWarnings(lm(freq ~ -1 + formantSpacing, fdf))
-      formantDispersion = suppressWarnings(summary(mod)$coef[1])
+      mod = try(suppressWarnings(lm(freq ~ -1 + formantSpacing, fdf)), silent = TRUE)
+      if (inherits(mod, 'try-error')) {
+        return(NA)
+      } else {
+        mod_coefs = suppressWarnings(summary(mod)$coef)
+        dF = mod_coefs[1, 1]
+        SE = mod_coefs[1, 2]
+      }
     } else {
-      mod = suppressWarnings(lm(freq ~ 1 + formantSpacing, fdf))
-      formantDispersion = suppressWarnings(summary(mod)$coef[2])
+      # estimate both intercept and slope
+      mod = try(suppressWarnings(lm(freq ~ 1 + formantSpacing, fdf)), silent = TRUE)
+      if (inherits(mod, 'try-error')) {
+        return(NA)
+      } else {
+        mod_coefs = suppressWarnings(summary(mod)$coef)
+        if (nrow(mod_coefs) == 2) {
+          dF = mod_coefs[2, 1]
+          SE = mod_coefs[2, 2]
+        } else {
+          warning(paste('cannot estimate slope and intercept from a single formant;',
+                        'use method = meanDispersion or set intercept to zero'))
+          return(NA)
+        }
+      }
     }
-    ci = formantDispersion + c(-1.96, 1.96) * summary(mod)$coef[2]
+    ci = dF + c(-1.96, 1.96) * SE
 
     if (output == 'detailed') {
-      vtl_full = speedSound / 2 / formantDispersion
+      vtl_full = speedSound / 2 / dF
       # calculate VTL for the first 1:f formants
       vf = data.frame(nFormants = seq_along(unique(fdf$formant)), vtl = NA)
-      for (i in seq_len(nrow(vf))) {
+      for (i in 1:nrow(vf)) {
         fdf_i = fdf[fdf$formant_idx <= i, ]
         if (any(!is.na(fdf_i$freq))) {
           if (interceptZero) {
-            mod_i = suppressWarnings(lm(freq ~ -1 + formantSpacing, fdf_i))
-            vf$vtl[i] = speedSound / 2 / suppressWarnings(summary(mod_i)$coef[1])
+            mod_i = try(suppressWarnings(lm(freq ~ -1 + formantSpacing, fdf_i)),
+                        silent = TRUE)
+            if (!inherits(mod_i, 'try-error')) {
+              sum_mod_i = suppressWarnings(summary(mod_i)$coef)
+              vf$vtl[i] = speedSound / 2 / sum_mod_i[1, 1]
+            }
           } else {
-            mod_i = suppressWarnings(lm(freq ~ formantSpacing, fdf_i))
-            vf$vtl[i] = speedSound / 2 / suppressWarnings(summary(mod_i)$coef[2])
+            mod_i = try(suppressWarnings(lm(freq ~ formantSpacing, fdf_i)),
+                        silent = TRUE)
+            if (!inherits(mod_i, 'try-error')) {
+              sum_mod_i = suppressWarnings(summary(mod_i)$coef)
+              # only intercept estimated for F1, so slope is NA
+              if (nrow(sum_mod_i) == 2) vf$vtl[i] = speedSound / 2 / sum_mod_i[2, 1]
+            }
           }
         }
       }
@@ -549,20 +580,31 @@ getFormantDispersion = function(
       # all formants
       for (i in seq_len(nrow(fdf))) {
         fdf_i = fdf[-i, ]
-        if (any(!is.na(fdf$freq[i])) & any(!is.na(fdf_i$freq))) {
+        vtl_i = NA
+        if (any(!is.na(fdf$freq[i])) && any(!is.na(fdf_i$freq))) {
           if (interceptZero) {
-            mod_i = suppressWarnings(lm(freq ~ -1 + formantSpacing, fdf_i))
-            vtl_i = speedSound / 2 / suppressWarnings(summary(mod_i)$coef[1])
+            mod_i = try(suppressWarnings(
+              lm(freq ~ -1 + formantSpacing, fdf_i)), silent = TRUE)
+            if (!inherits(mod_i, 'try-error')) {
+              sum_mod_i = suppressWarnings(summary(mod_i)$coef)
+              vtl_i = speedSound / 2 / sum_mod_i[1, 1]
+            }
           } else {
-            mod_i = suppressWarnings(lm(freq ~ formantSpacing, fdf_i))
-            vtl_i = speedSound / 2 / suppressWarnings(summary(mod_i)$coef[2])
+            mod_i = try(suppressWarnings(
+              lm(freq ~ formantSpacing, fdf_i)), silent = TRUE)
+            if (!inherits(mod_i, 'try-error')) {
+              sum_mod_i = suppressWarnings(summary(mod_i)$coef)
+              if (nrow(sum_mod_i) == 2) vtl_i = speedSound / 2 / sum_mod_i[2, 1]
+            }
           }
           fdf$infl[i] = abs(vtl_full - vtl_i) / vtl_full * 10 + 1
         }
       }
     }
     if (plot) {
+      oldpar = par()$mfrow
       par(mfrow = c(1, 2))
+      on.exit(par(mfrow = oldpar))
       plot(
         fdf$formantSpacing, fdf$freq,
         type = 'n',
@@ -572,40 +614,43 @@ getFormantDispersion = function(
         xlim = c(0, tail(fdf$formantSpacing, 1) + 1),
         ylim = c(0, max(fdf$freq, na.rm = TRUE) * 1.2),
         main = paste0('Formant dispersion = ',
-                      round(formantDispersion, 0),
+                      round(dF, 0),
                       ' Hz')
       )
       text(
         fdf$formantSpacing, fdf$freq,
         labels = fdf$formant,
-        cex = fdf$infl # cooks.distance(mod) + 1
+        cex = ifelse(is.finite(fdf$infl), fdf$infl, 1) # cooks.distance(mod) + 1
       )
       # for closed-open tubes we don't expect formant freqs to be integer
       # multiples - could be harmonics instead of formants, show with a blue
       # line
-      if (length(formants) > 1 & is.finite(formants$f1$freq[1]) &
+      f1freq = if (!is.null(formants$f1$freq)) formants$f1$freq[1] else NA
+      if (length(formants) > 1 && is.finite(f1freq) &&
           tube %in% c('closed-open', 'open-closed'))
-        abline(formants$f1$freq[1] / 2, formants$f1$freq[1],
-               lty = 3, col = 'blue')
+        abline(f1freq / 2, f1freq, lty = 3, col = 'blue')
+
       if (method == 'regression') {
         if (interceptZero) {
-          abline(a = 0, b = formantDispersion, lty = 2, lwd = 2)
+          if (is.finite(dF)) abline(a = 0, b = dF, lty = 2, lwd = 2)
         } else {
-          abline(summary(mod)$coef[, 1], lty = 2, lwd = 2)
+          co = coef(mod)
+          if (length(co) == 2 && all(is.finite(co)))
+            abline(co, lty = 2, lwd = 2)
         }
       }
       plot(vf, type = 'b',
            xlab = 'Number of formants used',
            ylab = 'VTL estimate, cm',
-           main = paste('VTL =', round(speedSound / 2 / formantDispersion, 1), 'cm'))
-      par(mfrow = c(1, 1))
+           main = paste('VTL =', round(speedSound / 2 / dF, 1), 'cm'))
     }
+
     if (output == 'detailed') {
-      formantDispersion = list(formantDispersion = formantDispersion,
-                               formantDispersion_95CI = ci,
-                               regressionInfo = fdf,
-                               vtlPerFormant = vf)
+      dF = list(dF = dF,
+                dF_95CI = ci,
+                regressionInfo = fdf,
+                vtlPerFormant = vf)
     }
   }
-  formantDispersion
+  dF
 }

@@ -7,11 +7,11 @@
 #' algorithms for "guessing" the phase that would produce an audio whose
 #' magnitude spectrogram is very similar to the target spectrogram. Useful for
 #' certain filtering operations that modify the magnitude spectrogram followed
-#' by inverse STFT, such as filtering in the spectrotemporal modulation domain.
+#' by inverse STFT, such as filtering in the spectro-temporal modulation domain.
 #'
 #' Algorithm: takes the spectrogram, makes an initial guess at the phase (zero,
 #' noise, or a more intelligent estimate by the SPSI algorithm), fine-tunes over
-#' `nIter` iterations with the GL algorithm, reconstructs the complex
+#' \code{nIter} iterations with the GL algorithm, reconstructs the complex
 #' spectrogram using the best phase estimate, and performs inverse STFT. The
 #' single-pass spectrogram inversion (SPSI) algorithm is implemented as
 #' described in Beauregard et al. (2015) following the python code at
@@ -28,93 +28,148 @@
 #'   spectrogram inversion. In 2015 IEEE International Conference on Digital
 #'   Signal Processing (DSP) (pp. 427-431). IEEE.
 #' }
-#' @return Returns the reconstructed audio as a numeric vector.
+#'
 #' @param spec the spectrogram that is to be transform to a time series: numeric
-#'   matrix with frequency bins in rows and time frames in columns
-#' @inheritParams spectrogram
-#' @param specType the scale of target spectroram: 'abs' = absolute, 'log' =
-#'   log-transformed, 'dB' = in decibels
-#' @param initialPhase initial phase estimate: "zero" = set all phases to zero;
-#'   "random" = Gaussian noise; "spsi" (default) = single-pass spectrogram
-#'   inversion (Beauregard et al., 2015)
+#'   matrix of real value (no phase) with frequency bins in rows (kHz) and time
+#'   frames in columns (ms)
+#' @param samplingRate sampling rate (not needed if the spectrogram has rownames
+#'   corresponding to frequency bins with the last one at Nyquist = samplingRate
+#'   / 2)
+#' @param windowLength,step,overlap,wn STFT parameters used to create the original
+#'   spectrogram; make sure \code{zp = 0}
+#' @param specScale the scale of target spectrogram: 'spec' = untransformed
+#'   amplitude spectrum, 'power' = power spectrum, 'log' = log-transformed, 'dB'
+#'   = in decibels
+#' @param initialPhase initial phase estimate: "spsi" (default) = single-pass
+#'   spectrogram inversion (Beauregard et al., 2015); "zero" = set all phases to
+#'   zero; "random" = Gaussian noise
 #' @param nIter the number of iterations of the GL algorithm (Griffin & Lim,
 #'   1984), 0 = don't run
 #' @param normalize if TRUE, normalizes the output to range from -1 to +1
 #' @param play if TRUE, plays back the reconstructed audio
 #' @param verbose if TRUE, prints estimated time left every 10\% of GL
 #'   iterations
-#' @param plotError if TRUE, produces a scree plot of squared error over GL
-#'   iterations (useful for choosing `nIter`)
+#' @param plotError if TRUE, plots the error during GL iterations and prints the
+#'   final reconstruction error (useful for choosing nIter)
+#'
+#' @return Reconstructed audio as a numeric vector.
 #' @export
 #' @examples
-#' # Create a spectrogram
+#' # Create a spectrogram. NB: do NOT use zero-padding
 #' samplingRate = 16000
 #' windowLength = 40
-#' overlap = 75
+#' step = 5
 #' wn = 'gaussian'
+#' # NB: the more detailed a spectrogram, the more precisely it can be inverted,
+#' # so a relatively long window AND a short step make for best results
 #'
-#' s = soundgen(samplingRate = samplingRate, addSilence = 100)
+#' s = soundgen(samplingRate = samplingRate, addSilence = 50)
 #' spec = spectrogram(s, samplingRate = samplingRate,
-#'   wn = wn, windowLength = windowLength, step = NULL, overlap = overlap,
+#'   wn = wn, windowLength = windowLength, step = step,
+#'   zp = 0,  # otherwise it changes the window length and messes up istft
 #'   padWithSilence = FALSE, output = 'original')
 #'
 #' # Invert the spectrogram, attempting to guess the phase
-#' # Note that samplingRate, wn, windowLength, and overlap must be the same as
-#' # in the original (ie you have to know how the spectrogram was created)
+#' # Note that we need to know the original windowLength, step, and wn
+#' # (i.e., you have to know how the spectrogram was created)
 #' s_new = invertSpectrogram(spec, samplingRate = samplingRate,
-#'   windowLength = windowLength, overlap = overlap, wn = wn,
-#'   initialPhase = 'spsi', nIter = 100, specType = 'abs', play = FALSE)
+#'   windowLength = windowLength, step = step, wn = wn,
+#'   initialPhase = 'spsi', nIter = 50, play = FALSE)
 #'
 #' # Verify the quality of audio reconstruction
 #' # playme(s, samplingRate); playme(s_new, samplingRate)
+#'
+#' \dontrun{
+#' # to improve the quality of reconstruction, increase the number of iterations
+#' s_new = invertSpectrogram(spec, samplingRate = samplingRate,
+#'   windowLength = windowLength, step = step, wn = wn,
+#'   initialPhase = 'spsi', nIter = 500, play = FALSE)
+#' playme(s, samplingRate); playme(s_new, samplingRate)
+#' spectrogram(s, samplingRate)
+#' spectrogram(s_new, samplingRate)
+#' }
 invertSpectrogram = function(
     spec,
-    samplingRate,
+    samplingRate = NULL,
     windowLength,
-    overlap,
-    step = NULL,
-    wn = 'hanning',
-    specType = c('abs', 'log', 'dB')[1],
-    initialPhase = c('zero', 'random', 'spsi')[3],
+    step,
+    overlap = NULL,
+    wn,
+    specScale = c('spec', 'power', 'log', 'dB'),
+    initialPhase = c('spsi', 'random', 'zero'),
     nIter = 50,
     normalize = TRUE,
-    play = TRUE,
+    play = FALSE,
     verbose = FALSE,
     plotError = TRUE) {
+  specScale = match.arg(specScale)
+  initialPhase = match.arg(initialPhase)
   nr = nrow(spec)  # frequency bins
   nc = ncol(spec)  # time frames
-  if (is.null(step)) step = windowLength * (1 - overlap / 100)
+  max_freq = as.numeric(rownames(spec)[nr])
+  if (is.null(samplingRate)) {
+    if (is.na(max_freq)) {
+      stop('samplingRate not specified, and no rownames with frequency labels')
+    }
+    # Heuristic: if max freq > 100, assume labels are in Hz, else kHz
+    samplingRate = if (max_freq > 100) max_freq * 2 else max_freq * 2000
+  }
+  if (is.null(step)) {
+    if (is.null(overlap)) {
+      stop('Need to specify either step or overlap')
+    } else {
+      step = windowLength * (1 - overlap / 100)
+    }
+  }
   step_points = round(step / 1000 * samplingRate)
-  windowLength_points = round(windowLength / 1000 * samplingRate)
+  wl = round(windowLength / 1000 * samplingRate)
+
 
   # Rescale the spectrogram
-  if (specType == 'log') {
+  if (specScale == 'log') {
     spec = exp(spec)
-  } else if (specType == 'dB') {
+  } else if (specScale == 'dB') {
     spec = 10 ^ (spec / 20)
+  } else if (specScale == 'power') {
+    spec = sqrt(spec)
+  } else if (specScale == 'spec') {
+  } else {
+    stop('specScale not recognized')
   }
 
   # Set the phase to zero / Gaussian noise / an intelligent guess
   if (initialPhase == 'zero') {
     phase_init = matrix(0, nrow = nr, ncol = nc)
   } else if (initialPhase == 'random') {
-    phase_init = matrix(rnorm(nr * nc), nrow = nr, ncol = nc)
+    phase_init = matrix(runif(nr * nc, -pi, pi), nrow = nr, ncol = nc)
   } else if (initialPhase == 'spsi') {
     phase_init = guessPhase_spsi(spec = spec,
-                                 windowLength_points = windowLength_points,
+                                 wl = wl,
                                  step_points = step_points)
-  } else {
-    stop("initialPhase can be 'zero', 'random', or 'spsi'")
+  }
+
+  # Set the phase at DC and Nyquist to 0 to get all-real output
+  phase_init[1, ] = 0
+  if (wl %% 2 == 0) phase_init[nr, ] = 0
+
+  # To speed up phase-guessing, reconstruct the full spectrogram with both
+  # positive and negative frequencies (see istft_simple)
+  if (wl %% 2 == 0) {  # even wl
+    spec_full = rbind(spec, spec[(nr - 1):2, ])
+    phase_init = rbind(phase_init, -phase_init[(nr - 1):2, , drop = FALSE])
+  } else {  # odd wl
+    spec_full = rbind(spec, spec[nr:2, ])
+    phase_init = rbind(phase_init, -phase_init[nr:2, , drop = FALSE])
   }
 
   # Fine-tune the phase with an iterative algorithm
   if (nIter > 0) {
-    gl = guessPhase_GL(spec = spec,
+    gl = guessPhase_GL(spec = spec_full,
                        phase = phase_init,
                        nIter = nIter,
                        samplingRate = samplingRate,
+                       wl = wl,
                        step_points = step_points,
-                       overlap = overlap,
                        wn = wn,
                        verbose = verbose,
                        plotError = plotError)
@@ -123,33 +178,33 @@ invertSpectrogram = function(
     phase = phase_init
   }
 
+  # Euler's formula - get complex spectrum from magnitude and phase
+  spec_complex = spec_full * exp(1i * phase)
+
   # Inverse STFT
-  spec_complex = spec * exp(1i * phase)
-  out = as.numeric(seewave::istft(spec_complex,
-                                  f = samplingRate,
-                                  ovlp = overlap,
-                                  wn = wn,
-                                  wl = windowLength_points, # nrow(spec_complex) * 2,
-                                  output = 'matrix'))
+  out = istft_simple(spec_complex, wl = wl,
+                     step = step_points, wn = wn, type = "full")
   if (normalize) out = out / max(abs(out))
 
   # Play the reconstructed audio
-  if (play == TRUE) {
+  if (isTRUE(play)) {
     playme(out, samplingRate = samplingRate)
-  }
-  if (is.character(play)) {
+    # spectrogram(out, samplingRate, yScale = 'bark')
+  } else if (is.character(play)) {
     playme(out, samplingRate = samplingRate, player = play)
   }
 
   # Show the error
   if (plotError) {
-    spec_new = spectrogram(
-      out, samplingRate = samplingRate, wn = wn,
-      windowLength = windowLength, step = NULL, overlap = overlap,
-      padWithSilence = FALSE, plot = FALSE, output = 'original') # abs(spec_complex)
+    spec_new = stft_simple(out, wl = wl,
+                           step = step_points, wn = wn)
+    spec_new = Mod(spec_new[1:nr, ])
     m = min(ncol(spec), ncol(spec_new))
-    err = sum((spec[, 1:m] - spec_new[, 1:m])^2) / sum(spec[, 1:m]^2) * 100
-    print(paste0('Square error for input vs reconstructed spectrogram = ', round(err, 1), '%'))
+    m1 = spec[, 1:m] / max(spec[, 1:m])
+    m2 = spec_new[, 1:m] / max(spec_new[, 1:m])
+    err = sum((m1 - m2)^2) / sum(m1 ^ 2) * 100
+    print(paste0('Square error for input vs reconstructed spectrogram = ',
+                 round(err, 1), '%'))
   }
 
   invisible(out)
@@ -158,41 +213,42 @@ invertSpectrogram = function(
 
 #' Guess phase SPSI
 #'
-#' Internal soundgen function.
-#'
 #' Single-pass spectrogram inversion as described in Beauregard, G. T., Harish,
 #' M., & Wyse, L. (2015, July). Single pass spectrogram inversion. In 2015 IEEE
 #' International Conference on Digital Signal Processing (DSP) (pp. 427-431).
 #' IEEE. See \code{\link{invertSpectrogram}} for details.
 #' @inheritParams invertSpectrogram
-#' @return Returns a matrix of the same dimensions as `spec` containing the
-#'   guessed phase.
-#' @param windowLength_points STFT window length in points
+#' @return A matrix of the same dimensions as spec containing the guessed
+#'   phase.
+#' @param wl STFT window length in points
 #' @param step_points STFT step in points
-#' @keywords internal
+#' @noRd
 guessPhase_spsi = function(spec,
-                           windowLength_points,
+                           wl,
                            step_points) {
   nr = nrow(spec)  # frequency bins
   nc = ncol(spec)  # time frames
   phaseAccumulator = rep(0, nr)
   phase = matrix(0, nrow = nr, ncol = nc)
 
+  # Not enough bins for peak detection
+  if (nr < 3) return(phase)
+
   for (i in 1:nc) {
     spec_i = spec[, i]  # magnitude spectrum of frame i
     # plot(spec_i, type = 'b')
     for (j in 2:(nr - 1)) {  # for all freq bins except first and last
-      is_peak = .subset2(spec_i, j) > .subset2(spec_i, j - 1) &
-        .subset2(spec_i, j) > .subset2(spec_i, j + 1)
+      is_peak = spec_i[j] > spec_i[j - 1] &
+        spec_i[j] > spec_i[j + 1]
       if (is_peak) {
         # find the true freq of the peak (may be b/w bins)
-        alpha = .subset2(spec_i, j - 1)
-        beta = .subset2(spec_i, j)
-        gamma = .subset2(spec_i, j + 1)
+        alpha = spec_i[j - 1]
+        beta = spec_i[j]
+        gamma = spec_i[j + 1]
         denom = alpha - 2 * beta + gamma
         p = ifelse(denom == 0, 0, 0.5 * (alpha - gamma) / denom)
         # p is the estimated true peak frequency
-        adjustedPhaseRate = 2 * pi * (j + p) / windowLength_points
+        adjustedPhaseRate = 2 * pi * (j - 1 + p) / wl
         phaseAccumulator[j] = phaseAccumulator[j] + step_points * adjustedPhaseRate
         peakPhase = phaseAccumulator[j]
 
@@ -202,7 +258,7 @@ guessPhase_spsi = function(spec,
 
           # Bins to the left have shift of pi
           bin = j - 1
-          while ((bin > 2) && (.subset2(spec_i, bin) < .subset2(spec_i, bin + 1))) {
+          while ((bin > 1) && (spec_i[bin] < spec_i[bin + 1])) {
             # until the first trough
             phaseAccumulator[bin] = peakPhase + pi
             bin = bin - 1
@@ -210,7 +266,7 @@ guessPhase_spsi = function(spec,
 
           # Bins to the right (beyond the first) have 0 shift
           bin = j + 2
-          while ((bin < nr) && (.subset2(spec_i, bin) < .subset2(spec_i, bin - 1))) {
+          while ((bin < nr) && (spec_i[bin] < spec_i[bin - 1])) {
             phaseAccumulator[bin] = peakPhase
             bin = bin + 1
           }
@@ -221,23 +277,26 @@ guessPhase_spsi = function(spec,
 
           # same for bins to the right
           bin = j + 1
-          while ((bin < nr) && (.subset2(spec_i, bin) < .subset2(spec_i, bin - 1))) {
+          while ((bin < nr) && (spec_i[bin] < spec_i[bin - 1])) {
             phaseAccumulator[bin] = peakPhase + pi
             bin = bin + 1
           }
 
           # Bins further to the left have zero shift
           bin = j - 2
-          while ((bin > 2) && (.subset2(spec_i, bin) < .subset2(spec_i, bin + 1))) {  # until trough
+          while ((bin > 1) && (spec_i[bin] < spec_i[bin + 1])) {  # until trough
             phaseAccumulator[bin] = peakPhase
             bin = bin - 1
           }
         }
       }
     }
-
+    #  remove dc and nyquist
+    phaseAccumulator[1] = 0
+    if (wl %% 2 == 0) phaseAccumulator[nr] = 0
     spec_complex = spec_i * exp(1i * phaseAccumulator)  # Euler's formula
-    spec_complex[c(1, nr)] = 0  #  remove dc and nyquist
+    spec_complex[1] = 0
+    if (wl %% 2 == 0) spec_complex[nr] = 0
     phase[, i] = Arg(spec_complex)
   }
   phase
@@ -246,75 +305,61 @@ guessPhase_spsi = function(spec,
 
 #' Guess phase GL
 #'
-#' Internal soundgen function
-#'
 #' Uses the iterative method proposed by Griffin & Lim (1984) to guess the phase
 #' of a magnitude spectrogram.
 #' @inheritParams invertSpectrogram
 #' @inheritParams guessPhase_spsi
 #' @param phase an initial guess at the phase: numeric matrix of the same dimensions as spec
-#' @return Returns a matrix of the same dimensions as `spec` containing the
-#'   guessed phase.
-#' @keywords internal
+#' @return A matrix of the same dimensions as spec containing the guessed
+#'   phase.
+#' @noRd
 guessPhase_GL = function(spec,
                          phase,
                          nIter,
                          samplingRate,
-                         overlap,
-                         wn,
+                         wl,
                          step_points,
+                         wn,
                          verbose = TRUE,
                          plotError = TRUE) {
-  windowLength_points = nrow(spec) * 2  # otherwise vulnerable to rounding error
-  step_seq = NULL
-  squareError = rep(NA, nIter)
+  # wl = nrow(spec) * 2  # otherwise vulnerable to rounding error
+  correl = rep(NA, nIter)
   time_start = proc.time()
 
   for (i in 1:nIter) {
     # Euler's formula - get complex spectrum from magnitude and phase
     spec_complex = spec * exp(1i * phase)
     # Inverse STFT to a candidate time series
-    x = seewave::istft(spec_complex,
-                       f = samplingRate,
-                       ovlp = overlap,
-                       wn = wn,
-                       wl = windowLength_points,
-                       output = 'matrix')
+    x = istft_simple(spec_complex, wl = wl,
+                     step = step_points, wn = wn, type = "full")
 
     # STFT of the candidate time series
-    if (is.null(step_seq)) {
-      step_seq = seq(1, length(x) + 1 - windowLength_points, length.out = ncol(spec))
-      # NB: length.out ensures that the dims are the same (rounding error etc ±1)
-    }
-    spec_new = seewave::stdft(wave = as.matrix(x),
-                              wn = wn,
-                              wl = windowLength_points,
-                              f = samplingRate,
-                              zp = 0,
-                              step = step_seq,
-                              scale = TRUE,
-                              norm = FALSE,
-                              complex = TRUE)
+    spec_new = stft_simple(x, samplingRate = samplingRate,
+                           wl = wl, step = step_points, wn = wn)
 
     # Set phase to that of the new spectrogram
     phase = Arg(spec_new)
 
     # Calculate error
     if (plotError) {
-      squareError[i] = log(sum((abs(spec_new) - spec) ^ 2))
+      # squareError[i] = sum((spec - Mod(spec_new))^2) / sum(spec^2) * 100 / 2
+      # RMS error requires normalizing the spectrograms - expensive
+      correl[i] = cor(as.numeric(spec), as.numeric(Mod(spec_new)))
     }
 
     # Report progress
     if (verbose) {
       reportTime(i = i, nIter = nIter,
-                 time_start = time_start, reportEvery = round(i / 10))
+                 time_start = time_start, reportEvery = ceiling(i / 10))
     }
   }
   # Plot square errors per iteration
   if (plotError) {
-    plot(1:nIter, squareError, type = 'b',
-         xlab = 'GL iteration', ylab = 'Square error',
-         main = 'Improvement in fit')
+    plot(1:nIter, correl, type = 'l',
+         xlab = 'GL iteration', ylab = 'Cor. with orig. spectrogram',
+         main = 'Improvement in fit',
+         ylim = c(min(correl), 1),
+         yaxs = 'i')
   }
-  list(phase = phase, squareError = squareError)
+  list(phase = phase, correl = correl)
 }

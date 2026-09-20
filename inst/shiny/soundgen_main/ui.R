@@ -1,5 +1,6 @@
 library(bslib)
 tooltip_opt = list(trigger = 'hover', delay = list(show = 500, hide = 100))
+pv = soundgen:::permittedValues
 
 ui = page_fluid(
   # headerPanel('soundgen v...'),
@@ -19,37 +20,37 @@ ui = page_fluid(
                 tags$h3("Syllables"),
                 sliderInput(
                   'sylLen', 'Syllable length, ms ("sylLen")',
-                  value = permittedValues['sylLen','default'],
-                  min = permittedValues['sylLen', 'low'],
-                  max = permittedValues['sylLen', 'high'],
-                  step = permittedValues['sylLen','step']) |>
+                  value = pv['sylLen','default'],
+                  min = pv['sylLen', 'low'],
+                  max = pv['sylLen', 'high'],
+                  step = pv['sylLen','step']) |>
                   tooltip("Average duration of a continuous VOICED syllable
                           (aperiodic noise is added separately and may fill in
                           the pauses)", options = tooltip_opt),
 
                 sliderInput(
                   'nSyl', 'Number of syllables ("nSyl")',
-                  value = permittedValues['nSyl','default'],
-                  min = permittedValues['nSyl', 'low'],
-                  max = permittedValues['nSyl', 'high'],
-                  step = permittedValues['nSyl','step']) |>
+                  value = pv['nSyl','default'],
+                  min = pv['nSyl', 'low'],
+                  max = pv['nSyl', 'high'],
+                  step = pv['nSyl','step']) |>
                   tooltip("Each sound consists of one or several syllables
                           separated by pauses", options = tooltip_opt),
 
                 sliderInput(
                   'pauseLen', 'Pause, ms ("pauseLen")',
-                  value = permittedValues['pauseLen','default'],
-                  min = permittedValues['pauseLen', 'low'],
-                  max = permittedValues['pauseLen', 'high'],
-                  step = permittedValues['pauseLen','step']) |>
+                  value = pv['pauseLen','default'],
+                  min = pv['pauseLen', 'low'],
+                  max = pv['pauseLen', 'high'],
+                  step = pv['pauseLen','step']) |>
                   tooltip("Average pause between syllables", options = tooltip_opt),
 
                 sliderInput(
                   'repeatBout', 'Repeat bout # times ("repeatBout")',
-                  value = permittedValues['repeatBout','default'],
-                  min = permittedValues['repeatBout', 'low'],
-                  max = permittedValues['repeatBout', 'high'],
-                  step = permittedValues['repeatBout','step']) |>
+                  value = pv['repeatBout','default'],
+                  min = pv['repeatBout', 'low'],
+                  max = pv['repeatBout', 'high'],
+                  step = pv['repeatBout','step']) |>
                   tooltip("Play the whole bout several times", options = tooltip_opt)
               ),
 
@@ -68,29 +69,29 @@ ui = page_fluid(
                 tags$h3("Hypers"),
                 sliderInput(
                   'temperature', 'Temperature ("temperature")',
-                  value = permittedValues['temperature','default'],
-                  min = permittedValues['temperature', 'low'],
-                  max = permittedValues['temperature', 'high'],
-                  step = permittedValues['temperature','step']) |>
+                  value = pv['temperature','default'],
+                  min = pv['temperature', 'low'],
+                  max = pv['temperature', 'high'],
+                  step = pv['temperature','step']) |>
                   tooltip("The degree to which all specified parameters
                           vary stochastically", options = tooltip_opt),
 
                 sliderInput(
                   'maleFemale', 'Male-female *hyper* ("maleFemale")',
-                  value = permittedValues['maleFemale','default'],
-                  min = permittedValues['maleFemale', 'low'],
-                  max = permittedValues['maleFemale', 'high'],
-                  step = permittedValues['maleFemale','step']) |>
+                  value = pv['maleFemale','default'],
+                  min = pv['maleFemale', 'low'],
+                  max = pv['maleFemale', 'high'],
+                  step = pv['maleFemale','step']) |>
                   tooltip("Adjusts vocal tract length, pitch contour, and formants
                           to imitate larger/smaller body size", options = tooltip_opt),
 
                 sliderInput(
                   'creakyBreathy',
                   'Creaky-breathy *hyper* ("creakyBreathy")',
-                  value = permittedValues['creakyBreathy','default'],
-                  min = permittedValues['creakyBreathy', 'low'],
-                  max = permittedValues['creakyBreathy', 'high'],
-                  step = permittedValues['creakyBreathy','step']) |>
+                  value = pv['creakyBreathy','default'],
+                  min = pv['creakyBreathy', 'low'],
+                  max = pv['creakyBreathy', 'high'],
+                  step = pv['creakyBreathy','step']) |>
                   tooltip("Changes several parameters to make the VOICED component
                           either constricted (creaky) or breathy", options = tooltip_opt)
               ),
@@ -111,10 +112,10 @@ ui = page_fluid(
                 numericInput(
                   'samplingRate',
                   'Sampling rate, Hz ("samplingRate")',
-                  value = permittedValues['samplingRate','default'],
-                  min = permittedValues['samplingRate', 'low'],
-                  max = permittedValues['samplingRate', 'high'],
-                  step = permittedValues['samplingRate','step']) |>
+                  value = pv['samplingRate','default'],
+                  min = pv['samplingRate', 'low'],
+                  max = pv['samplingRate', 'high'],
+                  step = pv['samplingRate','step']) |>
                   tooltip("The number of points per second of audio. Higher = better quality;
                           lower = faster. Can be any integer, not necessarily a power of two.",
                           options = tooltip_opt),
@@ -122,41 +123,41 @@ ui = page_fluid(
                 numericInput(
                   'windowLength',
                   'FFT window length, ms ("windowLength")',
-                  value = permittedValues['windowLength','default'],
-                  min = permittedValues['windowLength', 'low'],
-                  max = permittedValues['windowLength', 'high'],
-                  step = permittedValues['windowLength','step']) |>
+                  value = pv['windowLength','default'],
+                  min = pv['windowLength', 'low'],
+                  max = pv['windowLength', 'high'],
+                  step = pv['windowLength','step']) |>
                   tooltip("The length of window for performing FFT - inverse FFT when
                           filtering the source", options = tooltip_opt),
 
                 numericInput(
                   'pitchSamplingRate',
                   'Pitch sampling rate, Hz ("pitchSamplingRate")',
-                  value = permittedValues['pitchSamplingRate', 'default'],
-                  min = permittedValues['pitchSamplingRate', 'low'],
-                  max = permittedValues['pitchSamplingRate', 'high'],
-                  step = permittedValues['pitchSamplingRate', 'step']) |>
+                  value = pv['pitchSamplingRate', 'default'],
+                  min = pv['pitchSamplingRate', 'low'],
+                  max = pv['pitchSamplingRate', 'high'],
+                  step = pv['pitchSamplingRate', 'step']) |>
                   tooltip("The number of considered F0 values per s of audio. Set up to
                           samplingRate for max precision, but at least >= pitchCeiling",
                           options = tooltip_opt),
 
                 numericInput(
                   'dynamicRange', 'Dynamic range, dB ("dynamicRange")',
-                  value = permittedValues['dynamicRange', 'default'],
-                  min = permittedValues['dynamicRange', 'low'],
-                  max = permittedValues['dynamicRange', 'high'],
-                  step = permittedValues['dynamicRange', 'step']) |>
+                  value = pv['dynamicRange', 'default'],
+                  min = pv['dynamicRange', 'low'],
+                  max = pv['dynamicRange', 'high'],
+                  step = pv['dynamicRange', 'step']) |>
                   tooltip("Discard everything more than dynamicRange dB under
                           maximum amplitude", options = tooltip_opt),
 
                 sliderInput(
                   'pitchFloorCeiling',
                   'Synthesized pitch range, Hz ("pitchFloorCeiling")',
-                  value=c(permittedValues['pitch', 'low'],
-                          permittedValues['pitch', 'high']),
-                  min = permittedValues['pitch', 'low'],
+                  value=c(pv['pitch', 'low'],
+                          pv['pitch', 'high']),
+                  min = pv['pitch', 'low'],
                   max = 8000,
-                  step = permittedValues['pitch', 'step']) |>
+                  step = pv['pitch', 'step']) |>
                   tooltip("Sets the bounds of fundamental frequency for synthesis",
                           options = tooltip_opt)
               ),
@@ -200,9 +201,9 @@ ui = page_fluid(
                 sliderInput(
                   'pitchRange', 'Plotted pitch range, Hz',
                   value = c(75, 150),
-                  min = permittedValues['pitch', 'low'],
-                  max = permittedValues['pitch', 'high'],
-                  step = permittedValues['pitch', 'step']) |>
+                  min = pv['pitch', 'low'],
+                  max = pv['pitch', 'high'],
+                  step = pv['pitch', 'step']) |>
                   tooltip("Set upper / lower limit separately or drag in between the
                           markers to shift both limits simultaneously", options = tooltip_opt)
               )
@@ -242,18 +243,18 @@ ui = page_fluid(
                 tags$h3("Vibrato"),
                 sliderInput(
                   'vibratoFreq', 'Vibrato rate, Hz ("vibratoFreq")',
-                  value = permittedValues['vibratoFreq','default'],
-                  min = permittedValues['vibratoFreq', 'low'],
-                  max = permittedValues['vibratoFreq', 'high'],
-                  step = permittedValues['vibratoFreq','step']) |>
+                  value = pv['vibratoFreq','default'],
+                  min = pv['vibratoFreq', 'low'],
+                  max = pv['vibratoFreq', 'high'],
+                  step = pv['vibratoFreq','step']) |>
                   tooltip("Frequency of regular FM", options = tooltip_opt),
 
                 sliderInput(
                   'vibratoDep', 'Vibrato depth, semitones ("vibratoDep")',
-                  value = permittedValues['vibratoDep','default'],
-                  min = permittedValues['vibratoDep', 'low'],
-                  max = permittedValues['vibratoDep', 'high'],
-                  step = permittedValues['vibratoDep','step']) |>
+                  value = pv['vibratoDep','default'],
+                  min = pv['vibratoDep', 'low'],
+                  max = pv['vibratoDep', 'high'],
+                  step = pv['vibratoDep','step']) |>
                   tooltip("Depth of regular FM", options = tooltip_opt)
               ),
 
@@ -275,10 +276,10 @@ ui = page_fluid(
                 tags$h3("Amplitude: syllable"),
                 sliderInput (
                   'attackLen', 'Attack length, ms ("attackLen")',
-                  value = permittedValues['attackLen','default'],
-                  min = permittedValues['attackLen', 'low'],
-                  max = permittedValues['attackLen', 'high'],
-                  step = permittedValues['attackLen','step']) |>
+                  value = pv['attackLen','default'],
+                  min = pv['attackLen', 'low'],
+                  max = pv['attackLen', 'high'],
+                  step = pv['attackLen','step']) |>
                   tooltip("Does the voice start/end abruptly or with a fade-in/out",
                           options = tooltip_opt),
 
@@ -331,26 +332,26 @@ ui = page_fluid(
                 tags$h3("Amplitude modulation"),
                 sliderInput(
                   'amDep', 'AM depth ("amDep")',
-                  value = permittedValues['amDep','default'],
-                  min = permittedValues['amDep', 'low'],
-                  max = permittedValues['amDep', 'high'],
-                  step = permittedValues['amDep','step']) |>
+                  value = pv['amDep','default'],
+                  min = pv['amDep', 'low'],
+                  max = pv['amDep', 'high'],
+                  step = pv['amDep','step']) |>
                   tooltip("Depth of amplitude modulation", options = tooltip_opt),
 
                 sliderInput(
                   'amFreq', 'AM frequency, Hz ("amFreq")',
-                  value = permittedValues['amFreq','default'],
-                  min = permittedValues['amFreq', 'low'],
-                  max = permittedValues['amFreq', 'high'],
-                  step = permittedValues['amFreq','step']) |>
+                  value = pv['amFreq','default'],
+                  min = pv['amFreq', 'low'],
+                  max = pv['amFreq', 'high'],
+                  step = pv['amFreq','step']) |>
                   tooltip("Frequency of amplitude modulation", options = tooltip_opt),
 
                 sliderInput(
                   'amShape', 'AM shape ("amShape")',
-                  value = permittedValues['amShape','default'],
-                  min = permittedValues['amShape', 'low'],
-                  max = permittedValues['amShape', 'high'],
-                  step = permittedValues['amShape','step']) |>
+                  value = pv['amShape','default'],
+                  min = pv['amShape', 'low'],
+                  max = pv['amShape', 'high'],
+                  step = pv['amShape','step']) |>
                   tooltip("Shape of amplitude modulation: 0 = ~sine, -1 = notches,
                           +1 = clicks", options = tooltip_opt)
               ),
@@ -374,10 +375,10 @@ ui = page_fluid(
                 accordion(
                   sliderInput(
                     'rolloff', 'Source rolloff, dB/octave ("rolloff")',
-                    value = permittedValues['rolloff','default'],
-                    min = permittedValues['rolloff', 'low'],
-                    max = permittedValues['rolloff', 'high'],
-                    step = permittedValues['rolloff','step']) |>
+                    value = pv['rolloff','default'],
+                    min = pv['rolloff', 'low'],
+                    max = pv['rolloff', 'high'],
+                    step = pv['rolloff','step']) |>
                     tooltip("Loss of energy in harmonics relative to fundamental frequency (F0);
                             more negative values emphasize F0", options = tooltip_opt),
 
@@ -386,47 +387,28 @@ ui = page_fluid(
                     sliderInput(
                       'rolloffOct',
                       'Change of rolloff with frequency, dB/octave ("rolloffOct")',
-                      value = permittedValues['rolloffOct','default'],
-                      min = permittedValues['rolloffOct', 'low'],
-                      max = permittedValues['rolloffOct', 'high'],
-                      step = permittedValues['rolloffOct','step']) |>
+                      value = pv['rolloffOct','default'],
+                      min = pv['rolloffOct', 'low'],
+                      max = pv['rolloffOct', 'high'],
+                      step = pv['rolloffOct','step']) |>
                       tooltip("Negative: rolloff is progressively steeper for higher
                               frequencies", options = tooltip_opt),
 
                     sliderInput(
                       'rolloffKHz',
                       'Adjust rolloff per f0,  dB/kHz ("rolloffKHz")',
-                      value = permittedValues['rolloffKHz','default'],
-                      min = permittedValues['rolloffKHz', 'low'],
-                      max = permittedValues['rolloffKHz', 'high'],
-                      step = permittedValues['rolloffKHz','step']) |>
+                      value = pv['rolloffKHz','default'],
+                      min = pv['rolloffKHz', 'low'],
+                      max = pv['rolloffKHz', 'high'],
+                      step = pv['rolloffKHz','step']) |>
                       tooltip("Steeper/gentler basic rolloff as f0 varies", options = tooltip_opt),
 
                     sliderInput(
-                      'rolloffParab',
-                      'Parabolic rolloff adjustment, dB/octave ("rolloffParab")',
-                      value = permittedValues['rolloffParab','default'],
-                      min = permittedValues['rolloffParab', 'low'],
-                      max = permittedValues['rolloffParab', 'high'],
-                      step = permittedValues['rolloffParab','step']) |>
-                      tooltip("Parabolic boost to the first ... harmonics", options = tooltip_opt),
-
-                    sliderInput(
-                      'rolloffParabHarm',
-                      'Harmonics boosted ("rolloffParabHarm")',
-                      value = permittedValues['rolloffParabHarm','default'],
-                      min = permittedValues['rolloffParabHarm', 'low'],
-                      max = permittedValues['rolloffParabHarm', 'high'],
-                      step = permittedValues['rolloffParabHarm','step']) |>
-                      tooltip("Apply a parabolic boost to ... harmonics. See ?getRolloff",
-                              options = tooltip_opt),
-
-                    sliderInput(
                       'glottis', 'Closed glottis, % ("glottis")',
-                      value = permittedValues['glottis', 'default'],
-                      min = permittedValues['glottis', 'low'],
-                      max = permittedValues['glottis', 'high'],
-                      step = permittedValues['glottis','step']) |>
+                      value = pv['glottis', 'default'],
+                      min = pv['glottis', 'low'],
+                      max = pv['glottis', 'high'],
+                      step = pv['glottis','step']) |>
                       tooltip("Proportion of time glottis is closed relative to F0 period;
                               adds silences between glottal pulses", options = tooltip_opt)
                   )
@@ -450,20 +432,20 @@ ui = page_fluid(
                   sliderInput(
                     'nonlinBalance',
                     'Balance between nonlinear regimes, % ("nonlinBalance")',
-                    value = permittedValues['nonlinBalance','default'],
-                    min = permittedValues['nonlinBalance', 'low'],
-                    max = permittedValues['nonlinBalance', 'high'],
-                    step = permittedValues['nonlinBalance','step']) |>
+                    value = pv['nonlinBalance','default'],
+                    min = pv['nonlinBalance', 'low'],
+                    max = pv['nonlinBalance', 'high'],
+                    step = pv['nonlinBalance','step']) |>
                     tooltip("3 regimes of nonlinear effects: none / subharmonics /
                             subharmonics + jitter", options = tooltip_opt),
 
                   sliderInput(
                     'shortestEpoch',
                     'Shortest epoch length, ms ("shortestEpoch")',
-                    value = permittedValues['shortestEpoch','default'],
-                    min = permittedValues['shortestEpoch', 'low'],
-                    max = permittedValues['shortestEpoch', 'high'],
-                    step = permittedValues['shortestEpoch','step']) |>
+                    value = pv['shortestEpoch','default'],
+                    min = pv['shortestEpoch', 'low'],
+                    max = pv['shortestEpoch', 'high'],
+                    step = pv['shortestEpoch','step']) |>
                     tooltip("Change nonlinear regime no sooner than after ... ms",
                             options = tooltip_opt),
 
@@ -472,43 +454,22 @@ ui = page_fluid(
                     sliderInput(
                       'subRatio',
                       'Subharmonic frequency ratio ("subRatio")',
-                      value = permittedValues['subRatio','default'],
-                      min = permittedValues['subRatio', 'low'],
-                      max = permittedValues['subRatio', 'high'],
-                      step = permittedValues['subRatio','step']) |>
+                      value = pv['subRatio','default'],
+                      min = pv['subRatio', 'low'],
+                      max = pv['subRatio', 'high'],
+                      step = pv['subRatio','step']) |>
                       tooltip("f0/g0 ratio: 1 = no subharmonics, 2 = period doubling, etc.",
                               options = tooltip_opt),
 
                     sliderInput(
-                      'subFreq',
-                      'Target subharmonic frequency, Hz (overrides number of subharmonics) ("subFreq")',
-                      value = permittedValues['subFreq','default'],
-                      min = permittedValues['subFreq', 'low'],
-                      max = permittedValues['subFreq', 'high'],
-                      step = permittedValues['subFreq','step']) |>
-                      tooltip("The approximate target frequency of subharmonics;
-                              the actual frequency is forced to be a fraction of f0 at
-                              every time point", options = tooltip_opt),
-
-                    sliderInput(
                       'subDep', 'Depth of subharmonics, % ("subDep")',
-                      value = permittedValues['subDep','default'],
-                      min = permittedValues['subDep', 'low'],
-                      max = permittedValues['subDep', 'high'],
-                      step = permittedValues['subDep','step']) |>
+                      value = pv['subDep','default'],
+                      min = pv['subDep', 'low'],
+                      max = pv['subDep', 'high'],
+                      step = pv['subDep','step']) |>
                       tooltip("The depth of g-harmonics (subharmonics) vs f-harmonics
                               (main frequency component). 0: no subharmonics; 100:
-                              as strong as f-harmonics", options = tooltip_opt),
-
-                    sliderInput(
-                      'subWidth',
-                      'Width of sidebands, Hz ("subWidth")',
-                      value = permittedValues['subWidth','default'],
-                      min = permittedValues['subWidth', 'low'],
-                      max = permittedValues['subWidth', 'high'],
-                      step = permittedValues['subWidth','step']) |>
-                      tooltip("Width of subharmonic sidebands - regulates how rapidly
-                              g-harmonics weaken away from f-harmonics", options = tooltip_opt)
+                              as strong as f-harmonics", options = tooltip_opt)
                   ),
 
                   accordion_panel(
@@ -516,36 +477,36 @@ ui = page_fluid(
                     sliderInput(
                       'jitterDep',
                       'Jitter depth, semitones ("jitterDep")',
-                      value = permittedValues['jitterDep','default'],
-                      min = permittedValues['jitterDep', 'low'],
-                      max = permittedValues['jitterDep', 'high'],
-                      step = permittedValues['jitterDep','step']) |>
+                      value = pv['jitterDep','default'],
+                      min = pv['jitterDep', 'low'],
+                      max = pv['jitterDep', 'high'],
+                      step = pv['jitterDep','step']) |>
                       tooltip("Random variation in F0 per glottal cycle", options = tooltip_opt),
 
                     sliderInput(
                       'jitterLen', 'Jitter period, ms ("jitterLen")',
-                      value = permittedValues['jitterLen','default'],
-                      min = permittedValues['jitterLen', 'low'],
-                      max = permittedValues['jitterLen', 'high'],
-                      step = permittedValues['jitterLen','step']) |>
+                      value = pv['jitterLen','default'],
+                      min = pv['jitterLen', 'low'],
+                      max = pv['jitterLen', 'high'],
+                      step = pv['jitterLen','step']) |>
                       tooltip("f0 jumps every ... ms. Low ~ harsh noise, high ~ shaky voice",
                               options = tooltip_opt),
 
                     sliderInput(
                       'shimmerDep', 'Shimmer depth, % ("shimmerDep")',
-                      value = permittedValues['shimmerDep','default'],
-                      min = permittedValues['shimmerDep', 'low'],
-                      max = permittedValues['shimmerDep', 'high'],
-                      step = permittedValues['shimmerDep','step']) |>
+                      value = pv['shimmerDep','default'],
+                      min = pv['shimmerDep', 'low'],
+                      max = pv['shimmerDep', 'high'],
+                      step = pv['shimmerDep','step']) |>
                       tooltip("Random variation in amplitude per glottal cycle",
                               options = tooltip_opt),
 
                     sliderInput(
                       'shimmerLen', 'Shimmer period, ms ("shimmerLen")',
-                      value = permittedValues['shimmerLen','default'],
-                      min = permittedValues['shimmerLen', 'low'],
-                      max = permittedValues['shimmerLen', 'high'],
-                      step = permittedValues['shimmerLen','step']) |>
+                      value = pv['shimmerLen','default'],
+                      min = pv['shimmerLen', 'low'],
+                      max = pv['shimmerLen', 'high'],
+                      step = pv['shimmerLen','step']) |>
                       tooltip("The amplitude jumps every ... ms. Low ~ harsh noise,
                             high ~ shaky voice", options = tooltip_opt)
                   )
@@ -583,9 +544,9 @@ ui = page_fluid(
                   'noiseTime',
                   'Breathing start / end, ms',
                   value = c(0, 300),
-                  min = -permittedValues['sylLen', 'high'] / 2,
-                  max = permittedValues['sylLen', 'high'],
-                  step = permittedValues['sylLen','step']) |>
+                  min = -pv['sylLen', 'high'] / 2,
+                  max = pv['sylLen', 'high'],
+                  step = pv['sylLen','step']) |>
                   tooltip("Timing of respiration noise relative to the voiced component",
                           options = tooltip_opt)
               )
@@ -604,20 +565,20 @@ ui = page_fluid(
                   sliderInput(
                     'formantDep',
                     'Formant prominence *hyper* ("formantDep")',
-                    value = permittedValues['formantDep','default'],
-                    min = permittedValues['formantDep', 'low'],
-                    max = permittedValues['formantDep', 'high'],
-                    step = permittedValues['formantDep','step']) |>
+                    value = pv['formantDep','default'],
+                    min = pv['formantDep', 'low'],
+                    max = pv['formantDep', 'high'],
+                    step = pv['formantDep','step']) |>
                     tooltip("Multiply formant amplitudes by ... (>1 = emphasize vowel quality)",
                             options = tooltip_opt),
 
                   sliderInput(
                     'formantWidth',
                     'Formant width *hyper* ("formantWidth")',
-                    value = permittedValues['formantWidth','default'],
-                    min = permittedValues['formantWidth', 'low'],
-                    max = permittedValues['formantWidth', 'high'],
-                    step = permittedValues['formantWidth','step']) |>
+                    value = pv['formantWidth','default'],
+                    min = pv['formantWidth', 'low'],
+                    max = pv['formantWidth', 'high'],
+                    step = pv['formantWidth','step']) |>
                     tooltip("Multiply formant bandwidths by ... (>1 = nasalized or muffled)",
                             options = tooltip_opt),
 
@@ -653,37 +614,37 @@ ui = page_fluid(
                     sliderInput(
                       'vocalTract',
                       'The length of vocal tract, cm ("vocalTract")',
-                      value = permittedValues['vocalTract', 'default'],
-                      min = permittedValues['vocalTract', 'low'],
-                      max = permittedValues['vocalTract', 'high'],
-                      step = permittedValues['vocalTract', 'step']) |>
+                      value = pv['vocalTract', 'default'],
+                      min = pv['vocalTract', 'low'],
+                      max = pv['vocalTract', 'high'],
+                      step = pv['vocalTract', 'step']) |>
                       tooltip("Affects default formant spacing at temperature>0",
                               options = tooltip_opt),
 
                     sliderInput(
                       'formantDepStoch',
                       'Added formants, dB ("formantDepStoch")',
-                      value = permittedValues['formantDepStoch','default'],
-                      min = permittedValues['formantDepStoch', 'low'],
-                      max = permittedValues['formantDepStoch', 'high'],
-                      step = permittedValues['formantDepStoch','step']) |>
+                      value = pv['formantDepStoch','default'],
+                      min = pv['formantDepStoch', 'low'],
+                      max = pv['formantDepStoch', 'high'],
+                      step = pv['formantDepStoch','step']) |>
                       tooltip("Amplitude of extra formants added on top of user-specified
                             ones based on the length of vocal tract", options = tooltip_opt),
 
                     sliderInput(
                       'lipRad', 'Lip radiation, dB/oct ("lipRad")',
-                      value = permittedValues['lipRad','default'],
-                      min = permittedValues['lipRad', 'low'],
-                      max = permittedValues['lipRad', 'high'],
-                      step = permittedValues['lipRad','step']) |>
+                      value = pv['lipRad','default'],
+                      min = pv['lipRad', 'low'],
+                      max = pv['lipRad', 'high'],
+                      step = pv['lipRad','step']) |>
                       tooltip("High-pass filter due to lip radiation", options = tooltip_opt),
 
                     sliderInput(
                       'noseRad', 'Nose radiation, dB/oct ("noseRad")',
-                      value = permittedValues['noseRad','default'],
-                      min = permittedValues['noseRad', 'low'],
-                      max = permittedValues['noseRad', 'high'],
-                      step = permittedValues['noseRad','step']) |>
+                      value = pv['noseRad','default'],
+                      min = pv['noseRad', 'low'],
+                      max = pv['noseRad', 'high'],
+                      step = pv['noseRad','step']) |>
                       tooltip("High-pass filter due to nose radiation: added instead of
                             lip radiation when the mouth is closed", options = tooltip_opt)
                   )
@@ -726,10 +687,10 @@ ui = page_fluid(
 
                 sliderInput(
                   'mouthOpenThres', 'Open lips at',
-                  value = permittedValues['mouthOpenThres','default'],
-                  min = permittedValues['mouthOpenThres', 'low'],
-                  max = permittedValues['mouthOpenThres', 'high'],
-                  step = permittedValues['mouthOpenThres','step']) |>
+                  value = pv['mouthOpenThres','default'],
+                  min = pv['mouthOpenThres', 'low'],
+                  max = pv['mouthOpenThres', 'high'],
+                  step = pv['mouthOpenThres','step']) |>
                   tooltip("The degree of mouth opening at which lips separate and
                         start to radiate", options = tooltip_opt)
               ),
@@ -765,10 +726,10 @@ ui = page_fluid(
                   sliderInput(
                     'rolloffNoise',
                     'Linear noise rolloff, dB/oct ("rolloffNoise")',
-                    value = permittedValues['rolloffNoise','default'],
-                    min = permittedValues['rolloffNoise', 'low'],
-                    max = permittedValues['rolloffNoise', 'high'],
-                    step = permittedValues['rolloffNoise','step']) |>
+                    value = pv['rolloffNoise','default'],
+                    min = pv['rolloffNoise', 'low'],
+                    max = pv['rolloffNoise', 'high'],
+                    step = pv['rolloffNoise','step']) |>
                     tooltip("Linear rolloff of the noise component, dB/kHz above 2 kHz
                           (affects both breathing and supra-glottal noise)",
                             options = tooltip_opt),
@@ -776,10 +737,10 @@ ui = page_fluid(
                   sliderInput(
                     'rolloffNoiseExp',
                     'Exponential noise rolloff, dB/oct ("rolloffNoiseExp")',
-                    value = permittedValues['rolloffNoiseExp','default'],
-                    min = permittedValues['rolloffNoiseExp', 'low'],
-                    max = permittedValues['rolloffNoiseExp', 'high'],
-                    step = permittedValues['rolloffNoiseExp','step']) |>
+                    value = pv['rolloffNoiseExp','default'],
+                    min = pv['rolloffNoiseExp', 'low'],
+                    max = pv['rolloffNoiseExp', 'high'],
+                    step = pv['rolloffNoiseExp','step']) |>
                     tooltip("Exponential rolloff of the noise component, dB/oct
                           (affects both breathing and supra-glottal noise)",
                             options = tooltip_opt),
@@ -853,31 +814,31 @@ ui = page_fluid(
             "Show spectrogram controls",
             sliderInput(
               'spec_ylim', 'Frequency range, kHz',
-              value = c(0, permittedValues['spec_ylim', 'default']),
-              min = permittedValues['spec_ylim', 'low'],
-              max = permittedValues['spec_ylim', 'high'],
-              step = permittedValues['spec_ylim', 'step']),
+              value = c(0, pv['spec_ylim', 'default']),
+              min = pv['spec_ylim', 'low'],
+              max = pv['spec_ylim', 'high'],
+              step = pv['spec_ylim', 'step']),
 
             sliderInput(
               'specWindowLength', 'Window length, ms',
-              value = permittedValues['specWindowLength','default'],
-              min = permittedValues['specWindowLength', 'low'],
-              max = permittedValues['specWindowLength', 'high'],
-              step = permittedValues['specWindowLength','step']),
+              value = pv['specWindowLength','default'],
+              min = pv['specWindowLength', 'low'],
+              max = pv['specWindowLength', 'high'],
+              step = pv['specWindowLength','step']),
 
             sliderInput(
               'specContrast', 'Contrast',
-              value = permittedValues['specContrast','default'],
-              min = permittedValues['specContrast', 'low'],
-              max = permittedValues['specContrast', 'high'],
-              step = permittedValues['specContrast','step']),
+              value = pv['specContrast','default'],
+              min = pv['specContrast', 'low'],
+              max = pv['specContrast', 'high'],
+              step = pv['specContrast','step']),
 
             sliderInput(
               'specBrightness', 'Brightness',
-              value = permittedValues['specBrightness','default'],
-              min = permittedValues['specBrightness', 'low'],
-              max = permittedValues['specBrightness', 'high'],
-              step = permittedValues['specBrightness','step']),
+              value = pv['specBrightness','default'],
+              min = pv['specBrightness', 'low'],
+              max = pv['specBrightness', 'high'],
+              step = pv['specBrightness','step']),
 
             radioButtons(
               inputId = 'spec_colorTheme',
@@ -890,7 +851,7 @@ ui = page_fluid(
             radioButtons(
               inputId = 'spec_method', label = "Method",
               choices = c("Spectrum" = "spectrum",
-                          "Spectral derivative" = "spectralDerivative",
+                          "Derivative" = "derivative",
                           "Reassigned" = "reassigned"),
               selected = 'spectrum', inline = TRUE, width = NULL),
 
@@ -903,10 +864,10 @@ ui = page_fluid(
 
             sliderInput(
               'osc_heights', 'Relative size of oscillogram',
-              value = permittedValues['oscHeight','default'],
-              min = permittedValues['oscHeight', 'low'],
-              max = permittedValues['oscHeight', 'high'],
-              step = permittedValues['oscHeight','step']) |>
+              value = pv['oscHeight','default'],
+              min = pv['oscHeight', 'low'],
+              max = pv['oscHeight', 'high'],
+              step = pv['oscHeight','step']) |>
               tooltip("Relative size of spectrogram vs oscillogram", options = tooltip_opt)
           ),
           open = FALSE

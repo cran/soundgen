@@ -10,15 +10,12 @@ getBandwidth(f)
 \item{f}{a vector of formant frequencies, Hz}
 }
 \description{
-Internal soundgen function.
-}
-\details{
 Calculates formant bandwidth as a function of formant frequencies using a
 modified version of TMF-63 formula. Namely, above 500 Hz it follows the
 original formula from Tappert, Martony, and Fant (TMF)-1963, and below 500 Hz
 it applies a correction to allow for energy losses at low frequencies. See
 Khodai-Joopari & Clermont (2002), "Comparison of formulae for estimating
-formant bandwidths". Below 250 Hz the bandwidth is forces to drop again to
+formant bandwidths". Below 250 Hz the bandwidth is forced to drop again to
 avoid very large values near zero (just guesswork!)
 }
 \examples{

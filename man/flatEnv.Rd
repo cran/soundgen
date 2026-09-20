@@ -10,16 +10,16 @@ flatEnv(
   samplingRate = NULL,
   scale = NULL,
   compression = 1,
-  method = c("hil", "rms", "peak")[1],
+  method = c("hil", "rms", "peak"),
   windowLength = 50,
-  windowLength_points = NULL,
   killDC = FALSE,
   dynamicRange = 40,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   col = "blue",
   width = 900,
   height = 500,
@@ -33,16 +33,16 @@ compressor(
   samplingRate = NULL,
   scale = NULL,
   compression = 1,
-  method = c("hil", "rms", "peak")[1],
+  method = c("hil", "rms", "peak"),
   windowLength = 50,
-  windowLength_points = NULL,
   killDC = FALSE,
   dynamicRange = 40,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   col = "blue",
   width = 900,
   height = 500,
@@ -59,8 +59,8 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{compression}{the amount of compression to apply: 0 = none, 1 = maximum}
 
@@ -69,9 +69,6 @@ input vector (only needed if \code{x} is a numeric vector)}
 
 \item{windowLength}{the length of smoothing window, ms}
 
-\item{windowLength_points}{the length of smoothing window, points. If
-specified, overrides \code{windowLength}}
-
 \item{killDC}{if TRUE, dynamically removes DC offset or similar deviations of
 average waveform from zero (see examples)}
 
@@ -79,23 +76,34 @@ average waveform from zero (see examples)}
 not be amplified}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{saveAudio}{full path to the folder in which to save the compressed
-sound(s)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{plot}{if TRUE, plots the original sound, the smoothed envelope, and
 the compressed sound}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{col}{the color of amplitude contours}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{...}{other graphical parameters passed to \code{points()} that control
 the appearance of amplitude contours, eg \code{lwd, lty}, etc.}
@@ -114,9 +122,9 @@ smoothed amplitude envelope (Hilbert, peak or root mean square).
 }
 \examples{
 a = rnorm(500) * seq(1, 0, length.out = 500)
-b = flatEnv(a, 1000, plot = TRUE, windowLength_points = 5)    # too short
-c = flatEnv(a, 1000, plot = TRUE, windowLength_points = 450)  # too long
-d = flatEnv(a, 1000, plot = TRUE, windowLength_points = 100)  # about right
+b = flatEnv(a, 1000, plot = TRUE, windowLength = 5)    # too short
+c = flatEnv(a, 1000, plot = TRUE, windowLength = 450)  # too long
+d = flatEnv(a, 1000, plot = TRUE, windowLength = 100)  # about right
 
 \dontrun{
 s = soundgen(sylLen = 1000, ampl = c(0, -40, 0), plot = TRUE)
@@ -132,15 +140,18 @@ s_flat3 = flatEnv(s, 16000, dynamicRange = 60, plot = TRUE,
 # Remove DC offset
 s1 = c(rep(0, 50), runif(1000, -1, 1), rep(0, 50)) +
      seq(.3, 1, length.out = 1100)
-s2 = flatEnv(s1, 16000, plot = TRUE, windowLength_points = 50, killDC = FALSE)
-s3 = flatEnv(s1, 16000, plot = TRUE, windowLength_points = 50, killDC = TRUE)
+s2 = flatEnv(s1, 16000, plot = TRUE, windowLength = 50, killDC = FALSE)
+s3 = flatEnv(s1, 16000, plot = TRUE, windowLength = 50, killDC = TRUE)
 
 # Compress and save all audio files in a folder
 s4 = flatEnv('~/Downloads/temp',
              method = 'peak', compression = .5,
-             saveAudio = '~/Downloads/temp/compressed',
-             savePlots = '~/Downloads/temp/compressed',
+             saveAudio = TRUE,
+             savePlots = TRUE,
              col = 'green', lwd = 5)
 osc(s4[[1]])
 }
+}
+\seealso{
+\code{\link{transplantEnv}}
 }

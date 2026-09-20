@@ -8,67 +8,75 @@ getHNR(
   x = NULL,
   samplingRate = NA,
   acf_x = NULL,
-  lag.min = 2,
-  lag.max = length(x),
-  interpol = c("none", "parab", "spline", "sinc")[4],
+  lag_min = 2,
+  lag_max = NULL,
+  interpol = c("sinc", "spline", "parab", "none"),
   wn = "hanning",
-  idx_max = NULL
+  idx_max = NULL,
+  win_sinc = NULL
 )
 }
 \arguments{
-\item{x}{time series (a numeric vector)}
+\item{x}{a numeric vector (time series). Provide either \code{x} or
+\code{acf_x}, not both.}
 
-\item{samplingRate}{sampling rate}
+\item{samplingRate}{sampling rate, Hz}
 
-\item{acf_x}{pre-computed autocorrelation function of input \code{x}, if
-already available}
+\item{acf_x}{pre-computed normalized autocorrelation of \code{x} (e.g.
+from \code{\link{acf_fft}}), if already available. If supplied,
+\code{x} and \code{wn} are ignored for ACF computation.}
 
-\item{lag.min, lag.max}{minimum and maximum lag to consider when looking for
-peaks in the ACF; lag.min = samplingRate/pitchCeiling, lag.max =
-samplingRate/pitchFloor}
+\item{lag_min, lag_max}{minimum and maximum lag (in samples) to search
+for the ACF peak. Defaults: \code{lag_min = 2}, \code{lag_max =
+length(x) / 2} (or \code{length(acf_x)} if \code{acf_x} is given).}
 
-\item{interpol}{method of improving the frequency resolution by interpolating
-the ACF: "none" = don't interpolate; "parab" = parabolic interpolation on
-three points (local peak and its neighbors); "spline" = spline
-interpolation; "sinc" = sin(x)/x interpolation to a continuous function
-followed by a search for local peaks using Brent's method}
+\item{interpol}{method of refining the peak location: \code{'sinc'} =
+windowed sinc interpolation with Brent's search (most accurate);
+\code{'spline'} = cubic spline upsampling; \code{'parab'} = parabolic
+interpolation on three points; \code{'none'} = no interpolation.}
 
-\item{wn}{window applied to \code{x} (unless acf_x is provided instead of x)
-as well as to the sinc interpolation}
+\item{wn}{window function applied to \code{x} before ACF computation
+(ignored when \code{acf_x} is supplied). Also used for the sinc
+interpolation kernel.}
 
-\item{idx_max}{(internal) the index of the peak to investigate, if already
-estimated}
+\item{idx_max}{(internal) the lag of the ACF peak, if already known.
+Skips the peak search.}
+
+\item{win_sinc}{(internal) a pre-computed window of length
+\code{2 * min(250, floor(length(acf_x) / 2))} for the sinc
+interpolation, to avoid rebuilding it on every call. If NULL
+(default), the window is computed internally.}
 }
 \value{
-A list of three components: f0 = frequency corresponding to the peak
-  of the autocorrelation function; max_acf = amplitude of the peak of the
-  autocorrelation function on a scale of (0, 1); HNR = 10 * log10(x / (1 -
-  max_acf)).
+A list: \describe{
+  \item{f0}{frequency (Hz) corresponding to the ACF peak}
+  \item{max_acf}{height of the ACF peak, 0 to 1}
+  \item{HNR}{harmonics-to-noise ratio in dB:
+    \code{10 * log10(max_acf / (1 - max_acf))}}
+}
 }
 \description{
-Calculates the harmonics-to-noise ratio (HNR) - that is, the ratio between
-the intensity (root mean square amplitude) of the harmonic component and the
-intensity of the noise component. Normally called by \code{\link{analyze}}.
+Calculates the harmonics-to-noise ratio (HNR), that is, the ratio of the
+intensity of the harmonic component to the intensity of the noise
+component, following Boersma (1993). Normally called internally by
+\code{\link{analyze}}, but can also be called directly on a time series.
 }
 \examples{
-signal = sin(2 * pi * 150 * (1:16000)/16000)
-signal = signal / sqrt(mean(signal^2))
+signal = sin(2 * pi * 150 * (1:16000) / 16000)
+signal = signal / sqrt(mean(signal ^ 2))
 noise = rnorm(16000)
-noise = noise / sqrt(mean(noise^2))
-SNR = 40
-s = signal + noise * 10^(-SNR/20)
-soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
-lag.max = 16000/75, interpol = 'none')
-soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
-lag.max = 16000/75, interpol = 'parab')
-soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
-lag.max = 16000/75, interpol = 'spline')
-soundgen:::getHNR(s, 16000, lag.min = 16000/1000,
-lag.max = 16000/75, interpol = 'sinc')
+noise = noise / sqrt(mean(noise ^ 2))
+SNR = 40  # ground truth
+s = signal + noise * 10 ^ (-SNR / 20)
+soundgen:::getHNR(s, 16000, lag_min = 16000 / 1000,
+  lag_max = 16000 / 75, interpol = 'none')
+soundgen:::getHNR(s, 16000, lag_min = 16000 / 1000,
+  lag_max = 16000 / 75, interpol = 'sinc')
 }
 \references{
 Boersma, P. (1993). Accurate short-term analysis of the
-  fundamental frequency and the harmonics-to-noise ratio of a sampled sound.
-  In Proceedings of the institute of phonetic sciences (Vol. 17, No. 1193,
-  pp. 97-110).
+  fundamental frequency and the harmonics-to-noise ratio of a sampled
+  sound. In Proceedings of the Institute of Phonetic Sciences (Vol. 17,
+  No. 1193, pp. 97--110).
 }
+\keyword{internal}

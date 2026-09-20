@@ -21,10 +21,10 @@ beat(
 
 \item{pauseLen}{average duration of pauses between syllables, ms}
 
-\item{pitch}{fundamental frequency, Hz - a vector or data.frame(time = ...,
-value = ...)}
+\item{pitch}{fundamental frequency, Hz (numeric vector or anchor format, see
+\code{\link{soundgen}})}
 
-\item{samplingRate}{sampling frequency, Hz}
+\item{samplingRate}{sampling rate of the output (Hz)}
 
 \item{fadeOut}{if TRUE, a linear fade-out is applied to the entire syllable}
 
@@ -34,7 +34,7 @@ of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
 setting another default player for \code{\link[tuneR]{play}}}
 }
 \value{
-Returns a non-normalized waveform centered at zero.
+The synthesized waveform as a numeric vector.
 }
 \description{
 Generates percussive sounds from clicks through drum-like beats to sliding
@@ -64,6 +64,5 @@ s = beat(nSyl = 10, sylLen = 10, pauseLen = 50,
          pitch = c(2300, 300), play = playback)
 }
 \seealso{
-\code{\link{soundgen}} \code{\link{generateNoise}}
-  \code{\link{fart}}
+\code{\link{soundgen}}
 }

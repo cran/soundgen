@@ -8,9 +8,10 @@ timeStretch(
   x,
   stretch = 1,
   samplingRate = NULL,
+  interpol = "splineFC",
   precision = 1000,
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   reportEvery = NULL,
   cores = 1
 )
@@ -21,51 +22,65 @@ timeStretch(
 numeric vectors}
 
 \item{stretch}{1 = no change, >1 = longer, <1 = shorter. Single value, vector,
-or anchor format (see \code{\link{soundgen}})}
+or anchor format (see \code{\link{soundgen}}). Must be positive}
 
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
+\item{interpol}{interpolation method supported by \code{\link{interpolate}}}
+
 \item{precision}{the number of points used for estimating the duration of
 output (more = better, but slower)}
 
-\item{play}{if TRUE, plays the synthesized sound using the default player on
-your system. If character, passed to \code{\link[tuneR]{play}} as the name
-of player to use, eg "aplay", "play", "vlc", etc. In case of errors, try
-setting another default player for \code{\link[tuneR]{play}}}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
+}
+\value{
+The processed waveform as a numeric vector for a single input or a
+  list for multiple outputs. The duration is approximate: the output may end
+  up a few samples shorter than intended if the resampling trajectory reaches
+  the end of the input.
 }
 \description{
 Dynamically time-stretches a sound without preserving its pitch or formants,
 as if gradually changing playback speed. Algorithm: the audio is resampled at
-time-varying steps. This is about 100 times faster than time-stretching with a
-phase vocoder in \code{\link{shiftPitch}}, but pitch and formants cannot be
-preserved, and large stretch factors may cause artifacts due to aliasing.
+time-varying steps. This is about 100 times faster than time-stretching with
+a phase vocoder in \code{\link{shiftPitch}}, but pitch and formants cannot be
+preserved, and compressing the sound (stretch < 1) may cause artifacts due to
+aliasing, since no anti-aliasing filter is applied (low-pass filter the input
+and/or output if needed). The \code{stretch} contour is interpreted over the
+output (stretched) duration, which is why the trajectory differs from
+\code{\link{shiftPitch}} with the same anchors.
 }
 \examples{
-data(sheep, package = 'seewave')  # import a recording from seewave
-# playme(sheep)
-# spectrogram(sheep)
-s1 = timeStretch(sheep, stretch = c(1, 3))
-# playme(s1, sheep@samp.rate)
-# spectrogram(s1, sheep@samp.rate)
+data(speechEx, package = 'soundgen')  # import a recording
+# playme(speechEx)
+# spectrogram(speechEx)
+s1 = timeStretch(speechEx, stretch = c(1, 3))
+# playme(s1, speechEx@samp.rate)
+# spectrogram(s1, speechEx@samp.rate)
 
-# compare to a similar effect achieved with a phase vocoder in pitchShift():
+# compare to a similar effect achieved with a phase vocoder in shiftPitch():
 s2 = shiftPitch(
-  sheep,
+  speechEx,
   timeStretch = c(1, 3),  # from 1 (original) to mult
   multPitch = c(1, 1/3),  # also drop pitch
   multFormants = c(1, 1/3)  # also drop formants (by the same proportion)
 )
-# playme(s2, sheep@samp.rate)
-# spectrogram(s2, sheep@samp.rate)
+# playme(s2, speechEx@samp.rate)
+# spectrogram(s2, speechEx@samp.rate)
 # NB: because the two algorithms calculate transitions between stretch
 # factors in different ways, the duration is not identical, even though the
 # range of pitch change is the same

@@ -11,17 +11,18 @@ resample(
   mult = NULL,
   len = NULL,
   lowPass = TRUE,
+  interpol = "splineFC",
   na.rm = FALSE,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
-  res = NA,
-  ...
+  res = NA
 )
 }
 \arguments{
@@ -33,7 +34,7 @@ numeric vectors}
 numeric vector)}
 
 \item{samplingRate_new}{an alternative to \code{mult} provided that the old
-\code{samplingRate is know} (NB: \code{mult} takes precedence)}
+\code{samplingRate is known} (NB: \code{mult} takes precedence)}
 
 \item{mult}{multiplier of sampling rate: new sampling rate = old sampling
 rate x mult, so 1 = no effect, >1 = upsample, <1 = downsample}
@@ -44,57 +45,80 @@ returns a vector of length \code{len}}
 \item{lowPass}{if TRUE, applies a low-pass filter before decimating or after
 upsampling to avoid aliasing}
 
-\item{na.rm}{if TRUE, NAs are interpolated, otherwise they are preserved in
-the output}
+\item{interpol}{the method of interpolation (only used for upsampling,
+not downsampling); see \link{interpolate} for details}
+
+\item{na.rm}{if TRUE, NAs are linearly interpolated before resampling; if
+FALSE they are preserved in the interpolated output in (approximately) the
+same position}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{saveAudio}{full path to the folder in which to save audio files (one
-per detected syllable)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{...}{other graphical parameters}
+\code{png}}
+}
+\value{
+A numeric vector.
 }
 \description{
-Changes the sampling rate without introducing artefacts like aliasing. Best
-for relatively short vectors that require special care (eg pitch contours
-that contain NAs, which need to be dropped or preserved) as the algorithm is
-too slow for long sounds. Algorithm: to downsample, applies a low-pass
-filter, then decimates with \code{approx}; to upsample, performs linear
-interpolation with \code{approx}, then applies a low-pass filter. NAs can be
-interpolated or preserved in the output. The length of output is determined,
-in order of precedence, by \code{len / mult / samplingRate_new}. For simple
-vector operations, this is very similar to approx, but the leading and
-trailing NAs are also preserved (see examples).
+Changes the sampling rate of a sound or another time series without aliasing.
+Similar in spirit and speed to \link[signal]{resample} in the signal package,
+but also works for short vectors and preserves NAs approximately after
+resampling. Use resample() for interpolation when the points are evenly
+spaced, when there are missing values, or when we care about aliasing. When
+the points are unevenly spaced, use \link{interpolate} instead, but then
+there should not be any missing values.
+}
+\details{
+Algorithm: to downsample, applies a low-pass filter, then decimates with
+\code{spline}; to upsample, performs a specified type of interpolation
+(defaults to monotone Fritsch‑Carlson splines, see \link{interpolate}), then
+applies a low-pass filter. NAs can be interpolated or preserved in the
+output. The length of output is determined, in order of precedence, by
+\code{len / mult / samplingRate_new}. For simple vector operations, this is
+very similar to approx, but the leading and trailing NAs are also preserved
+when \code{na.rm = FALSE} (see examples).
 }
 \examples{
 ## Example 1: a short vector with NAs
-x = c(NA, 1, 2, 3, NA, NA, 6, 7, 8, NA)
+x = c(NA, 1, 2, 3, NA, NA, 6, 9, 8, NA)
+
+# downsample
+print(resample(x, len = 5))  # NAs are propagated
+print(resample(x, len = 5, na.rm = TRUE))  # NAs are interpolated
+print(resample(x, mult = 1/2, na.rm = TRUE, plot = TRUE)) # same
 
 # upsample
 resample(x, mult = 3.5, lowPass = FALSE, plot = TRUE)  # just approx
 resample(x, mult = 3.5, lowPass = TRUE, plot = TRUE) # low-pass + approx
 resample(x, mult = 3.5, lowPass = FALSE, na.rm = TRUE, plot = TRUE)
 
-# downsample
-resample(x, mult = 0.5, lowPass = TRUE, plot = TRUE)
-resample(x, mult = 0.5, na.rm = TRUE, plot = TRUE)
-resample(x, len = 5, na.rm = TRUE, plot = TRUE) # same
-
-# The most important TIP: use resample() for audio files and the internal
-# soundgen:::.resample(list(sound = ...)) for simple vector operations because
-# it's >1000 times faster. For example:
-soundgen:::.resample(list(sound = x), mult = 3.5, lowPass = FALSE)
+# change the method of interpolation
+resample(x, mult = 15, lowPass = FALSE, interpol = 'pchip', plot = TRUE)
+resample(x, mult = 15, lowPass = FALSE,
+  interpol = interpol_loess(span = .6), plot = TRUE)
 
 ## Example 2: a sound
 silence = rep(0, 10)
@@ -115,11 +139,14 @@ x2 = resample(x, mult = 3)
 spectrogram(x2, samplingRate * 3)  # nothing above the old Nyquist
 # cf:
 x2bad = resample(x, mult = 3, lowPass = FALSE)
-spectrogram(x2bad, samplingRate * 3)  # high-frequency artefacts
+spectrogram(x2bad, samplingRate * 3)  # high-frequency artifacts
 
 \dontrun{
 # Example 3: resample all audio files in a folder to 8000 Hz
-resample('~/Downloads/temp', saveAudio = '~/Downloads/temp/sr8000/',
-         samplingRate_new = 8000, savePlots = '~/Downloads/temp/sr8000/')
+resample('~/Downloads/temp', saveAudio = TRUE,
+         samplingRate_new = 8000, savePlots = TRUE)
 }
+}
+\seealso{
+\link{interpolate} \link{interpolateNA}
 }

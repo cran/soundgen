@@ -1,7 +1,4 @@
 #' Morph dataframes
-#'
-#' Internal soundgen function.
-#'
 #' Morphs two dataframes of anchors, with two columns and at least two rows in
 #' each.
 #' @param a,b dataframes to morph
@@ -16,12 +13,10 @@
 #' @param plot if TRUE, plots the morphing sequence of anchors
 #' @param ... other graphical pars passed on to \code{plot}
 #' @return A list of length nMorphs containing anchor dataframes for morphing
-#' @keywords internal
+#' @noRd
 #' @examples
 #' a = data.frame(time=c(0, .2, .9, 1), value=c(100, 110, 180, 110))
 #' b = data.frame(time=c(0, .3, .5, .8, 1), value=c(300, 220, 190, 400, 350))
-#' plot (a, type = 'b', ylim = c(0, 500))
-#' points (b, type = 'b', col = 'blue')
 #' m = soundgen:::morphDF(a, b, nMorphs = 15, method = 'smooth', plot = TRUE)
 #' m = soundgen:::morphDF(a, b, nMorphs = 15, method = 'perAnchor', plot = TRUE)
 #'
@@ -37,11 +32,14 @@
 morphDF = function(a,
                    b,
                    nMorphs = 5,
-                   method = c('smooth', 'perAnchor')[2],
+                   method = c('perAnchor', 'smooth'),
                    lenSmooth = 50,
                    matchIdx = NULL,
-                   plot = F,
+                   plot = FALSE,
                    ...) {
+  if (is.null(a) || all(is.na(a)) || is.null(b) || all(is.na(b)))
+    stop('Both parameters must be defined for morphing')
+  method = match.arg(method)
   # example of expected input a & b: data.frame(time=c(0,1), value=c(-30,15))  NB: min 2 rows!!!
   if (identical(a, b)) {
     return(rep(list(a), nMorphs))
@@ -50,15 +48,19 @@ morphDF = function(a,
   if (!is.data.frame(a)) a = as.data.frame(a)
   if (!is.data.frame(b)) b = as.data.frame(b)
 
+  # Helper to check if a dataframe is invalid (not a df, <2 cols)
+  is_invalid = function(x) !is.data.frame(x) || ncol(x) < 2
+
   # in case one df is NA or NULL, we copy the other one
-  if ((any(is.na(a)) | ncol(a) < 2) & (!any(is.na(b)) & ncol(b) == 2)) {
+  if (is_invalid(a) && !is_invalid(b)) {
     a = b
     a[, 2] = 0
-  } else if ((any(is.na(b)) | ncol(b) < 2) & (!any(is.na(a)) & ncol(a) == 2)) {
+  } else if (is_invalid(b) && !is_invalid(a)) {
     b = a
     b[, 2] = 0
-  } else if ((any(is.na(a)) | ncol(a) < 2) & (any(is.na(b)) | ncol(b) < 2)) {
-    return(rep(list(NA), nMorphs))
+  } else if (is_invalid(a) && is_invalid(b)) {
+    # return a dummy dataframe to prevent $ operator errors downstream
+    return(rep(list(data.frame(time = NA, value = NA)), nMorphs))
   }
 
   mymax_x = max(max(a[, 1]), max(b[, 1]))
@@ -90,7 +92,7 @@ morphDF = function(a,
       hybrid_time = timeIdx_a * (1 - idx[d]) + timeIdx_b * idx[d]
       out[[d]] = data.frame(time = hybrid_time, value = hybrid)
       if (plot)
-        points(out[[d]], main = idx[d], col = cols[d])
+        points(out[[d]], col = cols[d])
     }
   } else if (method == 'perAnchor') {
     ## Option 2: alternatively, overimpose both curves without upsampling
@@ -117,9 +119,10 @@ morphDF = function(a,
       # otherwise just morph endpoints into endpoints
       for (i in 2:(nrow(a_norm) - 1)) {
         # again, excluding endpoints
-        mymatch = apply(matrix(1:nrow(b_norm)), 1, function(x) {
-          dist(as.matrix(rbind(b_norm[x, 1:2], a_norm[i, 1:2])))
-        }) # the matching anchor is the closest one
+        # Vectorized Euclidean distance calculation
+        dx = b_norm[, 1] - a_norm[i, 1]
+        dy = b_norm[, 2] - a_norm[i, 2]
+        mymatch = sqrt(dx^2 + dy^2) # the matching anchor is the closest one
         #    (after normalizing both x and y axes)
 
         if (nrow(b_norm) > 2) {
@@ -139,13 +142,14 @@ morphDF = function(a,
     a_norm$match[nrow(a_norm)] = nrow(b_norm)
     # make sure every b anchor is represented
     un = unique(a_norm$match)
-    not_matched = which(!rownames(b) %in% un)
-    if (!sum(not_matched) == 0) {
+    not_matched = which(!seq_len(nrow(b_norm)) %in% un)
+    if (length(not_matched) > 0) {
       for (i in not_matched) {
-        j = which.min(apply(matrix(1:nrow(a_norm)), 1, function(x) {
-          dist(as.matrix(rbind(a_norm[x, 1:2], b_norm[i, 1:2])))
-        })) # the closest anchor
-        a_norm$match[j] = not_matched
+        # Vectorized Euclidean distance calculation
+        dx = a_norm[, 1] - b_norm[i, 1]
+        dy = a_norm[, 2] - b_norm[i, 2]
+        j = which.min(sqrt(dx^2 + dy^2)) # the closest anchor
+        a_norm$match[j] = i # Fixed bug: was incorrectly assigning the whole 'not_matched' vector
       }
     }
     # arrange in a non-decreasing order
@@ -159,7 +163,6 @@ morphDF = function(a,
 
     # morph
     idx = seq(0, 1, length.out = nMorphs)
-    out[[1]] = a[, 1:2]
     for (d in seq_along(idx)) {
       hybrid = a
       for (i in 1:nrow(hybrid)) {
@@ -167,9 +170,9 @@ morphDF = function(a,
         # weird arithmetic, see
         # https://stackoverflow.com/questions/588004/is-floating-point-math-broken
         hybrid[i, 1] = round(hybrid[i, 1] +
-                       idx[d] * (b[hybrid$match[i], 1] - hybrid[i, 1]), 4)
+                               idx[d] * (b[hybrid$match[i], 1] - hybrid[i, 1]), 4)
         hybrid[i, 2] = round(hybrid[i, 2] +
-                       idx[d] * (b[hybrid$match[i], 2] - hybrid[i, 2]), 4)
+                               idx[d] * (b[hybrid$match[i], 2] - hybrid[i, 2]), 4)
       }
       # remove duplicate rows
       hybrid = unique(hybrid[, 1:2]) # hybrid[!duplicated(hybrid[, 1:2]), ]
@@ -183,7 +186,7 @@ morphDF = function(a,
           plot(a[, 1:2], col = cols[1], xlim = c(mymin_x, mymax_x),
                ylim = c(mymin_y, mymax_y), type = 'b', ...)
         } else {
-          points(hybrid[, 1:2], main = idx[d], col = cols[d], type = 'b')
+          points(hybrid[, 1:2], col = cols[d], type = 'b')
         }
       }
     }
@@ -192,14 +195,11 @@ morphDF = function(a,
 }
 
 
-
 #' Morph formants
-#'
-#' Internal soundgen function.
 #' @param f1,f2 dataframes specifying one formant of the two target sounds
 #'   (different numbers of rows are ok)
 #' @param nMorphs length of morphing sequence
-#' @keywords internal
+#' @noRd
 morphFormants = function(f1, f2, nMorphs = 5) {
   if (is.list(f1)) f1 = as.data.frame(f1)
   if (is.list(f2)) f2 = as.data.frame(f2)
@@ -216,20 +216,19 @@ morphFormants = function(f1, f2, nMorphs = 5) {
   h_amp = morphDF(f1[, c(1, 3)], f2[, c(1, 3)], nMorphs = nMorphs)
   h_width = morphDF(f1[, c(1, 4)], f2[, c(1, 4)], nMorphs = nMorphs)
   for (i in seq_along(h)) {
-    h[[i]]$amp = h_amp[[i]]$amp
-    h[[i]]$width = h_width[[i]]$width
+    # Use column index instead of name to be robust to fallback dummy dataframes
+    h[[i]]$amp = h_amp[[i]][, 2]
+    h[[i]]$width = h_width[[i]][, 2]
   }
   h
 }
 
 
 #' Morph lists
-#'
-#' Internal soundgen function.
 #' @param l1,l2 lists of formants (various lengths are ok)
 #' @param nMorphs length of morphing sequence
 #' @return A list of length nMorphs.
-#' @keywords internal
+#' @noRd
 #' @examples
 #' l1 = list(f1 = data.frame(time = c(0, .5, 1),
 #'                           freq = c(700, 900, 1200),
@@ -251,16 +250,17 @@ morphFormants = function(f1, f2, nMorphs = 5) {
 #'                           amp = c(30),
 #'                           width = c(150)))
 #' ml = soundgen:::morphList(l1, l2, 4)
+#' ml
 morphList = function(l1, l2, nMorphs = 5) {
   # make sure both exactFormants lists contain equal numbers of formants
   while (length(l1) > length(l2)) {
     l2[[length(l2) + 1]] = l1[[length(l2) + 1]]
-    names(l2)[length(l2)] = names(l1)[length(l1)]
+    names(l2)[length(l2)] = if (is.null(names(l1))) "" else names(l1)[length(l2)]
     l2[[length(l2)]]$amp = 0  # add a silent formant
   }
   while (length(l2) > length(l1)) {
     l1[[length(l1) + 1]] = l2[[length(l1) + 1]]
-    names(l1)[length(l1)] = names(l2)[length(l1)]
+    names(l1)[length(l1)] = if (is.null(names(l2))) "" else names(l2)[length(l1)]
     l1[[length(l1)]]$amp = 0  # add a silent formant
   }
   nFormants = length(l1)

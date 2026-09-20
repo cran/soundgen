@@ -2,43 +2,58 @@
 % Please edit documentation in R/modulationSpectrum_utilities.R
 \name{specToMS}
 \alias{specToMS}
-\title{Spectrogram to modulation spectrum}
+\alias{msToSpec}
+\title{Spectrogram to modulation spectrum and back}
 \usage{
-specToMS(spec, windowLength = NULL, step = NULL)
+specToMS(spec, center = TRUE)
+
+msToSpec(ms)
 }
 \arguments{
 \item{spec}{target spectrogram (numeric matrix, frequency in rows, time in
-columns)}
+columns), with frequency labels (kHz) in rownames and time labels (ms) in
+colnames}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{center}{if TRUE, the MS is centered with DC in the middle}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{ms}{centered modulation spectrum (complex matrix, spectral modulation
+in rows, temporal modulation in columns), as returned by \code{specToMS()}}
 }
 \value{
-Returns a MS - matrix of complex values of the same dimension as
-  spec, with AM in rows and FM in columns.
+\code{specToMS()} returns a list with \code{$ms} (the uncentered MS)
+  and \code{$ms_centered} (the centered MS, or NULL if \code{center = FALSE}).
+  Both are complex matrices of the same dimension as \code{spec}, with
+  spectral modulation (FM) in rows and temporal modulation (AM) in columns.
+  \code{msToSpec()} returns a magnitude spectrogram (real matrix, frequency in
+  rows, time in columns).
 }
 \description{
-Takes a spectrogram (either complex or magnitude) and returns a MS with
-proper row and column labels.
+\code{specToMS()} takes a spectrogram (complex or magnitude) and returns its
+2D Fourier transform - the modulation spectrum (MS). \code{msToSpec()} is the
+inverse: it takes a full, complex modulation spectrum and reconstructs the
+magnitude spectrogram.
+}
+\details{
+Both functions assume that the input carries valid labels: a spectrogram must
+have frequency labels (kHz) in its rownames and time labels (ms) in its
+colnames, and a modulation spectrum must have spectral modulation labels in
+its rownames and temporal modulation labels in its colnames. This is the case
+for objects produced by soundgen functions (e.g. \code{\link{spectrogram}},
+\code{\link{stft_simple}}, \code{\link{modulationSpectrum}}), and it also
+ensures that zero-padding is reflected correctly in the labels.
 }
 \examples{
-s = soundgen(sylLen = 500, amFreq = 25, amDep = 50,
-             pitch = 250, samplingRate = 16000)
-spec = spectrogram(s, samplingRate = 16000, windowLength = 25,
-  step = 5, plot = FALSE)
+s = soundgen(sylLen = 200, amFreq = 25, amDep = 50, pitch = 250,
+             addSilence = 0, samplingRate = 16000)
+spec = spectrogram(s, samplingRate = 16000, windowLength = 25, step = 5,
+  plot = FALSE)
+image(t(spec))
 ms = specToMS(spec)
-plotMS(log(Mod(ms)), quantiles = NULL, col = soundgen:::jet.col(100))
-\dontrun{
-# or plot manually
-image(x = as.numeric(colnames(ms)), y = as.numeric(rownames(ms)),
-      z = t(log(abs(ms))), xlab = 'Amplitude modulation, Hz',
-      ylab = 'Frequency modulation, cycles/kHz')
-abline(h = 0, lty = 3); abline(v = 0, lty = 3)
+plotMS(log(Mod(ms$ms_centered)), quantiles = NULL)
+# round-trip: reconstruct the magnitude spectrogram
+spec_new = msToSpec(ms$ms_centered)
+image(t(spec_new))
 }
+\seealso{
+\code{\link{modulationSpectrum}}, \code{\link{plotMS}}
 }

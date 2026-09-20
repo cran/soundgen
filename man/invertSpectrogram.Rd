@@ -6,47 +6,39 @@
 \usage{
 invertSpectrogram(
   spec,
-  samplingRate,
+  samplingRate = NULL,
   windowLength,
-  overlap,
-  step = NULL,
-  wn = "hanning",
-  specType = c("abs", "log", "dB")[1],
-  initialPhase = c("zero", "random", "spsi")[3],
+  step,
+  overlap = NULL,
+  wn,
+  specScale = c("spec", "power", "log", "dB"),
+  initialPhase = c("spsi", "random", "zero"),
   nIter = 50,
   normalize = TRUE,
-  play = TRUE,
+  play = FALSE,
   verbose = FALSE,
   plotError = TRUE
 )
 }
 \arguments{
 \item{spec}{the spectrogram that is to be transform to a time series: numeric
-matrix with frequency bins in rows and time frames in columns}
+matrix of real value (no phase) with frequency bins in rows (kHz) and time
+frames in columns (ms)}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector)}
+\item{samplingRate}{sampling rate (not needed if the spectrogram has rownames
+corresponding to frequency bins with the last one at Nyquist = samplingRate
+/ 2)}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength, step, overlap, wn}{STFT parameters used to create the original
+spectrogram; make sure \code{zp = 0}}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{specScale}{the scale of target spectrogram: 'spec' = untransformed
+amplitude spectrum, 'power' = power spectrum, 'log' = log-transformed, 'dB'
+= in decibels}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
-
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
-
-\item{specType}{the scale of target spectroram: 'abs' = absolute, 'log' =
-log-transformed, 'dB' = in decibels}
-
-\item{initialPhase}{initial phase estimate: "zero" = set all phases to zero;
-"random" = Gaussian noise; "spsi" (default) = single-pass spectrogram
-inversion (Beauregard et al., 2015)}
+\item{initialPhase}{initial phase estimate: "spsi" (default) = single-pass
+spectrogram inversion (Beauregard et al., 2015); "zero" = set all phases to
+zero; "random" = Gaussian noise}
 
 \item{nIter}{the number of iterations of the GL algorithm (Griffin & Lim,
 1984), 0 = don't run}
@@ -58,11 +50,11 @@ inversion (Beauregard et al., 2015)}
 \item{verbose}{if TRUE, prints estimated time left every 10\% of GL
 iterations}
 
-\item{plotError}{if TRUE, produces a scree plot of squared error over GL
-iterations (useful for choosing `nIter`)}
+\item{plotError}{if TRUE, plots the error during GL iterations and prints the
+final reconstruction error (useful for choosing nIter)}
 }
 \value{
-Returns the reconstructed audio as a numeric vector.
+Reconstructed audio as a numeric vector.
 }
 \description{
 Transforms a spectrogram into a time series with inverse STFT. The problem is
@@ -72,12 +64,12 @@ reconstruct the original audio accurately. So there are a number of
 algorithms for "guessing" the phase that would produce an audio whose
 magnitude spectrogram is very similar to the target spectrogram. Useful for
 certain filtering operations that modify the magnitude spectrogram followed
-by inverse STFT, such as filtering in the spectrotemporal modulation domain.
+by inverse STFT, such as filtering in the spectro-temporal modulation domain.
 }
 \details{
 Algorithm: takes the spectrogram, makes an initial guess at the phase (zero,
 noise, or a more intelligent estimate by the SPSI algorithm), fine-tunes over
-`nIter` iterations with the GL algorithm, reconstructs the complex
+\code{nIter} iterations with the GL algorithm, reconstructs the complex
 spectrogram using the best phase estimate, and performs inverse STFT. The
 single-pass spectrogram inversion (SPSI) algorithm is implemented as
 described in Beauregard et al. (2015) following the python code at
@@ -85,26 +77,39 @@ https://github.com/lonce/SPSI_Python. The Griffin-Lim (GL) algorithm is based
 on Griffin & Lim (1984).
 }
 \examples{
-# Create a spectrogram
+# Create a spectrogram. NB: do NOT use zero-padding
 samplingRate = 16000
 windowLength = 40
-overlap = 75
+step = 5
 wn = 'gaussian'
+# NB: the more detailed a spectrogram, the more precisely it can be inverted,
+# so a relatively long window AND a short step make for best results
 
-s = soundgen(samplingRate = samplingRate, addSilence = 100)
+s = soundgen(samplingRate = samplingRate, addSilence = 50)
 spec = spectrogram(s, samplingRate = samplingRate,
-  wn = wn, windowLength = windowLength, step = NULL, overlap = overlap,
+  wn = wn, windowLength = windowLength, step = step,
+  zp = 0,  # otherwise it changes the window length and messes up istft
   padWithSilence = FALSE, output = 'original')
 
 # Invert the spectrogram, attempting to guess the phase
-# Note that samplingRate, wn, windowLength, and overlap must be the same as
-# in the original (ie you have to know how the spectrogram was created)
+# Note that we need to know the original windowLength, step, and wn
+# (i.e., you have to know how the spectrogram was created)
 s_new = invertSpectrogram(spec, samplingRate = samplingRate,
-  windowLength = windowLength, overlap = overlap, wn = wn,
-  initialPhase = 'spsi', nIter = 100, specType = 'abs', play = FALSE)
+  windowLength = windowLength, step = step, wn = wn,
+  initialPhase = 'spsi', nIter = 50, play = FALSE)
 
 # Verify the quality of audio reconstruction
 # playme(s, samplingRate); playme(s_new, samplingRate)
+
+\dontrun{
+# to improve the quality of reconstruction, increase the number of iterations
+s_new = invertSpectrogram(spec, samplingRate = samplingRate,
+  windowLength = windowLength, step = step, wn = wn,
+  initialPhase = 'spsi', nIter = 500, play = FALSE)
+playme(s, samplingRate); playme(s_new, samplingRate)
+spectrogram(s, samplingRate)
+spectrogram(s_new, samplingRate)
+}
 }
 \references{
 \itemize{

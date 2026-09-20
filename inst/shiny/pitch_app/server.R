@@ -6,15 +6,21 @@
 # a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
 # as.numeric(unlist(strsplit(a$pitch, ',')))
 
+#' # full list of parameters that can be passed to pitch_app():
+#' # paste0(c(names(input)[which(names(input) %in% rownames(defaults_analyze))],
+#' #  'pitchMethods', 'summaryFun', 'summaryFun_text', 'pathfinding', 'spec_ylim',
+#' #  'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+
 server = function(input, output, session) {
   # make overlaid plots resizable (js fix)
   shinyjs::js$inheritSize(parentDiv = 'specDiv')
   shinyjs::js$inheritSize(parentDiv = 'oscDiv')
+  env = soundgen:::.soundgen_env
 
   myPars = reactiveValues(
     print = FALSE,       # if TRUE, some functions print a message to the console when called
     debugQn = FALSE,     # for debugging - click "?" to step into the code
-    zoomFactor = 2,     # zoom buttons change time zoom by this factor
+    zoomFactor = 2,      # zoom buttons change time zoom by this factor
     zoomFactor_freq = 1.5,  # same for frequency
     out = NULL,          # for storing the output
     drawSpec = TRUE,
@@ -31,9 +37,9 @@ server = function(input, output, session) {
   )
   tooltip_options = list(delay = list(show = 1000, hide = 0))
 
-  # clean-up of www/ folder: remove all files except temp.wav
-  # if (!dir.exists("www")) dir.create("www")  # otherwise trouble with shinyapps.io
-  if (file.exists('www/temp.csv')) {
+  # clean-up of the temp folder
+  backup_file = file.path(tempdir(), 'temp.csv')
+  if (file.exists(backup_file)) {
     showModal(modalDialog(
       title = "Unsaved data",
       "Found unsaved data from a prevous session. Append to the new output?",
@@ -45,19 +51,14 @@ server = function(input, output, session) {
     ))
   }
   observeEvent(input$discard, {
-    file.remove('www/temp.csv')
+    file.remove(backup_file)
     removeModal()
   })
   observeEvent(input$append, {
-    myPars$out = read.csv('www/temp.csv')
+    myPars$out = read.csv(backup_file)
     removeModal()
   })
 
-  files = list.files('www/', pattern = '.wav')
-  files = files[files != 'temp.wav']
-  for (f in files){
-    file.remove(paste0('www/', f))
-  }
 
   # reset the app
   reset = function() {
@@ -73,33 +74,37 @@ server = function(input, output, session) {
     myPars$selection = NULL
     myPars$cursor = 0
     myPars$spectrogram_brush = NULL
+    myPars$myAudio_trimmed = NULL
+    myPars$myAudio_scaled = NULL
   }
 
   resetSliders = function() {
     if (myPars$print) print('Resetting sliders...')
-    sliders_to_reset = c(
-      names(input)[which(names(input) %in% names(pitch_app_defaults))],
-      'spec_ylim'
-    )
-    for (v in sliders_to_reset) {
-      new_value = pitch_app_defaults[[v]]
-      suppressWarnings(try(updateSliderInput(session, v, value = new_value)))
-      suppressWarnings(try(updateNumericInput(session, v, value = new_value)))
+    def = env$pitch$def
+    df = env$pitch$def_pitch
+
+    for (v in names(df)) {
+      if (v %in% names(input)) {
+        suppressWarnings(try(updateNumericInput(session, v,
+                                                value = def[[v]])))
+        suppressWarnings(try(updateSliderInput(session, v,
+                                               value = def[[v]])))
+      }
     }
-    updateSelectInput(session, 'wn', selected = pitch_app_defaults$wn)
-    updateCheckboxGroupInput(session, 'pitchMethods', selected = pitch_app_defaults$pitchMethods)
-    updateCheckboxGroupInput(session, 'summaryFun', selected = pitch_app_defaults$summaryFun)
-    updateTextInput(session, 'summaryFun_text', value = pitch_app_defaults$summaryFun_text)
-    updateSelectInput(session, 'pathfinding', selected = pitch_app_defaults$pathfinding)
-    updateRadioButtons(session, 'spec_colorTheme', selected = pitch_app_defaults$spec_colorTheme)
-    updateSelectInput(session, 'osc', selected = pitch_app_defaults$osc)
+
+    updateSelectInput(session, 'wn', selected = def$wn)
+    updateCheckboxGroupInput(session, 'pitchMethods', selected = def$pitchMethods)
+    updateCheckboxGroupInput(session, 'summaryFun', selected = def$summaryFun)
+    updateTextInput(session, 'summaryFun_text', value = def$summaryFun_text)
+    updateRadioButtons(session, 'spec_colorTheme', selected = def$spec_colorTheme)
+    updateSelectInput(session, 'osc', selected = def$osc)
   }
-  observeEvent(input$reset_to_def, resetSliders(), ignoreNULL = FALSE)
+  observeEvent(input$reset_to_def, resetSliders(), ignoreNULL = TRUE)
 
   observeEvent(input$loadAudio, {
     if (myPars$print) print('Loading audio...')
-    done()
-    reset()
+    # done()
+    # reset()
 
     # work only with audio files
     idx_audio = which(apply(matrix(input$loadAudio$type), 1, function(x) {
@@ -120,9 +125,7 @@ server = function(input, output, session) {
     }
 
     # if there is a csv among the uploaded files, use the annotations in it
-    ext = substr(input$loadAudio$name,
-                 (nchar(input$loadAudio$name) - 2),
-                 nchar(input$loadAudio$name))
+    ext = tolower(tools::file_ext(input$loadAudio$name))
     old_out_idx = which(ext == 'csv')[1]  # grab the first csv, if any
     if (!is.na(old_out_idx)) {
       user_ann = read.csv(input$loadAudio$datapath[old_out_idx], stringsAsFactors = FALSE)
@@ -165,10 +168,10 @@ server = function(input, output, session) {
     names(choices) = myPars$fileList$name
     updateSelectInput(session, 'fileList',
                       choices = as.list(myPars$fileList$name))
-    # readAudio(1)  # read the first sound in queue
+    # readAudioFile(1)  # read the first sound in queue
   })
 
-  readAudio = function(i) {
+  readAudioFile = function(i) {
     # reads an audio file with tuneR::readWave
     if (myPars$print) print('Reading audio...')
     temp = myPars$fileList[i, ]
@@ -176,11 +179,10 @@ server = function(input, output, session) {
     myPars$myAudio_path = temp$datapath
     myPars$myAudio_type = temp$type
 
-    extension = substr(myPars$myAudio_filename,
-                       nchar(myPars$myAudio_filename) - 2, nchar(myPars$myAudio_filename))
-    if (extension == 'wav' | extension == 'WAV') {
+    extension = tolower(tools::file_ext(myPars$myAudio_filename))
+    if (extension == 'wav') {
       myPars$temp_audio = tuneR::readWave(temp$datapath)
-    } else if (extension == 'mp3' | extension == 'MP3') {
+    } else if (extension == 'mp3') {
       myPars$temp_audio = tuneR::readMP3(temp$datapath)
     } else {
       warning('Input not recognized: must be a wav or mp3 file')
@@ -191,18 +193,15 @@ server = function(input, output, session) {
     myPars$samplingRate = myPars$temp_audio@samp.rate
     myPars$maxAmpl = 2 ^ (myPars$temp_audio@bit - 1)
     if (input$normalizeInput) {
-      myPars$myAudio = myPars$myAudio / max(abs(myPars$myAudio)) * myPars$maxAmpl
+      max_abs = max(abs(myPars$myAudio))
+      if (max_abs > 0)
+        myPars$myAudio = myPars$myAudio / max_abs * myPars$maxAmpl
     }
-    updateSliderInput(session, 'spec_ylim', max = myPars$samplingRate / 2 / 1000)  # check!!!
-    myPars$dur = round(length(myPars$temp_audio@left) / myPars$temp_audio@samp.rate * 1000)
-    myPars$myAudio_list = list(
-      sound = myPars$myAudio,
-      samplingRate = myPars$samplingRate,
-      scale = myPars$maxAmpl,
-      timeShift = 0,
-      ls = length(myPars$myAudio),
-      duration = myPars$dur / 1000
-    )
+    updateSliderInput(session, 'spec_ylim', max = myPars$samplingRate / 2 / 1000)
+    myPars$dur = round(length(myPars$temp_audio@left) /
+                         myPars$temp_audio@samp.rate * 1000)
+    myPars$myAudio_list = soundgen:::readAudio(myPars$myAudio,
+                                               samplingRate = myPars$samplingRate)
     myPars$time = seq(1, myPars$dur, length.out = myPars$ls)
     myPars$spec_xlim = c(0, min(myPars$initDur, myPars$dur))
 
@@ -218,6 +217,18 @@ server = function(input, output, session) {
     hist = myPars$history[[myPars$myAudio_filename]]
     if (!is.null(hist$manual)) myPars$manual = hist$manual
     if (!is.null(hist$manualUnv)) myPars$manualUnv = hist$manualUnv
+
+    # embed the audio for playback with the browser
+    tmp_wav = tempfile(fileext = ".wav")
+    soundgen:::writeAudio(myPars$myAudio, audio = myPars$myAudio_list,
+                          filename = tmp_wav)
+    raw_audio = readBin(tmp_wav, "raw", file.info(tmp_wav)$size)
+    audio_uri = base64enc::dataURI(raw_audio, mime = "audio/wav")
+    unlink(tmp_wav)
+
+    output$htmlAudio = renderUI(
+      tags$audio(src = audio_uri, id = 'myAudio', style = "display: none;")
+    )
   }
 
   extractSpectrogram = observe({
@@ -256,31 +267,6 @@ server = function(input, output, session) {
         )
       }
     }
-  })
-
-  writeAudioFile = observeEvent(myPars$temp_audio, {
-    if (myPars$print) print('Writing audio file...')
-    # Method: saves a temporary audio file in 'www/'. This is a workaround since
-    # html tag for some reason cannot play myPars$myAudio_path (although feeding
-    # it to spectrogram works - so probably only works within R). Alternatives:
-    # soundgen::play() or shinyFiles library
-
-    # first remove the previous sound file to avoid cluttering up the www/ folder
-    if (!is.null(myPars$myfile)){
-      file.remove(paste0('www/', myPars$myfile))
-    }
-    randomID = paste(sample(c(letters, 0:9), 8, replace = TRUE), collapse = '')
-    myPars$myfile = paste0(randomID, '.wav')
-    # this is the new sound file. NB: has to be saved in www/ !!!
-    seewave::savewav(myPars$temp_audio,
-                     f = myPars$samplingRate,
-                     filename = paste0('www/', myPars$myfile),
-                     extensible = FALSE)
-    output$htmlAudio = renderUI(
-      tags$audio(src = myPars$myfile, type = myPars$myAudio_type,
-                 id = 'myAudio',
-                 style = "display: none; transform: scale(0.75); transform-origin: 0 0;")
-    )
   })
 
 
@@ -659,11 +645,11 @@ server = function(input, output, session) {
           zp = input$zp,
           dynamicRange = input$dynamicRange,
           silence = input$silence,
-          entropyThres = input$entropyThres,
           nFormants = 0,     # disable formant tracking
           loudness = NULL,  # disable loudness analysis
           roughness = list(amRes = 0),  # no roughness analysis
           amRange = NULL,  # no AM analysis
+          novelty = NULL,  # no ssm novelty analysis
           pitchMethods = input$pitchMethods,
           pitchFloor = input$pitchFloor,
           pitchCeiling = input$pitchCeiling,
@@ -706,12 +692,7 @@ server = function(input, output, session) {
             zcThres = input$zcThres,
             zcWin = input$zcWin
           ),
-          # we don't want analyze to waste time on pathfinding
-          # b/c we do it separately in obs_pitch()
-          interpolWin = 0,
-          pathfinding = 'none',
-          snakeStep = 0,
-          snakePlot = FALSE,
+          interpolPitch = list(win = 0),
           smooth = 0,
           plot = FALSE,
           returnPitchCands = TRUE
@@ -719,8 +700,9 @@ server = function(input, output, session) {
         myPars$result = temp_anal$result
         myPars$summary = soundgen:::summarizeAnalyze(
           temp_anal$result,
-          summaryFun = input$summaryFun
+          summaryFun = isolate(myPars$summaryFun)
         )
+
         myPars$pitchCands = temp_anal$pitchCands
         myPars$spec_from_anal = temp_anal$spectrogram
         myPars$X = as.numeric(colnames(myPars$spec_from_anal))
@@ -735,19 +717,21 @@ server = function(input, output, session) {
             # up/downsample manual pitch candidates accordingly
             len_old = length(myPars$pitch)  # !!! switch to myPars$manual
             len_new = ncol(myPars$pitchCands$freq)
-            myPars$manual$frame = ceiling(myPars$manual$frame * len_new / len_old)
-            # in case some manual frames merge into one, remove duplicates
-            myPars$manual = myPars$manual[!duplicated(myPars$manual$frame), ]
+            if (len_old > 0) {
+              myPars$manual$frame = ceiling(myPars$manual$frame * len_new / len_old)
+              # in case some manual frames merge into one, remove duplicates
+              myPars$manual = myPars$manual[!duplicated(myPars$manual$frame), ]
+            }
           }
           obs_pitch()  # run pathfinder
           # if (length(myPars$pitch) != ncol(myPars$pitchCands$freq)) browser()
           # save the prior
           if (input$priorAdapt) {
-            pitch_sem = HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
+            pitch_sem = soundgen:::HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
             if (length(pitch_sem) > 0) {
-              myPars$priorMean = semitonesToHz(mean(pitch_sem))
-              myPars$priorSD = semitonesToHz(sd(pitch_sem)) * 4
-              myPars$pitchCert_mult = getPrior(
+              myPars$priorMean = soundgen:::semitonesToHz(mean(pitch_sem))
+              myPars$priorSD = soundgen:::semitonesToHz(sd(pitch_sem)) * 4
+              myPars$pitchCert_mult = soundgen:::getPrior(
                 priorMean = myPars$priorMean,
                 priorSD = myPars$priorSD,
                 pitchFloor = input$pitchFloor,
@@ -759,7 +743,7 @@ server = function(input, output, session) {
               myPars$priorMean = NA
             }
           } else {
-            myPars$pitchCert_mult = getPrior(
+            myPars$pitchCert_mult = soundgen:::getPrior(
               priorMean = input$priorMean,
               priorSD = input$priorSD,
               pitchFloor = input$pitchFloor,
@@ -787,7 +771,7 @@ server = function(input, output, session) {
         pitchMethods = input$pitchMethods,
         step = input$step
       )
-      if (updateAll | is.null(myPars$voicedSegments_old)) {
+      if (updateAll || is.null(myPars$voicedSegments_old)) {
         # the first time we update everything
         sylToUpdate = myPars$voicedSegments
       } else {
@@ -845,14 +829,9 @@ server = function(input, output, session) {
             step = input$step,
             manual = manual_syl,
             certWeight = input$certWeight,
-            pathfinding = ifelse(input$pathfinding == 'slow',
-                                 'fast',  # slow doesn't work well with manual cand-s
-                                 input$pathfinding),
             interpolWin_bin = ceiling(input$interpolWin / input$step),
             interpolTol = input$interpolTol,
-            interpolCert = input$interpolCert,
-            snakeStep = 0,
-            snakePlot = FALSE
+            interpolCert = input$interpolCert
           )
         }
       }
@@ -884,8 +863,8 @@ server = function(input, output, session) {
     # (b/c they do not affect the pitch candidates)
     c(input$shortestSyl, input$shortestPause,
       input$interpolWin, input$interpolTol, input$interpolCert,
-      input$pathfinding, input$certWeight, input$smooth,
-      input$priorMean, input$priorSD, input$priorAdapt),
+      input$certWeight, input$smooth,
+      input$priorMean, input$priorSD),
     obs_pitch()
   )
   observeEvent(
@@ -899,7 +878,7 @@ server = function(input, output, session) {
             myPars$pitchCands$cert = myPars$pitchCands$cert / myPars$pitchCert_mult
           }
           # get a new prior
-          myPars$pitchCert_mult = getPrior(
+          myPars$pitchCert_mult = soundgen:::getPrior(
             priorMean = input$priorMean,
             priorSD = input$priorSD,
             pitchFloor = input$pitchFloor,
@@ -1050,19 +1029,24 @@ server = function(input, output, session) {
         temperature = 0))
       if (!inherits(temp_s, 'try-error')) {
         if (input$audioMethod == 'Browser') {
-          # save a temporary file and play with the browser
-          seewave::savewav(temp_s,
-                           f = myPars$samplingRate,
-                           filename = 'www/temp.wav',
-                           extensible = FALSE)
-          shinyjs::js$play_file(filename = 'temp.wav')
+          tmp_wav = tempfile(fileext = ".wav")
+          soundgen:::writeAudio(
+            temp_s,
+            audio = soundgen:::readAudio(temp_s,
+                                         samplingRate = myPars$samplingRate),
+            filename = tmp_wav,
+            scale_used = max(abs(temp_s))
+          )
+          raw_audio = readBin(tmp_wav, "raw", file.info(tmp_wav)$size)
+          audio_uri = base64enc::dataURI(raw_audio, mime = "audio/wav")
+          unlink(tmp_wav)
+          shinyjs::js$play_synth_uri(uri = audio_uri)
         } else {
           # play directly in R without saving to disk
           playme(temp_s, samplingRate = myPars$samplingRate)
         }
       }
     }
-    soundgen()
   }
 
   # HOTKEYS
@@ -1110,7 +1094,7 @@ server = function(input, output, session) {
   })
   unvoiceSel = function(frames = myPars$brush_sel_x, bp = myPars$bp) {
     if (myPars$print) print('Unvoicing selection...')
-    if (!is.null(bp) & length(frames) > 0) {
+    if (!is.null(bp) && length(frames) > 0) {
       # NB: play forgets the previous selection, but other buttons do not,
       # hence myPars$bp instead of input$spectrogram_brush
       myPars$manualUnv = sort(unique(c(myPars$manualUnv, frames)))
@@ -1126,7 +1110,7 @@ server = function(input, output, session) {
   # VOICE
   voiceSel = function(frames = myPars$brush_sel_x, bp = myPars$bp) {
     if (myPars$print) print('Voicing selection...')
-    if (!is.null(bp) & length(frames) > 0) {
+    if (!is.null(bp) && length(frames) > 0) {
       # manually voice the selected frames
       myPars$manualTryToV = c(myPars$manualTryToV, frames)
       # remove them from the list of manually unvoiced frames
@@ -1146,7 +1130,7 @@ server = function(input, output, session) {
   # SHIFT BY AN OCTAVE
   octaveUp = function() {
     if (myPars$print) print('Selection octave up...')
-    if (!is.null(myPars$bp) & length(myPars$brush_sel_xy) > 0) {
+    if (!is.null(myPars$bp) && length(myPars$brush_sel_xy) > 0) {
       # remove previous manual cands in selection
       idx_rem = which(myPars$manual$frame %in% myPars$brush_sel_xy)
       if (length(idx_rem) > 0) myPars$manual = myPars$manual[-idx_rem, ]
@@ -1171,7 +1155,7 @@ server = function(input, output, session) {
 
   octaveDown = function() {
     if (myPars$print) print('Selection octave down...')
-    if (!is.null(myPars$bp) & length(myPars$brush_sel_xy) > 0) {
+    if (!is.null(myPars$bp) && length(myPars$brush_sel_xy) > 0) {
       # remove previous manual cands in selection
       idx_rem = which(myPars$manual$frame %in% myPars$brush_sel_xy)
       if (length(idx_rem) > 0) myPars$manual = myPars$manual[-idx_rem, ]
@@ -1197,11 +1181,11 @@ server = function(input, output, session) {
   # PRIOR
   observe({
     if (input$priorAdapt) {
-      pitch_sem = HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
+      pitch_sem = soundgen:::HzToSemitones(myPars$pitch[!is.na(myPars$pitch)])
       if (length(pitch_sem) > 0) {
-        myPars$priorMean = semitonesToHz(mean(pitch_sem))
-        myPars$priorSD = semitonesToHz(sd(pitch_sem)) * 4
-        myPars$prior = getPrior(
+        myPars$priorMean = soundgen:::semitonesToHz(mean(pitch_sem))
+        myPars$priorSD = soundgen:::semitonesToHz(sd(pitch_sem)) * 4
+        myPars$prior = soundgen:::getPrior(
           priorMean = myPars$priorMean,
           priorSD = myPars$priorSD,
           pitchFloor = input$pitchFloor,
@@ -1214,7 +1198,7 @@ server = function(input, output, session) {
         myPars$prior = NA
       }
     } else {
-      myPars$prior = getPrior(
+      myPars$prior = soundgen:::getPrior(
         priorMean = input$priorMean,
         priorSD = input$priorSD,
         pitchFloor = input$pitchFloor,
@@ -1235,7 +1219,8 @@ server = function(input, output, session) {
         updateSliderInput(session, 'pitchCeiling', value = round(max(pr)))
       }
       meanPr = round(mean(pr))
-      sdPr = round((HzToSemitones(pr[2]) - HzToSemitones(mean(pr))) / 2, 1)
+      sdPr = round((soundgen:::HzToSemitones(pr[2]) -
+                      soundgen:::HzToSemitones(mean(pr))) / 2, 1)
       updateSliderInput(session, 'priorMean', value = meanPr)
       updateSliderInput(session, 'priorSD', value = sdPr)
     }
@@ -1257,7 +1242,7 @@ server = function(input, output, session) {
     if (!is.null(input$spectrogram_hover) & !is.null(myPars$spec)) {
       myPars$spectrogram_hover = input$spectrogram_hover
       cursor_hz = myPars$spectrogram_hover$y * 1000
-      cursor_notes = soundgen::HzToNotes(cursor_hz)
+      cursor_notes = soundgen:::HzToNotes(cursor_hz)
       myPars$spectrogram_hover$freq = paste0(
         round(myPars$spectrogram_hover$y * 1000), ' Hz (',
         cursor_notes, ')')
@@ -1288,7 +1273,7 @@ server = function(input, output, session) {
                               xvar = 'time', yvar = 'freq',
                               allRows = TRUE)
     # selected pitch points
-    myPars$brush_sel_xy = which(myPars$bp[, 'selected_'] == TRUE)
+    myPars$brush_sel_xy = which(myPars$bp[, 'selected_'])
     # selected frames (along x axis)
     myPars$brush_sel_x = which(myPars$pitch_df$time > input$spectrogram_brush$xmin &
                                  myPars$pitch_df$time < input$spectrogram_brush$xmax)
@@ -1308,7 +1293,7 @@ server = function(input, output, session) {
   changeZoom = function(coef, toCursor = FALSE) {
     if (myPars$print) print('Zooming')
     # intelligent zoom-in a la Audacity: midpoint moves closer to seletion/cursor
-    if (!is.null(myPars$cursor) & toCursor) {
+    if (!is.null(myPars$cursor) && toCursor) {
       if (!is.null(myPars$spectrogram_brush)) {
         midpoint = 3/4 * mean(c(myPars$spectrogram_brush$xmin,
                                 myPars$spectrogram_brush$xmax)) +
@@ -1428,47 +1413,43 @@ server = function(input, output, session) {
     # meaning we have finished editing pitch contour for a sound - prepares
     # the output
     if (myPars$print) print('Calling done()...')
-    if (!is.null(myPars$myAudio_path) &&
-        !is.null(myPars$result) &&
-        !is.null(myPars$pitch)) {
-      if (myPars$print) print('Running done()...')
-      new = data.frame(
-        file = basename(myPars$myAudio_filename),
-        time = paste(round(myPars$X), collapse = ', '),
-        pitch = paste(round(myPars$pitch), collapse = ', '),
-        stringsAsFactors = FALSE
-      )
-      result_new = soundgen:::updateAnalyze(
-        result = myPars$result,
-        pitch_true = myPars$pitch,
-        spectrogram = myPars$spec_from_anal,
-        windowLength = input$windowLength,
-        harmHeight_pars = list(
-          harmThres = defaults_analyze['harmThres', 'default'],
-          harmTol = defaults_analyze['harmTol', 'default'],
-          harmPerSel = defaults_analyze['harmPerSel', 'default']),
-        flux_pars = list(thres = 0.15),
-        smooth = input$smooth,
-        smoothing_ww = myPars$smoothing_ww,
-        smoothingThres = myPars$smoothingThres
-      )
-      summary_new = soundgen:::summarizeAnalyze(
-        result_new,
-        summaryFun = isolate(myPars$summaryFun))
-      new = cbind(new$file,
-                  summary_new,
-                  new[, c('time', 'pitch')])
-      colnames(new)[1] = 'file'  # otherwise misnamed
-      new$file = as.character(new$file)  # otherwise becomes a factor
-      if (is.null(myPars$out)) {
-        myPars$out = new
-      } else {
-        idx = which(myPars$out$file == new$file)
-        myPars$out = soundgen:::rbind_fill(myPars$out, new)
-        if (length(idx) == 1) myPars$out = myPars$out[-idx, ]
-        myPars$out = myPars$out[order(myPars$out$file), ]
-      }
+    if (is.null(myPars$myAudio_path) ||
+        is.null(myPars$result) ||
+        is.null(myPars$pitch)) return()
+    if (myPars$print) print('Running done()...')
+    new = data.frame(
+      file = basename(myPars$myAudio_filename),
+      time = paste(round(myPars$X), collapse = ', '),
+      pitch = paste(round(myPars$pitch), collapse = ', '),
+      stringsAsFactors = FALSE
+    )
+    result_new = soundgen:::updateAnalyze(
+      result = myPars$result,
+      pitch_true = myPars$pitch,
+      spectrogram = myPars$spec_from_anal,
+      harmHeight_pars = list(
+        harmThres = soundgen:::defaults_analyze['harmThres', 'default'],
+        harmTol = soundgen:::defaults_analyze['harmTol', 'default'],
+        harmPerSel = soundgen:::defaults_analyze['harmPerSel', 'default']),
+      flux_pars = list(thres = 0.15)
+    )
+    summary_new = soundgen:::summarizeAnalyze(
+      result_new,
+      summaryFun = isolate(myPars$summaryFun))
+    new = data.frame(file = new$file,
+                     summary_new,
+                     time = new$time,
+                     pitch = new$pitch,
+                     stringsAsFactors = FALSE)
+    if (is.null(myPars$out)) {
+      myPars$out = new
+    } else {
+      idx = which(myPars$out$file == new$file)
+      myPars$out = soundgen:::rbind_fill(myPars$out, new)
+      if (length(idx) == 1) myPars$out = myPars$out[-idx, ]
+      myPars$out = myPars$out[order(myPars$out$file), ]
     }
+
     cols_order = c(colnames(myPars$out)[!colnames(myPars$out) %in% c('time', 'pitch')],
                    'time', 'pitch')
     myPars$out = myPars$out[, cols_order]
@@ -1481,14 +1462,13 @@ server = function(input, output, session) {
 
     # save a backup
     if (!is.null(myPars$out)) {
-      write.csv(myPars$out, 'www/temp.csv', row.names = FALSE)
+      write.csv(myPars$out, backup_file, row.names = FALSE)
       myPars$result$pitch = myPars$pitch
       if (!is.null(myPars$myAudio_filename)) {
         myPars$history[[myPars$myAudio_filename]]$detailed = myPars$result
         myPars$history[[myPars$myAudio_filename]]$summary = myPars$out
         myPars$history[[myPars$myAudio_filename]]$pitch = myPars$pitch
       }
-      my_pitch <<- myPars$history
     }
   }
 
@@ -1496,7 +1476,7 @@ server = function(input, output, session) {
     done()
     myPars$n = which(myPars$fileList$name == input$fileList)
     reset()
-    readAudio(myPars$n)
+    readAudioFile(myPars$n)
   }, ignoreInit = TRUE)
 
   nextFile = function() {
@@ -1530,8 +1510,8 @@ server = function(input, output, session) {
     content = function(filename) {
       done()  # finalize the last file
       write.csv(myPars$out, filename, row.names = FALSE)
-      my_pitch <<- myPars$history
-      if (file.exists('www/temp.csv')) file.remove('www/temp.csv')
+      if (file.exists(backup_file))
+        file.remove(backup_file)
       # offer to close the app
       showModal(modalDialog(
         title = "Terminate the app?",
@@ -1548,7 +1528,6 @@ server = function(input, output, session) {
   })
   observeEvent(input$terminate_yes, {
     stopApp(returnValue = c(myPars$history, list(settings = reactiveValuesToList(input))))
-    rm(pitch_app_defaults, envir = .GlobalEnv)
   })
 
   observeEvent(input$about, {
@@ -1556,7 +1535,10 @@ server = function(input, output, session) {
       browser()  # back door for debugging)
     } else {
       showNotification(
-        ui = paste0("Manual pitch editor: soundgen ", packageVersion('soundgen'), ". Left-click to add/correct a pitch anchor, double-click to remove/unvoice the frame. More info: ?pitch_app and http://cogsci.se/soundgen.html"),
+        ui = paste0("Manual pitch editor: soundgen ", packageVersion('soundgen'),
+                    ". Left-click to add/correct a pitch anchor, double-click to ',
+                    'remove/unvoice the frame. More info: ?pitch_app and ',
+                    'http://cogsci.se/soundgen.html"),
         duration = 10,
         closeButton = TRUE,
         type = 'default'

@@ -9,8 +9,7 @@ getSmoothContour(
   len = NULL,
   thisIsPitch = FALSE,
   normalizeTime = TRUE,
-  interpol = c("approx", "spline", "loess")[3],
-  loessSpan = NULL,
+  interpol = "splineFC",
   discontThres = 0.05,
   jumpThres = 0.01,
   valueFloor = NULL,
@@ -30,38 +29,31 @@ getSmoothContour(
 }
 \arguments{
 \item{anchors}{a numeric vector of values or a list/dataframe with one column
-(value) or two columns (time and value). \code{achors$time} can be in ms
-(with len=NULL) or in arbitrary units, eg 0 to 1 (with duration determined
-by len, which must then be provided in ms). So anchors$time is assumed to
-be in ms if len=NULL and relative if len is specified. \code{anchors$value}
-can be on any scale.}
+(value) or two columns (time and value). \code{anchors$time} can be in ms
+or in arbitrary units, eg 0 to 1. \code{anchors$value} can be on any scale.}
 
 \item{len}{the required length of the output contour. If NULL, it will be
-calculated based on the maximum time value (in ms) and \code{samplingRate}}
+calculated based on the maximum time value (in ms) and \code{samplingRate}.
+If \code{len == 1}, returns the mean of anchors}
 
-\item{thisIsPitch}{(boolean) is this a pitch contour? If true, log-transforms
+\item{thisIsPitch}{(boolean) is this a pitch contour? If TRUE, log-transforms
 before smoothing and plots in both Hz and musical notation}
 
 \item{normalizeTime}{if TRUE, normalizes anchors$time values to range from 0 to 1}
 
-\item{interpol}{method of interpolation between anchors: "approx" = linear
-with \code{\link{approx}}, "spline" = cubic splines with
-\code{\link{spline}}, "loess" = local polynomial regression with
-\code{\link{loess}}}
-
-\item{loessSpan}{controls the amount of smoothing when interpolating between
-anchors with \code{\link[stats]{loess}}, so only has an effect if interpol
-= 'loess' (1 = strong, 0.5 = weak smoothing)}
+\item{interpol}{the method of interpolation (only used for upsampling,
+not downsampling); see \link{interpolate} for details}
 
 \item{discontThres}{if two anchors are closer in time than
 \code{discontThres} (on a 0-1 scale, ie specified as proportion of total
 length), the contour is broken into segments with a linear transition
-between these segments}
+between these segments; set to 0 to avoid ever splitting into segments}
 
 \item{jumpThres}{if anchors are closer than \code{jumpThres}, a new section
-starts with no transition at all (e.g. for adding pitch jumps)}
+starts with no transition at all (e.g. for adding pitch jumps); normally,
+\code{jumpThres <= discontThres}}
 
-\item{valueFloor, valueCeiling}{lowser/upper bounds for the contour}
+\item{valueFloor, valueCeiling}{lower/upper bounds for the contour}
 
 \item{plot}{(boolean) produce a plot?}
 
@@ -69,60 +61,59 @@ starts with no transition at all (e.g. for adding pitch jumps)}
 
 \item{samplingRate}{sampling rate used to convert time values to points (Hz)}
 
-\item{voiced, contourLabel}{graphical pars for plotting breathing contours
-(see examples below)}
+\item{voiced, contourLabel}{graphical parameters for plotting breathing
+contours (see examples below)}
 
-\item{NA_to_zero}{if TRUE, all NAs are replaced with zero}
+\item{NA_to_zero}{if TRUE, all NAs are replaced with zero; if FALSE, NAs
+propagate and can be upsampled}
 
 \item{...}{other plotting options passed to \code{plot()}}
 }
 \value{
-Returns a numeric vector of length \code{len}.
+A numeric vector of length \code{len}.
 }
 \description{
-Returns a smooth contour based on an arbitrary number of anchors. Used by
-\code{\link{soundgen}} for generating intonation contour, mouth opening, etc.
-This function is mostly intended to be used internally by soundgen, more
-precisely to construct (upsample) smooth curves from a number of anchors. For
-general upsampling or downsampling of audio, use \code{\link{resample}}. Note
-that pitch contours are treated as a special case: values are log-transformed
-prior to smoothing, so that with 2 anchors we get a linear transition on a
-log scale (as if we were operating with musical notes rather than frequencies
-in Hz). Pitch plots have two Y axes: one showing Hz and the other showing
-musical notation.
+Returns a smooth contour based on an arbitrary number of anchors - points
+through which we wish to draw a curve, and which may or may not be
+equidistant along the x (time) dimension. \code{getSmoothContour} is
+used extensively by \link{soundgen} for generating intonation contour, mouth
+opening, etc. Pitch contours are treated as a special case: values are
+log-transformed prior to smoothing, so that with 2 anchors we get a linear
+transition on a log scale (as if we were operating with musical notes rather
+than frequencies in Hz).
 }
 \examples{
 # long format: anchors are a dataframe
-a = getSmoothContour(anchors = data.frame(
+a = soundgen:::getSmoothContour(anchors = data.frame(
   time = c(50, 137, 300), value = c(0.03, 0.78, 0.5)),
   normalizeTime = FALSE,
   voiced = 200, valueFloor = 0, plot = TRUE, main = '',
   samplingRate = 16000) # breathing
 
 # short format: anchors are a vector (equal time steps assumed)
-a = getSmoothContour(anchors = c(350, 800, 600),
+a = soundgen:::getSmoothContour(anchors = c(350, 800, 600),
   len = 5500, thisIsPitch = TRUE, plot = TRUE,
   samplingRate = 3500) # pitch
 
 # a single anchor gives constant value
-a = getSmoothContour(anchors = 800,
+a = soundgen:::getSmoothContour(anchors = 800,
   len = 500, thisIsPitch = TRUE, plot = TRUE, samplingRate = 500)
 
 # two pitch anchors give loglinear F0 change
-a = getSmoothContour(anchors = c(220, 440),
+a = soundgen:::getSmoothContour(anchors = c(220, 440),
   len = 500, thisIsPitch = TRUE, plot = TRUE, samplingRate = 500)
 
 ## Two closely spaced anchors produce a pitch jump
-# one loess for the entire contour
-a1 = getSmoothContour(anchors = list(time = c(0, .15, .2, .7, 1),
+# one curve through all anchors
+a1 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .2, .7, 1),
     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
     plot = TRUE, samplingRate = 500)
 # two segments with a linear transition
-a2 = getSmoothContour(anchors = list(time = c(0, .15, .17, .7, 1),
+a2 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .17, .7, 1),
     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
     plot = TRUE, samplingRate = 500)
 # two segments with an abrupt jump
-a3 = getSmoothContour(anchors = list(time = c(0, .15, .155, .7, 1),
+a3 = soundgen:::getSmoothContour(anchors = list(time = c(0, .15, .155, .7, 1),
     value = c(360, 116, 550, 700, 610)), len = 500, thisIsPitch = TRUE,
     plot = TRUE, samplingRate = 500)
 # compare:
@@ -130,23 +121,26 @@ plot(a2)
 plot(a3)  # NB: the segment before the jump is upsampled to compensate
 
 ## Control the amount of smoothing
-getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-  loessSpan = NULL)  # default amount of smoothing (depends on dur)
-getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-  loessSpan = .85)   # more smoothing than default
-getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-  loessSpan = .5)    # less smoothing
-getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
-  interpol = 'approx')  # linear interpolation (no smoothing)
+# linear - no smoothing
+soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+  interpol = 'linear')
+# spline (smooth, but may overshoot slightly)
+soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+  interpol = 'splineFC')
+# cosine - goes strictly through anchors, no overshoot, but possible ripples
+soundgen:::getSmoothContour(c(1, 3, 9, 10, 9, 9, 2), len = 100, plot = TRUE,
+  interpol = 'cosine')
+# see ?interpolate for more options
 
 ## Upsample preserving leading and trailing NAs
 anchors = data.frame(time =  c(1,  4,  5,  7,  10, 20, 23, 25, 30),
                      value = c(NA, NA, 10, 15, 12, NA, 17, 15, NA))
 plot(anchors, type = 'b')
-anchors_ups = getSmoothContour(
+anchors_ups = soundgen:::getSmoothContour(
   anchors, len = 200,
-  interpol = 'approx',  # only approx can propagate NAs
+  interpol = 'linear',
   NA_to_zero = FALSE,   # preserve NAs
   discontThres = 0)     # don't break into sub-contours
 plot(anchors_ups, type = 'b')
 }
+\keyword{internal}

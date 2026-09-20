@@ -6,22 +6,24 @@
 \usage{
 normalizeFolder(
   myfolder,
-  type = c("peak", "rms", "loudness")[1],
+  type = c("peak", "rms", "loudness"),
   maxAmp = 0,
   summaryFun = "mean",
+  preserveRelativeDif = FALSE,
   windowLength = 50,
   step = NULL,
   overlap = 70,
   killDC = FALSE,
   windowDC = 200,
-  saveAudio = NULL,
+  cores = 1,
+  savePath = NULL,
   reportEvery = NULL
 )
 }
 \arguments{
 \item{myfolder}{full path to folder containing input audio files}
 
-\item{type}{normalize so the output files has the same peak amplitude
+\item{type}{normalize so the output files have the same peak amplitude
 ('peak'), root mean square amplitude ('rms'), or subjective loudness in
 sone ('loudness')}
 
@@ -29,34 +31,50 @@ sone ('loudness')}
 max possible, etc.)}
 
 \item{summaryFun}{should the output files have the same mean / median / max
-etc rms amplitude or loudness? (summaryFun has no effect if type = 'peak')}
+etc RMS amplitude or loudness? (summaryFun has no effect if type = 'peak')}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{preserveRelativeDif}{(only for \code{type = "peak"}) if FALSE
+(default), all files are normalized to the same level; if TRUE, the peak
+amplitude of the loudest file is set to \code{maxAmp}, while the remaining
+files are quieter so the original relative peak amplitude across files is
+preserved}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{windowLength}{length of analysis window, ms (longer windows = more
+smoothing)}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{killDC}{if TRUE, removed DC offset (see also \code{\link{flatEnv}})}
+\item{overlap}{overlap between successive windows, \%}
+
+\item{killDC}{if TRUE, removes DC offset (see also \code{\link{flatEnv}})}
 
 \item{windowDC}{the window for calculating DC offset, ms}
 
-\item{saveAudio}{full path to where the normalized files should be saved
-(defaults to 'myfolder/normalized')}
+\item{cores}{number of cores for parallel processing}
+
+\item{savePath}{full path to where the normalized files should be saved;
+defaults to NULL = 'myfolder/normalized'; NA = do not save the processed
+files}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
+}
+\value{
+Does not return anything, only saves the normalized audio files.
 }
 \description{
 Normalizes the amplitude of all wav/mp3 files in a folder based on their peak
 or RMS amplitude or subjective loudness. This is good for playback
 experiments, which require that all sounds should have similar intensity or
-loudness.
+loudness. If \code{preserveRelativeDif} is set to \code{TRUE}, all recordings
+in the target folder get a boost in amplitude, so the loudest one reaches
+\code{maxAmp}, but the relative differences between the recordings are
+preserved (i.e., all files are boosted by the same amount - as much as
+possible to avoid clipping the loudest one).
 }
 \details{
 Algorithm: first all files are rescaled to have the same peak amplitude of
@@ -70,15 +88,20 @@ of the "quietest" sound, and their peak amplitudes become smaller,
 \code{<maxAmp}. Finally, if \code{type = 'loudness'}, the subjective
 loudness of each sound is estimated by \code{\link{getLoudness}}, which
 assumes frequency sensitivity typical of human hearing. The following
-normalization procedure is similar to that for \code{type = 'rms'}.
+normalization procedure is similar to that for \code{type = 'rms'}. NB:
+because loudness is not a simple linear function of SPL, loudness
+normalization is only approximate; reiterate the process several times to
+improve the precision of loudness normalization.
 }
 \examples{
 \dontrun{
 # put a few short audio files in a folder, eg '~/Downloads/temp'
-getRMS('~/Downloads/temp', summaryFun = 'mean')$summary  # different
-normalizeFolder('~/Downloads/temp', type = 'rms', summaryFun = 'mean',
-  saveAudio = '~/Downloads/temp/normalized')
-getRMS('~/Downloads/temp/normalized', summaryFun = 'mean')$summary  # same
+target = '~/Downloads/temp'
+save_in_folder = paste0(target, '/normalized')
+getRMS(target, summaryFun = 'mean')$summary  # different
+normalizeFolder(target, type = 'rms', summaryFun = 'mean',
+  savePath = save_in_folder)
+getRMS(save_in_folder, summaryFun = 'mean')$summary  # same
 # If the saved audio files are treated as stereo with one channel missing,
 # try reconverting with ffmpeg (saving is handled by tuneR::writeWave)
 }

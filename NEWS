@@ -1,3 +1,103 @@
+          CHANGES IN SOUNDGEN VERSION 3.0.0 [18-Sep-2026]
+DEPENDENCIES:
+  * Dropped: seewave, mvtnorm, zoo, data.table, doParallel, foreach
+  * Changed from "imports" to "suggests": dtw, nonlinearTseries, shiny, shinyjs, bslib
+  * Added to imports: grDevices
+
+DEPRECATED:
+  * Functions removed: optimizePars(), fart(), nonlinPred(), flatSpectrum()
+  * Functions made internal: phon2sone(), sone2phon(), getSmoothContour(), getRandomWalk(), getIntegerRandomWalk(), generateNoise(), getHNR(), getPitchZc(), getPrior(), findInflections(), findJumps(), addPitchJumps()
+  * Functions replaced with HzToOther() / otherToHz(): HzToSemitones(), semitonesToHz(), HzToNotes(), notesToHz(), HzToERB(), ERBToHz()
+  * Datasets removed: pitchContour, pitchManual, segmentManual
+  * Datasets made internal: permittedValues, defaults, defaults_analyze, defaults_analyze_pitchCand, def_form, notesDict
+
+NEW FUNCTIONS:
+  * acf_fft(): fast autocorrelation with FFT
+  * stft_simple(), istft_simple(), istft_timevar(): fast, barebones functions for STFT and inverse STFT
+  * hilbert_exact(), hilbert_approx(): Hilbert transform, analytical signal, envelope
+  * winFun() and related winFun_ helpers: window functions for Fourier analysis
+  * interpolate() and related interpol_ helpers: interpolation of unevenly spaced points with various splines, loess, low-pass-filters, etc.
+  * interpolateNA(): interpolation of missing values in a vector
+  * compareFolder(): compare all audio files in a folder and return a matrix of pairwise distances
+  * reportCI(): a simple helper function for printing estimates in the "fit [lwr, upr]" format, such as an estimate and its 95% CI
+  * segment_ann(): extracts and saves segments of an audio file based on a table of start/end annotations such as the output of segment()
+  * getSpecEnv(): smoothed spectral envelope (formants) via cepstral liftering, Gaussian blur, etc. (the former "getSpectralEnvelope" is renamed to "getFormantFilter")
+  * mixAtSNR() = revamped former addVectors(): mixing signal and noise at specific levels of RMS / peak amplitude / loudness
+  * added exported audio examples: "speechEx" (a few seconds of speech) and "IR" (the impulse response of a small room for adding reverb)
+
+MAJOR:
+  * all functions that save plots and/or audio: plots and audio can be embedded into a single html notebook for easy sharing (new argument "embed = TRUE"); audio playback controls instead of clicking a plot to play the audio. Thanks to Mathilde Massenet
+  * all functions that save plots and/or audio: for simplicity and cross-platform compatibility, "savePlots" and "saveAudio" are now logical arguments that can be TRUE or FALSE instead of paths to where to save the output. If TRUE, all outputs are saved in a new subdirectory (batch processing) or in the working directory
+  * ssm(), getSurprisal(), modulationSpectrum(), compareSounds(), matchPars(): the conversion of audio to a spectrogram-like representation is governed by "specFun" and "specFun_pars" for consistency and ease of extending the functionality
+  * ssm(), getLoudness(), modulationSpectrum(): output formatted as $summary, $detailed to be consistent with analyze()
+  * analyze(): all spectral descriptives (entropy, centroid, etc.) are calculated using power spectrum instead of amplitude spectrum; pathfinding through pitch candidates changed from bidirectional greedy search ("fast") or annealing ("slow") to classic Viterbi algorithm; "snake" smoothing deprecated; arguments "pathfinding", "annealPars", "snakeStep", "snakePlot" deprecated; AM and FM routines are updated; the former "amEnvDep" is now reported as an additional parameter "amEnvPurity", whereas "amEnvDep" is calculated as peak-to-trough amplitude of sinusoidal AM; returns fluctuation strength ("fluctuation") calculated similarly to roughness, but for lower modulation frequencies; argument "entropyThres" deprecated; the "entropy" variable is renamed into "entropyW" (Wiener) to distinguish it from "entropySh" (Shannon)
+  * compareSounds(): different types of spectrograms supported (specFun), new argument names to align with ssm() and getSurprisal()
+  * invertSpectrogram(): different "specType" values; new defaults; updated error calculation; x2 faster overall due to new STFT-iSTFT routines
+  * pitchDescriptives(): added analysis of the temporal structure of continuous voiced fragments, new arguments (summaryFun, ptvStep, ptvTime, ptvFreq) and outputs ($summary, $syllables, $ptv)
+  * soundgen(): new argument `smoothing` to pass extra parameters to interpolate(); intonation and other contours in soundgen() behave differently by default; aperiodic component is initiated in the frequency domain as complex Gaussian noise instead of having random binary phase; new argument "wn" to allow different STFT windows; new default "formantCeiling = NULL" to approximate the contribution of above-Nyquist resonances without calculating them explicitly (~10% faster); the "glottis" argument (closed phase) no longer affects f0 and can now be combined with subharmonics; implemented theoretical instead of empirical correction for resonances above Nyqist, proper zero-pole pair added when mouth = 0; rolloffNoiseExp applies above noiseFlatSpec, not above the first frequency bin in the spectrum
+  * soundgen(), getRolloff(): deprecated parameters subFreq, subWidth (use AM instead to produce these effects); rolloffParab, rolloffParabHarm, rolloffParabCeiling (no parabolic rolloff adjustment); noiseAmpRef (harmonic and noise component always mixed after filtering at RMS-normalized amplitudes)
+  * spectrogram() returns one more frequency bin at Nyquist if output = "original" or the complete complex spectrum (with both positive and negative frequencies) if output = "complex"; spectrogram(): smoothFreq and smoothTime are given in Hz and ms, respectively (formerly in points); a new algorithm for calculating spectral derivatives - renamed argument specType = "derivative"; a new algorithm for adjusting brightness without discarding any bins
+  * audSpectrogram(): either RMS or analytic envelopes supported (new argument "envelope"); more robust implementation (conservative frequency limits, stricter checks to avoid extreme values in some channels, gain correction); much faster gammatones; new defaults, revamped plot of filters, etc.
+  * modulationSpectrum(): processed output is smoothed but no longer log-warped (log-warping is now purely a plotting transform); auditory spectrograms as input (specFun = 'audSpec') use meaningful spectral modulation labels (cycles/ERB, cycles/Bark, etc.) based on the filterbank's yScale; calculates fluctuation strength in addition to roughness (new arguments "fluctRange", "fluctMean", "fluctSD")
+  * getLoudness(): also calculates sharpness (new argument "sharpnessMethod"); either STFT or filterbanks supported as inputs (input = "spec" or "audSpec"); new scaling and normalization procedures; vectorized for speed; "Pref" deprecated
+  * segment(): argument "troughLocation" deprecated; new arguments "specDiffMeasure" and "amplWeight"; does not return "noise" and "signal" objects; argument "method" renamed to "input" for consistency with other functions
+  * filterSoundByMS(): largely rewritten; new arguments "dynamicRange", "dB", "smooth", "protect", "warnAsymmetric" for reducing spectro-temporal artifacts after filtering
+  * shiftFormants(), transplantFormants(): formant envelope now extracted with getSpecEnv() (new argument "specEnvMethod") instead of a moving-peak filter; noise floor (dynamicRange) is now relative to each frame; improved algorithm for spectral warping; vectorized and much faster
+  * gaussianSmooth2D() and functions that call it (eg spectrogram): "unblur" leads to adjustable unsharp masking instead of computing residuals; new argument "padding" to choose between zero-padding and repeating the edges (new default); affects spectrogram() and modulationSpectrum()
+  * normalizeFolder(): supports parallel processing on multiple cores; new argument "preserveRelativeDif" to preserve the original relative peak amplitude across files
+  * playme(): native implementation of audio playback with new defaults for Windows / MacOS / Linux, silent playback without printing to console on Linux / MacOS
+  * apps (soundgen_app, formant_app, pitch_app, annotation_app): switched to embedding audio with base64enc::dataURI() and saving backups in tempdir() instead of writing audio and csv backups in 'www/'; defaults passed via internal environment and output returned without creating extra objects in the main environment; debugging (especially of playback, annotations, and hotkeys); many minor design changes
+
+MINOR (selected):
+  * updated all documentation (proofreading, formatting, grouping functions and arguments, adding @return to all exported functions, etc.)
+  * all functions that run in parallel on multiple cores: more equal distribution of load between cores
+  * soundgen(), addFormants(), shiftFormants() and all other functions that involve STFT: a new STFT - iSTFT algorithm (accepts odd window lengths, a bit faster)
+  * analyze(), getSurprisal(): a faster algorithm based on autocorrelation with FFT instead of acf()
+  * specToMS(), msToSpec(): slightly adjusted AM/FM labels; specToMS() returns both centered and uncentered versions of the ms
+  * transplantFormants(): "zp", "blur" arguments deprecated; much faster
+  * original graphical par() saved on exit, so should be intact even if a function crashes
+  * matchPars(): argument "compareSounds_pars" replaces "compareSoundsPars" and expects new arguments in line with the updated compareSounds() function
+  * segment()$syllables also lists syllable rate for each sylLen-pauseLen pair
+  * addFormants(): expects argument "windowLength" instead of "windowLength_points"
+  * formant_app, pitch_app, annotation_app: more compatible with dark mode in the browser (white background in all icons)
+  * findPeaks(): new algorithm, arguments "thresRel" and "plot"
+  * resample(): better anti-aliasing with a low-pass filter, faster reinsertion of NAs
+  * ssm(): much faster, argument "sparse" deprecated
+  * getSurprisal(): new arguments "output" to select what to return and "minProb" to cap Shannon surprisal; method "np" deprecated
+  * specToMS(), msToSpec(): removed reconstruction of labels from windowLength/step/samplingRate; now rely on valid row/column names
+  * getEnv(): new arguments "step", "overlap", "upsample = TRUE" to return the envelope at the original sampling rate or "FALSE" at one point per window
+  * shiftPitch(): single-pass phase vocoder - formant warping now happens before iSTFT instead of a second STFT-iSTFT cycle; faster and cleaner transients; small bugs fixed in adaptive phase propagation
+  * phasegram(): added validity checks; rasterized returned even if plot = FALSE; new argument "overlap"; new defaults
+  * morph(): more robust to various inputs, clarified documentation
+  * reverb(): new argument "IR" for adding reverb based on a recorded impulse response
+  * detectNLP(): all "pars_X" arguments renamed to "X_pars" (analyze_pars, loudness_pars, etc.)
+  * schwa(): "nForm" renamed to "nFormants" to be consistent with analyze()
+  * consistent behavior of "zp = 0" vs "zp = NULL" (increases wl to nextn(wl)) in all functions
+  * consistent behavior of "step" overriding "overlap" in all functions
+
+BUGS FIXED (selected):
+  * soundgen(): fixed rounding of time stamps when wiggling anchors that removed some user-specified variability in parameters
+  * soundgen(), getRolloff(): rolloffOct has half the effect it had before (and now in line with its value); much faster vectorized calculation of the rolloff matrix
+  * analyze(): removed unnecessary argument "specType"
+  * analyze(): feature flux is calculated correctly if roughness, loudness etc are not calculated (previously that caused incorrect normalization of the remaining features)
+  * analyze(): Shannon entropy of the spectrum is different from Wiener entropy
+  * findPeaks(): looks for strict peaks instead of any value that equals max(frame)
+  * modulationSpectrum(): slightly adjusted AM/FM labels
+  * getRMS(): correctly saves plots
+  * spectrogram(): correct handling of smoothFreq and smoothTime
+  * ssm(): fixed a sudden change in kernel SD as kernel size exceeded 50
+  * estimateVTL(): single‑formant dispersion respects the "tube" argument
+  * shiftPitch(): removed aliasing caused by large pitch shifts (pitchMult > 1.5), much faster with `propagation = "adaptive"`
+  * bandpass(): removed discontinuities in the filter spectrum when using the `bw` argument; respects from/to arguments
+  * getEnv(): RMS envelope calculated correctly (previously mean absolute value)
+  * spectrogram(): argument "qTime" has the correct described effect, some debugging of reassigned spectrograms, multiresolution spectrograms with different window lengths combined with equal weights
+  * getSurprisal(): weightByAmpl incorporates all analysis frames, not just the last one; weighted Shannon surprisal and KL divergence use weighted means to calculate weighted SDs
+  * modulationSpectrum(): fragments are averaged rather than summed and aligned by axis labels in case AM or FM ranges are different (when working with multiple audio files)
+  * specToMS(): correct frequency bin subsetting and label reconstruction with zero padding
+  * segment(): correct timing if a selected region of input is analyzed ("from...to")
+  * invertSpectrogram(): improved accuracy of initial phase guessing due to a fixed bug in guessPhase_spsi()
+
+
           CHANGES IN SOUNDGEN VERSION 2.9.0 [24-Feb-2026]
 MAJOR:
   * getSurprisal(): largely rewritten, many new arguments and outputs

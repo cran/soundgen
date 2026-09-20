@@ -7,8 +7,8 @@
 pitch_app(...)
 }
 \arguments{
-\item{...}{presets like \code{windowLength = 25, pitchMethods = c('auocor',
-'cep')}. Full list: dynamicRange, zp, entropyThres, nCands, minVoicedCands,
+\item{...}{presets like \code{windowLength = 25, pitchMethods = c('autocor',
+'cep')}. Full list: dynamicRange, zp, nCands, minVoicedCands,
 domThres, domSmooth, autocorThres, autocorSmooth, autocorUpsample,
 autocorBestPeak, cepThres, cepZp, specThres, specPeak, specRatios,
 specHNRslope, specSmooth, specMerge, specSinglePeakCert, hpsThres, hpsNum,
@@ -17,7 +17,7 @@ spec_maxPoints, specContrast, specBrightness, blur_freq, blur_time,
 reass_cex, osc_maxPoints, windowLength, step, silence, pitchFloor,
 pitchCeiling, priorMean, priorSD, shortestSyl, shortestPause, interpolWin,
 interpolTol, spec_cex, nColors, reass_windowLength, reass_step,
-pitchMethods, summaryFun, summaryFun_text, pathfinding, spec_ylim,
+pitchMethods, summaryFun, summaryFun_text, spec_ylim,
 spec_colorTheme, osc, wn}
 }
 \value{
@@ -26,20 +26,14 @@ A list with the last used settings ($settings) plus the output of
   columns: "time" and "pitch". NB: only the results of the most recent file
   queue are returned, so don't press "Load audio" repeatedly if you need the
   output returned to R (the csv file with results should still be saved
-  correctly). When proceeding to the next file in the cue, two types of
-  backups are created. (1) A global object called "my_pitch" is created or
-  updated. This list becomes visible when the app is terminated, and it
-  contains the usual outputs of analyze() ($detailed and $summary) plus lists
-  of manually corrected voiced and voiceless frames. (2) The app saves to
-  disk a .csv file with one row per audio file. Apart from the usual
-  descriptives from analyze(), there are two additional columns: "time" with
-  time stamps (the midpoint of each STFT frame, ms) and "pitch" with the
-  manually corrected pitch values for each frame (Hz). When the orange
+  correctly). When proceeding to the next file in the queue, the app saves to
+  disk a backup .csv file with one row per audio file. When the orange
   "Download results" button is clicked, a context menu pops up offering to
   terminate the app - if that happens, the results are also returned directly
   into R. To process pitch contours further in R, work directly with
-  \code{my_pitch[[myfile]]$time} and \code{my_pitch[[myfile]]$pitch} or, if
-  loading the csv file, do something like:
+  \code{my_pitch[[myfile]]$detailed$time} and
+  \code{my_pitch[[myfile]]$detailed$pitch} or, if loading the csv file, do
+  something like:
 
 \preformatted{
 a = read.csv('~/Downloads/output.csv', stringsAsFactors = FALSE)
@@ -54,7 +48,7 @@ pitchCeiling, silence, etc. Then click "Load audio" to upload one or several
 audio files (wav/mp3). Long files will be very slow, so please cut your audio
 into manageable chunks (ideally <10 s). If Shiny complains that maximum
 upload size is exceeded, you can increase it, say to 30 MB, with
-`options(shiny.maxRequestSize = 30 * 1024^2)`. Once the audio has been
+\code{options(shiny.maxRequestSize = 30 * 1024^2)}. Once the audio has been
 uploaded to the browser, fine-tune the analysis settings as needed, edit the
 pitch contour in the first file to your satisfaction, then click "Next" to
 proceed to the next file, etc. Remember that setting a reasonable prior is
@@ -78,21 +72,19 @@ whole or to set a prior based on selected frequency range.
 \bold{Recovering lost data}
 
 Every time you click "next" or "last" to move in between files in the queue,
-the output you've got so far is saved in a backup file called "temp.csv", and
-the "my_pitch" global object is updated. If the app crashes or is closed
-without saving the results, this backup file preserves your data. To recover
-it, access this file manually on disk or simply restart pitch_app() - a
-dialog box will pop up and ask whether you wank to append the old data to the
-new one. Path to backup file:
-"R_installation_folder/soundgen/shiny/pitch_app/www/temp.csv", for example,
-"/home/allgoodguys/R/x86_64-pc-linux-gnu-library/3.6/soundgen/shiny/pitch_app/www/temp.csv"
+the output you've got so far is saved in a temporary backup file. If the app
+crashes or is closed without saving the results, this backup file preserves
+your data. To recover it, restart pitch_app() - a dialog box will pop up and
+ask whether you want to append the old data to the new one. Even so, save
+your data regularly to be on the safe side!
 }
 \description{
 Starts a shiny app for manually editing pitch contours. The settings in the
 panels on the left correspond to arguments to \code{\link{analyze}} - see
-`?analyze` and the vignette on acoustic analysis for help and examples. You
-can verify the pitch contours first, and then feed them back into
-\code{analyze} (see examples).
+\code{\link{analyze}} and https://cogsci.se/soundgen/acoustic_analysis.html
+for help and examples. You can verify the pitch contours first, and then feed
+them back into \code{analyze} (see examples). Use hotkeys (eg spacebar to
+play/stop) and avoid working with very large files.
 }
 \examples{
 \dontrun{
@@ -106,11 +98,7 @@ options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 
 # You can pass presets with your preferred parameter values:
 my_pitch = pitch_app(windowLength = 20, step = 10,
-  pitchMethods = c('dom', 'autocor', 'cep'), ylim = c(0.1, 3))
-# full list of parameters that can be passed to pitch_app():
-# paste0(c(names(input)[which(names(input) \%in\% rownames(defaults_analyze))],
-#  'pitchMethods', 'summaryFun', 'summaryFun_text', 'pathfinding', 'spec_ylim',
-#  'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+  pitchMethods = c('dom', 'autocor', 'cep'), spec_ylim = c(0, 6))
 
 # Object "my_pitch" contains the output, notably the time-pitch matrix
 plot(my_pitch[[1]]$detailed$time, my_pitch[[1]]$detailed$pitch, type = 'b',
@@ -126,14 +114,14 @@ saveRDS(my_pitch2, 'my_pitch_analysis.rds')
 # accurate descriptives like the proportion of energy in harmonics above f0,
 # etc. This also gives you formants and loudness estimates (disabled in
 # pitch_app to speed things up)
-df2 = analyze(path_to_audio,
-  pitchMethods = 'autocor',  # only needed for HNR
+df2 = analyze(
+  path_to_audio,
+  pitchMethods = 'autocor',  # needed for calculating HNR
   nFormants = 5,        # now we can measure formants as well
   pitchManual = my_pitch
   # or, if loading the output of pitch_app() from the disk:
   # pitchManual = '~/Downloads/output.csv'
   # pitchManual = '~/path_to_some_folder/my_pitch_contours.rds
-  # etc
 )
 
 # STEP 3: add other acoustic descriptors, for ex.
@@ -148,5 +136,5 @@ df3 = segment(path_to_audio)
 }
 }
 \seealso{
-\code{\link{formant_app}}
+\code{\link{formant_app}} \code{\link{annotation_app}}
 }

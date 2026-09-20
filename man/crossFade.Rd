@@ -5,78 +5,94 @@
 \title{Join two waveforms by cross-fading}
 \usage{
 crossFade(
-  ampl1,
-  ampl2,
-  crossLenPoints = 240,
-  crossLen = NULL,
+  x,
+  y,
+  crossLen = 15,
+  crossLen_points = NULL,
   samplingRate = NULL,
-  shape = c("lin", "exp", "log", "cos", "logistic", "gaussian")[1],
-  steepness = 1
+  shape = c("equalPower", "lin", "exp", "log", "cos", "logistic", "gaussian"),
+  cutToZC = FALSE,
+  steepness = 1,
+  SNR = NULL
 )
 }
 \arguments{
-\item{ampl1, ampl2}{two numeric vectors (waveforms) to be joined}
+\item{x, y}{two numeric vectors (waveforms) to be joined}
 
-\item{crossLenPoints}{(optional) the length of overlap in points}
+\item{crossLen}{overlap in ms}
 
-\item{crossLen}{the length of overlap in ms (overrides crossLenPoints)}
+\item{crossLen_points}{overlap in points (overrides crossLen)}
 
 \item{samplingRate}{the sampling rate of input vectors, Hz (needed only if
 crossLen is given in ms rather than points)}
 
-\item{shape}{controls the type of fade function: 'lin' = linear, 'exp' =
-exponential, 'log' = logarithmic, 'cos' = cosine, 'logistic' = logistic
-S-curve}
+\item{shape}{controls the type of fade function: 'equalPower' = equal power
+(default), 'lin' = linear, 'exp' = exponential, 'log' = logarithmic, 'cos'
+= cosine, 'logistic' = logistic S-curve, 'gaussian' = Gaussian curve}
+
+\item{cutToZC}{if TRUE, input vectors are truncated so that \code{x} ends
+with a zero crossing and \code{y} starts with a zero crossing, both on
+an upward portion of the soundwave}
 
 \item{steepness}{scaling factor regulating the steepness of fading curves
 (except for shapes 'lin' and 'cos'): 0 = linear, >1 = steeper than default}
+
+\item{SNR}{if a number, the two sounds are normalized so that the RMS
+amplitude of \code{x} is SNR dB above that of \code{y} (NULL = no
+normalization; negative values make \code{x} quieter than \code{y})}
 }
 \value{
-Returns a numeric vector.
+A numeric vector with the original sampling rate. The length is going
+  to be \code{length(x) + length(y) - crossLen_points}, or a bit less if
+  cutting to nearest zero crossings.
 }
 \description{
-\code{crossFade} joins two input vectors (waveforms) by cross-fading. First
-it truncates both input vectors, so that \code{ampl1} ends with a zero
-crossing and \code{ampl2} starts with a zero crossing, both on an upward
-portion of the soundwave. Then it cross-fades both vectors linearly with an
-overlap of crossLen or crossLenPoints. If the input vectors are too short for
-the specified length of cross-faded region, the two vectors are concatenated
-at zero crossings instead of cross-fading. Soundgen uses \code{crossFade} for
-gluing together epochs with different regimes of pitch effects (see the
-vignette on sound generation), but it can also be useful for joining two
-separately generated sounds without audible artifacts.
+\code{crossFade} joins two input vectors (waveforms) by overlapping and
+cross-fading them. This is standard for joining two separately generated
+sounds without audible artifacts.
 }
 \examples{
 sound1 = sin(1:100 / 9)
-sound2 = sin(7:107 / 3)
+sound2 = sin(7:106 / 3)
 plot(c(sound1, sound2), type = 'b')
 # an ugly discontinuity at 100 that will make an audible click
 
-sound = crossFade(sound1, sound2, crossLenPoints = 5)
+sound = crossFade(sound1, sound2, crossLen_points = 25)
 plot(sound, type = 'b') # a nice, smooth transition
-length(sound) # but note that cross-fading costs us ~60 points
-#  because of trimming to zero crossings and then overlapping
+length(sound) # but note that cross-fading costs us crossLen_points = 25
+# points even without cutting to zc, and much more if we trim to
+# zero crossings and then overlap
 
-\dontrun{
+sound = crossFade(sound1, sound2, crossLen_points = 25,
+  SNR = 6)  # make sound1 6 dB louder (RMS) than sound2
+plot(sound, type = 'b') # a nice, smooth transition
+
 # Actual sounds, alternative shapes of fade-in/out
-sound3 = soundgen(formants = 'a', pitch = 200,
+sound3 = soundgen(formants = 'a', pitch = 200, sylLen = 300,
                   addSilence = 0, attackLen = c(50, 0))
-sound4 = soundgen(formants = 'u', pitch = 200,
+sound4 = soundgen(formants = 'u', pitch = 200, sylLen = 300,
                   addSilence = 0, attackLen = c(0, 50))
 
 # simple concatenation (with a click)
-playme(c(sound3, sound4), 16000)
+cf1 = c(sound3, sound4)
+osc(cf1, 16000, from = .25, to = .35)
+# playme(cf1, 16000)
 
-# concatentation from zc to zc (no click, but a rough transition)
-playme(crossFade(sound3, sound4, crossLen = 0), 16000)
+# concatenation from zc to zc (no click, but a rough transition)
+cf2 = crossFade(sound3, sound4, crossLen_points = 0, cutToZC = TRUE)
+osc(cf2, 16000, from = .25, to = .35)
+# playme(cf2, 16000)
 
-# linear crossFade over 35 ms - brief, but smooth
-playme(crossFade(sound3, sound4, crossLen = 35, samplingRate = 16000), 16000)
+# crossFade over 35 ms - brief, but smooth
+cf3 = crossFade(sound3, sound4, crossLen = 35, samplingRate = 16000)
+osc(cf3, 16000, from = .25, to = .35)
+# playme(cf3, 16000)
 
-# s-shaped cross-fade over 300 ms (shortens the sound by ~300 ms)
-playme(crossFade(sound3, sound4, samplingRate = 16000,
-                 crossLen = 300, shape = 'cos'), 16000)
-}
+# equal-power cross-fade over 300 ms (shortens the sound by ~300 ms)
+cf4 = crossFade(sound3, sound4, samplingRate = 16000,
+                 crossLen = 300, shape = 'equalPower')
+osc(cf4, 16000)
+# playme(cf4, 16000)
 }
 \seealso{
 \code{\link{fade}}

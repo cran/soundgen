@@ -8,33 +8,54 @@ annotation_app(...)
 }
 \arguments{
 \item{...}{presets like \code{windowLength = 25}. Full list: dynamicRange,
-specContrast, specBrightness, blur_freq, blur_time, reass_cex, zp,
+specContrast, specBrightness, blur_freq, blur_time, reass_cex, nColors, zp,
 spec_maxPoints, osc_maxPoints, windowLength, step, spec_xlim, spec_ylim,
-spec_colorTheme, osc, wn}
+specType, spec_colorTheme, spec_yScale, osc, wn}
 }
 \value{
-A list of the last used settings ($settings) plus a data.frame with
-  the annotations. Every time a new annotation is added, the app creates a
-  backup csv file and creates or updates a global object called "my_annot",
-  which contains all the annotations.
+A list with two elements: \code{$settings} (a list of the last used
+  settings) and \code{$annotations} (a data.frame with the annotations).
+  Every time a new annotation is added, the app creates a backup csv file in
+  the session's temporary directory, and it returns the final payload upon
+  closing the app.
 }
 \description{
 Starts a shiny app for annotating audio. This is a simplified and faster
 version of \code{\link{formant_app}} intended only for making annotations.
+Use hotkeys (eg spacebar to play/stop) and avoid working with very large
+files.
+}
+\details{
+\bold{Recovering lost data}
+
+Every time you add an annotation or move in between files in the queue, the
+output you've got so far is saved in a temporary backup file. If the app
+crashes or is closed without saving the results, this backup file preserves
+your data. To recover it, restart annotation_app() - a dialog box will pop up
+and ask whether you want to append the old data to the new one. Even so, save
+your data regularly to be on the safe side!
 }
 \examples{
 \dontrun{
 ann = annotation_app()  # runs in default browser such as Firefox or Chrome
 
 ann = annotation_app(specType = 'reassigned', windowLength = 5, step = 1)
+
 # full list of parameters that can be passed to annotation_app():
-# paste0(c(names(input)[which(names(input) \%in\% rownames(def_form))],
-#  'spec_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn'), collapse = ', ')
+paste0(c(rownames(soundgen:::def_ann),
+ 'specType', 'spec_colorTheme', 'spec_yScale', 'osc', 'wn', 'audioMethod'),
+ collapse = ', ')
 
 # save the complete output, including the settings used
 saveRDS(ann, 'my_annotations.rds')
 
+# re-use the same settings in a future session
+ann2 = do.call(annotation_app, ann$settings)
+
 # To change system default browser, run something like:
 options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 }
+}
+\seealso{
+\code{\link{formant_app}}
 }

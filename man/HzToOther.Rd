@@ -7,13 +7,13 @@
 \usage{
 HzToOther(
   x,
-  scale = c("ERB", "bark", "mel", "log", "semitones", "notes")[1],
+  scale = c("ERB", "bark", "mel", "log", "semitones", "notes", "linear", "orig"),
   ...
 )
 
 otherToHz(
   x,
-  scale = c("ERB", "bark", "mel", "log", "semitones", "notes")[1],
+  scale = c("ERB", "bark", "mel", "log", "semitones", "notes", "linear", "orig"),
   ...
 )
 }
@@ -24,17 +24,41 @@ otherToHz(
 calculated as in Wang et al. 1992 (see
 https://en.wikipedia.org/wiki/Bark_scale), "mel" = O'Shaughnessy's original
 formula (https://en.wikipedia.org/wiki/Mel_scale), "ERB" = Equivalent
-Rectangular Bandwidth rate (see \code{\link{HzToERB}}), "log" = log2,
-"semitones" = semitones relative to a reference value (see
-\code{\link{HzToSemitones}}), "notes" = musical notation (see
-\code{\link{HzToNotes}}), "linear" = no change}
+Rectangular Bandwidth rate (see Moore & Glasberg 1983, 1990), "log" = log2,
+"semitones" = semitones relative to a reference value, "notes" = musical
+notation, "linear" or "orig" = no change}
 
 \item{...}{other arguments passed on to the scale-specific function}
 }
+\value{
+Numeric vector of converted frequencies.
+}
 \description{
-Converts betwen Hz and ERB, bark, mel, log, semitones relative to a reference
+Converts between Hz and ERB, bark, mel, log, semitones relative to a reference
 frequency, or musical notes. Accepts vectors and missing values.
 }
+\section{Scale‑specific arguments}{
+
+The following arguments can be passed via \code{...} . They are only used when
+the corresponding \code{scale} is selected; otherwise, they are silently ignored.
+\describe{
+  \item{method}{Character, used when \code{scale = "ERB"}. Choose between
+    "linear" (Glasberg & Moore, 1990) and "quadratic" (Moore &
+    Glasberg, 1983). Default is "linear".}
+  \item{ref}{Numeric, used when \code{scale = "semitones"}. Reference
+    frequency (Hz) for the semitone scale. Default is C-5
+    (0.5109875 Hz).}
+  \item{A4}{Numeric, used when \code{scale = "notes"}. Frequency of the
+    note A4. Default is 440 Hz (modern standard ISO 16, concert pitch).}
+  \item{showCents}{Logical, used only with HzToOther() when
+    \code{scale = "notes"}. If \code{TRUE}, appends the cent deviation
+    (rounded to the nearest integer) to the note name. Default is
+    \code{FALSE}. Not applicable to otherToHz().}
+}
+No additional arguments are required or usedor scale = "bark", "mel", "log",
+or "linear".
+}
+
 \examples{
 x = c(-20, 20, 100, 440, 1000, NA)
 HzToOther(x, 'ERB')
@@ -64,9 +88,22 @@ otherToHz(x, 'semitones')
 HzToOther(c(440, 210, 880), 'semitones', ref = 440)
 otherToHz(HzToOther(c(440, 210, 880), 'semitones'), 'semitones')
 
-otherToHz(c('A4', 'C#6', 'blabla', NA), 'notes')
+otherToHz(c('A4', 'C#6', 'blabla', 'C0', 'C-2', NA), 'notes')
+HzToOther(c(440, 293, 115, 16.35, 4), 'notes')
+
+HzToOther(c(440, 415, 80, 81), 'notes', showCents = TRUE)
+# 80 Hz is almost exactly midway (+49 cents) between D#2 and E2
+
+# Baroque tuning A415, half a semitone flat relative to concert pitch A440
+HzToOther(c(440, 415, 16.35), 'notes', A4 = 415)
+otherToHz(c("A4", "D4", "A#2", "C0", "C-2"), 'notes', A4 = 415)
 }
-\seealso{
-\code{\link{HzToSemitones}} \code{\link{HzToNotes}}
-  \code{\link{HzToERB}}
+\references{
+\itemize{
+  \item Moore, B. C., & Glasberg, B. R. (1983). Suggested formulae for
+  calculating auditory-filter bandwidths and excitation patterns. The journal
+  of the acoustical society of America, 74(3), 750-753.
+  \item Glasberg, B. R., & Moore, B. C. (1990). Derivation of auditory filter
+  shapes from notched-noise data. Hearing research, 47(1-2), 103-138.
+}
 }

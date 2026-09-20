@@ -3,17 +3,22 @@
 \docType{data}
 \name{detectNLP_training_nonv}
 \alias{detectNLP_training_nonv}
-\title{Nonlinear phenomena: Naive Bayes classifier trained on human nonverbal
-vocalizations}
+\alias{detectNLP_training_synth}
+\title{Training datasets for NLP detection}
 \format{
-An object of class \code{list} of length 9.
+An object of class \code{list} of length 12.
+
+An object of class \code{list} of length 12.
 }
 \usage{
 detectNLP_training_nonv
+
+detectNLP_training_synth
 }
 \description{
 The results of running \code{\link{naiveBayes_train}} on acoustically
-analyzed 969 human nonverbal vocalizations (>83K frames). It is used by
-\code{\link{detectNLP}}.
+analyzed 969 human nonverbal vocalizations (detectNLP_training_nonv) and on
+5000 synthetic sounds with or without NLP created with soundgen
+(detectNLP_training_synth). Used by \code{\link{detectNLP}}.
 }
 \keyword{datasets}

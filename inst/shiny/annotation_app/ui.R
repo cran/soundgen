@@ -1,26 +1,52 @@
 # annotation_app()
 #
+
 library(bslib)
+
+# Retrieve defaults from package environment.
+# Fallback is provided for direct shinyapps.io deployment where the wrapper isn't executed.
+if (exists(".soundgen_env", envir = asNamespace("soundgen")) &&
+    !is.null(soundgen:::.soundgen_env$ann$def)) {
+  df = soundgen:::.soundgen_env$ann$def_ann
+  def = soundgen:::.soundgen_env$ann$def
+} else {
+  # Fallback for shinyapps.io deployment
+  df = soundgen:::def_ann
+  def = as.list(df[, 'default'])
+  names(def) = rownames(df)
+  def$spec_xlim = c(0, def$spec_xlim)
+  def$spec_ylim = c(0, def$spec_ylim)
+  def = c(def, list(
+    'specType' = 'spectrum',
+    'spec_colorTheme' = 'bw',
+    'spec_yScale' = 'linear',
+    'wn' = 'gaussian',
+    'osc' = 'linear',
+    'audioMethod' = 'Browser'
+  ))
+}
+
 tooltip_opt = list(trigger = 'hover', delay = list(show = 500, hide = 100))
 
 ui = page_fluid(
+  # theme = bs_theme(preset = "darkly"),
+
   # css
   tags$head(
-    shiny::includeCSS("www/annotation_app.css")
+    shiny::includeCSS(file.path("www", "annotation_app.css"))
   ),
 
   # js
-  includeScript("www/annotation_app.js"),
-  includeScript("www/annotation_app_shinyjs.js"),
+  includeScript(file.path("www", "annotation_app_shinyjs.js")),
+  includeScript(file.path("www", "annotation_app.js")),
   shinyjs::useShinyjs(),
   # handy for calling js functions from R, eg for a collapsible side panel - see
   # https://stackoverflow.com/questions/46352156/r-shiny-resizing-the-mainpanel-window-when-i-minimize-the-sidebarpanel?rq=1
   # alternative: https://rstudio.github.io/shinydashboard
-
   # import some js functions to be invoked from R with shinyjs
   # (eg for playing the audio)
   shinyjs::extendShinyjs(
-    script = 'www/annotation_app_shinyjs.js',
+    script = 'annotation_app_shinyjs.js',
     functions = c('playme_js', 'stopAudio_js', 'play_file',
                   'clearBrush', 'inheritSize', 'scrollBar')
   ),
@@ -28,7 +54,6 @@ ui = page_fluid(
   # html
   tags$div(
     id = 'gridCont',
-
     tags$div(
       id = 'left',
       fluidRow(
@@ -37,7 +62,6 @@ ui = page_fluid(
             id = "Sidebar",
             width = "300px",
             bg = "Azure",
-
             tabsetPanel(
               id = 'parGroup',
               tabPanel(
@@ -46,86 +70,78 @@ ui = page_fluid(
                   'reset_to_def',
                   label = 'Reset ALL to defaults') |>
                   tooltip("Reset all settings to default values", options = tooltip_opt),
-
                 radioButtons(
                   'audioMethod',
                   label = "Play analyzed audio with",
                   choices = list('Browser' = 'Browser', 'R' = 'R'),
                   selected = 'Browser', inline = TRUE, width = NULL) |>
-                  tooltip("Play audio with javascript (recommended in Firefox,
-                        doesn't work in Chrome) or with R (browser-independent,
-                        but then the cursor doesn't move, and you can't stop playback)",
+                  tooltip("Play audio with javascript or with R (browser-independent,
+                  but then the cursor doesn't move, and you can't stop playback)",
                           options = tooltip_opt),
-
                 checkboxInput(
                   'normalizeInput',
                   'Normalize for peak amplitude',
-                  value = TRUE),
+                  value = TRUE)
               ),
-
               tabPanel(
                 "Spectrogram",
                 accordion(
                   sliderInput(
                     'spec_ylim',
                     'Frequency range, kHz',
-                    value = c(0, def_form['spec_ylim', 'default']),
-                    min = def_form['spec_ylim', 'low'],
-                    max = def_form['spec_ylim', 'high'],
-                    step = def_form['spec_ylim', 'step']) |>
+                    value = def$spec_ylim,
+                    min = df['spec_ylim', 'low'],
+                    max = df['spec_ylim', 'high'],
+                    step = df['spec_ylim', 'step']) |>
                     tooltip("Range of displayed frequencies, kHz", options = tooltip_opt),
-
                   numericInput(
                     'windowLength',
                     'Window length, ms',
-                    value = 20, # def_form['windowLength', 'default'],
-                    min = def_form['windowLength', 'low'],
-                    max = def_form['windowLength', 'high'],
-                    step = def_form['windowLength', 'step']) |>
+                    value = def$windowLength,
+                    min = df['windowLength', 'low'],
+                    max = df['windowLength', 'high'],
+                    step = df['windowLength', 'step']) |>
                     tooltip("Length of STFT window, ms", options = tooltip_opt),
-
                   numericInput(
                     'step',
                     'Step, ms',
-                    value = 5, # def_form['step', 'default'],
-                    min = def_form['step', 'low'],
-                    max = def_form['step', 'high'],
-                    step = def_form['step', 'step']) |>
+                    value = def$step,
+                    min = df['step', 'low'],
+                    max = df['step', 'high'],
+                    step = df['step', 'step']) |>
                     tooltip("Step between analysis frames, ms", options = tooltip_opt),
-
                   radioButtons(
                     inputId = 'specType',
                     label = tooltip('Spectrogram type', "Spectrogram type,
-                                  argument 'specType' in spectrogram()"),
+                    argument 'specType' in spectrogram()"),
                     choices = c("Ordinary FFT" = "spectrum",
                                 "Reassigned" = "reassigned",
-                                "Derivative" = "spectralDerivative"),
-                    selected = 'spectrum', inline = TRUE, width = NULL),
-
+                                "Derivative" = "derivative"),
+                    selected = def$specType,
+                    inline = TRUE, width = NULL),
                   sliderInput(
                     'dynamicRange',
                     'Dynamic range, dB',
-                    value = def_form['dynamicRange', 'default'],
-                    min = def_form['dynamicRange', 'low'],
-                    max = def_form['dynamicRange', 'high'],
-                    step = def_form['dynamicRange', 'step']),
-
+                    value = def$dynamicRange,
+                    min = df['dynamicRange', 'low'],
+                    max = df['dynamicRange', 'high'],
+                    step = df['dynamicRange', 'step']),
                   radioButtons(
                     inputId = 'spec_colorTheme',
                     label = 'Color scheme',
-                    choices = c("Seewave" = "seewave",
+                    choices = c("Black & white" = "bw",
+                                "Seewave" = "seewave",
                                 "Heat" = "heat.colors",
-                                "Black & white" = "bw"),
-                    selected = 'bw', inline = TRUE, width = NULL),
-
+                                "Matlab" = "matlab"),
+                    selected = def$spec_colorTheme,
+                    inline = TRUE, width = NULL),
                   numericInput(
                     'nColors',
                     'Number of colors in the palette',
-                    value = defaults_analyze['nColors', 'default'],
-                    min = defaults_analyze['nColors', 'low'],
-                    max = defaults_analyze['nColors', 'high'],
-                    step = defaults_analyze['nColors', 'step']),
-
+                    value = def$nColors,
+                    min = df['nColors', 'low'],
+                    max = df['nColors', 'high'],
+                    step = df['nColors', 'step']),
                   radioButtons(
                     inputId = 'spec_yScale',
                     label = 'Frequency scale',
@@ -134,105 +150,97 @@ ui = page_fluid(
                                 "Bark" = "bark",
                                 "Mel" = "mel",
                                 "ERB" = "ERB"),
-                    selected = 'linear', inline = TRUE, width = NULL),
-
+                    selected = def$spec_yScale,
+                    inline = TRUE, width = NULL),
                   sliderInput(
                     'specContrast',
                     'Contrast',
-                    value = 0, # def_form['specContrast', 'default'],
-                    min = def_form['specContrast', 'low'],
-                    max = def_form['specContrast', 'high'],
-                    step = def_form['specContrast', 'step']),
-
+                    value = def$specContrast,
+                    min = df['specContrast', 'low'],
+                    max = df['specContrast', 'high'],
+                    step = df['specContrast', 'step']),
                   sliderInput(
                     'specBrightness',
                     'Brightness',
-                    value =0, # def_form['specBrightness', 'default'],
-                    min = def_form['specBrightness', 'low'],
-                    max = def_form['specBrightness', 'high'],
-                    step = def_form['specBrightness', 'step']),
-
+                    value = def$specBrightness,
+                    min = df['specBrightness', 'low'],
+                    max = df['specBrightness', 'high'],
+                    step = df['specBrightness', 'step']),
                   accordion_panel(
                     "Advanced",
                     sliderInput(
                       'blur_freq',
                       'Blur: frequency (Hz)',
-                      value = 0, # def_form['blur_freq', 'default'],
-                      min = def_form['blur_freq', 'low'],
-                      max = def_form['blur_freq', 'high'],
-                      step = def_form['blur_freq', 'step']) |>
+                      value = def$blur_freq,
+                      min = df['blur_freq', 'low'],
+                      max = df['blur_freq', 'high'],
+                      step = df['blur_freq', 'step']) |>
                       tooltip("Gaussian filter of frequency: >0 = blur, <0 = unblur
-                        (sharpen)", options = tooltip_opt),
-
+                      (sharpen)", options = tooltip_opt),
                     sliderInput(
                       'blur_time',
                       'Blur: time (ms)',
-                      value = 0, # def_form['blur_time', 'default'],
-                      min = def_form['blur_time', 'low'],
-                      max = def_form['blur_time', 'high'],
-                      step = def_form['blur_time', 'step']) |>
+                      value = def$blur_time,
+                      min = df['blur_time', 'low'],
+                      max = df['blur_time', 'high'],
+                      step = df['blur_time', 'step']) |>
                       tooltip("Gaussian filter of time: >0 = blur, <0 = unblur (sharpen)",
                               options = tooltip_opt),
-
                     sliderInput(
                       'reass_cex',
                       'Point size (reassigned spectrogram only)',
-                      value = def_form['reass_cex', 'default'],
-                      min = def_form['reass_cex', 'low'],
-                      max = def_form['reass_cex', 'high'],
-                      step = def_form['reass_cex', 'step']) |>
+                      value = def$reass_cex,
+                      min = df['reass_cex', 'low'],
+                      max = df['reass_cex', 'high'],
+                      step = df['reass_cex', 'step']) |>
                       tooltip("", options = tooltip_opt),
-
                     sliderInput(
                       'zp',
                       'Zero padding, points 2 ^ n',
-                      value = def_form['zp', 'default'],
-                      min = def_form['zp', 'low'],
-                      max = def_form['zp', 'high'],
-                      step = def_form['zp', 'step']) |>
+                      value = def$zp,
+                      min = df['zp', 'low'],
+                      max = df['zp', 'high'],
+                      step = df['zp', 'step']) |>
                       tooltip("Zero padding: 8 means 2^8 = 256, etc.", options = tooltip_opt),
-
                     selectInput(
                       'wn',
                       'STFT window type',
                       choices = c('bartlett', 'blackman', 'flattop', 'gaussian',
                                   'hamming', 'hanning', 'rectangle'),
-                      selected = 'gaussian', multiple = FALSE),
-
+                      selected = def$wn,
+                      multiple = FALSE),
                     sliderInput(
                       'spec_maxPoints',
                       'Max number of pixels, 10^',
-                      value = def_form['spec_maxPoints', 'default'],
-                      min = def_form['spec_maxPoints', 'low'],
-                      max = def_form['spec_maxPoints', 'high'],
-                      step = def_form['spec_maxPoints', 'step']) |>
+                      value = def$spec_maxPoints,
+                      min = df['spec_maxPoints', 'low'],
+                      max = df['spec_maxPoints', 'high'],
+                      step = df['spec_maxPoints', 'step']) |>
                       tooltip("The number of points to plot in the spectrogram
-                        (smaller = faster, but low resolution)", options = tooltip_opt)
+                      (smaller = faster, but low resolution)", options = tooltip_opt)
                   )
                 )
               ),
-
               tabPanel(
                 "Oscillogram",
                 selectInput(
                   'osc',
                   'Oscillogram type',
                   choices = c('linear', 'dB'),
-                  selected = 'linear', multiple = FALSE),
-
+                  selected = def$osc,
+                  multiple = FALSE),
                 sliderInput(
                   'osc_maxPoints',
                   'Max number of pixels, 10^',
-                  value = def_form['osc_maxPoints', 'default'],
-                  min = def_form['osc_maxPoints', 'low'],
-                  max = def_form['osc_maxPoints', 'high'],
-                  step = def_form['osc_maxPoints', 'step']) |>
+                  value = def$osc_maxPoints,
+                  min = df['osc_maxPoints', 'low'],
+                  max = df['osc_maxPoints', 'high'],
+                  step = df['osc_maxPoints', 'step']) |>
                   tooltip("The number of points to plot in the oscillogram
-                        (smaller = faster, but low resolution)", options = tooltip_opt)
+                  (smaller = faster, but low resolution)", options = tooltip_opt)
               )
             )
           ), # end of column "sidebar"
-
           fluidRow(
             style="margin-top: -15px; margin-bottom: -15px;",
             column(
@@ -245,7 +253,6 @@ ui = page_fluid(
                 multiple = TRUE, buttonLabel = 'Load audio',
                 placeholder = '...')
             ),
-
             column(
               width = 6,
               tags$div(
@@ -259,9 +266,10 @@ ui = page_fluid(
                   class = "buttonFile") |>
                   tooltip("Save and proceed to the next file (PageDown)", options = tooltip_opt)
               ),
-              selectInput('fileList', label = NULL, choices = list())
+              selectInput('fileList', label = NULL, choices = list(),
+                          selectize = FALSE  # to enable custom css
+              )
             ),
-
             column(
               width = 2,
               uiOutput("htmlAudio"),  # not actually shown
@@ -269,13 +277,11 @@ ui = page_fluid(
                 outputId = "saveRes", label = "",
                 style="color: blue; background-color: orange;") |>
                 tooltip("Download results (see ?pitch_app for recovering unsaved
-                        data after a crash)", options = tooltip_opt),
-
+                data after a crash)", options = tooltip_opt),
               actionButton(
-                'about', label = '?'),
+                'about', label = '?')
             )
           ),
-
           fluidRow(
             style="margin-top: -15px; margin-bottom: -15px;",
             column(
@@ -285,14 +291,12 @@ ui = page_fluid(
                 label = HTML("<img src='icons/zoomOut.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Zoom out frequency (-)", options = tooltip_opt),
-
               actionButton(
                 inputId = 'zoomIn_freq',
                 label = HTML("<img src='icons/zoomIn.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Zoom in frequency (+)", options = tooltip_opt)
             ),
-
             column(
               width = 4,
               actionButton(
@@ -300,26 +304,28 @@ ui = page_fluid(
                 label = HTML("<img src='icons/stop.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Stop playback", options = tooltip_opt),
-
               actionButton(
                 inputId = "selection_play",
                 label = HTML("<img src='icons/play.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Play selection (SPACEBAR)", options = tooltip_opt),
-
               actionButton(
                 inputId = "selection_annotate",
                 label = HTML("<img src='icons/annotate.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Create a new annotation (A or DOUBLE-CLICK)", options = tooltip_opt),
-
               actionButton(
                 inputId = "selection_delete",
                 label = HTML("<img src='icons/delete.png' width = '20px'>"),
                 class = "buttonInline") |>
-                tooltip("Remove annotation (DELETE / BACKSPACE)", options = tooltip_opt)
+                tooltip("Remove annotation (DELETE / BACKSPACE)", options = tooltip_opt),
+              actionButton(
+                inputId = "selection_snap",
+                label = HTML("<img src='icons/snap.png' width = '20px'>"),
+                class = "buttonInline") |>
+                tooltip("Time active annotation to coincide with selection (T)",
+                        options = tooltip_opt),
             ),
-
             column(
               width = 6,
               actionButton(
@@ -327,25 +333,21 @@ ui = page_fluid(
                 label = HTML("<img src='icons/backward.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Scroll left (arrow LEFT)", options = tooltip_opt),
-
               actionButton(
                 inputId = 'zoomOut',
                 label = HTML("<img src='icons/zoomOut.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Zoom out time (arrow DOWN)", options = tooltip_opt),
-
               actionButton(
                 inputId = "zoomToSel",
                 label = HTML("<img src='icons/zoomSel.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Zoom to selection (S)", options = tooltip_opt),
-
               actionButton(
                 inputId = 'zoomIn',
                 label = HTML("<img src='icons/zoomIn.png' width = '20px'>"),
                 class = "buttonInline") |>
                 tooltip("Zoom in time (arrow UP)", options = tooltip_opt),
-
               actionButton(
                 inputId = 'scrollRight',
                 label = HTML("<img src='icons/forward.png' width = '20px'>"),
@@ -353,11 +355,9 @@ ui = page_fluid(
                 tooltip("Scroll right (arrow RIGHT)", options = tooltip_opt)
             )
           ),
-
           fluidRow(
             tags$div(
               id = 'plotRow',
-
               tags$div(
                 id = 'specDiv',
                 plotOutput(
@@ -369,18 +369,15 @@ ui = page_fluid(
                                     opacity = 0.25,
                                     resetOnNew = FALSE))
               ),
-
               tags$div(
                 id = 'scrollBarCont',
                 tags$div(
                   id = 'scrollBar'
                 )
               ),
-
               plotOutput(
                 'oscillogram', height = '100px'  # auto to inherit from css in the header
               ),
-
               plotOutput(
                 'ann_plot', height = '60px',
                 click = "ann_click",
@@ -391,7 +388,6 @@ ui = page_fluid(
         )
       )
     ),
-
     tags$div(
       id = 'right',
       tableOutput('ann_table')

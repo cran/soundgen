@@ -1,46 +1,44 @@
-# Functions for generating excitation source: either noise with generateNoise()
-# or harmonics with generateHarmonics()
-
 #' Generate noise
 #'
 #' Generates noise of length \code{len} and with spectrum defined by rolloff
-#' parameters OR by a specified filter \code{spectralEnvelope}. This function is
+#' parameters OR by a specified filter \code{formantFilter}. This function is
 #' called internally by \code{\link{soundgen}}, but it may be more convenient to
 #' call it directly when synthesizing non-biological noises defined by specific
 #' spectral and amplitude envelopes rather than formants: the wind, whistles,
-#' impact noises, etc. See \code{\link{fart}} and \code{\link{beat}} for
-#' similarly simplified functions for tonal non-biological sounds.
+#' impact noises, etc. See \code{\link{beat}} for similarly simplified functions
+#' for tonal non-biological sounds.
 #'
 #' Algorithm: paints a spectrogram with desired characteristics, sets phase to
 #' zero, and generates a time sequence via inverse FFT.
 #'
-#' @seealso \code{\link{soundgen}} \code{\link{fart}} \code{\link{beat}}
+#' @seealso \code{\link{soundgen}} \code{\link{beat}}
 #'
 #' @inheritParams soundgen
-#' @param len length of output
-#' @param spectralEnvelope (optional): as an alternative to using rolloffNoise,
+#' @param len length of output, samples
+#' @param formantFilter (optional): as an alternative to using rolloffNoise,
 #'   we can provide the exact filter - a vector of non-negative numbers
-#'   specifying the desired spectrum on a linear scale up to Nyquist frequency
-#'   (samplingRate / 2). The length doesn't matter as it can be interpolated
-#'   internally to windowLength_points/2. A matrix specifying the filter for
-#'   each STFT step is also accepted. The easiest way to obtain spectralEnvelope
-#'   is to call soundgen:::getSpectralEnvelope or to use the spectrum /
-#'   spectrogram of a recorded sound
-#' @param windowLength_points the length of fft window, points
-#' @export
+#'   specifying the desired spectrum on a linear scale up to Nyquist frequency.
+#'   The length doesn't matter as it can be interpolated internally. A matrix
+#'   specifying time-varying filter for each STFT step is also accepted:
+#'   frequencies in rows, STFT frames in columns. The easiest way to obtain
+#'   formantFilter is to call \link{getFormantFilter} or to use (smoothed)
+#'   spectrum / spectrogram of an existing sound
+#'
+#' @return The generated waveform as a numeric vector.
+#' @keywords internal
 #' @examples
 #' # .5 s of white noise
 #' samplingRate = 16000
-#' noise1 = generateNoise(len = samplingRate * .5,
+#' noise1 = soundgen:::generateNoise(len = samplingRate * .5,
 #'   samplingRate = samplingRate)
+#' meanSpectrum(noise1, samplingRate)
 #' # playme(noise1, samplingRate)
-#' # seewave::meanspec(noise1, f = samplingRate)
 #'
 #' # Percussion (run a few times to notice stochasticity due to temperature = .25)
-#' noise2 = generateNoise(len = samplingRate * .15, noise = c(0, -80),
-#'   rolloffNoise = c(4, -6), attackLen = 5, temperature = .25)
-#' noise3 = generateNoise(len = samplingRate * .25, noise = c(0, -40),
-#'   rolloffNoise = c(4, -20), attackLen = 5, temperature = .25)
+#' noise2 = soundgen:::generateNoise(len = samplingRate * .15, noise = c(0, -80),
+#'   rolloffNoise = c(4, -6), attackLen = 5)
+#' noise3 = soundgen:::generateNoise(len = samplingRate * .25, noise = c(0, -40),
+#'   rolloffNoise = c(4, -20), attackLen = 5)
 #' # playme(c(noise2, noise3), samplingRate)
 #'
 #' \dontrun{
@@ -49,40 +47,44 @@
 #' noise = generateNoise(len = samplingRate * 1.2,
 #'   rolloffNoise = c(0, -12), noiseFlatSpec = 2000,
 #'   samplingRate = samplingRate, play = playback)
-#' # spectrogram(noise, samplingRate, osc = TRUE)
+#' # spectrogram(noise, samplingRate)
 #'
 #' # Similar, but using the dataframe format to specify a more complicated
 #' # contour for rolloffNoise:
 #' noise = generateNoise(len = samplingRate * 1.2,
 #'   rolloffNoise = data.frame(time = c(0, .3, 1), value = c(-12, 0, -12)),
 #'   noiseFlatSpec = 2000, samplingRate = samplingRate, play = playback)
-#' # spectrogram(noise, samplingRate, osc = TRUE)
+#' # spectrogram(noise, samplingRate)
 #'
 #' # To create a sibilant [s], specify a single strong, broad formant at ~7 kHz:
-#' windowLength_points = 1024
-#' spectralEnvelope = soundgen:::getSpectralEnvelope(
-#'   nr = windowLength_points / 2, nc = 1, samplingRate = samplingRate,
+#' wl = 1024
+#' formantFilter = getFormantFilter(
+#'   nr = wl %/% 2 + 1, nc = 1, samplingRate = samplingRate,
 #'  formants = list('f1' = data.frame(time = 0, freq = 7000,
 #'                                    amp = 50, width = 2000)))
-#' noise = generateNoise(len = samplingRate,
-#'   samplingRate = samplingRate, spectralEnvelope = as.numeric(spectralEnvelope),
-#'   play = playback)
-#' # plot(spectralEnvelope, type = 'l')
+#' noise = fade(generateNoise(len = samplingRate,
+#'   samplingRate = samplingRate, formantFilter = as.numeric(formantFilter),
+#'   play = playback), samplingRate = samplingRate)
+#' # plot(formantFilter, type = 'l')
+#' meanSpectrum(noise, samplingRate)
 #'
 #' # Low-frequency, wind-like noise
-#' spectralEnvelope = soundgen:::getSpectralEnvelope(
-#'   nr = windowLength_points / 2, nc = 1, lipRad = 0,
-#'   samplingRate = samplingRate, formants = list('f1' = data.frame(
-#'     time = 0, freq = 150, amp = 30, width = 90)))
-#' noise = generateNoise(len = samplingRate,
-#'   samplingRate = samplingRate, spectralEnvelope = as.numeric(spectralEnvelope),
-#'   play = playback)
+#' formantFilter = getFormantFilter(
+#'   nr = 50, nc = 1, lipRad = 0,
+#'   samplingRate = samplingRate, formants = list('f1' = list(
+#'     freq = 250, amp = 30, width = 150)),
+#'     formantDepStoch = 0, plot = TRUE)
+#' noise = fade(generateNoise(len = samplingRate,
+#'   samplingRate = samplingRate, formantFilter = as.numeric(formantFilter),
+#'   play = playback))
+#' spectrogram(noise, samplingRate, ylim = c(0, 2))
 #'
 #' # Manual filter, e.g. for a kettle-like whistle (narrow-band noise)
-#' spectralEnvelope = c(rep(0, 100), 120, rep(0, 100))  # any length is fine
-#' # plot(spectralEnvelope, type = 'b')  # notch filter at Nyquist / 2, here 4 kHz
-#' noise = generateNoise(len = samplingRate, spectralEnvelope = spectralEnvelope,
-#'   samplingRate = samplingRate, play = playback)
+#' formantFilter = c(rep(0, 100), 120, rep(0, 100))  # any length is fine
+#' # plot(formantFilter, type = 'b')  # narrow-band filter at Nyquist / 2, here 4 kHz
+#' noise = fade(generateNoise(len = samplingRate, formantFilter = formantFilter,
+#'   samplingRate = samplingRate, play = playback))
+#' spectrogram(noise, samplingRate)
 #'
 #' # Compare to a similar sound created with soundgen()
 #' # (aperiodic noise only, a single formant at 4 kHz)
@@ -90,196 +92,77 @@
 #'   noise = data.frame(time = c(0, 1000), value = c(0, 0)),
 #'   formants = list(f1 = data.frame(freq = 4000, amp = 80, width = 20)),
 #'   play = playback)
-#'
-#'
-#' # Use the spectral envelope of an existing recording (bleating of a sheep)
-#' # (see also the same example with tonal source in ?addFormants)
-#' data(sheep, package = 'seewave')  # import a recording from seewave
-#' sound_orig = as.numeric(sheep@left)
-#' samplingRate = sheep@samp.rate
-#' # playme(sound_orig, samplingRate)
-#'
-#' # extract the original spectrogram
-#' windowLength = c(5, 10, 50, 100)[1]  # try both narrow-band (eg 100 ms)
-#' # to get "harmonics" and wide-band (5 ms) to get only formants
-#' spectralEnvelope = spectrogram(sound_orig, windowLength = windowLength,
-#'   samplingRate = samplingRate, output = 'original', padWithSilence = FALSE)
-#' sound_noise = generateNoise(len = length(sound_orig),
-#'   spectralEnvelope = spectralEnvelope, rolloffNoise = 0,
-#'   samplingRate = samplingRate, play = playback)
-#' # playme(sound_noise, samplingRate)
-#'
-#' # The spectral envelope is similar to the original recording. Compare:
-#' par(mfrow = c(1, 2))
-#' seewave::meanspec(sound_orig, f = samplingRate, dB = 'max0')
-#' seewave::meanspec(sound_noise, f = samplingRate, dB = 'max0')
-#' par(mfrow = c(1, 1))
-#' # However, the excitation source is now white noise
-#' # (which sounds like noise if windowLength is ~5-10 ms,
-#' # but becomes more and more like the original at longer window lengths)
 #' }
 generateNoise = function(
     len,
-    rolloffNoise = 0,
+    rolloffNoise = -4,
     noiseFlatSpec = 1200,
     rolloffNoiseExp = 0,
-    spectralEnvelope = NULL,
+    formantFilter = NULL,
     noise = NULL,
-    temperature = .1,
     attackLen = 10,
-    windowLength_points = 1024,
     samplingRate = 16000,
+    windowLength = 50,
+    step = NULL,
     overlap = 75,
-    dynamicRange = 80,
+    wn = "gaussian",
     smoothing = list(),
-    invalidArgAction = c('adjust', 'abort', 'ignore')[1],
     play = FALSE) {
-  # wiggle pars
-  if (temperature > 0) {  # set to 0 when called internally by soundgen()
-    # len = rnorm_truncated2(n = 1,
-    #                       mean = len,
-    #                       sd = len * temperature * .5,
-    #                       low = 0, high = len * 2,  # max 2 * original length
-    #                       roundToInteger = TRUE,
-    #                       invalidArgAction = 'adjust')
-    if (is.list(rolloffNoise)) {
-      rolloffNoise = wiggleAnchors(
-        rolloffNoise,
-        temperature = temperature,
-        temp_coef = .5,
-        low = c(-Inf, permittedValues['rolloffNoise', 'low']),
-        high = c(Inf, permittedValues['rolloffNoise', 'high']),
-        invalidArgAction = invalidArgAction,
-        wiggleAllRows = TRUE
-      )
-    } else {
-      rolloffNoise = rnorm_truncated2(
-        n = length(rolloffNoise),
-        mean = rolloffNoise,
-        sd = abs(rolloffNoise) * temperature * .5,
-        low = permittedValues['rolloffNoise', 'low'],
-        high = permittedValues['rolloffNoise', 'high'],
-        invalidArgAction = invalidArgAction
-      )
-    }
-    noiseFlatSpec = rnorm_truncated2(
-      n = 1,
-      mean = noiseFlatSpec,
-      sd = noiseFlatSpec * temperature * .5,
-      low = permittedValues['noiseFlatSpec', 'low'],
-      high = permittedValues['noiseFlatSpec', 'high'], # samplingRate / 2,
-      invalidArgAction = invalidArgAction
-    )
+  if (len < 2) return(numeric(len))
+  noise = reformatAnchors(noise)
+  val = validateWlOvlp(list(samplingRate = samplingRate, dur = len/samplingRate),
+                       windowLength, step, overlap)
+  step_points = val$step_points; wl = val$wl
 
-    if (is.list(rolloffNoiseExp)) {
-      rolloffNoiseExp = wiggleAnchors(
-        rolloffNoiseExp,
-        temperature = temperature,
-        temp_coef = .5,
-        low = c(-Inf, permittedValues['rolloffNoiseExp', 'low']),
-        high = c(Inf, permittedValues['rolloffNoiseExp', 'high']),
-        invalidArgAction = invalidArgAction,
-        wiggleAllRows = TRUE
-      )
-    } else {
-      rolloffNoiseExp = rnorm_truncated2(
-        n = length(rolloffNoise),
-        mean = rolloffNoiseExp,
-        sd = abs(rolloffNoiseExp) * temperature * .5,
-        low = permittedValues['rolloffNoiseExp', 'low'],
-        high = permittedValues['rolloffNoiseExp', 'high'],
-        invalidArgAction = invalidArgAction
-      )
-    }
-
-    attackLen = rnorm_truncated2(
-      n = length(attackLen),
-      mean = attackLen,
-      sd = attackLen * temperature * .5,
-      low = permittedValues['attackLen', 'low'],
-      high = len / samplingRate * 1000 / 2,
-      invalidArgAction = invalidArgAction
-    )
-    noise = wiggleAnchors(
-      reformatAnchors(noise),
-      temperature = temperature,
-      temp_coef = .5,
-      low = c(0, -dynamicRange),
-      high = c(1, 0),
-      invalidArgAction = invalidArgAction,
-      wiggleAllRows = TRUE
-    )
-    if (is.vector(spectralEnvelope)) {
-      spectralEnvelope = rnorm_truncated2(
-        n = length(spectralEnvelope),
-        mean = spectralEnvelope + .1,  # to wiggle zeros
-        sd = spectralEnvelope * temperature * .5,
-        low = 0, high = Inf,
-        invalidArgAction = 'adjust'
-      )
-    }
-  }
-
-  # convert anchors to a smooth contour of breathing amplitudes
+  # convert anchors to a smooth contour of waveform amplitudes
   if (is.list(noise)) {
-    breathingStrength = do.call(getSmoothContour, c(smoothing, list(
+    waveformStrength = do.call(getSmoothContour, c(smoothing, list(
       anchors = noise,
       len = len,
-      normalizeTime = FALSE,
       valueFloor = permittedValues['noiseAmpl', 'low'],
-      valueCeiling = permittedValues['noiseAmpl', 'high'],
-      samplingRate = samplingRate,
-      plot = FALSE
+      valueCeiling = permittedValues['noiseAmpl', 'high']
     )))
     # convert anchor amplitudes from dB to linear multipliers
-    breathingStrength = 10 ^ (breathingStrength / 20)
-    if (sum(is.na(breathingStrength)) > 0) {
+    waveformStrength = 10 ^ (waveformStrength / 20)
+    if (sum(is.na(waveformStrength)) > 0) {
       return(rep(0, len))
     }
-    # plot(breathingStrength)
+    # plot(waveformStrength)
   } else {
-    breathingStrength = rep(1, len)
+    waveformStrength = rep(1, len)
   }
 
   # set up spectral filter
-  step = seq(1,
-             len + windowLength_points,
-             by = windowLength_points - (overlap * windowLength_points / 100))
-  # len + windowLength_points gives us two extra windows, since otherwise
-  #   the sequence is a bit shorter than needed after i-fft
-  nr = windowLength_points / 2
-  nc = length(step)
-  if (is.null(spectralEnvelope)) {
+  nr = wl %/% 2 + 1 # +1 if using istft_simple()
+  nc = max(1, ceiling((len - wl) / step_points) + 1)
+  # NB: add an extra wl - otherwise, shorter than needed after iSTFT
+  if (is.null(formantFilter)) {
     # basic linear rolloff above noiseFlatSpec Hz
-    bin = samplingRate / 2 / nr
-    binsPerKHz = round(1000 / bin)
-    flatBins = round(noiseFlatSpec / bin)
-    idx = (flatBins + 1):nr  # the bins affected by rolloffNoise
-
-    if (is.list(rolloffNoise) |
-        (is.numeric(rolloffNoise) & length(rolloffNoise) > 1)) {
+    freqs = (seq_len(nr) - 1) * samplingRate / wl
+    deltas = pmax(0, freqs - noiseFlatSpec) / 1000
+    if (is.list(rolloffNoise) ||
+        (is.numeric(rolloffNoise) && length(rolloffNoise) > 1)) {
       # Johnson_2012_Acoustic-and-Auditory-Phonetics, Fig. 7.1:
-      # spectrum of turbulent noise
+      # spectrum of aspiration noise drops linearly beyond ~ 1 kHz
       rolloffNoise = do.call(getSmoothContour, c(smoothing, list(
         anchors = rolloffNoise,
         len = nc,
         valueFloor = permittedValues['rolloffNoise', 'low'],
         valueCeiling = permittedValues['rolloffNoise', 'high']
       )))
-      spectralEnvelope = matrix(1, nrow = nr, ncol = nc)
-      for (c in seq_len(nc)) {
-        spectralEnvelope[idx, c] = 10 ^ (rolloffNoise[c] / 20 * (idx - flatBins) / binsPerKHz)
-      }
+      formantFilter = 10 ^ outer(deltas, rolloffNoise / 20)
+
     } else {
-      a = rep(1, nr)
-      a[idx] = 10 ^ (rolloffNoise / 20 * (idx - flatBins) / binsPerKHz)
-      spectralEnvelope = matrix(rep(a, nc), ncol = nc)
+      # rolloffNoise is a scalar
+      formantFilter = matrix(10 ^ outer(deltas, rolloffNoise / 20),
+                             nrow = nr, ncol = nc)
     }
 
-    # exponential rolloff starting from 0 Hz (Klatt & Klatt, 1990)
-    if ((is.list(rolloffNoiseExp) && any(rolloffNoiseExp$value != 0)) |
+    # exponential rolloff starting from noiseFlatSpec Hz (Klatt & Klatt, 1990)
+    if ((is.list(rolloffNoiseExp) && any(rolloffNoiseExp$value != 0)) ||
         (is.numeric(rolloffNoiseExp) && any(rolloffNoiseExp != 0))) {
-      if ((is.list(rolloffNoiseExp) && length(rolloffNoiseExp$value) > 1) |
+      n_octaves = log2(pmax(1, freqs / noiseFlatSpec))  # 0 under noiseFlatSpec
+      if ((is.list(rolloffNoiseExp) && length(rolloffNoiseExp$value) > 1) ||
           (is.numeric(rolloffNoiseExp) && length(rolloffNoiseExp) > 1)) {
         rolloffNoiseExp = do.call(getSmoothContour, c(smoothing, list(
           anchors = rolloffNoiseExp,
@@ -287,104 +170,109 @@ generateNoise = function(
           valueFloor = permittedValues['rolloffNoiseExp', 'low'],
           valueCeiling = permittedValues['rolloffNoiseExp', 'high']
         )))
-        for (c in seq_len(nc)) {
-          spectralEnvelope[, c] = spectralEnvelope[, c] *
-            10 ^ (log2(seq_len(nr)) * rolloffNoiseExp[c] / 20)
-        }
+        k = log(10) / 20
+        formantFilter = formantFilter * exp(outer(
+          n_octaves, rolloffNoiseExp * k, `*`))
+        # faster than a loop or 20^outer(...)
       } else {
-        r_exp = 10 ^ (log2(seq_len(nr)) * rolloffNoiseExp / 20)
-        for (c in seq_len(nc)) {
-          spectralEnvelope[, c] = spectralEnvelope[, c] * r_exp
-        }
+        r_exp = 10 ^ (n_octaves * rolloffNoiseExp / 20)
+        formantFilter = formantFilter * r_exp
       }
     }
-    # image(t(spectralEnvelope))
+    # image(t(formantFilter))
   } else {
     # user-specified exact spectral envelope
-    if (is.vector(spectralEnvelope)) {
-      spectralEnvelope = spectralEnvelope[!is.na(spectralEnvelope)]
-      if (length(spectralEnvelope) != nr) {
+    if (any(is.na(formantFilter))) stop('missing values in formantFilter')
+    if (is.vector(formantFilter)) {
+      if (length(formantFilter) != nr) {
         # interpolate to correct freq resolution
-        spectralEnvelope = do.call(getSmoothContour, c(smoothing, list(
-          anchors = spectralEnvelope, len = nr)))
-        # spectralEnvelope = approx(spectralEnvelope, n = nr, method = 'linear')$y
+        formantFilter = do.call(getSmoothContour, c(smoothing, list(
+          anchors = formantFilter, len = nr)))
+        # formantFilter = approx(formantFilter, n = nr, method = 'linear')$y
       }
-      spectralEnvelope = matrix(rep(spectralEnvelope, nc), ncol = nc)
+      formantFilter = matrix(formantFilter, nrow = nr, ncol = nc)
     } else {  # interpolate the matrix
-      spectralEnvelope = na.omit(spectralEnvelope)
-      if (ncol(spectralEnvelope) != nc | nrow(spectralEnvelope) != nr) {
-        message('Incorrect dimensions of spectralEnvelope matrix. Interpolating...')
-        spectralEnvelope = interpolMatrix(spectralEnvelope,
-                                          nr = nr, nc = nc,
-                                          interpol = 'approx')
+      if (ncol(formantFilter) != nc || nrow(formantFilter) != nr) {
+        message('Incorrect dimensions of formantFilter matrix. Interpolating...')
+        # bilinear interpolation of formantFilter
+        formantFilter = interpolMatrix(formantFilter,
+                                       nr = nr, nc = nc,
+                                       interpol = 'approx')
       }
     }
   }
-  # image(t(spectralEnvelope))
-  # plot(spectralEnvelope[, 1], type = 'l')
-  # plot(log10(spectralEnvelope[, 1]) * 20, type = 'l')
+  # image(t(formantFilter))
+  # plot(formantFilter[, 1], type = 'l')
+  # plot(log10(formantFilter[, 1]) * 20, type = 'l')
 
-  if (sum(spectralEnvelope) == 0) {
+  if (sum(formantFilter) == 0) {
     # zero filter - nothing to synthesize
     warning('These settings will result in silence!')
-    breathing = rep(0, len)
+    waveform = rep(0, len)
   } else {
-    ## instead of synthesizing the time series and then doing fft-ifft,
+    ## instead of synthesizing the time series and then doing stft-istft,
     # we can simply synthesize spectral noise, convert to complex
-    # (setting imaginary=0 or random), and then do inverse FFT just once
-    # set up spectrum with white noise (works b/c phase doesn't matter for noise)
-    z1 = matrix(as.complex(runif(nr * nc)), nrow = nr, ncol = nc)
-    # multiply by filter
-    z1_filtered = z1 * spectralEnvelope
-    # do inverse FFT
-    breathing = as.numeric(
-      seewave::istft(
-        z1_filtered,
-        f = samplingRate,
-        ovlp = overlap,
-        wl = windowLength_points,
-        output = "matrix"
-      )
+    # (setting imaginary=0 or random), and then do inverse STFT just once
+
+    # set up a spectrogram with complex Gaussian noise
+    len_mat = nr * nc
+    z1 = matrix(
+      complex(real = rnorm(len_mat),
+              imaginary = rnorm(len_mat)),
+      nrow = nr,
+      ncol = nc
     )
-    breathing = matchLengths(breathing, len = len)  # pad with 0s or trim
-    breathing = breathing / max(abs(breathing)) * breathingStrength # normalize
+    z1[1, ] = 0  # avoid random drift of DC
+    # or, to keep it: z1[1, ] = Re(z1[1, ])
+    if (wl %% 2 == 0) {
+      z1[nr, ] = Re(z1[nr, ])  # should be real at Nyquist
+    }
+
+    # multiply by filter
+    z1_filtered = z1 * formantFilter
+    # phase = guessPhase_spsi(formantFilter, wl, step_points)
+    # z1_filtered = formantFilter * exp(1i * phase) # produces clicks instead of steady noise
+    # image(t(Mod(z1_filtered)))
+
+    # do inverse FFT
+    waveform = istft_simple(z1_filtered, wl = wl,
+                            step = step_points, wn = wn)
+    waveform = matchLengths(waveform, len = len)  # pad with 0s or trim
+    waveform = waveform / max(abs(waveform)) * waveformStrength # normalize
 
     # add attack
     if (is.numeric(attackLen)) {
       if (any(attackLen > 0)) {
         l = floor(attackLen * samplingRate / 1000)
         if (length(l) == 1) l = c(l, l)
-        breathing = .fade(
-          list(sound = breathing, samplingRate = samplingRate),
+        waveform = .fade(
+          list(sound = waveform, samplingRate = samplingRate),
           fadeIn_points = l[1],
           fadeOut_points = l[2]
         )
       }
     }
   }
-  # plot(breathing, type = 'l')
-  if (play == TRUE) playme(breathing, samplingRate = samplingRate)
-  if (is.character(play)) {
-    playme(breathing, samplingRate = samplingRate, player = play)
+
+  if (isTRUE(play)) {
+    playme(waveform, samplingRate = samplingRate)
+  } else if (is.character(play)) {
+    playme(waveform, samplingRate = samplingRate, player = play)
   }
-  # spectrogram(breathing, samplingRate = samplingRate)
-  # seewave::meanspec(breathing, f = samplingRate, wl = windowLength_points, dB = 'max0')
-  return(breathing)
+  # spectrogram(waveform, samplingRate = samplingRate)
+  # meanSpectrum(waveform, samplingRate, windowLength = windowLength, yScale = 'max0')
+  invisible(waveform)
 }
 
 
 
 #' Generate harmonics
-#'
-#' Internal soundgen function.
-#'
 #' Returns one continuous, unfiltered, voiced syllable consisting of several
 #' sine waves.
 #' @param pitch a contour of fundamental frequency (numeric vector). NB: for
 #'   computational efficiency, provide the pitch contour at a reduced sampling
 #'   rate pitchSamplingRate, eg 3500 points/s. The pitch contour will be
 #'   upsampled before synthesis.
-#' @inheritParams soundgen
 #' @param specEnv a matrix representing the filter (only needed for formant
 #'   locking)
 #' @param pitchDriftDep scale factor regulating the effect of temperature on the
@@ -402,11 +290,11 @@ generateNoise = function(
 #'   effect amplitude in the middle of a sound)
 #' @param rolloff_perAmpl as amplitude goes down from max to
 #'   \code{-dynamicRange}, \code{rolloff} increases by \code{rolloff_perAmpl}
-#'   dB/octave. The effect is to make loud parts brighter by increasing energy
-#'   in higher frequencies
-#' @param normalize if TRUE, normalizes to -1...+1 prior to applying attack and
+#'   dB/octave. The effect is to make loud parts sound brighter by increasing
+#'   energy in higher frequencies
+#' @param normalize if TRUE, normalizes to -1...+1 prior to applying the
 #'   amplitude envelope. W/o this, sounds with stronger harmonics are louder
-#' @keywords internal
+#' @noRd
 #' @examples
 #' rolloffExact1 = c(.2, .2, 1, .2, .2)
 #' s1 = soundgen:::generateHarmonics(pitch = seq(400, 530, length.out = 1500),
@@ -424,7 +312,6 @@ generateHarmonics = function(pitch,
                              glottis = 0,
                              attackLen = 50,
                              nonlinBalance = 0,
-                             nonlinDep = 50,
                              nonlinRandomWalk = NULL,
                              jitterDep = 0,
                              jitterLen = 1,
@@ -435,8 +322,6 @@ generateHarmonics = function(pitch,
                              rolloff = -9,
                              rolloffOct = 0,
                              rolloffKHz = 0,
-                             rolloffParab = 0,
-                             rolloffParabHarm = 3,
                              rolloff_perAmpl = 0,
                              rolloffExact = NULL,
                              formantLocking = NULL,
@@ -451,13 +336,10 @@ generateHarmonics = function(pitch,
                              randomWalk_trendStrength = .1,
                              shortestEpoch = 300,
                              subRatio = 1,
-                             subFreq = 100,
                              subDep = 0,
-                             subWidth = 10000,
                              ampl = NA,
                              normalize = TRUE,
                              smoothing = list(),
-                             overlap = 75,
                              samplingRate = 16000,
                              pitchFloor = 75,
                              pitchCeiling = 3500,
@@ -474,7 +356,6 @@ generateHarmonics = function(pitch,
           new = do.call(getSmoothContour, c(smoothing, list(
             anchors = old,
             len = lp,
-            method = 'approx',
             valueFloor = permittedValues[p, 'low'],
             valueCeiling = Inf  # permittedValues[p, 'high'],
           )))
@@ -512,9 +393,9 @@ generateHarmonics = function(pitch,
 
   # vectorized par-s should be upsampled and converted from ms to gc scale
   update_pars = c(
-    'rolloff', 'rolloffOct', 'rolloffParab', 'rolloffParabHarm', 'rolloffKHz',
+    'rolloff', 'rolloffOct', 'rolloffKHz',
     'jitterDep', 'jitterLen', 'shimmerDep', 'shimmerLen',
-    'subRatio', 'subFreq', 'subDep', 'subWidth'
+    'subRatio', 'subDep'
   )
   for (p in update_pars) {
     old = get(p)
@@ -529,25 +410,24 @@ generateHarmonics = function(pitch,
   }
 
   # generate a short amplitude contour to adjust rolloff per glottal cycle
-  rolloffAmpl = rep(0, nGC)
-  if (is.numeric(ampl) | is.list(ampl)) {
-    if (any(ampl$value != 0)) {
-      amplContour = do.call(getSmoothContour, c(smoothing, list(
-        anchors = ampl,
-        len = nGC,
-        valueFloor = -dynamicRange,
-        valueCeiling = 0,
-        samplingRate = samplingRate
-      )))
-      # plot(amplContour, type='l')
-      amplContour = (amplContour + dynamicRange) / dynamicRange - 1
-      rolloffAmpl = amplContour * rolloff_perAmpl
-    }
+  if (is.list(ampl) && any(ampl$value != 0)) {
+    amplContour = do.call(getSmoothContour, c(smoothing, list(
+      anchors = ampl,
+      len = nGC,
+      valueFloor = -dynamicRange,
+      valueCeiling = 0,
+      samplingRate = samplingRate
+    )))
+    # plot(amplContour, type='l')
+    amplContour = (amplContour + dynamicRange) / dynamicRange - 1
+    rolloffAmpl = amplContour * rolloff_perAmpl
+  } else {
+    rolloffAmpl = rep(0, nGC)
   }
 
   # get a random walk for intra-syllable variation
-  if (temperature > 0 &
-      (nonlinBalance < 100 | !is.null(nonlinRandomWalk))) {
+  if (temperature > 0 &&
+      (nonlinBalance < 100 || !is.null(nonlinRandomWalk))) {
     rw = getRandomWalk(
       len = nGC,
       rw_range = temperature,
@@ -580,11 +460,14 @@ generateHarmonics = function(pitch,
     subh_on = jitter_on = shimmer_on = rep(TRUE, nGC)
   }
 
-
   ## prepare the harmonic stack
+  # calculate the number of harmonics to generate (from lowest pitch to Nyquist)
+  nHarmonics = floor(samplingRate / 2 / min(pitch_per_gc))
+  # nHarmonics = floor(samplingRate / 2 / max(pitch_per_gc))
+  # set to max(pitch) to have ~const n_harmonics throughout the sound
+  # (ampl depends on nHarmonics, so changing it also modulates the ampl)
+
   if (is.null(rolloffExact)) {
-    # calculate the number of harmonics to generate (from lowest pitch to Nyquist)
-    nHarmonics = floor(samplingRate / 2 / min(pitch_per_gc))
     # get rolloff
     if (length(rolloff) < nGC) {
       rolloff = spline(rolloff, n = nGC)$y
@@ -595,8 +478,6 @@ generateHarmonics = function(pitch,
       rolloff = (rolloff + rolloffAmpl) * rw ^ rolloffDriftDep,
       rolloffOct = rolloffOct,
       rolloffKHz = rolloffKHz,
-      rolloffParab = rolloffParab,
-      rolloffParabHarm = rolloffParabHarm,
       samplingRate = samplingRate,
       dynamicRange = dynamicRange
     )
@@ -608,9 +489,10 @@ generateHarmonics = function(pitch,
       nc = nGC,                 # interpolate over time
       interpol = 'approx'
     )
-    rownames(rolloff_source) = seq_len(nrow(rolloff_source))
+    if (is.null(rownames(rolloff_source)))
+      rownames(rolloff_source) = 1:nrow(rolloff_source)
   }
-  # NB: rolloff_source at this stage should be a matrix WITH NUMBERED ROWS
+  # NB: rolloff_source at this stage should be a matrix with numbered rows
 
   # add formantLocking
   if (!is.null(formantLocking) && !is.null(specEnv) && !is.null(formantSummary)) {
@@ -629,7 +511,7 @@ generateHarmonics = function(pitch,
   }
 
   # calculate jitter (random variation of F0)
-  if (any(jitterDep > 0) & any(jitter_on)) {
+  if (any(jitterDep > 0) && any(jitter_on)) {
     jitter_per_gc = wiggleGC(dep = jitterDep / 12,
                              len = jitterLen,
                              nGC = nGC,
@@ -654,7 +536,6 @@ generateHarmonics = function(pitch,
     # gc's are shorter at higher pitch; to ensure that smoothing is consistent
     # per s, we do * mean(pitch_per_gc) / 100 (ie default at 100 Hz)
     rw_smoothing = 1 - (1 - rw_smoothing) / (mean(pitch_per_gc) / 100)
-    # print(paste('rw_smoothing =', rw_smoothing, 'n =', nGC * (1 - rw_smoothing)))
 
     # rw_range is 1 semitone per second when temp = .05 and
     # pitchDriftDep = .5 (defaults)
@@ -674,25 +555,49 @@ generateHarmonics = function(pitch,
     # plot(pitch_per_gc, type = 'l')
   }
 
-  # as a result of adding pitch effects, F0 might have dropped to indecent
-  #   values, so we double-check and flatten if necessary
+  # as a result of adding pitch effects, f0 might have dropped to very low
+  # values, so we double-check and flatten if necessary
   pitch_per_gc[pitch_per_gc > pitchCeiling] = pitchCeiling
   pitch_per_gc[pitch_per_gc < pitchFloor] = pitchFloor
+
+  # "glottis" (closed phase)
+  targetLen = NULL
+  if (is.list(glottis) && any(glottis$value > 0)) {
+    glottisClosed_per_gc = do.call(getSmoothContour, c(smoothing, list(
+      anchors = glottis,
+      len = nGC,
+      valueFloor = 0
+    )))
+    if (var(glottis$value) > .Machine$double.eps) {
+      # if we are going to add time-variable closed phase, the pitch contour needs
+      # to compensate for it (otherwise, we'll get spurious changes in f0)
+      closedFactor = pmax(1, 1 + glottisClosed_per_gc / 100)
+      periods_points = samplingRate / pitch_per_gc
+      targetLen = round(sum(periods_points))
+      K = sum(periods_points * closedFactor) / targetLen
+      pitch_per_gc = pitch_per_gc * closedFactor / K
+    }
+  } else {
+    glottisClosed_per_gc = NULL
+  }
+
   # make sure we don't have harmonics above Nyquist with the changed pitch
   nHarmonics = floor(samplingRate / 2 / pitch_per_gc)
   nr = nrow(rolloff_source)
-  for (c in seq_len(ncol(rolloff_source))) {
+  for (c in 1:ncol(rolloff_source)) {
     if (nHarmonics[c] < nr) {
-      rolloff_source[nHarmonics[c]:nr] = 0
+      rolloff_source[(nHarmonics[c] + 1):nr, c] = 0
     }
   }
+  # nHarmonics = min(nr, floor(samplingRate / 2 / max(pitch_per_gc)))
+  # rolloff_source = rolloff_source[seq_len(nHarmonics), ]
+
   # NB: this whole pitch_per_gc trick is purely for computational efficiency.
-  #   The entire pitch contour can be fed in, but then it takes up to 1 s
-  #   per s of audio
+  #   The entire pitch contour can be fed in, but that's much slower
   # image(t(log(rolloff_source)))
 
   # add shimmer (random variation in amplitude)
-  if (any(shimmerDep > 0) & any(shimmer_on)) {
+  if (any(shimmerDep > 0) && any(shimmer_on)) {
     shimmer_per_gc = wiggleGC(dep = shimmerDep / 100,
                               len = shimmerLen,
                               nGC = nGC,
@@ -704,25 +609,13 @@ generateHarmonics = function(pitch,
     # the second column by shimmer_per_gc[2], etc
   }
 
-  # synthesize one glottal cycle at a time or a whole epoch at once?
-  synthesize_per_gc = FALSE
-  if (is.list(glottis)) {
-    if (any(glottis$value > 0)) {
-      synthesize_per_gc = TRUE
-    }
-  }
-
   # add subharmonics
-  if (!synthesize_per_gc &  # can't add subharmonics if doing one gc
-      # at a time (one f0 period)
-      any(subDep > 0) & any(subh_on)) {
+  if (any(subDep > 0) && any(subh_on)) {
     subh = addSubh(
       rolloff = rolloff_source,
       pitch_per_gc = pitch_per_gc,
       subRatio = subRatio,
-      subFreq = subFreq * rw ^ subDriftDep,
       subDep = subDep * rw ^ subDriftDep * subh_on,
-      subWidth = subWidth * rw ^ subDriftDep,
       shortestEpoch = shortestEpoch,
       dynamicRange = dynamicRange
     )
@@ -735,62 +628,22 @@ generateHarmonics = function(pitch,
   }
 
   ## WAVEFORM GENERATION
-  if (synthesize_per_gc) {
-    # synthesize one glottal cycle at a time
-    rolSrc = rolloff_source
-    for (e in seq_along(rolloff_source)) {
-      rolSrc[[e]] = rolloff_source[[e]]
-      rolSrc[[e]] = as.list(as.data.frame(rolSrc[[e]]))
-      for (i in seq_along(rolSrc[[e]])) {
-        rolSrc[[e]][[i]] = matrix(rolSrc[[e]][[i]],
-                                  ncol = 1,
-                                  dimnames = list(rownames(rolloff_source[[e]])))
-      }
-    }
-    rolSrc = unlist(rolSrc, recursive = FALSE)  # get rid of epochs
-    glottisClosed_per_gc = do.call(getSmoothContour, c(smoothing, list(
-      anchors = glottis,
-      len = nGC,
-      valueFloor = 0
-    )))
-    # warp glottis anchors to ensure that their timing is not affected by the delay
-    # of adding extra silence between glottal cycles when glottis > 0
-    warpRows = seq_len(nrow(glottis)) [-c(1, nrow(glottis))]
-    # except for first and last row (time = 0 or 1 - nowhere to move)
-    if (length(warpRows) > 0) {
-      # calculate the dur of each glottal cylce + pause, in ms
-      gc_dur = 1000 / pitch_per_gc * (1 + glottisClosed_per_gc / 100)
-      dur = sum(gc_dur)  # nominal dur with these gc's
-      cs = cumsum(gc_dur)
-      for (r in warpRows) {
-        # where it should be (time of glottis anchor, ms)
-        target_dur = glottis$time[r] * dur
-        # move the time anchor to where it will coincide with target_dur, given
-        # the modified dur of glottal cycles with pauses
-        glottis$time[r] = which(cs > target_dur)[1] / nGC
-      }
-    }
-    glottisClosed_per_gc = do.call(getSmoothContour, c(smoothing, list(
-      anchors = glottis,
-      len = nGC,
-      valueFloor = 0
-    )))
-    waveform = generateGC(pitch_per_gc = pitch_per_gc,
-                          glottisClosed_per_gc = glottisClosed_per_gc,
-                          rolloff_per_gc = rolSrc,
-                          samplingRate = samplingRate)
-  } else {
-    # synthesize continuously
-    waveform = generateEpoch(pitch_per_gc = pitch_per_gc,
-                             epochs = epochs,
-                             rolloff_per_epoch = rolloff_source,
-                             samplingRate = samplingRate)
-  }
+  # synthesize continuously
+  waveform = generateEpoch(
+    pitch_per_gc = pitch_per_gc,
+    epochs = epochs,
+    rolloff_per_epoch = rolloff_source,
+    samplingRate = samplingRate,
+    glottisClosed_per_gc = glottisClosed_per_gc,
+    targetLen = targetLen,
+    closedFadeMs = 0.25,
+    closedFadeShape = 'cos'
+  )
   # sum(is.na(waveform))
   # plot(waveform[], type = 'l')
-  # spectrogram(waveform, samplingRate = samplingRate, osc = TRUE)
+  # spectrogram(waveform, samplingRate = samplingRate)
   # playme(waveform, samplingRate = samplingRate)
-  # seewave::meanspec(waveform, f = samplingRate)
+  # meanSpectrum(waveform,samplingRate)
 
   ## POST-SYNTHESIS EFFECTS
   # add attack
@@ -806,25 +659,31 @@ generateHarmonics = function(pitch,
   }
 
   # pitch drift is accompanied by amplitude drift
-  if (temperature > 0 & amplDriftDep > 0 && diff(range(drift)) != 0) {
+  if (temperature > 0 && amplDriftDep > 0 && diff(range(drift)) != 0) {
     drift_ampl = zeroOne(drift) * temperature
+    # otherwise pitchDriftDep scales amplDriftDep
     drift_ampl = drift_ampl - mean(drift_ampl) + 1  # hist(drift_ampl)
     # gc_upsampled = upsampleGC(pitch_per_gc, samplingRate = samplingRate)$gc
+    # don't need very precise timing - just use an approximation to avoid
+    # re-running upsampleGC or re-calculating midtimes
     gc_upsampled = c(1, cumsum(round(samplingRate / pitch_per_gc)))
-    drift_upsampled = approx(drift_ampl,  # otherwise pitchDriftDep scales amplDriftDep
+    drift_upsampled = approx(c(drift_ampl, tail(drift_ampl, 1)),
                              n = length(waveform),
-                             x = gc_upsampled[-length(gc_upsampled)])$y
+                             x = gc_upsampled)$y
     waveform = waveform * drift_upsampled ^ amplDriftDep
     # plot(drift_upsampled, type = 'l')
     # plot(waveform, type = 'l')
   }
 
-  # normalize to be on the same scale as breathing (NB: after adding attack,
+  # normalize to be on the same scale as waveform (NB: after adding attack,
   # b/c fading the ends can change the overall range if eg peak ampl is at the beg.)
-  if (normalize) waveform = waveform / max(abs(waveform))
+  if (normalize) {
+    maw = max(abs(waveform))
+    if (maw > 0) waveform = waveform / maw
+  }
 
   # apply amplitude envelope
-  if (is.numeric(ampl) | is.list(ampl)) {
+  if (is.numeric(ampl) || is.list(ampl)) {
     if (any(ampl$value != 0)) {
       amplEnvelope = do.call(getSmoothContour, c(smoothing, list(
         anchors = ampl,
@@ -845,127 +704,8 @@ generateHarmonics = function(pitch,
 }
 
 
-
-#' Generate glottal cycles
-#'
-#' Internal soundgen function. Takes descriptives of a number of glottal cycles
-#' (f0, closed phase, rolloff - note that all three should be vectors of the
-#' same length, namely nGC) and creates a waveform consisting of a string of
-#' these glottal cycles separated by pauses (if there is a closed phase). The
-#' principle is to work with one glottal cycle at a time and create a sine wave
-#' for each harmonic, with amplitudes adjusted by rolloff.
-#' @param pitch_per_gc pitch per glottal cycle, Hz
-#' @param glottisClosed_per_gc proportion of closed phase per glottal cycle, \%
-#' @param rolloff_per_gc a list of one-column matrices, one for each glottal
-#'   cycle, specifying rolloff per harmonic (linear multiplier, ie NOT in dB)
-#'   Each matrix has as many rows as there are harmonics, and rownames specify
-#'   the ratio to F0 (eg 1.5 means it's a subharmonic added between f0 and its
-#'   first harmonic)
-#' @param samplingRate the sampling rate of generated sound, Hz
-#' @param interpol method used to adjust the number of gc to target duration
-#' @return Returns a waveform as a non-normalized numeric vector centered at
-#'   zero.
-#' @keywords internal
-#' @examples
-#' pitch_per_gc = seq(100, 150, length.out = 25)
-#' glottisClosed_per_gc = seq(0, 300, length.out = 25)
-#' m = matrix(10 ^ (-6 * log2(1:200) / 20))
-#' rownames(m) = 1:nrow(m)
-#' rolloff_per_gc = rep(list(m), 25)
-#' s = soundgen:::generateGC(pitch_per_gc, glottisClosed_per_gc,
-#'                           rolloff_per_gc, samplingRate = 16000)
-#' # plot(s, type = 'l')
-#' # playme(s)
-generateGC = function(pitch_per_gc,
-                      glottisClosed_per_gc,
-                      rolloff_per_gc,
-                      samplingRate,
-                      interpol = 'approx') {
-  gc_len = round(samplingRate / pitch_per_gc)  # length of each gc, points
-  gc_closed = round(gc_len * glottisClosed_per_gc / 100)  # length of each pause, points
-
-  # adjust nGC to have ~the same duration as w/o closed phase
-  nGC_orig = length(pitch_per_gc)
-  dur_target = sum(gc_len)
-  dur_with_closed = dur_target + sum(gc_closed)
-  nGC = round(dur_target / dur_with_closed * length(pitch_per_gc))
-  if (interpol == 'approx') {
-    # use splines to reduce the number of gc's in a smart way
-    idx_orig = seq_len(nGC_orig)
-    idx = seq(1, nGC_orig, length.out = nGC)
-    pitch_per_gc_adj = spline(x = idx_orig, y = pitch_per_gc, xout = idx)$y
-    glottisClosed_per_gc_adj = approx(x = idx_orig,
-                                      y = glottisClosed_per_gc, xout = idx)$y
-    rolloff_per_gc_adj = rolloff_per_gc[round(idx)]  # too big for spline
-  } else {
-    # just pick enough gc's
-    idx = round(seq(1, nGC_orig, length.out = nGC))
-    pitch_per_gc_adj = pitch_per_gc[idx]
-    glottisClosed_per_gc_adj = glottisClosed_per_gc[idx]
-    rolloff_per_gc_adj = rolloff_per_gc[idx]
-  }
-  gc_len_adj = round(samplingRate / pitch_per_gc_adj)
-  gc_closed_adj = round(gc_len_adj * glottisClosed_per_gc_adj / 100)
-  # gc_closed_adj[nGC] = 1  # don't add silence after the last gc
-
-  # synthesize one glottal cycle at a time
-  waveform = 0
-  for (i in seq_len(nGC)) {
-    cycle = 0
-    idx = 0:(gc_len_adj[i] - 1)  # count from zero, ensuring the gc starts at sin(0) = 0
-    for (h in seq_len(nrow(rolloff_per_gc_adj[[i]]))) {
-      times_f0 = as.numeric(rownames(rolloff_per_gc_adj[[i]])[h]) # freq of harmonic h
-      cycle = cycle +
-        sin(2 * pi * .subset2(pitch_per_gc_adj, i) * times_f0 * idx / samplingRate) *
-        rolloff_per_gc_adj[[i]][h]
-    }
-    # cycle = cycle / max(abs(cycle))
-    # just use the first, positive half of each glottal cycle
-    # (a hack - should really try more realistic shapes)
-    # cycle[(gc_len_adj[i]/2) : gc_len_adj[i]] = 0
-    # cycle[cycle < 0] = 0
-    # plot(cycle, type = 'l')
-    # spectrogram(cycle, samplingRate, ylim = c(0, 2))
-    # seewave::spec(rep(cycle,10), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
-
-    # apply a Gaussian window before glueing gc with pauses (changes the spectrum, though)
-    n1 = gc_len_adj[i] - 1
-    e12 = exp(-12)
-    cycle = cycle * (exp(-12 * (((0:n1)/n1) - 0.5)^2) - e12)/(1 - e12)
-    # slower, but more flexible in terms of possible window shapes
-    # if (wn != 'none') {
-    #   win = seewave::ftwindow(wl = gc_len_adj[i], wn = wn)
-    #   # plot(win, type = 'b')
-    #   cycle = cycle * win
-    #   # plot(cycle, type = 'l')
-    #   # spectrogram(rep(cycle,100), samplingRate, ylim = c(0, 10))
-    #   # seewave::spec(rep(cycle,100), f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
-    # }
-
-    # another solution is to simply to fade each glottal cycle (also changes the spectrum)
-    # cycle = fade(cycle, samplingRate = samplingRate, fadeIn_points = 0,
-    #              fadeOut_points = gc_len_adj[i],
-    #              shape = 'gaussian')
-
-    waveform = c(waveform, cycle, rep(0, gc_closed_adj[i]))
-    # Alternative to simple concatenation: cross-fade (doesn't make much difference in practice)
-    # fadeTime_ms = 2
-    # fadeTime_points = round(fadeTime_ms * samplingRate / 1000)
-    # fadeTime_points = min(fadeTime_points, 2 * round(gc_closed_adj[i] / 4))
-    # new = crossFade(cycle, rep(0, gc_closed_adj[i] + 2 * fadeTime_points), crossLenPoints = fadeTime_points, shape = 'lin')
-    # waveform = crossFade(waveform, new, crossLenPoints = fadeTime_points, shape = 'lin')
-  }
-  # plot(waveform, type = 'l')
-  # playme(waveform, samplingRate)
-  # spectrogram(waveform, samplingRate, ylim = c(0, 10))
-  # seewave::spec(waveform, f = samplingRate, flim = c(0, 2), alim = c(-50, 0), dB = 'max0')
-  return(waveform)
-}
-
-
 #' Generate an epoch
 #'
-#' Internal soundgen function.
 #' Takes descriptives of a number of glottal cycles (f0, closed phase, rolloff)
 #' and creates a continuous waveform. The principle is to work with one epoch
 #' with stable regime of subharmonics at a time and create a sine wave for each
@@ -978,8 +718,17 @@ generateGC = function(pitch_per_gc,
 #'   harmonic)
 #' @param epochs a dataframe specifying the beginning and end of each epoch
 #' @param samplingRate the sampling rate of generated sound, Hz
-#' @return Returns a waveform as a non-normalized numeric vector centered at zero.
-#' @keywords internal
+#' @param glottisClosed_per_gc numeric vector: closed phase per glottal cycle,
+#'   \%. If not NULL and any value is positive, closed-phase silences are
+#'   inserted after synthesis, and the waveform is resampled back to the target
+#'   duration implied by \code{upsampleGC()}
+#' @param targetLen the expected length of output, in samples (needed for
+#'   time-varying closed phase)
+#' @param closedFadeMs approximate final fade length at closed-phase
+#'   transitions, ms
+#' @param closedFadeShape fade shape passed to \code{.fade()}
+#' @return A waveform as a non-normalized numeric vector centered at zero.
+#' @noRd
 #' @examples
 #' pitch_per_gc = seq(100, 150, length.out = 90)
 #' epochs = data.frame (start = c(1, 51),
@@ -996,161 +745,236 @@ generateGC = function(pitch_per_gc,
 generateEpoch = function(pitch_per_gc,
                          epochs,
                          rolloff_per_epoch,
-                         samplingRate) {
-  # Upsample pitch contour to full resolution (samplingRate).
-  #   Uses a more sophisticated but still very fast version of linear
-  #   interpolation, which takes into account the variable length
-  #   of glottal cycles
+                         samplingRate,
+                         glottisClosed_per_gc = NULL,
+                         targetLen = NULL,
+                         closedFadeMs = 0.25,
+                         closedFadeShape = 'cos') {
   up = upsampleGC(pitch_per_gc, samplingRate = samplingRate)
   pitch_upsampled = up$pitch
-  gc_upsampled = up$gc
+  if (is.null(targetLen)) targetLen = tail(up$end, 1)
+
+  # cumulative f0 phase in cycles
   integr = cumsum(pitch_upsampled) / samplingRate
-  waveform = 0
+  waveform = NULL
 
-  # synthesize one epoch at a time and join by cross-fading
-  for (e in 1:nrow(epochs)) {
-    idx_gc_up = gc_upsampled[epochs$start[e]:(epochs$end[e] + 1)]
-    idx_up = min(idx_gc_up):max(idx_gc_up)
-    len_idx_up = length(idx_up)
-    idx_gc_up_nolast = idx_gc_up[-length(idx_gc_up)]
-    waveform_epoch = 0
-    integr_epoch = integr[idx_up]
-    rolloff_epoch = rolloff_per_epoch[[e]]  # rolloff_source MUST be a list!
-    times_f0_vector = as.numeric(rownames(rolloff_epoch))
+  for (e in seq_len(nrow(epochs))) {
+    st = as.integer(round(epochs$start[e]))
+    en = as.integer(round(epochs$end[e]))
 
-    for (h in seq_len(nrow(rolloff_epoch))) {
-      # NB: rolloff_source can have fewer harmonics that nHarmonics since weak
-      # harmonics are discarded for computational efficiency. Or it can have a
-      # lot more than nHarmonics if we add subharmonics
-      times_f0 = .subset2(times_f0_vector, h) # freq of harmonic h
-      # as a multiple of f0
-      am_upsampled = approx(rolloff_epoch[h, ],
-                            n = len_idx_up,
-                            x = idx_gc_up_nolast)$y
-      # plot(am_upsampled, type = 'l')
-      # the actual waveform synthesis happens HERE:
-      waveform_epoch = waveform_epoch +
-        sin(2 * pi * integr_epoch * times_f0) * am_upsampled
-      # plot(waveform_epoch[1000:2000], type = 'l')
+    if (is.na(st) || is.na(en) || st < 1 || en < st ||
+        st > length(up$start) || en > length(up$end)) next
+
+    # global sample indices for this epoch
+    idx_up = up$start[st]:up$end[en]
+    if (length(idx_up) == 0) next
+
+    rol = rolloff_per_epoch[[e]]
+    if (!is.matrix(rol)) rol = as.matrix(rol)
+
+    nGC_epoch = en - st + 1
+    x_epoch = up$midtimes[st:en]
+    waveform_epoch = rep(0, length(idx_up))
+    if (nrow(rol) > 0 && ncol(rol) > 0) {
+      times_f0_vector = as.numeric(rownames(rol))
+      if (length(times_f0_vector) != nrow(rol) || anyNA(times_f0_vector)) {
+        times_f0_vector = seq_len(nrow(rol))
+      }
+      integr_epoch = integr[idx_up]
+
+      for (h in seq_len(nrow(rol))) {
+        times_f0 = times_f0_vector[h]
+        if (nGC_epoch == 1 || ncol(rol) == 1) {
+          am_upsampled = rep(rol[h, 1], length(idx_up))
+        } else {
+          am_upsampled = approx(
+            x = x_epoch,
+            y = rol[h, ],
+            xout = idx_up,
+            rule = 2
+          )$y
+        }
+        waveform_epoch = waveform_epoch +
+          sinpi(2 * integr_epoch * times_f0) * am_upsampled
+      }
     }
-    waveform = crossFade(waveform,
-                         waveform_epoch,
-                         samplingRate = samplingRate,
-                         crossLen = 15) # longer crossLen
-    # provides for smoother transitions, but it shortens the resulting sound.
-    # Short transitions preserve sound duration but may create a click
-    # where two epochs are joined
+
+    if (is.null(waveform)) {
+      waveform = waveform_epoch
+    } else {
+      waveform = crossFade(
+        waveform,
+        waveform_epoch,
+        samplingRate = samplingRate,
+        crossLen = 15,
+        shape = 'lin'
+      )
+    }
   }
-  # plot(waveform, type = 'l')
-  # playme(waveform, samplingRate)
+
+  if (is.null(waveform)) waveform = numeric(0)
+
+  # insert closed-phase silences and restore target duration
+  if (length(waveform) > 0 &&
+      length(up$end) > 0 &&
+      !is.null(glottisClosed_per_gc) &&
+      any(glottisClosed_per_gc > 0, na.rm = TRUE)) {
+
+    waveform_long = addClosedPhase(
+      audio = waveform,
+      pitch_per_gc = pitch_per_gc,
+      glottisClosed_per_gc = glottisClosed_per_gc,
+      samplingRate = samplingRate,
+      gc_start = up$start,
+      gc_end = up$end,
+      targetLen = targetLen,
+      fade_ms = closedFadeMs,
+      fadeShape = closedFadeShape
+    )
+
+    if (targetLen > 0 && length(waveform_long) != targetLen) {
+      waveform_resampled = .resample(
+        audio = list(
+          sound = waveform_long,
+          samplingRate = samplingRate
+        ),
+        len = targetLen,
+        lowPass = length(waveform_long) > targetLen,
+        interpol = 'linear'
+      )
+      waveform = waveform_resampled
+    } else {
+      waveform = waveform_long
+    }
+  }
   waveform
 }
 
 
-#' Fart
+#' Add closed phases between glottal cycles
 #'
-#' While the same sounds can be created with soundgen(), this facetious function
-#' produces the same effect more efficiently and with very few control
-#' parameters. With default settings, execution time is ~ 10 ms per second of
-#' audio sampled at 16000 Hz. Principle: creates separate glottal cycles with
-#' harmonics, but no formants. See \code{\link{soundgen}} for more details.
+#' Inserts silences after glottal cycles based on glottisClosed_per_gc.
+#' Returns the lengthened waveform. Resampling back to target length is
+#' intended to be done by the caller.
 #'
-#' @seealso \code{\link{soundgen}} \code{\link{generateNoise}}
-#'   \code{\link{beat}}
-#'
-#' @inheritParams soundgen
-#' @param sylLen syllable length, ms (not vectorized)
-#' @param rolloff rolloff of harmonics in source spectrum, dB/octave (not
-#'   vectorized)
-#' @param plot if TRUE, plots the waveform
-#' @return Returns a normalized waveform.
-#' @export
-#' @examples
-#' f = fart()
-#' # playme(f)
-#'
-#' \dontrun{
-#' while (TRUE) {
-#'   fart(sylLen = 300, temperature = .5, play = TRUE)
-#'   Sys.sleep(rexp(1, rate = 1))
-#' }
-#' }
-fart = function(glottis = c(50, 200),
-                pitch = 65,
-                temperature = 0.25,
-                sylLen = 600,
-                rolloff = -10,
-                samplingRate = 16000,
-                play = FALSE,
-                plot = FALSE) {
-  glottis = reformatAnchors(glottis)
-  pitch = reformatAnchors(pitch)
+#' @param audio numeric vector: continuous voiced waveform
+#' @param pitch_per_gc numeric vector: f0 per glottal cycle, Hz
+#' @param glottisClosed_per_gc numeric vector: closed phase per gc, %
+#' @param samplingRate sampling rate, Hz
+#' @param gc_start optional integer vector: start sample of each gc
+#' @param gc_end optional integer vector: end sample of each gc
+#' @param targetLen optional target length in samples, used to scale fades
+#' @param fade_ms approximate final fade length, ms
+#' @param fadeShape fade shape passed to .fade()
+#' @return longer numeric vector
+#' @noRd
+addClosedPhase = function(audio,
+                          pitch_per_gc,
+                          glottisClosed_per_gc,
+                          samplingRate,
+                          gc_start,
+                          gc_end,
+                          targetLen,
+                          fade_ms = 0.25,
+                          fadeShape = 'cos') {
+  n = length(audio)
+  if (n == 0) return(audio)
+  nGC = length(gc_end)
+  if (nGC == 0) return(audio)
+  segLen_expected = gc_end - gc_start + 1
+  expectedLen = sum(segLen_expected)
+  if (expectedLen <= 0) return(audio)
 
-  # wiggle pars
-  if (temperature > 0) {
-    rolloff = rnorm_truncated2(n = 1,
-                               mean = rolloff,
-                               sd = abs(rolloff) * temperature * .5,
-                               low = -50, high = 10)
-    sylLen = rnorm_truncated2(n = 1,
-                              mean = sylLen,
-                              sd = sylLen * temperature * .5,
-                              low = 0, high = 10000)
+  # Rescale expected gc lengths to the actual audio length.
+  # This matters because epoch cross-fading can slightly shorten the waveform.
+  segLen_float = segLen_expected * n / expectedLen
+  segLen_int = floor(segLen_float)
+  extra = n - sum(segLen_int)
+  if (extra > 0) {
+    remainders = segLen_float - segLen_int
+    ord = order(remainders, decreasing = TRUE)
+    idx = ord[seq_len(min(extra, length(ord)))]
+    segLen_int[idx] = segLen_int[idx] + 1
+  }
+  segLen_int = as.integer(segLen_int)
+  ends = cumsum(segLen_int)
+  starts = c(1, if (length(ends) > 1) ends[-length(ends)] + 1 else numeric(0))
+  validIdx = which(segLen_int > 0)
+  if (length(validIdx) == 0) return(audio)
 
-    glottis = wiggleAnchors(
-      glottis, temperature, temp_coef = .5,
-      low = c(0, 0), high = c(1, 10000),
-      wiggleAllRows = TRUE
-    )
-    pitch = wiggleAnchors(
-      pitch, temperature, temp_coef = 1,
-      low = c(0, 0), high = c(1, 10000),
-      wiggleAllRows = TRUE
-    )
+  # first pass: calculate silence lengths
+  closedLen_all = integer(nGC)
+  for (i in validIdx) {
+    closedLen_all[i] = max(0, round(segLen_int[i] * glottisClosed_per_gc[i] / 100))
+  }
+  lastValid = validIdx[length(validIdx)]
+  totalSilence = sum(closedLen_all)
+  if (totalSilence == 0) return(audio)
+
+  # If the caller will resample to targetLen after this function,
+  # make the fades longer now so that they remain short after resampling
+  if (!is.null(targetLen) && targetLen > 0) {
+    longLen = n + totalSilence
+    fadeScale = max(1, longLen / targetLen)
+  } else {
+    fadeScale = 1
+  }
+  fade_points_target = round(fade_ms * samplingRate / 1000)
+
+  # second pass: build the lengthened waveform
+  out = vector('list', length(validIdx) * 2)
+  k = 1
+  prevSilence = 0L
+
+  for (i in validIdx) {
+    st = starts[i]
+    en = ends[i]
+    if (st > en || st > n || en < 1) next
+
+    seg = audio[st:en]
+    segLen = length(seg)
+    closedLen = closedLen_all[i]
+
+    fadeIn = prevSilence > 0
+    fadeOut = closedLen > 0
+    if ((fadeIn || fadeOut) && fade_points_target > 0 && segLen >= 4) {
+      fadeLen = ceiling(fade_points_target * fadeScale)
+      fadeLen = max(0, min(fadeLen, floor((segLen - 1) / 2)))
+
+      # .fade() needs at least 2 points for an audible fade-in
+      if (fadeLen > 1) {
+        seg = .fade(
+          list(sound = seg, samplingRate = samplingRate),
+          fadeIn_points = if (fadeIn) fadeLen else 0,
+          fadeOut_points = if (fadeOut) fadeLen else 0,
+          shape = fadeShape
+        )
+      }
+    }
+
+    # save the faded-in/out segment
+    if (k > length(out)) out = c(out, vector('list', length(out)))
+    out[[k]] = seg
+    k = k + 1
+
+    # save the silence (closed phase)
+    if (closedLen > 0) {
+      if (k > length(out)) out = c(out, vector('list', length(out)))
+      out[[k]] = numeric(closedLen)
+      k = k + 1
+    }
+
+    prevSilence = closedLen
   }
 
-  # prepare pitch contour
-  pitch = getSmoothContour(anchors = pitch,
-                           len = round(sylLen * 3500 / 1000))
-
-  # synthesize the sound
-  s = generateHarmonics(
-    pitch = pitch,
-    glottis = glottis,
-    rolloff = rolloff,
-    samplingRate = samplingRate,
-    pitchSamplingRate = 3500
-  )
-  # plot(s, type = 'l')
-  # spectrogram(f, osc = T, samplingRate = samplingRate, ylim = c(0, 2))
-  # seewave::spec(f, f = samplingRate, dB = 'max0')
-
-  # amplitude drift
-  if (temperature > 0) {
-    drift = getRandomWalk(
-      len = 100,
-      rw_range = temperature * 10,
-      rw_smoothing = .95,
-      method = 'spline'
-    ) + 1
-    # plot(drift, type = 'l')
-    drift_upsampled = approx(drift,
-                             n = length(s))$y
-    s = s * drift_upsampled
+  # concatenate all segments and silences
+  if (k > 1) {
+    out = out[1:(k - 1)]
+    audio = do.call(`c`, out)
   }
-
-  s = s / max(abs(s))
-
-  if (play == TRUE) playme(s, samplingRate)
-  if (is.character(play)) {
-    playme(s, samplingRate = samplingRate, player = play)
-  }
-  if (plot) {
-    time = (seq_along(s)) / samplingRate * 1000
-    plot(time, s, type = 'l', xlab = 'Time, ms')
-  }
-  invisible(s)
+  audio
 }
+
 
 
 #' Generate beat
@@ -1162,17 +986,16 @@ fart = function(glottis = c(50, 200),
 #' \code{\link{soundgen}} settings, especially since percussive syllables tend
 #' to be very short.
 #'
-#' @seealso \code{\link{soundgen}} \code{\link{generateNoise}}
-#'   \code{\link{fart}}
+#' @seealso \code{\link{soundgen}}
 #'
 #' @inheritParams soundgen
 #' @param nSyl the number of syllables to generate
 #' @param sylLen average duration of each syllable, ms
 #' @param pauseLen average duration of pauses between syllables, ms
-#' @param pitch fundamental frequency, Hz - a vector or data.frame(time = ...,
-#'   value = ...)
+#' @param pitch fundamental frequency, Hz (numeric vector or anchor format, see
+#'   \code{\link{soundgen}})
 #' @param fadeOut if TRUE, a linear fade-out is applied to the entire syllable
-#' @return Returns a non-normalized waveform centered at zero.
+#' @return The synthesized waveform as a numeric vector.
 #' @export
 #' @examples
 #' playback = c(TRUE, FALSE)[2]
@@ -1218,9 +1041,11 @@ beat = function(nSyl = 10,
     beat = rep(c(beat, pause), nSyl)
   }
   beat = beat / max(abs(beat))  # normalize
-  if (play == TRUE) playme(beat, samplingRate)
-  if (is.character(play)) {
-    playme(beat, samplingRate = samplingRate, player = play)
+
+  if (isTRUE(play)) {
+    playme(beat, samplingRate)
+  } else if (is.character(play)) {
+    playme(beat, samplingRate, player = play)
   }
-  return(beat)
+  beat
 }

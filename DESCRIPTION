@@ -1,27 +1,29 @@
 Package: soundgen
 Type: Package
 Title: Sound Synthesis and Acoustic Analysis
-Version: 2.9.0
+Version: 3.0.0
 Authors@R: person("Andrey", "Anikin", email = "andrey.anikin@cogsci.se", role = c("aut", "cre"))
 Maintainer: Andrey Anikin <andrey.anikin@cogsci.se>
 URL: http://cogsci.se/soundgen.html
-Description: Performs parametric synthesis of sounds with harmonic and noise 
-    components such as animal vocalizations or human voice. Also offers tools 
-    for audio manipulation and acoustic analysis, including pitch tracking, 
-    spectral analysis, audio segmentation, pitch and formant shifting, etc. 
-    Includes four interactive web apps for synthesizing and annotating audio, 
-    manually correcting pitch contours, and measuring formant frequencies. 
-    Reference: Anikin (2019) <doi:10.3758/s13428-018-1095-7>.
+Description: Parametric source-filter synthesis of harmonic-noise signals, such
+  as animal vocalizations and human voice, with control over pitch, formants,
+  noise, amplitude modulation, nonlinear phenomena, and morphing. General signal
+  processing tools for audio analysis and manipulation: pitch tracking, formant
+  and vocal tract length estimation, reassigned and auditory spectrograms, 
+  modulation spectra and psychoacoustic roughness, self-similarity and 
+  surprisal, audio segmentation, pitch and formant shifting, etc. Includes four
+  interactive web apps for audio synthesis, annotation, formant analysis, and
+  manually correcting pitch contours.
+  Reference: Anikin (2019) <doi:10.3758/s13428-018-1095-7>.
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
-Imports: stats (>= 4.0.0), graphics, utils, tuneR, seewave (>= 2.1.6),
-        zoo, mvtnorm, dtw, phonTools, signal, shiny, shinyjs, bslib,
-        foreach, doParallel, nonlinearTseries, data.table
+Imports: stats, graphics, grDevices, utils, tuneR, signal, phonTools
+Suggests: base64enc, dtw, nonlinearTseries, shiny, shinyjs, bslib
 Depends: R (>= 4.1)
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.1.0
 NeedsCompilation: no
-Packaged: 2026-02-24 09:45:24 UTC; allgoodguys
+Packaged: 2026-09-18 08:19:57 UTC; allgoodguys
 Author: Andrey Anikin [aut, cre]
 Repository: CRAN
-Date/Publication: 2026-02-24 10:40:02 UTC
+Date/Publication: 2026-09-20 09:10:02 UTC

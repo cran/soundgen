@@ -13,22 +13,21 @@ analyze(
   dynamicRange = 80,
   silence = 0.04,
   windowLength = 50,
-  step = windowLength/2,
+  step = NULL,
   overlap = 50,
-  specType = c("spectrum", "reassign", "spectralDerivative")[1],
   wn = "gaussian",
   zp = 0,
   cutFreq = NULL,
   nFormants = 3,
   formants = list(),
   loudness = list(SPL_measured = 70),
-  roughness = list(msType = "1D", windowLength = 25, step = 2, amRes = 5),
-  novelty = list(input = "melspec", kernelLen = 1000),
+  roughness = list(msType = "1D", specMethod = "spectrum", amRes = 1, specFun_pars =
+    list(windowLength = 25, step = 2)),
+  novelty = list(specFun = "melspec", kernelLen = 1000),
   pitchMethods = c("dom", "autocor"),
   pitchManual = NULL,
-  entropyThres = 0.6,
   pitchFloor = 75,
-  pitchCeiling = 3500,
+  pitchCeiling = 1000,
   priorMean = 300,
   priorSD = 6,
   priorAdapt = TRUE,
@@ -44,28 +43,25 @@ analyze(
   pitchZc = list(zcThres = 0.1, zcWin = 5),
   harmHeight = list(harmThres = 3, harmTol = 0.25, harmPerSel = 5),
   subh = list(method = c("cep", "pitchCands", "harm")[1], nSubh = 5, tol = 0.05, nHarm =
-    5, harmThres = 12, harmTol = 0.25, amRange = c(10, 200)),
-  flux = list(thres = 0.15, smoothWin = 100),
-  amRange = c(10, 200),
-  fmRange = c(5, 1000/step/2),
+    5, harmThres = 12, harmTol = 0.25),
+  flux = list(thres = 0.15),
+  amRange = c(10, 60),
+  fmRange = NULL,
   shortestSyl = 20,
   shortestPause = 60,
-  interpol = list(win = 75, tol = 0.3, cert = 0.3),
-  pathfinding = c("none", "fast", "slow")[2],
-  annealPars = list(maxit = 5000, temp = 1000),
+  interpolPitch = list(win = 75, tol = 0.3, cert = 0.3),
   certWeight = 0.5,
-  snakeStep = 0,
-  snakePlot = FALSE,
   smooth = 1,
   smoothVars = c("pitch", "dom"),
   summaryFun = c("mean", "median", "sd"),
-  invalidArgAction = c("adjust", "abort", "ignore")[1],
+  invalidArgAction = c("adjust", "abort", "ignore"),
   reportEvery = NULL,
   cores = 1,
   plot = FALSE,
-  osc = "linear",
+  osc = c("linear", "dB", "none"),
   showLegend = TRUE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   pitchPlot = list(col = rgb(0, 0, 1, 0.75), lwd = 3, showPrior = TRUE),
   extraContour = NULL,
   ylim = NULL,
@@ -87,61 +83,54 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
+\item{dynamicRange}{regions under \code{-dynamicRange} dB are treated as silent}
 
-\item{silence}{(0 to 1 as proportion of max amplitude) frames with RMS
-amplitude below \code{silence * max_ampl adjusted by scale} are not
-analyzed at all.}
+\item{silence}{(0 to 1 as proportion of max amplitude of the anayzed sound)
+frames with RMS amplitude below \code{silence * max_ampl adjusted by scale}
+are not analyzed at all}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{overlap}{overlap between successive windows, \%}
 
-\item{specType}{plot the original FFT ('spectrum'), reassigned spectrogram
-('reassigned'), or spectral derivative ('spectralDerivative')}
+\item{wn}{window type accepted by \code{\link{winFun}}: character string or
+function}
 
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
-
-\item{zp}{window length after zero padding, points}
+\item{zp}{window length after zero padding, samples. No padding is performed
+if \code{zp} < analysis window length in samples. If NULL, the signal is
+padded to a good number for speeding up the FFT}
 
 \item{cutFreq}{if specified, spectral descriptives (peakFreq, specCentroid,
 specSlope, and quartiles) are calculated only between \code{cutFreq[1]} and
 \code{cutFreq[2]}, Hz. If a single number is given, analyzes frequencies
 from 0 to \code{cutFreq}. For ex., when analyzing recordings with varying
 sampling rates, set to half the lowest sampling rate to make the spectra
-more comparable. Note that "entropyThres" applies only to this frequency
-range, which also affects which frames will not be analyzed with
-pitchAutocor.}
+more comparable.}
 
 \item{nFormants}{the number of formants to extract per STFT frame (0 = no
 formant analysis, NULL = as many as possible)}
 
 \item{formants}{a list of arguments passed to
-\code{\link[phonTools]{findformants}} - an external function called to
-perform LPC analysis}
+\code{\link[phonTools]{findformants}} for LPC analysis}
 
 \item{loudness}{a list of parameters passed to \code{\link{getLoudness}} for
-measuring subjective loudness, namely \code{SPL_measured, Pref,
-spreadSpectrum}. NULL = skip loudness analysis}
+measuring subjective loudness, namely \code{SPL_measured, spreadSpectrum,
+sharpnessMethod}. NULL = skip loudness analysis}
 
 \item{roughness}{a list of parameters passed to
-\code{\link{modulationSpectrum}} for measuring roughness. NULL = skip
-roughness analysis}
+\code{\link{modulationSpectrum}} for measuring roughness and fluctuation
+strength. NULL = skip roughness analysis}
 
 \item{novelty}{a list of parameters passed to \code{\link{ssm}} for measuring
 spectral novelty. NULL = skip novelty analysis}
@@ -149,18 +138,14 @@ spectral novelty. NULL = skip novelty analysis}
 \item{pitchMethods}{methods of pitch estimation to consider for determining
 pitch contour: 'autocor' = autocorrelation (~PRAAT), 'cep' = cepstral,
 'spec' = spectral (~BaNa), 'dom' = lowest dominant frequency band, 'hps' =
-harmonic product spectrum, NULL = no pitch analysis}
+harmonic product spectrum, 'zc' = zero crossings, NULL = no pitch analysis}
 
 \item{pitchManual}{manually corrected pitch contour. For a single sound,
 provide a numeric vector of any length. For multiple sounds, provide a
 dataframe with columns "file" and "pitch" (or path to a csv file) as
 returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
-file is also OK (eg as returned by pitch_app)}
-
-\item{entropyThres}{pitch tracking is only performed for frames with Wiener
-entropy below \code{entropyThres}, but other spectral descriptives are
-still calculated (NULL = analyze everything)}
+file is also accepted - e.g., as returned by \code{\link{pitch_app}}}
 
 \item{pitchFloor, pitchCeiling}{absolute bounds for pitch candidates (Hz)}
 
@@ -168,57 +153,57 @@ still calculated (NULL = analyze everything)}
 (semitones) of gamma distribution describing our prior knowledge about the
 most likely pitch values for this file. For ex., \code{priorMean = 300,
 priorSD = 6} gives a prior with mean = 300 Hz and SD = 6 semitones (half
-an octave). To avoid using any priors, set \code{priorMean = NA, priorAdapt
-= FALSE}}
+an octave). NULL = no priors used at all; NA = no priors in the first pass,
+adaptive priors in the second pass if \code{priorAdapt = TRUE}}
 
 \item{priorAdapt}{adaptive second-pass prior: if TRUE, optimal pitch contours
 are estimated first with a prior determined by \code{priorMean,priorSD}, and
 then with a new prior adjusted according to this first-pass pitch contour}
 
-\item{nCands}{maximum number of pitch candidates per method, normally 1...4
-(except for \code{dom}, which returns at most one candidate per frame)}
+\item{nCands}{maximum number of pitch candidates per method, normally 1 to 4
+(except for \code{dom} and \code{hps}, which return at most one candidate
+per frame)}
 
 \item{minVoicedCands}{minimum number of pitch candidates that have to be
 defined to consider a frame voiced (if NULL, defaults to 2 if \code{dom} is
 among other candidates and 1 otherwise)}
 
 \item{pitchDom}{a list of control parameters for pitch tracking using the
-lowest dominant frequency band or "dom" method; see details and
-\code{?soundgen:::getDom}}
+lowest dominant frequency band or "dom" method}
 
 \item{pitchAutocor}{a list of control parameters for pitch tracking using the
-autocorrelation or "autocor" method; see details and
-\code{?soundgen:::getPitchAutocor}}
+autocorrelation or "autocor" method}
 
 \item{pitchCep}{a list of control parameters for pitch tracking using the
-cepstrum or "cep" method; see details and \code{?soundgen:::getPitchCep}}
+cepstrum or "cep" method}
 
 \item{pitchSpec}{a list of control parameters for pitch tracking using the
-BaNa or "spec" method; see details and \code{?soundgen:::getPitchSpec}}
+BaNa or "spec" method}
 
 \item{pitchHps}{a list of control parameters for pitch tracking using the
-harmonic product spectrum or "hps" method; see details and
-\code{?soundgen:::getPitchHps}}
+harmonic product spectrum or "hps" method}
 
 \item{pitchZc}{a list of control parameters for pitch tracking based on zero
-crossings in bandpass-filtered audio or "zc" method; see
-\code{\link{getPitchZc}}}
+crossings in bandpass-filtered audio or "zc" method}
 
 \item{harmHeight}{a list of control parameters for estimating how high
-harmonics reach in the spectrum; see details and \code{?soundgen:::harmHeight}}
+harmonics reach in the spectrum}
 
 \item{subh}{a list of control parameters for estimating the strength of
-subharmonics per frame - that is, spectral energy at integer ratios of f0:
-see \code{?soundgen:::getSHR}}
+subharmonics per frame - that is, spectral energy at integer fractions of
+f0: f0/2, f0/3, etc.}
 
 \item{flux}{a list of control parameters for calculating feature-based flux
-(not spectral flux) passed to \code{\link{getFeatureFlux}}}
+(not spectral flux)}
 
-\item{amRange}{target range of frequencies for amplitude modulation, Hz: a
-vector of length 2 (affects both \code{amMsFreq} and \code{amEnvFreq})}
+\item{amRange}{target range of frequencies for amplitude modulation
+(\code{amFreq}, Hz): a vector of length 2, defaults to \code{c(10, 60)}.
+Affects both \code{amMsFreq} and \code{amEnvFreq}. NB: f0 should not fall
+into this range, or AM will treat glottal cycles as modulation}
 
 \item{fmRange}{target range of frequencies for analyzing frequency
-modulation, Hz (\code{fmFreq}): a vector of length 2}
+modulation (\code{fmFreq}, Hz): a vector of length 2, defaults to
+\code{c(5, 1000 / step / 2)}}
 
 \item{shortestSyl}{the smallest length of a voiced segment (ms) that
 constitutes a voiced syllable (shorter segments will be replaced by NA, as
@@ -226,29 +211,15 @@ if voiceless)}
 
 \item{shortestPause}{the smallest gap between voiced syllables (ms): large
 value = interpolate and merge, small value = treat as separate syllables
-separated by a voiceless gap}
+separated by a voiceless gap; shortestPause < step disables any gap
+tolerance (a single voiceless frame terminates the syllable)}
 
-\item{interpol}{a list of parameters (currently \code{win, tol, cert}) passed
-to \code{soundgen:::pathfinder} for interpolating missing pitch candidates
-(NULL = no interpolation)}
-
-\item{pathfinding}{method of finding the optimal path through pitch
-candidates: 'none' = best candidate per frame, 'fast' = simple heuristic,
-'slow' = annealing. See \code{soundgen:::pathfinder}}
-
-\item{annealPars}{a list of control parameters for postprocessing of
-pitch contour with SANN algorithm of \code{\link[stats]{optim}}. This is
-only relevant if \code{pathfinding = 'slow'}}
+\item{interpolPitch}{a list of parameters (currently \code{win, tol, cert}) for
+interpolating missing pitch candidates (NULL = no interpolation)}
 
 \item{certWeight}{(0 to 1) in pitch postprocessing, specifies how much we
 prioritize the certainty of pitch candidates vs. pitch jumps / the internal
 tension of the resulting pitch curve}
-
-\item{snakeStep}{optimized path through pitch candidates is further
-processed to minimize the elastic force acting on pitch contour. To
-disable, set \code{snakeStep = 0}}
-
-\item{snakePlot}{if TRUE, plots the snake}
 
 \item{smooth, smoothVars}{if \code{smooth} is a positive number, outliers of
 the variables in \code{smoothVars} are adjusted with median smoothing.
@@ -256,29 +227,38 @@ the variables in \code{smoothVars} are adjusted with median smoothing.
 deviation of ~4 semitones. To disable, set \code{smooth = 0}}
 
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
-eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
-are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
-take care of NAs yourself}
+eg \code{c('mean', 'sd')}; user-defined functions are fine (see examples);
+NAs are omitted automatically for mean/median/sd/min/max/range/sum,
+otherwise take care of NAs yourself}
 
 \item{invalidArgAction}{what to do if an argument is invalid or outside the
-range in \code{defaults_analyze}: 'adjust' = reset to default value,
-'abort' = stop execution, 'ignore' = throw a warning and continue (may
-crash)}
+permitted range: 'adjust' = reset to default value, 'abort' = stop
+execution, 'ignore' = throw a warning and continue (may crash)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, produces a spectrogram with pitch contour overlaid}
 
-\item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
-in decibels}
+\item{osc}{"linear" = on the original scale (default); "none" = no
+oscillogram; "dB" = in decibels}
 
 \item{showLegend}{if TRUE, adds a legend with pitch tracking methods}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{pitchPlot}{a list of graphical parameters for displaying the final
 pitch contour. Set to \code{list(type = 'n')} to suppress}
@@ -293,67 +273,86 @@ frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{xlab, ylab, main}{plotting parameters}
 
-\item{width, height, units, res}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
+\item{width, height, units, res}{graphical parameters for saving plots passed to
+\code{png}}
 
 \item{...}{other graphical parameters passed to \code{\link{spectrogram}}}
 }
 \value{
-Returns a list with \code{$detailed} frame-by-frame descriptives and
-  a \code{$summary} with one row per file, as determined by \code{summaryFun}
+A list with \code{$detailed} frame-by-frame descriptives and a
+  \code{$summary} with one row per file, as determined by \code{summaryFun}
   (e.g., mean / median / SD of each acoustic variable across all STFT
-  frames). Output measures include: \describe{\item{duration}{total duration,
-  s} \item{duration_noSilence}{duration from the beginning of the first
-  non-silent STFT frame to the end of the last non-silent STFT frame, s (NB:
-  depends strongly on \code{windowLength} and \code{silence} settings)}
+  frames). Output measures include:
+\describe{
+  \item{duration}{total duration, s}
+  \item{duration_noSilence}{duration from the beginning of the first
+    non-silent STFT frame to the end of the last non-silent STFT frame, s
+    (NB: depends strongly on \code{windowLength} and \code{silence}
+    settings)}
   \item{time}{time of the middle of each frame (ms)}
-  \item{amEnvFreq,amEnvDep}{frequency (Hz) and
-  depth (0 to 1) of amplitude modulation estimated from a smoothed amplitude
-  envelope} \item{amMsFreq,amMsPurity}{frequency and purity of amplitude
-  modulation estimated via \code{\link{modulationSpectrum}}}
+  \item{amEnvFreq,amEnvDep,amEnvPurity}{frequency (Hz), purity (0 to 1), and
+  depth (0 to 100) of amplitude modulation estimated from a smoothed
+  amplitude envelope}
+  \item{amMsFreq,amMsPurity}{frequency (Hz) and purity (dB) of amplitude
+    modulation estimated via \code{\link{modulationSpectrum}}}
   \item{ampl}{root mean square of amplitude per frame, calculated as
-  sqrt(mean(frame ^ 2))} \item{ampl_noSilence}{same as \code{ampl}, but
-  ignoring silent frames} \item{CPP}{Cepstral Peak Prominence, dB (a measure
-  of pitch quality, the ratio of the highest peak in the cepstrum to the
-  regression line drawn through it)} \item{dom}{lowest dominant frequency
-  band (Hz) (see "Pitch tracking methods / Dominant frequency" in the
-  vignette)} \item{entropy}{Wiener entropy of the spectrum of the current
-  frame (=spectral flatness). Close to 0: pure tone or tonal sound with
-  nearly all energy in harmonics; close to 1: white noise}
+    sqrt(mean(frame ^ 2))}
+  \item{ampl_noSilence}{same as \code{ampl}, but ignoring silent frames}
+  \item{CPP}{Cepstral Peak Prominence, dB (a measure of pitch quality, the
+    ratio of the highest peak in the cepstrum to the regression line drawn
+    through it)}
+  \item{dom}{lowest dominant frequency band (Hz) (see "Pitch tracking
+    methods / Dominant frequency" in the vignette)}
+  \item{entropyW}{Wiener entropy of the spectrum of the current frame
+    (=spectral flatness). Close to 0: pure tone or tonal sound with nearly
+    all energy in harmonics; close to 1: white noise}
   \item{entropySh}{Normalized Shannon entropy of the spectrum of the current
-  frame: 0 = pure tone, 1 = white noise} \item{f1_freq, f1_width, ...}{the
-  frequency and bandwidth of the
-  first nFormants formants per STFT frame, as calculated by
-  phonTools::findformants} \item{flux}{feature-based flux, the rate of change
-  in acoustic features such as pitch, HNR, etc. (0 = none, 1 = max); "epoch"
-  is an audio segment between two peaks of flux that exceed a threshold of
-  \code{flux = list(thres = ...)} (listed in output$detailed only)}
+    frame: 0 = pure tone, 1 = white noise}
+  \item{f1_freq, f1_width, ...}{the frequency and bandwidth of the first
+    nFormants formants per STFT frame, as calculated by
+    phonTools::findformants}
+  \item{fluctuation}{strength of low-frequency modulation at ~4 Hz (0.25-30
+  Hz), calculated from a modulation spectrum as a complement to
+  psychoacoustic roughness; see \code{\link{modulationSpectrum}}}
+  \item{flux}{feature-based flux, the rate of change in acoustic features
+    such as pitch, HNR, etc. (0 = none, 1 = max); "epoch" is an audio segment
+    between two peaks of flux that exceed a threshold of
+    \code{flux = list(thres = ...)} (listed in output$detailed only)}
   \item{fmFreq}{frequency of frequency modulation (FM) such as vibrato or
-  jitter, Hz} \item{fmDep}{depth of FM, semitones} \item{fmPurity}{purity or
-  dominance of the main FM frequency (fmFreq), 0 to 1} \item{harmEnergy}{the
-  amount of energy in upper harmonics, namely the ratio of total spectral
-  mass above 1.25 x F0 to the total spectral mass below 1.25 x F0 (dB)}
+    jitter, Hz}
+  \item{fmDep}{depth of FM, semitones}
+  \item{fmPurity}{purity or dominance of the main FM frequency (fmFreq), 0 to
+    1}
+  \item{harmEnergy}{the amount of energy in upper harmonics, namely the ratio
+    of total spectral mass above 1.25 x F0 to the total spectral mass below
+    1.25 x F0 (dB)}
   \item{harmHeight}{how high harmonics reach in the spectrum, based on the
-  best guess at pitch (or the manually provided pitch values)}
-  \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity returned
-  by soundgen:::getPitchAutocor (see "Pitch tracking methods /
-  Autocorrelation"). If HNR = 0 dB, there is as much energy in harmonics as
-  in noise} \item{loudness}{subjective loudness, in sone, corresponding to
-  the chosen SPL_measured - see \code{\link{getLoudness}}}
+    best guess at pitch (or the manually provided pitch values)}
+  \item{HNR}{harmonics-to-noise ratio (dB), a measure of harmonicity (see
+  "Pitch tracking methods / Autocorrelation"). If HNR = 0 dB, there is as
+  much energy in harmonics as in noise}
+  \item{loudness}{subjective loudness, in sone, corresponding to the chosen
+    SPL_measured - see \code{\link{getLoudness}}}
   \item{novelty}{spectral novelty - a measure of how variable the spectrum is
-  on a particular time scale, as estimated by \code{\link{ssm}}}
+    on a particular time scale, as estimated by \code{\link{ssm}}}
   \item{peakFreq}{the frequency with maximum spectral power (Hz)}
   \item{pitch}{post-processed pitch contour based on all F0 estimates}
   \item{quartile25, quartile50, quartile75}{the 25th, 50th, and 75th
-  quantiles of the spectrum of voiced frames (Hz)} \item{roughness}{the
-  amount of amplitude modulation, see modulationSpectrum and Anikin 2025}
-  \item{specCentroid}{the center of gravity of the frame’s spectrum, first
-  spectral moment (Hz)} \item{specSlope}{the slope of linear regression fit
-  to the spectrum below cutFreq (dB/kHz)} \item{subDep}{estimated depth of
-  subharmonics per frame: 0 = none, 1 = as strong as f0. NB: this depends
-  critically on accurate pitch tracking} \item{subRatio}{the ratio of f0 to
-  subharmonics frequency with strength subDep: 2 = period doubling, 3 = f0 /
-  3, etc.} \item{voiced}{is the current STFT frame voiced? TRUE / FALSE}
+    quantiles of the spectrum of voiced frames (Hz)}
+  \item{roughness}{the amount of amplitude modulation in the roughness range, see
+    \code{\link{modulationSpectrum}} and Anikin 2025}
+  \item{sharpness}{psychoacoustic sharpness: related to spectral centroid,
+  but calculated from a psychoacoustic loudness model, see
+  \code{\link{getLoudness}}}
+  \item{specCentroid}{the center of gravity of the frame's spectrum, first
+    spectral moment (Hz)}
+  \item{specSlope}{the slope of linear regression fit to the spectrum below
+    cutFreq (dB/kHz)}
+  \item{subDep}{estimated depth of subharmonics per frame: 0 = none, 1 = as
+    strong as f0. NB: this depends critically on accurate pitch tracking}
+  \item{subRatio}{the ratio of f0 to subharmonics frequency with strength
+    subDep: 2 = period doubling, 3 = f0 / 3, etc.}
+  \item{voiced}{is the current STFT frame voiced? TRUE / FALSE}
 }
 }
 \description{
@@ -361,56 +360,98 @@ Acoustic analysis of one or more sounds: pitch tracking, basic spectral
 characteristics, formants, estimated loudness (see
 \code{\link{getLoudness}}), roughness (see \code{\link{modulationSpectrum}}),
 novelty (see \code{\link{ssm}}), etc. The default values of arguments are
-optimized for human non-linguistic vocalizations. See
-vignette('acoustic_analysis', package = 'soundgen') for details. The defaults
-and reasonable ranges of all arguments can be found in
-\code{\link{defaults_analyze}}. For high-precision work, first extract and
-manually correct pitch contours with \code{\link{pitch_app}}, PRAAT, or
-whatever, and then run \code{analyze(pitchManual = ...)} with these manual
-contours. For more information, see
-\url{https://cogsci.se/soundgen/acoustic_analysis.html}
+optimized for human non-linguistic vocalizations. For high-precision work,
+first extract and manually correct pitch contours with
+\code{\link{pitch_app}}, PRAAT, or whatever, and then run
+\code{analyze(pitchManual = ...)} with these manual contours. For more
+information, see \url{https://cogsci.se/soundgen/acoustic_analysis.html}
 }
 \details{
 Each pitch tracker is controlled by its own list of settings, as follows:
-\describe{\item{\code{pitchDom} (lowest dominant frequency band)}{\itemize{
-\item\code{domThres} (0 to 1) to find the lowest dominant frequency band, we
-do short-term FFT and take the lowest frequency with amplitude at least
-domThres \item\code{domSmooth} the width of smoothing interval (Hz) for
-finding \code{dom}}} \item{\code{pitchAutocor} (autocorrelation)}{\itemize{
-\item \code{autocorThres} voicing threshold (unitless, ~0 to 1)
-\item\code{autocorSmooth} the width of smoothing interval (in bins) for
-finding peaks in the autocorrelation function. Defaults to 7 for sampling
-rate 44100 and smaller odd numbers for lower values of sampling rate \item
-\code{autocorUpsample} upsamples acf to this resolution (Hz) to improve
-accuracy in high frequencies \item \code{autocorBestPeak} amplitude of the
-lowest best candidate relative to the absolute max of the acf }}
-\item{\code{pitchCep} (cepstrum)}{\itemize{\item \code{cepThres} voicing
-threshold (unitless, ~0 to 1) \item \code{cepZp} zero-padding of the spectrum
-used for cepstral pitch detection (final length of spectrum after
-zero-padding in points, e.g. 2 ^ 13)}} \item{ \code{pitchSpec} (ratio of
-harmonics - BaNa algorithm)}{\itemize{ \item \code{specThres} voicing
-threshold (unitless, ~0 to 1) \item \code{specPeak,specHNRslope} when looking
-for putative harmonics in the spectrum, the threshold for peak detection is
-calculated as \code{specPeak * (1 - HNR * specHNRslope)} \item specSmooth the
-width of window for detecting peaks in the spectrum, Hz \item
-\code{specMerge} pitch candidates within \code{specMerge} semitones are
-merged with boosted certainty \item \code{specSinglePeakCert} (0 to 1) if F0
-is calculated based on a single harmonic ratio (as opposed to several ratios
-converging on the same candidate), its certainty is taken to be
-\code{specSinglePeakCert}}} \item{ pitchHps (harmonic product
-spectrum)}{\itemize{\item \code{hpsNum} the number of times to downsample the
-spectrum \item \code{hpsThres} voicing threshold (unitless, ~0 to 1) \item
-\code{hpsNorm} the amount of inflation of hps pitch certainty (0 = none)
-\item \code{hpsPenalty} the amount of penalizing hps candidates in low
-frequencies (0 = none) }} }  Each of these lists also accepts graphical
-parameters that affect how pitch candidates are plotted, eg \code{pitchDom =
-list(domThres = .5, col = 'yellow')}. Other arguments that are lists of
-subroutine-specific settings include: \describe{ \item{\code{harmonicHeight}
-(finding how high harmonics reach in the spectrum)}{\itemize{\item
-\code{harmThres} minimum height of spectral peak, dB \item \code{harmPerSel}
-the number of harmonics per sliding selection \item \code{harmTol} maximum
-tolerated deviation of peak frequency from multiples of f0, proportion of f0
-}} }
+\describe{
+  \item{\code{pitchDom} (lowest dominant frequency band)}{
+    \itemize{
+      \item \code{domThres} (0 to 1) to find the lowest dominant frequency band, we
+        do short-term FFT and take the lowest frequency with amplitude at least
+        domThres
+      \item \code{domSmooth} the width of smoothing interval (Hz) for
+        finding \code{dom}
+    }
+  }
+  \item{\code{pitchAutocor} (autocorrelation)}{
+    \itemize{
+      \item \code{autocorThres} voicing threshold (unitless, ~0 to 1)
+      \item \code{autocorSmooth} the width of smoothing interval (in bins) for
+        finding peaks in the autocorrelation function. Defaults to 7 for sampling
+        rate 44100 and smaller odd numbers for lower values of sampling rate
+      \item \code{autocorUpsample} upsamples acf to this resolution (Hz) to improve
+        accuracy in high frequencies
+      \item \code{autocorBestPeak} amplitude of the lowest best candidate relative
+        to the absolute max of the acf
+      \item \code{interpol} method of interpolating the ACF: "sinc" for
+      maximum precision, "none" for speed
+    }
+  }
+  \item{\code{pitchCep} (cepstrum)}{
+    \itemize{
+      \item \code{cepThres} voicing threshold (unitless, ~0 to 1)
+      \item \code{cepZp} zero-padding of the spectrum used for cepstral pitch
+        detection (final length of spectrum after zero-padding in points, e.g. 2 ^ 13)
+    }
+  }
+  \item{\code{pitchSpec} (ratio of harmonics - BaNa algorithm)}{
+    \itemize{
+      \item \code{specThres} voicing threshold (unitless, ~0 to 1)
+      \item \code{specPeak,specHNRslope} when looking for putative harmonics in the
+        spectrum, the threshold for peak detection is calculated as
+        \code{specPeak * (1 - HNR * specHNRslope)}
+      \item \code{specSmooth} the width of window for detecting peaks in the
+        spectrum, Hz
+      \item \code{specMerge} pitch candidates within \code{specMerge} semitones are
+        merged with boosted certainty
+      \item \code{specSinglePeakCert} (0 to 1) if F0 is calculated based on a single
+        harmonic ratio (as opposed to several ratios converging on the same
+        candidate), its certainty is taken to be \code{specSinglePeakCert}
+      \item \code{specMethod} "commonFactor" = highest common factor of
+      putative harmonics, "BaNa" = ratio of putative harmonics
+      \item \code{specRatios} for method = "commonFactor", the number of
+      harmonics and integer fractions to consider
+    }
+  }
+  \item{\code{pitchHps} (harmonic product spectrum)}{
+    \itemize{
+      \item \code{hpsNum} the number of times to downsample the spectrum
+      \item \code{hpsThres} voicing threshold (unitless, ~0 to 1)
+      \item \code{hpsNorm} the amount of inflation of hps pitch certainty (0 = none)
+      \item \code{hpsPenalty} the amount of penalizing hps candidates in low
+        frequencies (0 = none)
+    }
+  }
+  \item{\code{pitchZc} (zero crossings)}{
+    \itemize{
+      \item \code{zcThres} pitch candidates with certainty below this value are
+        treated as noise and set to NA (0 = nothing discarded, 1 = pitch must be
+        perfectly stable over \code{zcWin})
+      \item \code{zcWin} certainty in pitch candidates depends on how stable pitch
+        is over \code{zcWin} glottal cycles (odd integer > 3)
+    }
+  }
+}
+
+Each of these lists also accepts graphical parameters that affect how pitch
+candidates are plotted, eg \code{pitchDom = list(domThres = .5, col = 'yellow')}.
+
+Other arguments that are lists of subroutine-specific settings include:
+\describe{
+  \item{\code{harmHeight} (finding how high harmonics reach in the spectrum)}{
+    \itemize{
+      \item \code{harmThres} minimum height of spectral peak, dB
+      \item \code{harmPerSel} the number of harmonics per sliding selection
+      \item \code{harmTol} maximum tolerated deviation of peak frequency from
+        multiples of f0, proportion of f0
+    }
+  }
+}
 }
 \examples{
 # Detailed documentation: https://cogsci.se/soundgen/acoustic_analysis.html
@@ -435,27 +476,10 @@ a = analyze(sound, samplingRate = 16000,
   nFormants = 0         # no formant analysis
 )
 
-# Take a sound hard to analyze b/c of subharmonics and jitter
-sound2 = soundgen(sylLen = 900, pitch = list(
-  time = c(0, .3, .8, 1), value = c(300, 900, 400, 2300)),
-  noise = list(time = c(0, 900), value = c(-40, -20)),
-  subDep = 10, jitterDep = 0.5,
-  temperature = 0.001, samplingRate = 44100, pitchSamplingRate = 44100)
-# playme(sound2, 44100)
-a2 = analyze(sound2, samplingRate = 44100, priorSD = 24,
-             plot = TRUE, ylim = c(0, 5))
-
-# Compare the available pitch trackers
-analyze(sound2, 44100,
-  pitchMethods = c('dom', 'autocor', 'spec', 'cep', 'hps', 'zc'),
-  # don't use priors to see weird pitch candidates better
-  priorMean = NA, priorAdapt = FALSE,
-  plot = TRUE, yScale = 'bark')
-
 # Fancy plotting options:
-a = analyze(sound2, samplingRate = 44100, plot = TRUE,
+a = analyze(sound, samplingRate = 44100, plot = TRUE,
   xlab = 'Time, ms', colorTheme = 'seewave', yScale = 'ERB',
-  contrast = .5, ylim = c(0, 4), main = 'My plot',
+  contrast = .5, ylim = c(0.05, 8), main = 'My plot',
   pitchMethods = c('dom', 'autocor', 'spec', 'hps', 'cep'),
   priorMean = NA,  # no prior info at all
   pitchDom = list(col = 'red', domThres = .25),
@@ -466,56 +490,12 @@ a = analyze(sound2, samplingRate = 44100, plot = TRUE,
 # Analyze an entire folder in one go, saving spectrograms with pitch contours
 # plus an html file for easy access
 s2 = analyze('~/Downloads/temp',
-  savePlots = '',  # save in the same folder as audio
+  savePlots = TRUE,  # save the spectrograms with pitch contours
   showLegend = TRUE, yScale = 'bark',
   width = 20, height = 12,
   units = 'cm', res = 300, ylim = c(0, 5),
   cores = 4)  # use multiple cores to speed up processing
 s2$summary[, 1:5]
-
-# Different options for summarizing the output
-a = analyze(sound2, 44100,
-            summaryFun = c('mean', 'range'))
-a$summary  # one row per sound
-# ...with custom summaryFun, eg time of peak relative to duration (0 to 1)
-timePeak = function(x) which.max(x) / length(x)  # without omitting NAs
-timeTrough = function(x) which.min(x) / length(x)
-a = analyze(sound2, samplingRate = 16000,
-            summaryFun = c('mean', 'timePeak', 'timeTrough'))
-colnames(a$summary)
-
-# Analyze a selection rather than the whole sound
-a = analyze(sound, samplingRate = 16000, from = .1, to = .3, plot = TRUE)
-
-# Use only a range of frequencies when calculating spectral descriptives
-# (ignore everything below 100 Hz and above 8000 Hz as irrelevant noise)
-a = analyze(sound, samplingRate = 16000, cutFreq = c(100, 8000))
-
-## Amplitude and loudness: analyze() should give the same results as
-# dedicated functions getRMS() / getLoudness()
-# Create 1 kHz tone
-samplingRate = 16000; dur_ms = 50
-sound3 = sin(2*pi*1000/samplingRate*(1:(dur_ms/1000*samplingRate)))
-a1 = analyze(sound3, samplingRate = samplingRate, scale = 1,
-             windowLength = 25, overlap = 50,
-             loudness = list(SPL_measured = 40),
-             pitchMethods = NULL, plot = FALSE)
-a1$detailed$loudness  # loudness per STFT frame (1 sone by definition)
-getLoudness(sound3, samplingRate = samplingRate, windowLength = 25,
-            overlap = 50, SPL_measured = 40, scale = 1)$loudness
-a1$detailed$ampl  # RMS amplitude per STFT frame
-getRMS(sound3, samplingRate = samplingRate, windowLength = 25,
-       overlap = 50, scale = 1)$detailed
-# or even simply: sqrt(mean(sound3 ^ 2))
-
-# The same sound as above, but with half the amplitude
-a_half = analyze(sound3 / 2, samplingRate = samplingRate, scale = 1,
-                 windowLength = 25, overlap = 50,
-                 loudness = list(SPL_measured = 40),
-                 pitchMethods = NULL, plot = FALSE)
-a1$detailed$ampl / a_half$detailed$ampl  # rms amplitude halved
-a1$detailed$loudness/ a_half$detailed$loudness
-# loudness is not a linear function of amplitude
 
 # Analyzing ultrasounds (slow but possible, just adjust pitchCeiling)
 s = soundgen(sylLen = 100, addSilence = 10,
@@ -525,43 +505,18 @@ s = soundgen(sylLen = 100, addSilence = 10,
   pitchCeiling = 45000, invalidArgAction = 'ignore',
   plot = TRUE)
 # s is a bat-like ultrasound inaudible to humans
+
 a = analyze(
   s, 350000, plot = TRUE,
   pitchFloor = 10000, pitchCeiling = 90000, priorMean = NA,
   pitchMethods = c('autocor', 'spec'),
-  # probably shouldn't use pitchMethod = "dom" b/c of likely low-freq noise
+  # probably shouldn't use pitchMethods = "dom" b/c of likely low-freq noise
   windowLength = 5, step = 2.5,
   shortestSyl = 10, shortestPause = 10,  # again, very short sounds
-  interpol = list(win = 10),  # again, very short sounds
+  interpolPitch = list(win = 10),  # again, very short sounds
   smooth = 0.1,  # might need less smoothing if very rapid f0 changes
   nFormants = 0, loudness = NULL, roughness = NULL, novelty = NULL)
 # NB: ignore formants and loudness estimates for such non-human sounds
-
-# download 260 sounds from Anikin & Persson (2017)
-# http://cogsci.se/publications/anikin-persson_2017_nonlinguistic-vocs/260sounds_wav.zip
-# unzip them into a folder, say '~/Downloads/temp'
-myfolder = '~/Downloads/temp'  # 260 .wav files live here
-s = analyze(myfolder)  # ~ 10-20 minutes!
-# s = write.csv(s, paste0(myfolder, '/temp.csv'))  # save a backup
-
-# Check accuracy: import manually verified pitch values (our "key")
-# pitchManual   # "ground truth" of mean pitch per sound
-# pitchContour  # "ground truth" of complete pitch contours per sound
-files_manual = paste0(names(pitchManual), '.wav')
-idx = match(s$file, files_manual)  # in case the order is wrong
-s$key = pitchManual[idx]
-
-# Compare manually verified mean pitch with the output of analyze:
-cor(s$key, s$summary$pitch_median, use = 'pairwise.complete.obs')
-plot(s$key, s$summary$pitch_median, log = 'xy')
-abline(a=0, b=1, col='red')
-
-# Re-running analyze with manually corrected contours gives correct
-pitch-related descriptives like amplVoiced and harmonics (NB: you get it "for
-free" when running pitch_app)
-s1 = analyze(myfolder, pitchManual = pitchContour)
-plot(s$summary$harmonics_median, s1$summary$harmonics_median)
-abline(a=0, b=1, col='red')
 }
 }
 \references{

@@ -16,6 +16,7 @@ getPitchZc(
   zcWin = 5,
   silence = 0.04,
   envWin = 5,
+  certMethod = c("variab", "autocor"),
   summaryFun = c("mean", "sd"),
   reportEvery = NULL
 )
@@ -28,8 +29,8 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
@@ -48,22 +49,31 @@ candidates are set to NA (NULL = don't consider RMS amplitude)}
 
 \item{envWin}{window length for calculating RMS envelope, ms}
 
-\item{summaryFun}{functions used to summarize each acoustic characteristic;
-see \code{\link{analyze}}}
+\item{certMethod}{method of calculating pitch certainty: 'variab' =
+variability of pitch estimates per zc over window (default); 'autocor' =
+autocorrelation of pitch estimates per zc over window (a measure of curve
+smoothness)}
+
+\item{summaryFun}{functions used to summarize each acoustic characteristic,
+eg \code{c('mean', 'sd')}; user-defined functions are fine (see examples);
+NAs are omitted automatically for mean/median/sd/min/max/range/sum,
+otherwise take care of NAs yourself}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 }
 \value{
-Returns a dataframe containing \describe{\item{time}{time stamps of
-  all zero crossings except the last one, after bandpass-filtering}
+A list with descriptives per file (@summary) and per frame
+  (@detailed), including \describe{\item{time}{time stamps of all zero
+  crossings except the last one, after bandpass-filtering}
   \item{pitch}{pitch calculated from the time between consecutive zero
   crossings} \item{cert}{certainty in each pitch candidate calculated from
   local pitch stability, 0 to 1}}
 }
 \description{
 A less precise, but very quick method of pitch tracking based on measuring
-zero-crossing rate in low-pass-filtered audio. Recommended for processing
+zero-crossing rate in bandpass-filtered audio. Recommended for processing
 long recordings with typical pitch values well below the first formant
 frequency, such as speech. Calling this function is considerably faster than
 using the same pitch-tracking method in \code{\link{analyze}}. Note that,
@@ -82,23 +92,19 @@ several zero-crossings at relatively regular intervals (see parameters
 as not having a pitch.
 }
 \examples{
-data(sheep, package = 'seewave')
-# spectrogram(sheep)
-zc = getPitchZc(sheep, pitchCeiling = 250)
+data(speechEx, package = 'soundgen')
+# spectrogram(speechEx)
+zc = soundgen:::getPitchZc(speechEx, pitchCeiling = 250)
 plot(zc$detailed[, c('time', 'pitch')], type = 'b')
-
-# Convert to a standard pitch contour sampled at regular time intervals:
-pitch = getSmoothContour(
-  anchors = data.frame(time = zc$detailed$time, value = zc$detailed$pitch),
-  len = 1000, NA_to_zero = FALSE, discontThres = 0)
-spectrogram(sheep, extraContour = pitch, ylim = c(0, 2))
+spectrogram(speechEx, extraContour = zc$detailed$pitch, ylim = c(0, 2))
 
 \dontrun{
 # process all files in a folder
-zc = getPitchZc('~/Downloads/temp')
+zc = soundgen:::getPitchZc('~/Downloads/temp')
 zc$summary
 }
 }
 \seealso{
 \code{\link{analyze}}
 }
+\keyword{internal}

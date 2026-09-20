@@ -6,9 +6,19 @@
 \usage{
 soundgen_app()
 }
+\value{
+Does not return anything.
+}
 \description{
 Starts a shiny app that provides an interactive wrapper to
-\code{\link{soundgen}}. Supported browsers: Firefox / Chrome. Note that the
-browser has to be able to playback WAV audio files, otherwise there will be
-no sound.
+\code{\link{soundgen}}. Note that the browser has to be able to playback WAV
+audio files; otherwise, there will be no sound.
+}
+\examples{
+\dontrun{
+soundgen_app()  # opens the app in your default browser
+}
+}
+\seealso{
+\code{\link{soundgen}}
 }

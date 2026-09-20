@@ -11,33 +11,30 @@ getSurprisal(
   from = NULL,
   to = NULL,
   winSurp = 2000,
-  input = c("audSpec", "env", "melspec", "spectrogram", "pspec")[1],
-  takeLog = TRUE,
-  audSpec_pars = list(nFilters = 8, step = 15, minFreq = 60),
-  spec_pars = list(windowLength = 20, step = 20),
-  env_pars = list(windowLength = 40, step = 20),
-  melfcc_pars = list(windowLength = 20, step = 20, maxfreq = NULL, nbands = NULL),
-  method = c("acf", "np")[1],
+  specFun = "audSpec",
+  specFun_pars = list(),
+  logSpec = TRUE,
+  method = c("acf", "none"),
   sameLagAllFreqs = FALSE,
   weightByAmpl = TRUE,
   weightByPrecision = TRUE,
   onlyPeakAutocor = TRUE,
   rescale = FALSE,
+  minProb = 1e-12,
   summaryFun = "mean",
+  output = c("surprisal", "info", "kl"),
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
-  savePlots = NULL,
-  osc = c("none", "linear", "dB")[2],
+  savePlots = FALSE,
+  embed = FALSE,
+  osc = c("linear", "dB", "none"),
   heights = c(3, 1),
   ylim = NULL,
-  contrast = 0.2,
-  brightness = 0,
   maxPoints = c(1e+05, 5e+05),
-  padWithSilence = TRUE,
-  colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  colorTheme = "bw",
   col = NULL,
-  extraContour = NULL,
+  extraContour = list(col = "blue", lwd = 3, lty = 1),
   xlab = NULL,
   ylab = NULL,
   xaxp = NULL,
@@ -59,79 +56,141 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{winSurp}{surprisal analysis window, ms (Inf = from sound onset)}
+\item{winSurp}{surprisal analysis window, ms. \code{Inf} means "from sound
+onset"; windows shorter than 3 frames produce \code{NA}}
 
-\item{input}{\code{audSpec} = auditory spectrogram
-(\code{\link{audSpectrogram}}, speed with default settings ~= 1x),
-\code{spectrogram} = STFT spectrogram with (\code{\link{spectrogram}},
-speed ~= 0.25x), \code{pspec} = STFT power spectrogram with
-(\code{\link[tuneR]{melfcc}}, speed ~= 0.2x), \code{melspec} = STFT
-mel-spectrogram with (\code{\link[tuneR]{melfcc}}, speed ~= 0.45x),
-\code{env} = analytic envelope (\code{\link{getRMS}}, speed ~= 27x) Any
-custom spectrogram-like matrix of features (time in columns labeled in s,
-features in rows) is also accepted (see examples)}
+\item{specFun}{the function used to extract a spectrogram-like feature
+  matrix. Can be a string or a custom function that takes audio (numeric
+  vector) as the first argument and returns a spectrogram-like matrix with
+  time in columns and features in rows (see examples). A precomputed
+  spectrogram-like matrix is also accepted (features in rows, time in
+  columns [ms], numeric rownames for plotting). Supported strings:
+  \describe{
+    \item{\code{\link{stft_simple}}}{
+      \code{'stft'} / \code{STFT} / \code{'stft_simple'} (amplitude spectrogram)
+      Parameters in \code{specFun_pars}: \code{samplingRate} (optional if
+      frequency and time labels are not needed), \code{wl} (samples),
+      \code{step} (samples), \code{wn}, \code{zp}, \code{padWithSilence}.
+    }
+    \item{\code{\link{spectrogram}}}{
+      \code{'spectrogram'} (amplitude spectrogram - a wrapper around
+      stft_simple with more options).
+      Parameters in \code{specFun_pars}: see \code{\link{spectrogram}}.
+    }
+    \item{\code{\link[tuneR:powspec]{powspec}}}{
+      \code{'powerspec'} (power spectrogram with tuneR).
+      Parameters in \code{specFun_pars}: \code{wintime} (s) or
+      \code{windowLength} (ms), \code{steptime} (s) or \code{step} (ms),
+      \code{dither}.
+    }
+    \item{\code{\link[tuneR:melfcc]{melfcc}}}{
+      \code{'melspec'} (mel-spectrogram), \code{'mfcc'} / \code{'melfcc'} (MFCCs).
+      Parameters in \code{specFun_pars}: \code{windowLength} (ms), \code{step} (ms),
+      \code{nbands}, \code{maxfreq} (Hz), \code{MFCC} (integer vector).
+    }
+    \item{\code{\link{audSpectrogram}}}{
+      \code{'audSpectrogram'} / \code{'audSpec'} (auditory spectrogram).
+      Parameters in \code{specFun_pars}: see \code{\link{audSpectrogram}}.
+    }
+    \item{\code{\link{getRMS}}}{
+      \code{'getRMS'} / \code{'rms'} (RMS amplitude envelope).
+      Parameters in \code{specFun_pars}: see \code{\link{getRMS}}.
+    }
+    \item{\code{\link{getEnv}}}{
+      \code{'getEnv'} / \code{'env'} (various smoothed envelopes: RMS,
+      analytical, peak, etc.).
+      Parameters in \code{specFun_pars}: see \code{\link{getEnv}}.
+    }
+}}
 
-\item{takeLog}{if TRUE, the input is log-transformed prior to calculating
-surprisal. Negative values are treated as in \code{\link{audSpectrogram}} -
-note that the chosen dynamic range affects this normalization (the default
-is 80 dB). If \code{input = audSpec} or \code{input = spectrogram}, there
-can be other internal preprocessing like modifying contrast based on
-\code{audSpec_pars} or \code{spec_pars}}
+\item{specFun_pars}{a list of parameters passed to \code{specFun}. Defaults
+for audSpectrogram, \code{list(yScale = 'ERB', nFilters_oct = 6, step = 15,
+minFreq = 60)}; for melspec, \code{windowLength = 20, step = 20, maxfreq =
+NULL, nbands = 128, MFCC = 2:13}; for spectrogram, \code{windowLength = 20,
+step = 20}; for env, \code{windowLength = 40, step = 20} converted to
+samples; for rms, \code{windowLength = 40, step = 20}. For convenience when
+using melspec, \code{windowLength} and \code{step} in ms are converted to
+\code{wintime} and \code{steptime} in seconds if no explicit values in
+seconds are supplied.}
 
-\item{audSpec_pars, spec_pars, melfcc_pars, env_pars}{a list of parameters
-passed to \code{\link{audSpectrogram}} (if input = 'audSpec'),
-\code{\link{spectrogram}} (if input = 'spectrogram'),
-\code{\link[tuneR]{melfcc}} (if input = 'melspec' or 'pspec'), or
-\code{\link{getRMS}} (if input = 'env')}
+\item{logSpec}{if TRUE, the output of \code{specFun} is log-transformed prior
+to calculating surprisal, offsetting as needed to avoid non-positive values}
 
-\item{method}{(for $surprisal only, has no effect on $info and $kl)
-\code{acf} = change in maximum autocorrelation after adding the final
-point; \code{np} = nonlinear prediction (see \code{\link{nonlinPred}} -
-works but is VERY slow); \code{none} = do not calculate $surprisal to save
-time and only return $info and $kl}
+\item{method}{affects \code{$surprisal} and \code{$bestLag_mat} only; has
+no effect on \code{$info} and \code{$kl}. \code{acf} = change in
+autocorrelation at the previously best lag after adding the final point;
+\code{none} = do not calculate \code{$surprisal}; \code{$surprisal} and
+\code{$bestLag_mat} are then \code{NA}.}
 
-\item{sameLagAllFreqs}{(only for method = 'acf') if TRUE, the bestLag is
-calculated by averaging the ACFs of all channels, and the same bestLag is
-used to calculate the surprisal in each frequency channel (we expect the
-same "rhythm" for all frequencies); if FALSE, the bestLag is calculated
-separately for each frequency channel (we can track different "rhythms" at
-different frequencies)}
+\item{sameLagAllFreqs}{only for \code{method = 'acf'}. If TRUE, the
+bestLag is calculated by averaging the ACFs of all channels, and the same
+bestLag is used to calculate the surprisal in each frequency channel (we
+expect the same "rhythm" for all frequencies). If FALSE, the bestLag is
+calculated separately for each frequency channel (we can track different
+"rhythms" at different frequencies).}
 
-\item{weightByAmpl}{if TRUE, ACFs and surprisal are weighted by max amplitude
-per frequency channel}
+\item{weightByAmpl}{f TRUE, ACF averaging (when
+\code{sameLagAllFreqs = TRUE}) and aggregation of all per-channel contours
+(\code{surprisal}, \code{info}, \code{infoW}, \code{kl}, \code{klW}) are
+weighted by the maximum non-negative value per frequency channel in the
+current analysis window. For log-transformed, processed, or custom feature
+matrices, these weights are feature maxima, not necessarily physical
+amplitude.}
 
-\item{weightByPrecision}{if TRUE, surprisal is weighted by the current
-autocorrelation, so deviations from a previous pattern are more surprising
-if this pattern is strong}
+\item{weightByPrecision}{if TRUE, ACF-based surprisal is weighted by the
+current autocorrelation, so deviations from a previous pattern are more
+surprising if this pattern is strong.}
 
-\item{onlyPeakAutocor}{if TRUE, only peaks of ACFs are considered (so bestLag
-can never be 1, and the first change after a string of static values
-results in surprisal = NA)}
+\item{onlyPeakAutocor}{if TRUE, only peaks of ACFs are considered (so
+bestLag can never be 1, and the first change after a string of static
+values results in surprisal = NA).}
 
-\item{rescale}{if TRUE, surprisal is normalized from \code{(-Inf, Inf)} to
-\code{[-1, 1]}}
+\item{rescale}{if TRUE, aggregated surprisal is normalized from
+\code{(-Inf, Inf)} to approximately \code{(-1, 1)} using
+\code{tanh(surprisal / 2)}. \code{surprisal_mat} is unaffected.}
+
+\item{minProb}{minimum probability used to cap Shannon surprisal:
+\code{info} and \code{infoW} cannot exceed \code{-log(minProb)}. Also
+used as a lower bound for the KL divergence before logging in \code{kl}
+and \code{klW}.}
 
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
-eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
-are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
-take care of NAs yourself}
+eg \code{c('mean', 'sd')}; user-defined functions are fine (see examples);
+NAs are omitted automatically for mean/median/sd/min/max/range/sum,
+otherwise take care of NAs yourself}
+
+\item{output}{what to return, options: 'surprisal', 'loudness', 'dLoudness',
+'surprisalLoudness', 'surprisal_mat', 'bestLag_mat', 'info', 'info_mat',
+'infoW', 'infoW_mat', 'kl', 'kl_mat', 'klW', 'klW_mat', 'spectrogram',
+'all' (see the Return section)}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{if TRUE, plots the auditory spectrogram and the
-\code{suprisalLoudness} contour}
+\item{plot}{If TRUE, plots the feature matrix and the surprisal contour.
+For \code{specFun = 'env'}, the surprisal contour is overlaid on an
+oscillogram.}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{osc}{"none" = no oscillogram; "linear" = on the original scale; "dB" =
 in decibels}
@@ -142,24 +201,9 @@ spectrogram and the oscillogram (including time axes labels)}
 \item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
-\item{contrast}{controls the sharpness or contrast of the image: <0 =
-decrease contrast, 0 = no change, >0 increase contrast. Recommended range
-approximately (-1, 1). The spectrogram is raised to the power of
-\code{exp(3 * contrast)}}
-
-\item{brightness}{makes the image lighter or darker: <0 = darker, 0 = no
-change, >0 = lighter, range (-1, 1). The color palette is preserved, so
-"brightness" works by capping an increasing proportion of image at the
-lightest or darkest color. To lighten or darken the palette, just change
-the colors instead}
-
 \item{maxPoints}{the maximum number of "pixels" in the oscillogram (if any)
 and spectrogram; good for quickly plotting long audio files; defaults to
 c(1e5, 5e5); does not affect reassigned spectrograms}
-
-\item{padWithSilence}{if TRUE, pads the sound with just enough silence to
-resolve the edges properly (only the original region is plotted, so the
-apparent duration doesn't change)}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 matlab-type palette ('matlab'), or any palette from
@@ -171,35 +215,107 @@ in base R (overrides colorTheme)}
 \item{extraContour}{a vector of arbitrary length scaled in Hz (regardless of
 yScale, but nonlinear yScale also warps the contour) that will be plotted
 over the spectrogram (eg pitch contour); can also be a list with extra
-graphical parameters such as lwd, col, etc. (see examples)}
+graphical parameters such as \code{lwd, col, warp} (FALSE = plot as is,
+TRUE = warp to conform to nonlinear yScale), etc. (see examples)}
 
 \item{xlab, ylab, main, mar, xaxp}{graphical parameters for plotting}
 
-\item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz}
+\item{grid}{if numeric, adds n = \code{grid} dotted lines per kHz and the
+same number of lines along the time axis}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{...}{other graphical parameters}
 }
 \value{
-Returns a list with surprisal statistics per frame ($detailed) and
-  per file ($summary). Calculated measures:
-  \describe{\item{loudness}{subjective loudness in sone, as per
-  \code{\link{getLoudness}}} \item{surprisal}{surprisal calculated as the
-  change in autocorrelation or as the nonlinear prediction error}
-  \item{surprisalLoudness}{the product of surprisal and the first derivative
-  of loudness with respect to time, treating negative values of dLoudness as
-  zero} \item{info}{Shannon information calculated as -log(p), where p =
-  density of Gaussian distribution at the next observation}
-  \item{infoW}{windowed Shannon information: same as "info", but after
-  applying a half-Gaussian taper that prioritizes more recent observations}
-  \item{kl}{Bayesian log-surprisal: Kullback–Leibler divergence between the
-  Gaussian distributions per frequency channel before vs. after observing the
-  next datapoint} \item{klW}{windowed Bayesian log-surprisal}} Under
-  \code{$detailed}, the function also returns several "_mat" objects that
-  give the same statistics with a separate value for each time-frequency bin,
-  as well as the best lag used to calculate autocorrelation (see examples).
+A list with two top-level elements: \code{$detailed} and
+  \code{$summary}.
+
+  \code{$detailed} contains per-frame statistics selected with the
+  \code{output} argument. If multiple sounds are analyzed, \code{$detailed}
+  is a list of per-sound lists.
+
+  \code{$summary} contains per-file summaries of a fixed set of contours:
+  \code{loudness}, \code{surprisal}, \code{surprisalLoudness}, \code{info},
+  \code{infoW}, \code{kl}, and \code{klW}. These are summarized even if not
+  all of them are included in \code{output}. If \code{summaryFun} is
+  \code{NULL}, \code{$summary} is \code{NULL}.
+
+  Available measures:
+  \describe{
+    \item{surprisal}{Aggregated surprisal contour: change in autocorrelation.
+      Values are averaged across frequency channels, optionally weighted by
+      channel amplitude. Positive values mean "an unexpected change", and
+      negative values mean "a change that confirms the expectations, making
+      signal periodicity more certain." If \code{rescale = TRUE}, the
+      aggregated contour is transformed with \code{tanh(surprisal / 2)} to
+      approximately \code{(-1, 1)}.}
+
+    \item{loudness}{Subjective loudness in sone, as per
+      \code{\link{getLoudness}}, resampled to match the number of surprisal
+      frames.}
+
+    \item{dLoudness}{First temporal derivative of max-normalized loudness:
+      \code{diff(c(0, loudness / max(loudness)))}.}
+
+    \item{surprisalLoudness}{Product of the positive parts of surprisal and
+      dLoudness: \code{max(surprisal, 0) * max(dLoudness, 0)}. This contour
+      emphasizes surprising events that coincide with increases in
+      loudness. If \code{rescale = TRUE}, this uses the rescaled surprisal
+      contour.}
+
+    \item{surprisal_mat}{Matrix of per-channel surprisal values before
+      aggregation across frequency channels (frequency channels in rows,
+      time frames in columns). Column names are time in ms.}
+
+    \item{bestLag_mat}{Matrix of the autocorrelation lag used to calculate
+      ACF-surprisal in each time-frequency bin, in seconds. \code{NA} where
+      no lag was available or applicable, static analysis windows, or when
+      \code{onlyPeakAutocor = TRUE} and no ACF peak was found. If
+      \code{sameLagAllFreqs = TRUE}, the same lag is used for all non-static
+      frequency channels; static channels still return \code{NA}.}
+
+    \item{info}{Shannon surprisal contour, calculated as \code{-log(rho)},
+      where \code{rho} is the Gaussian density at the next observation
+      normalized by the maximum Gaussian density. Values are capped at
+      \code{-log(minProb)}.}
+
+    \item{info_mat}{Matrix of per-channel Shannon surprisal values
+      corresponding to \code{info}.}
+
+    \item{infoW}{Windowed Shannon surprisal: same as \code{info}, but using
+      weighted means and standard deviations from a half-Gaussian taper that
+      prioritizes more recent observations.}
+
+    \item{infoW_mat}{Matrix of per-channel windowed Shannon surprisal values
+      corresponding to \code{infoW}.}
+
+    \item{kl}{Bayesian log-surprisal: natural logarithm of the
+      Kullback-Leibler divergence between the Gaussian distributions before
+      and after observing the next data point, with a window-length
+      correction added as \code{2 * log(n)}. To avoid \code{-Inf}, the KL
+      divergence is floored at \code{minProb} before taking the logarithm.
+      Values can therefore be negative.}
+
+    \item{kl_mat}{Matrix of per-channel Bayesian log-surprisal values
+      corresponding to \code{kl}.}
+
+    \item{klW}{Windowed Bayesian log-surprisal: same as \code{kl}, but using
+      weighted means and variances from a half-Gaussian taper that
+      prioritizes more recent observations. The full window length \code{n}
+      is still used for the \code{2 * log(n)} correction.}
+
+    \item{klW_mat}{Matrix of per-channel windowed Bayesian log-surprisal
+      values corresponding to \code{klW}.}
+
+    \item{spectrogram}{The spectrogram-like feature matrix actually analyzed
+      (frequency channels or features in rows, time frames in columns),
+      after any requested preprocessing such as log-transformation. Column
+      names are time in ms. If \code{specFun = 'env'}, this is a one-row
+      matrix containing the RMS envelope, possibly log-transformed if
+      \code{logSpec = TRUE}.}
+  }
 }
 \description{
 Tracks the unpredictability of spectro-temporal changes in a sound over time,
@@ -207,7 +323,7 @@ returning continuous contours of Shannon surprisal (\code{$info}), Bayesian
 surprise (\code{$kl} for Kullback-Leibler divergence), and
 autocorrelation-based surprisal (\code{$surprisal}). This is an attempt to
 track auditory salience over time - that is, to identify parts of a sound
-that are likely to involuntarily attract the listeners' attention.
+that are likely to involuntarily attract the listener's attention.
 }
 \details{
 Algorithm: the sound is transformed into some spectrogram-like representation
@@ -215,22 +331,21 @@ Algorithm: the sound is transformed into some spectrogram-like representation
 RMS amplitude envelope. Using just the envelope is very fast, but then we
 discard all spectral information. For each frequency channel, a sliding
 window is analyzed to compare the actually observed final value with its
-expected value. There are many ways to extrapolate / predict time series and
-thus perform this comparison. The resulting per-channel surprisal contours
-are aggregated by taking their mean - optionally, weighted by the maximum
-amplitude of each frequency channel across the analysis window. Because
-increases in loudness are known to be important predictors of auditory
-salience, loudness per frame is also returned, as well as the product of its
-positive changes and surprisal.
+expected value. The resulting per-channel surprisal contours are aggregated
+by taking their mean - optionally, weighted by the maximum amplitude of each
+frequency channel across the analysis window. Because increases in loudness
+are known to be important predictors of auditory salience, loudness per frame
+is also returned, as well as the product of its positive changes and
+surprisal.
 }
 \examples{
 # A quick example
-s = soundgen(nSyl = 2, sylLen = 50, pauseLen = 25, addSilence = 15)
-surp = getSurprisal(s, samplingRate = 16000)
+data('speechEx', package = 'soundgen')
+surp = getSurprisal(speechEx, from = 0.5, to = 1)
 surp
 
 \dontrun{
-# A couple of more meaningful examples
+# A few more meaningful examples
 
 ## Example 1: a temporal deviant
 s0 = soundgen(nSyl = 8, sylLen = 150,
@@ -238,32 +353,33 @@ s0 = soundgen(nSyl = 8, sylLen = 150,
               temperature = .05, plot = FALSE)
 sound = c(rep(0, 4000),
           addVectors(rnorm(16000 * 3.5, 0, .02), s0, insertionPoint = 4000),
-          rep(0, 4000))
+          rep(0, 200))
 spectrogram(sound, 16000, yScale = 'ERB')
 
-# long window  (Inf = from the beginning)
-surp = getSurprisal(sound, 16000, winSurp = Inf)
+# long window (Inf = from the beginning)
+surp = getSurprisal(sound, 16000, winSurp = Inf, output = 'all')
+plot(sound, type = 'l')
+surp_cont = surp$detailed$surprisal
+lines(seq(0, length(sound), length.out = length(surp_cont)),
+  surp_cont / max(surp_cont, na.rm = TRUE), col = 'blue', lwd = 2)
+
 # Which frequency-time bins are surprising?
 filled.contour(x = as.numeric(colnames(surp$detailed$surprisal_mat)) / 1000,
                y = as.numeric(rownames(surp$detailed$surprisal_mat)),
                z = t(surp$detailed$surprisal_mat),
                xlab = 'Time, s',
                ylab = 'Frequency, kHz')
-hist(surp$detailed$bestLag, xlab = 'Period, s')
+# Best lag (periodicity) over time
+hist(surp$detailed$bestLag_mat, xlab = 'Period, s')
 abline(v = .35, lty = 3, lwd = 3, col = 'blue')  # true period = 350 ms
-filled.contour(x = as.numeric(colnames(surp$detailed$bestLag)) / 1000,
-               y = as.numeric(rownames(surp$detailed$bestLag)),
-               z = t(surp$detailed$bestLag),
-               xlab = 'Time, s',
-               ylab = 'Frequency, kHz')
 
 # just use the amplitude envelope instead of an auditory spectrogram
-surp = getSurprisal(sound, 16000, winSurp = Inf, input = 'env')
+surp = getSurprisal(sound, 16000, winSurp = Inf, specFun = 'env')
 
-# increase spectral and temporal resolution (very slow)
+# increase spectral and temporal resolution (can be slow)
 surp = getSurprisal(sound, 16000, winSurp = 2000,
-  audSpec_pars = list(nFilters = 50, step = 10,
-  yScale = 'bark', bandwidth = 1/4))
+  specFun_pars = list(nFilters = 50, step = 10,
+  yScale = 'bark', bandwidth = 1/4), output = 'all')
 
 # weight by increase in loudness
 spectrogram(sound, 16000, extraContour = surp$detailed$surprisalLoudness /
@@ -280,15 +396,13 @@ plot(surp$detailed$surprisalLoudness, type = 'l', xlab = '',
   ylab = '', main = 'surprisal * d-loudness')
 par(mfrow = c(1, 1))
 
-# short window = amnesia (every event is equally surprising)
-getSurprisal(sound, 16000, winSurp = 250)
+# short window = amnesia (every new sound is surprising)
+getSurprisal(sound, 16000, winSurp = 300)
 
 # add bells and whistles
 surp = getSurprisal(sound, samplingRate = 16000,
-  yScale = 'mel',
   osc = 'dB',  # plot oscillogram in dB
   heights = c(2, 1),  # spectro/osc height ratio
-  brightness = -.1,  # reduce brightness
   # colorTheme = 'heat.colors',  # pick color theme...
   col = rev(hcl.colors(30, palette = 'Viridis')),  # ...or specify the colors
   cex.lab = .75, cex.axis = .75,  # text size and other base graphics pars
@@ -306,7 +420,7 @@ s1 = soundgen(
   pitchGlobal = c(rep(0, 5), 18, rep(0, 5)),
   temperature = .01, pitchCeiling = 7000,
   plot = TRUE, windowLength = 35)
-surp = getSurprisal(s1, 16000, winSurp = 1500)
+surp = getSurprisal(s1, 16000, winSurp = 1500, output = 'all')
 filled.contour(x = as.numeric(colnames(surp$detailed$surprisal_mat)) / 1000,
                y = as.numeric(rownames(surp$detailed$surprisal_mat)),
                z = t(surp$detailed$surprisal_mat),
@@ -314,15 +428,7 @@ filled.contour(x = as.numeric(colnames(surp$detailed$surprisal_mat)) / 1000,
                ylab = 'Frequency, kHz')
 # deviant surprising both at 1 kHz (expected tone omitted) and at the new freq
 surp = getSurprisal(s1, 16000, winSurp = 1500,
-  input = 'env')  # doesn't work - need spectral info
-
-s2 = soundgen(
-  nSyl = 11, sylLen = 150, invalidArgAction = 'ignore',
-  formants = NULL, lipRad = 0,  # so all syls have the same envelope
-  pauseLen = 90, pitch = c(200, 150),  rolloff = -20,
-  pitchGlobal = c(rep(18, 5), 0, rep(18, 5)),
-  temperature = .01, plot = TRUE, windowLength = 35, yScale = 'ERB')
-surp = getSurprisal(s2, 16000, winSurp = 1500)
+  specFun = 'env')  # doesn't work - need spectral info
 
 ## Example 3: different rhythms in different frequency bins
 s6_1 = soundgen(nSyl = 23, sylLen = 100, pauseLen = 50, pitch = 1200,
@@ -335,9 +441,9 @@ s6 = addVectors(s6_1, s6_2)
 s6 = addVectors(s6, s6_3)
 
 surp = getSurprisal(s6, 16000, winSurp = Inf, sameLagAllFreqs = TRUE,
-  audSpec_pars = list(nFilters = 32))
+  specFun_pars = list(nFilters = 32), output = 'all')
 surp = getSurprisal(s6, 16000, winSurp = Inf, sameLagAllFreqs = FALSE,
-  audSpec_pars = list(nFilters = 32))  # learns all 3 rhythms
+  specFun_pars = list(nFilters = 32), output = 'all')  # learns all 3 rhythms
 filled.contour(x = as.numeric(colnames(surp$detailed$surprisal_mat)) / 1000,
                y = as.numeric(rownames(surp$detailed$surprisal_mat)),
                z = t(surp$detailed$surprisal_mat),
@@ -347,28 +453,34 @@ filled.contour(x = as.numeric(colnames(surp$detailed$surprisal_mat)) / 1000,
 ## Example 4: different time scales
 s8 = soundgen(nSyl = 4, sylLen = 75, pauseLen = 50)
 s8 = rep(c(s8, rep(0, 2000)), 8)
-getSurprisal(s8, 16000, input = 'env', winSurp = Inf)
+getSurprisal(s8, 16000, specFun = 'env', winSurp = Inf)
 # ACF picks up first the fast rhythm, then after a few cycles switches to
 # the slow rhythm
 
-# Custom input: produce a nice spectrogram first, then feed it into ssm()
+# Custom input: produce a nice spectrogram first, then use it as input
 sp = spectrogram(s0, 16000, windowLength = 10, step = 10, contrast = .3,
   output = 'processed')  # return the modified spectrogram
 colnames(sp) = as.numeric(colnames(sp)) / 1000  # convert ms to s
-getSurprisal(s0, 16000, input = sp, takeLog = FALSE)
+getSurprisal(s0, 16000, specFun = sp, logSpec = FALSE)
 
 # Custom input: use acoustic features returned by analyze()
-an = analyze(s0, 16000, windowLength = 20)
-input_an = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
-input_an = t(apply(input_an, 1, scale))  # z-transform all variables
-input_an[is.na(input_an)] = 0  # get rid of NAs
-colnames(input_an) = an$detailed$time / 1000  # time stamps in s
-rownames(input_an) = 1:nrow(input_an)
-image(t(input_an))  # not a spectrogram, just a feature matrix
-getSurprisal(s0, 16000, input = input_an, takeLog = FALSE)
+an = analyze(sound, 16000, windowLength = 20, novelty = NULL)
+feature_mat = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
+feature_mat = t(apply(feature_mat, 1, scale))  # z-transform all variables
+feature_mat[is.na(feature_mat)] = 0  # get rid of NAs
+colnames(feature_mat) = an$detailed$time  # time stamps in ms
+rownames(feature_mat) = 1:nrow(feature_mat)
+image(t(feature_mat))  # not a spectrogram, just a feature matrix
+getSurprisal(sound, 16000, specFun = feature_mat, logSpec = FALSE)
 
 # analyze all sounds in a folder
-surp = getSurprisal('~/Downloads/temp/', savePlots = '~/Downloads/temp/surp')
+surp = getSurprisal('~/Downloads/temp/', savePlots = TRUE)
 surp$summary
+}
+}
+\references{
+\itemize{
+  \item Anikin, A. (2026) Measuring surprisal in sound sequences. Behavior
+  Research Methods. doi: 10.3758/s13428-026-03153-3.
 }
 }

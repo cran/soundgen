@@ -9,7 +9,7 @@ plotMS(
   X = as.numeric(colnames(ms)),
   Y = as.numeric(rownames(ms)),
   quantiles = c(0.5, 0.8, 0.9),
-  colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  colorTheme = "bw",
   col = NULL,
   logWarpX = NULL,
   logWarpY = NULL,
@@ -28,30 +28,35 @@ plotMS(
 and spectral modulation in rows, as returned by
 \code{\link{modulationSpectrum}}}
 
-\item{X, Y}{rownames and colnames of \code{ms}, respectively}
+\item{X, Y}{colnames and rownames of \code{ms}, respectively}
 
-\item{quantiles}{labeled contour values, \% (e.g., "50" marks regions that
-contain 50\% of the sum total of the entire modulation spectrum)}
+\item{quantiles}{numeric vector of cumulative contours in (0, 1). For
+example, \code{0.5} marks a region that contains 50\% of the total
+modulation-spectrum amplitude. Set to \code{NULL} to omit contour lines}
 
-\item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
-matlab-type palette ('matlab'), or any palette from
-\code{\link[grDevices]{palette}} such as 'heat.colors', 'cm.colors', etc}
+\item{colorTheme}{plot color theme}
 
-\item{col}{actual colors, eg rev(rainbow(100)) - see ?hcl.colors for colors
-in base R (overrides colorTheme)}
+\item{col}{custom color palette; if supplied, overrides \code{colorTheme}}
 
-\item{logWarpX, logWarpY}{numeric vector of length 2: c(sigma, base) of
-pseudolog-warping the modulation spectrum, as in function
-pseudo_log_trans() from the "scales" package}
+\item{logWarpX, logWarpY}{numeric vector of length 2: \code{c(sigma, base)}
+for pseudolog-warping the modulation spectrum in the plot, as in
+\code{pseudo_log_trans()} from the \pkg{scales} package. These arguments
+affect plotting only; the returned matrices are not log-warped}
 
-\item{xlab, ylab, main, xlim, ylim}{graphical parameters}
+\item{main, xlab, ylab, xlim, ylim}{graphical parameters}
 
 \item{audio}{(internal) a list of audio attributes}
 
-\item{extraY}{if TRUE, another Y-axis is plotted on the right showing 1000/Y}
+\item{extraY}{if TRUE, another Y-axis is plotted on the right showing 1 /
+(Y-axis value) as a frequency in Hz (assuming that ms is derived from an
+ordinary STFT with linearly spaced frequency bins)}
 
-\item{...}{other graphical parameters passed on to \code{filled.contour.mod}
-and \code{\link[graphics]{contour}} (see \code{\link{spectrogram}})}
+\item{...}{other graphical parameters passed on to
+\code{filled.contour.mod} and \code{\link[graphics]{contour}} (see
+\code{\link{spectrogram}})}
+}
+\value{
+Does not return anything, just plots the MS.
 }
 \description{
 Plots a single modulation spectrum returned by
@@ -62,15 +67,15 @@ between the modulation spectra of two sounds or groups of sounds.
 }
 \examples{
 ms1 = modulationSpectrum(runif(4000), samplingRate = 16000, plot = TRUE)
-plotMS(ms1$processed)  # identical to above
+plotMS(ms1$detailed$processed)  # identical to above
 
 # compare two modulation spectra
 ms2 = modulationSpectrum(soundgen(sylLen = 100, addSilence = 0),
                          samplingRate = 16000)
 # ensure the two matrices have the same dimensions
-ms2_resized = soundgen:::interpolMatrix(ms2$original,
-  nr = nrow(ms1$original), nc = ncol(ms1$original))
+ms2_resized = soundgen:::interpolMatrix(ms2$detailed$original,
+  nr = nrow(ms1$detailed$original), nc = ncol(ms1$detailed$original))
 # plot the difference
-plotMS(log(ms1$original / ms2_resized), quantile = NULL,
+plotMS(log(ms1$detailed$original / ms2_resized), quantiles = NULL,
   col = colorRampPalette(c('blue', 'yellow')) (50))
 }

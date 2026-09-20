@@ -14,13 +14,15 @@ reverb(
   reverbLevel = -25,
   reverbDensity = 50,
   reverbType = "gaussian",
+  IR = NULL,
   filter = list(),
   dynamicRange = 80,
-  output = c("audio", "detailed")[1],
+  output = c("audio", "detailed"),
   play = FALSE,
+  saveAudio = FALSE,
   reportEvery = NULL,
   cores = 1,
-  saveAudio = NULL
+  seed = NULL
 )
 }
 \arguments{
@@ -33,18 +35,24 @@ numeric vector)}
 
 \item{echoDelay}{the delay at which the echo appears, ms}
 
-\item{echoLevel}{the rate at which the echo weakens at each repetition, dB}
+\item{echoLevel}{the rate at which the echo weakens at each repetition, dB
+(NULL = no echo)}
 
 \item{reverbDelay}{the time of maximum reverb density, ms}
 
 \item{reverbSpread}{standard deviation of reverb spread around time
 \code{reverbDelay}, ms}
 
-\item{reverbLevel}{the maximum amplitude of reverb, dB below input}
+\item{reverbLevel}{the maximum amplitude of reverb, dB below input (NULL = no
+reverb)}
 
 \item{reverbDensity}{the number of echos or "voices" added}
 
 \item{reverbType}{so far only "gaussian" has been implemented}
+
+\item{IR}{recording of an impulse response in a particular environment -
+ideally, an instant loud click, but just clapping your hands or snapping
+your fingers also works as a first approximation}
 
 \item{filter}{(optional) a spectral filter to apply to the created reverb and
 echo (see \code{addFormants} for acceptable formats)}
@@ -55,65 +63,93 @@ calculated, dB}
 \item{output}{"audio" = returns just the processed audio, "detailed" =
 returns a list with reverb window, the added reverb/echo, etc.}
 
-\item{play}{if TRUE, plays the processed audio}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
+
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
-= don't save, '' = same as input folder (NB: overwrites the originals!)}
+\item{seed}{if NULL, the algorithm is stochastic; provide a positive integer
+for reproducibility}
+}
+\value{
+If \code{output = "audio"}, returns the processed waveform as a
+  numeric vector. If \code{output = "detailed"}, returns a list: $rvb_win =
+  Gaussian window used to create the reverberation, $rvb = reverberation
+  effect, $echo = echo effect, $effect = both reverb and echo mixed together,
+  $audio = processed audio.
 }
 \description{
-Adds reverberation and/or echo to a sound. Algorithm for reverb: adds
-time-shifted copies of the signal weighted by a decay function, which is
-analogous to convoluting the input with a parametric model of some
-hypothetical impulse response function. In simple terms: we specify how much
-and when the sound rebounds back (as from a wall) and add these time-shifted
-copies to the original, optionally with some spectral filtering.
+Adds reverberation and/or echo to a sound parametrically or based on the
+impulse response recorded in a particular real environment. Algorithm for
+parametric reverb: adds time-shifted copies of the signal weighted by a decay
+function. In simple terms: we specify how much and when the sound rebounds
+back (e.g., from the walls of a room) and add these time-shifted copies to
+the original - optionally, with some spectral filtering.
 }
 \examples{
-s = soundgen()
-s_rev = reverb(s, 16000)
+data('speechEx', package = 'soundgen')
+sr = speechEx@samp.rate
+s = speechEx@left[1:16000]
+# playme(s)
+
+# parametric reverb
+s_rev = reverb(s, sr)
 # playme(s_rev)
+
+# reverb of a particular real place based on its recorded IR
+data('IR', package = 'soundgen')
+s_ir = reverb(s, sr, IR = IR)
+# playme(s_ir)
 
 \dontrun{
 # double echo, no reverb
-s1 = reverb(s, samplingRate = 16000, reverbLevel = NULL,
+s1 = reverb(s, sr, reverbLevel = NULL,
             echoDelay = c(250, 800), echoLevel = c(-15, -25))
 playme(s1)
-spectrogram(s1, 16000, osc = TRUE, ylim = c(0, 4))
+spectrogram(s1, 16000, ylim = c(0, 4))
 
 # only reverb (indoors)
-s2 = reverb(s, samplingRate = 16000, echoDelay = NULL,
+s2 = reverb(s, sr, echoDelay = NULL,
             reverbDelay = 70, reverbSpread = 130,
             reverbLevel = -20, reverbDensity = 20)
 playme(s2)
-spectrogram(s2, 16000, osc = TRUE, ylim = c(0, 4))
+spectrogram(s2, 16000, ylim = c(0, 4))
 
 # reverb (caves)
-s3 = reverb(s, samplingRate = 16000, echoDelay = NULL,
+s3 = reverb(s, sr, echoDelay = NULL,
             reverbDelay = 600, reverbSpread = 1500,
             reverbLevel = -10, reverbDensity = 100)
 playme(s3)
-spectrogram(s3, 16000, osc = TRUE, ylim = c(0, 4))
+spectrogram(s3, 16000, ylim = c(0, 4))
 
 # both echo and reverb with high frequencies emphasized
-s4 = reverb(s, samplingRate = 16000,
+s4 = reverb(s, sr,
             echoDelay = 250, echoLevel = -20,
             reverbDelay = 70, reverbSpread = 120,
             reverbLevel = -25, reverbDensity = 50,
             filter = list(formants = NULL, lipRad = 3))
 playme(s4)
-spectrogram(s4, 16000, osc = TRUE, ylim = c(0, 4))
+spectrogram(s4, 16000, ylim = c(0, 4))
 
-# add reverb to a recording
-s5 = reverb('~/Downloads/temp260/ut_fear_57-m-tone.wav',
-            echoDelay = 850, echoLevel = -40)
-# playme(s5, 44100)
+# recorded IR
+s5 = soundgen(nSyl = 2, sylLen = 250, pitch = c(500, 300))
+playme(s5)
+spectrogram(s5, 16000, yScale = 'ERB')
+s5r = reverb(s5, 16000, IR = IR)
+playme(s5r)
+spectrogram(s5r, 16000, yScale = 'ERB')
 
 # add reverb to all files in a folder, save the result
-reverb('~/Downloads/temp2', saveAudio = '~/Downloads/temp2/rvb')
+reverb('~/Downloads/temp', saveAudio = TRUE)
 }
 }

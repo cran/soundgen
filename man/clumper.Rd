@@ -2,9 +2,12 @@
 % Please edit documentation in R/math.R
 \name{clumper}
 \alias{clumper}
+\alias{clumper2}
 \title{Clump a sequence into large segments}
 \usage{
 clumper(x, minLength, n = length(x))
+
+clumper2(x, minLength, n = length(x))
 }
 \arguments{
 \item{x}{a vector: anything that can be converted into an integer to call
@@ -17,9 +20,6 @@ Returns the original sequence x transformed to homogeneous segments
   of required length, with the original class (e.g. character or factor).
 }
 \description{
-Internal soundgen function.
-}
-\details{
 \code{clumper} makes sure each homogeneous segment in a sequence is at least
 minLength long. Called by getIntegerRandomWalk(), addSubh(), naiveBayes(),
 etc. Algorithm: find the epochs shorter than minLength, merge max 1/4 of them
@@ -35,5 +35,22 @@ soundgen:::clumper(1:5, 10)
 soundgen:::clumper(c('a','a','a','b','b','c','c','c','a','c'), 3)
 soundgen:::clumper(x = c(1,2,1,2,1,1,1,1,3,1), minLength = c(1, 1, 1, 3))
 soundgen:::clumper(as.factor(c('A','B','B','C')), 2)
+
+## clumper vs clumper2
+# clumper2 is faster for wiggly inputs
+s = rpois(1000, 2)
+plot(s, type = 'l')
+plot(soundgen:::clumper(s, minLength = c(2, 3, 10)), type = 'l')
+plot(soundgen:::clumper2(s, minLength = c(2, 3, 10)), type = 'l')
+system.time(for (i in 1:10) soundgen:::clumper(s, minLength = c(2, 3, 10)))
+system.time(for (i in 1:10) soundgen:::clumper2(s, minLength = c(2, 3, 10)))
+
+# clumper1 is faster for step-like inputs
+s2 = approx(c(2,4,3,2,0), n = 1001, method = 'constant')$y[1:1000]
+plot(s2, type = 'l')
+plot(soundgen:::clumper(s2, minLength = c(2, 3, 10)), type = 'l')
+plot(soundgen:::clumper2(s2, minLength = c(2, 3, 10)), type = 'l')
+system.time(for (i in 1:10) soundgen:::clumper(s2, minLength = c(2, 3, 10)))
+system.time(for (i in 1:10) soundgen:::clumper2(s2, minLength = c(2, 3, 10)))
 }
 \keyword{internal}

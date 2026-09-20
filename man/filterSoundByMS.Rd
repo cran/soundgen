@@ -2,6 +2,7 @@
 % Please edit documentation in R/invertModulSpec.R
 \name{filterSoundByMS}
 \alias{filterSoundByMS}
+\alias{filterMS}
 \title{Filter sound by modulation spectrum}
 \usage{
 filterSoundByMS(
@@ -9,28 +10,46 @@ filterSoundByMS(
   samplingRate = NULL,
   from = NULL,
   to = NULL,
-  logSpec = FALSE,
+  logSpec = TRUE,
   windowLength = 25,
   step = NULL,
   overlap = 80,
-  wn = "hamming",
-  zp = 0,
+  wn = "hanning",
   amCond = NULL,
   fmCond = NULL,
   jointCond = NULL,
-  action = c("remove", "preserve")[1],
-  initialPhase = c("zero", "random", "spsi")[3],
+  action = c("stop", "pass"),
+  dynamicRange = 80,
+  dB = Inf,
+  smooth = NULL,
+  protect = c("level", "meanSpectrum"),
+  warnAsymmetric = TRUE,
+  initialPhase = c("orig", "spsi", "random", "zero"),
   nIter = 50,
   reportEvery = NULL,
   cores = 1,
   play = FALSE,
-  saveAudio = NULL,
+  saveAudio = FALSE,
   plot = TRUE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
   res = NA
+)
+
+filterMS(
+  ms,
+  amCond = NULL,
+  fmCond = NULL,
+  jointCond = NULL,
+  action = c("stop", "pass"),
+  dB = Inf,
+  smooth = NULL,
+  protect = c("level", "meanSpectrum"),
+  warnAsymmetric = TRUE,
+  plot = TRUE
 )
 }
 \arguments{
@@ -44,173 +63,225 @@ numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{logSpec}{if TRUE, the spectrogram is log-transformed prior to taking 2D
-FFT}
+\item{logSpec}{if \code{TRUE}, the spectrogram-like representation is
+log-transformed prior to estimating the modulation spectrum. This applies
+to both 2D and 1D modulation spectra. A small constant is added to avoid
+non-finite values}
 
-\item{windowLength, step, wn, zp}{parameters for extracting a spectrogram if
-\code{specType = 'STFT'}. Window length and step are specified in ms (see
-\code{\link{spectrogram}}). If \code{specType = 'audSpec'}, these settings
-have no effect}
+\item{windowLength, step, overlap, wn}{STFT parameters used to create the original
+spectrogram; make sure \code{zp = 0}}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{amCond, fmCond}{condition on amplitude and frequency modulation:
+character string, expression, or function (see examples)}
 
-\item{amCond, fmCond}{character strings with valid conditions on amplitude and
-frequency modulation (see examples)}
+\item{jointCond}{character string, expression, or function with a joint
+condition on am and fm}
 
-\item{jointCond}{character string with a valid joint condition amplitude and
-frequency modulation}
+\item{action}{'stop' or 'pass'}
 
-\item{action}{should the defined AM-FM region be removed ('remove') or
-preserved, while everything else is removed ('preserve')?}
+\item{dynamicRange}{the minimum possible value of the magnitude spectrogram
+(dB, must be positive or NA). 80 (default) = 80 dB below the global
+maximum, NA or Inf = no floor (allow zero values). Lowering the dynamic
+range (e.g., to 60 dB) attenuates ripple effects caused by filtering, but
+adds some uniform residual noise at the floor level}
 
-\item{initialPhase}{initial phase estimate: "zero" = set all phases to zero;
-"random" = Gaussian noise; "spsi" (default) = single-pass spectrogram
-inversion (Beauregard et al., 2015)}
+\item{dB}{a positive number giving the strength of effect in dB (defaults to
+Inf - complete removal of selected frequencies)}
+
+\item{smooth}{smoothing of the MS filter mask. NULL = default smoothing
+(~3 bins); NA = no smoothing; numeric vector of length 2 = smoothing
+bandwidth for FM and AM in native units (FM: cycles/kHz, AM: Hz). A single
+number is not allowed because FM and AM have different units}
+
+\item{protect}{which zero-modulation components to protect from filtering:
+'level' = the (0, 0) cell (overall mean level / gain); 'meanSpectrum' = the
+(am = 0) column (time-averaged spectrum); 'envelope' = the (fm = 0) row
+(broadband temporal envelope, including any AM). TRUE protects all three;
+FALSE, NULL or NA protects none. NB: protecting 'envelope' re-injects
+temporal modulation when filtering AM; protecting 'meanSpectrum' preserves
+static spectral modulation when filtering FM}
+
+\item{warnAsymmetric}{if TRUE, warns if the MS filter mask is asymmetric
+with respect to zero AM/FM. Asymmetric filters can produce complex-valued
+inverse transforms and phase-related artifacts}
+
+\item{initialPhase}{initial phase estimate: "orig" (default) = phase of the
+original sound; "spsi" = single-pass spectrogram inversion (Beauregard et
+al., 2015); "random" = uniformly distributed noise; "zero" = all phases
+zero. If \code{nIter = 0} and \code{initialPhase = "orig"}, the original
+phase is used directly}
 
 \item{nIter}{the number of iterations of the GL algorithm (Griffin & Lim,
 1984), 0 = don't run}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{play}{if TRUE, plays back the reconstructed audio}
 
-\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
-= don't save, '' = same as input folder (NB: overwrites the originals!)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
 
 \item{plot}{if TRUE, produces a triple plot: original MS, filtered MS, and
 the MS of the output sound}
 
-\item{savePlots}{if a valid path is specified, a plot is saved in this folder
-(defaults to NA)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{parameters passed to
 \code{\link[grDevices]{png}} if the plot is saved}
+
+\item{ms}{a modulation spectrum: matrix of real or complex values, AM in
+columns (Hz), FM in rows (cycles/kHz)}
 }
 \value{
-Returns the filtered audio as a numeric vector normalized to
-  \code{[-1, 1]} with the same sampling rate as input.
+Filtered audio as a numeric vector normalized to \code{[-1, 1]} with
+  the same sampling rate as input.
 }
 \description{
-Manipulates the modulation spectrum (MS) of a sound so as to remove certain
-frequencies of amplitude modulation (AM) and frequency modulation (FM).
-Algorithm: produces a modulation spectrum with
+Manipulates the modulation spectrum (MS) of a sound to attenuate or
+amplify certain frequencies of amplitude modulation (AM) and frequency
+modulation (FM). Algorithm: produces a modulation spectrum with
 \code{\link{modulationSpectrum}}, modifies it with \code{\link{filterMS}},
-converts the modified MS to a spectrogram with \code{\link{msToSpec}}, and
-finally inverts the spectrogram with \code{\link{invertSpectrogram}}, thus
-producing a sound with (approximately) the desired characteristics of the MS.
-Note that the last step of inverting the spectrogram introduces some noise,
-so the resulting MS is not precisely the same as the intermediate filtered
-version. In practice this means that some residual energy will still be
-present in the filtered-out frequency range (see examples).
+converts the modified MS back to a spectrogram, and finally inverts the
+spectrogram with \code{\link{invertSpectrogram}}, thus producing a sound
+with (approximately) the desired characteristics of the MS. Note that the
+last step of inverting the spectrogram introduces some noise, so the
+resulting MS is not precisely the same as the intermediate filtered version.
+In practice this means that some residual energy will still be present in the
+filtered-out frequency range (see examples).
 }
+\details{
+By default, the filter mask is smoothed to avoid abrupt cutoffs. Smoothing is
+specified in physical units: FM in cycles/kHz and AM in Hz. Set \code{smooth
+= NA} to disable smoothing. If \code{logSpec = TRUE}, filtering is performed
+on the modulation spectrum of the log-magnitude spectrogram, which is often
+more robust and more physiologically plausible than filtering linear
+magnitudes. If \code{initialPhase = 'orig'}, the phase of the original sound
+is used. With \code{nIter = 0}, the original phase is used directly; with
+\code{nIter > 0}, the original phase is used to initialize the Griffin-Lim
+iterations.
+}
+\section{Choosing filtering settings}{
+
+MS filtering operates globally on the spectrogram's envelope, so any
+transient whose modulation content overlaps the filtered band —
+onsets/offsets, plosives, amplitude steps — is partially removed together
+with the target, producing a ripple that decays inward from the transient.
+Smoothing (blurring the filter mask before applying it) shortens the ripple's
+tails but cannot eliminate it completely. Two parameters control the
+trade-off between successful filtering and introducing spectro-temporal
+artifacts: (1) \code{dynamicRange}: lower values shrink the silence-to-sound
+step in the log domain and lift the linear target above the zero-clipping
+knee, suppressing edge ripple at the cost of a uniform residual noise floor,
+most visible in silent regions, and (2) \code{dB}: finite attenuation, e.g.
+20–40 dB, removes proportionally less of the transients' in-band content than
+dB = Inf. Use \code{dB = Inf} with a large \code{dynamicRange} for steady,
+sustained sounds and finite dB with dynamicRange = 60–80 for sounds with
+transients, such as speech. Use \code{logSpec = TRUE} for manipulating the
+temporal envelope / AM in a perceptually meaningful manner. \code{logSpec =
+FALSE} weights components by absolute magnitude and avoids amplifying quiet
+regions, but shows stronger edge artifacts. Choose \code{protect = c('level',
+'meanSpectrum')} (the default setting) when filtering AM. Do not protect
+\code{'envelope'}, which contains the very AM being removed. Set
+\code{protect = c('level', 'envelope')} when filtering FM, so as to keep the
+natural amplitude contour. Drop \code{'meanSpectrum'} only if you also want
+to flatten the static spectral shape. Whenever the condition includes 0 on an
+axis (e.g. removing slow AM with abs(am) < 3), keep the corresponding
+protection to avoid a collapsed, "AC-coupled" reconstruction. For mild
+filtering, \code{initialPhase = 'orig'} with \code{nIter = 0} is fast and
+preserves the original phase; increase \code{nIter} for stronger filtering.
+}
+
 \examples{
 # Create a sound to be filtered
-s = soundgen(pitch = rnorm(n = 20, mean = 200, sd = 25),
-  amFreq = 25, amDep = 50, samplingRate = 16000,
-  addSilence = 50, plot = TRUE, osc = TRUE)
+s = soundgen(sylLen = 500, samplingRate = 16000,
+    amFreq = 25, amDep = 50,
+    addSilence = 50, plot = TRUE)
 # playme(s, 16000)
 
-# Filter
-s_filt = filterSoundByMS(s, samplingRate = 16000,
-  amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
-  nIter = 10,  # increase nIter for best results!
-  action = 'remove', plot = TRUE)
+# Filter to remove the rapid AM at 25 Hz
+s_filt = fade(filterSoundByMS(s, samplingRate = 16000,
+  amCond = 'abs(am) > 22 & abs(am) < 28',
+  action = 'stop',
+  plot = TRUE))
+# NB: clicks are often introduced at the onset and offset - fade and renormalize
+s_filt = s_filt / max(abs(s_filt))
 # playme(s_filt, samplingRate = 16000)
+spectrogram(s_filt, 16000, windowLength = 25)
+
+# Using filterMS()
+ms = modulationSpectrum(s, 16000, returnComplex = TRUE)$detailed$complex
+
+# Remove all AM over 25 Hz
+filterMS(ms, amCond = 'abs(am) > 25', protect = FALSE)
+filterMS(ms, amCond = 'abs(am) > 25', protect = TRUE)
+filterMS(ms, amCond = 'abs(am) > 25', protect = TRUE, smooth = NA)
+
+# amCond and fmCond are OR-conditions
+filterMS(ms, amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5', action = 'stop')
+filterMS(ms, amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5', action = 'pass')
+filterMS(ms, amCond = 'abs(am) > 10 & abs(am) < 25', action = 'stop')
+
+# jointCond is more flexible
+filterMS(ms, jointCond = 'am * fm < 5', action = 'stop')
+filterMS(ms, jointCond = 'am^2 + (fm*3)^2 < 200', action = 'pass')
+
+# So:
+filterMS(ms, jointCond = 'abs(am) > 5 | abs(fm) < 5')  # general
+# ...is the same as:
+filterMS(ms, amCond = 'abs(am) > 5', fmCond = 'abs(fm) < 5')  # faster
 
 \dontrun{
+data('speechEx', package = 'soundgen')
+samplingRate = speechEx@samp.rate
+playme(speechEx)
+spectrogram(speechEx)
+
+# Remove AM above 3 Hz from a bit of speech (removes most temporal details)
+s_filt1 = fade(filterSoundByMS(speechEx, amCond = 'abs(am) > 3',
+                          action = 'stop',
+                          smooth = c(0.5, 2)))
+spectrogram(s_filt1, samplingRate = samplingRate)
+playme(s_filt1, samplingRate)
+
+# Remove FM above 3 cycles/kHz (masks f0 but preserves formants)
+s_filt3 = fade(filterSoundByMS(speechEx,
+  fmCond = 'abs(fm) > 3', action = 'stop',
+  logSpec = TRUE, smooth = c(1, 5),
+  protect = c('level', 'envelope')))
+spectrogram(s_filt3, samplingRate = samplingRate)
+playme(s_filt3, samplingRate)
+
+# Joint spectro-temporal filtering with a symmetric condition
+s_filt4 = fade(filterSoundByMS(speechEx,
+  jointCond = 'am^2 + (fm * 3)^2 < 300', action = 'stop',
+  logSpec = TRUE, dynamicRange = 60, smooth = c(1, 10),
+  protect = c('level', 'meanSpectrum')))
+spectrogram(s_filt4, samplingRate = samplingRate)
+playme(s_filt4, samplingRate)
+
 # Process all files in a folder, save filtered audio and plots
 s_filt = filterSoundByMS('~/Downloads/temp2',
-  saveAudio = '~/Downloads/temp2/ms', savePlots = '',
+  saveAudio = TRUE, savePlots = TRUE,
   amCond = 'abs(am) > 15', fmCond = 'abs(fm) > 5',
-  action = 'remove', nIter = 10)
-
-# Download an example - a bit of speech (sampled at 16000 Hz)
-download.file('http://cogsci.se/soundgen/audio/speechEx.wav',
-              destfile = '~/Downloads/speechEx.wav')  # modify as needed
-target = '~/Downloads/speechEx.wav'
-samplingRate = tuneR::readWave(target)@samp.rate
-playme(target)
-spectrogram(target, osc = TRUE)
-
-# Remove AM above 3 Hz from a bit of speech (remove most temporal details)
-s_filt1 = filterSoundByMS(target, amCond = 'abs(am) > 3',
-                          action = 'remove', nIter = 15)
-playme(s_filt1, samplingRate)
-spectrogram(s_filt1, samplingRate = samplingRate, osc = TRUE)
-
-# Intelligigble when AM in 5-25 Hz is preserved:
-s_filt2 = filterSoundByMS(target, amCond = 'abs(am) > 5 & abs(am) < 25',
-                          action = 'preserve', nIter = 15)
-playme(s_filt2, samplingRate)
-spectrogram(s_filt2, samplingRate = samplingRate, osc = TRUE)
-
-# Remove slow AM/FM (prosody) to achieve a "robotic" voice
-s_filt3 = filterSoundByMS(target, jointCond = 'am^2 + (fm*3)^2 < 300',
-                          nIter = 15)
-playme(s_filt3, samplingRate)
-spectrogram(s_filt3, samplingRate = samplingRate, osc = TRUE)
-
-
-## An alternative manual workflow w/o calling filterSoundByMS()
-# This way you can modify the MS directly and more flexibly
-# than with the filterMS() function called by filterSoundByMS()
-
-# (optional) Check that the target spectrogram can be successfully inverted
-spec = spectrogram(s, 16000, windowLength = 50, step = NULL, overlap = 80,
-  wn = 'hanning', osc = TRUE, padWithSilence = FALSE)
-s_rev = invertSpectrogram(spec, samplingRate = 16000,
-  windowLength = 50, overlap = 80, wn = 'hamming', play = FALSE)
-# playme(s_rev, 16000)  # should be close to the original
-spectrogram(s_rev, 16000, osc = TRUE)
-
-# Get modulation spectrum starting from the sound...
-ms = modulationSpectrum(s, samplingRate = 16000, windowLength = 25,
-  overlap = 80, wn = 'hanning', amRes = NULL, maxDur = Inf, logSpec = FALSE,
-  power = NA, returnComplex = TRUE, plot = FALSE)$complex
-# ... or starting from the spectrogram:
-# ms = specToMS(spec)
-plotMS(abs(ms))  # this is the original MS
-
-# Filter as needed - for ex., remove AM > 10 Hz and FM > 3 cycles/kHz
-# (removes f0, preserves formants)
-am = as.numeric(colnames(ms))
-fm = as.numeric(rownames(ms))
-idx_row = which(abs(fm) > 3)
-idx_col = which(abs(am) > 10)
-ms_filt = ms
-ms_filt[idx_row, ] = 0
-ms_filt[, idx_col] = 0
-plotMS(abs(ms_filt))  # this is the filtered MS
-
-# Convert back to a spectrogram
-spec_filt = msToSpec(ms_filt)
-image(t(log(abs(spec_filt))))
-
-# Invert the spectrogram
-s_filt = invertSpectrogram(abs(spec_filt), samplingRate = 16000,
-  windowLength = 25, overlap = 80, wn = 'hanning')
-# NB: use the same settings as in "spec = spectrogram(s, ...)" above
-
-# Compare with the original
-playme(s, 16000)
-spectrogram(s, 16000, osc = TRUE)
-playme(s_filt, 16000)
-spectrogram(s_filt, 16000, osc = TRUE)
-
-ms_new = modulationSpectrum(s_filt, samplingRate = 16000,
-  windowLength = 25, overlap = 80, wn = 'hanning', maxDur = Inf,
-  plot = TRUE, returnComplex = TRUE)$complex
-image(x = as.numeric(colnames(ms_new)), y = as.numeric(rownames(ms_new)),
-  z = t(log(abs(ms_new))))
-plot(as.numeric(colnames(ms)), log(abs(ms[nrow(ms) / 2, ])), type = 'l')
-points(as.numeric(colnames(ms_new)), log(ms_new[nrow(ms_new) / 2, ]), type = 'l',
-  col = 'red', lty = 3)
-# AM peaks at 25 Hz are removed, but inverting the spectrogram adds a lot of noise
+  action = 'stop', smooth = c(0.5, 5),
+  nIter = 10)
 }
 }
 \seealso{
-\code{\link{invertSpectrogram}} \code{\link{filterMS}}
+\code{\link{invertSpectrogram}}
 }

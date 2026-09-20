@@ -7,11 +7,15 @@
 pitchDescriptives(
   x,
   step = NULL,
-  timeUnit,
+  timeUnit = NULL,
   smoothBW = c(NA, 10, 1),
   inflThres = 0.2,
+  summaryFun = c("mean", "sd"),
   extraSummaryFun = c(),
-  ref = 16.35,
+  ref = 16.3516,
+  ptvStep = NULL,
+  ptvTime = 0.5,
+  ptvFreq = 1,
   plot = FALSE
 )
 }
@@ -23,7 +27,8 @@ the output of \code{\link{pitch_app}} or \code{\link{analyze}}}
 
 \item{step}{distance between values in s (only needed if input is a vector)}
 
-\item{timeUnit}{specify whether the time stamps (if any) are in ms or s}
+\item{timeUnit}{if NULL (default), guesses "ms" if step > 1 and "s"
+otherwise; specify "s" or "ms" explicitly to override}
 
 \item{smoothBW}{a vector of bandwidths (Hz) for consecutive smoothing of
 input using \code{\link{pitchSmoothPraat}}; NA = no smoothing}
@@ -33,20 +38,35 @@ extrema to consider them inflections; to apply a different threshold at
 each smoothing level, provide \code{inflThres} as a vector of the same
 length as \code{smoothBW}; NA = no threshold}
 
-\item{extraSummaryFun}{additional summary function(s) that take a numeric
-vector with some NAs and return a single number, eg c('myFun1', 'myFun2')}
+\item{summaryFun}{summary function(s) to apply to the syllable descriptives
+(not to the pitch contours themselves)}
+
+\item{extraSummaryFun}{additional summary function(s) applied to pitch
+contours themselves (not to extracted pitch descriptives) that take a
+numeric vector with some NAs and return a single number, eg c('myFun1',
+'myFun2')}
 
 \item{ref}{reference value for transforming Hz to semitones, defaults to
-C0 (16.35 Hz)}
+C0 (16.3516 Hz)}
+
+\item{ptvStep, ptvTime, ptvFreq}{the instantaneous proportion of time
+vocalizing (PTV) is calculated by producing a binary (sound on/off) contour
+with a step of ptvStep ms and convolving it with a half-Gaussian filter
+with SD = ptvTime s ($ptv_conv) and by low-pass filtering it over ptvFreq
+Hz ($ptv_lowpass)}
 
 \item{plot}{if TRUE, plots the inflections for manual verification}
 }
 \value{
-Returns a dataframe with columns containing summaries of one or
-  multiple inputs (one input per row). The descriptives are as follows:
+A list with three elements: \code{summary} (a dataframe with columns
+  containing summaries of one or multiple inputs, one input per row),
+  \code{syllables} (a dataframe or list of dataframes with syllable timings,
+  where a syllable is a contiguous non-NA run of the pitch contour), and
+  \code{ptv} (a dataframe or list of dataframes with the instantaneous PTV
+  contour). The descriptives in \code{summary} are as follows:
   \describe{\item{duration}{total duration, s} \item{durDefined}{duration
-  after omitting leading and trailing NAs} \item{propDefined}{proportion of
-  input with non-NA value, eg proportion of voiced frames if the input is
+  after omitting leading and trailing NAs} \item{propDefined}{percentage of
+  input with non-NA value, eg percentage of voiced frames if the input is
   pitch} \item{start, start_oct, end, end_oct}{the first and last values on
   the original scale and in octaves above C0 (16.3516 Hz)} \item{mean,
   median, max, min}{average and extreme values on the original scale}
@@ -83,7 +103,7 @@ NA, NA)
 plot(x, type = 'b')
 ci95 = function(x) diff(quantile(na.omit(x), probs = c(.025, .975)))
 pd = pitchDescriptives(
-  x, step = .025, timeUnit = 's',
+  x, step = .025,
   smoothBW = c(NA, 10, 1),   # original + smoothed at 10 Hz and 1 Hz
   inflThres = c(NA, .2, .2), # different for each level of smoothing
   extraSummaryFun = 'ci95',  # user-defined, here 95\% coverage interval
@@ -93,28 +113,16 @@ pd
 
 \dontrun{
 # a single file
-data(sheep, package = 'seewave')
-a = analyze(sheep)
+data(speechEx, package = 'soundgen')
+a = analyze(speechEx)
 pd1 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
-                        timeUnit = 'ms', inflThres = NA, plot = TRUE)
+                        inflThres = NA, plot = TRUE)
 pd2 = pitchDescriptives(a$detailed[, c('time', 'pitch')],
-                        timeUnit = 'ms', inflThres = c(0.1, 0.1, .5), plot = TRUE)
+                        inflThres = c(0.1, 0.1, .5), plot = TRUE)
 
 # multiple files returned by analyze()
 an = analyze('~/Downloads/temp')
-pd = pitchDescriptives(an$detailed, timeUnit = 'ms')
+pd = pitchDescriptives(an$detailed)
 pd
-
-# multiple files returned by pitch_app()
-pd = pitchDescriptives(
-  '~/Downloads/pitch_manual_1708.csv',
-  timeUnit = 'ms', smoothBW = c(NA, 2), inflThres = .25)
-
-# a single file, exported from Praat
-par(mfrow = c(3, 1))
-pd = pitchDescriptives(
-  '~/Downloads/F-Hin-Om_jana.wav_F0contour.txt',
-  timeUnit = 's', smoothBW = c(NA, 25, 2), inflThres = .25, plot = TRUE)
-par(mfrow = c(1, 1))
 }
 }

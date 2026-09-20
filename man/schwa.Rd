@@ -8,9 +8,9 @@ schwa(
   formants = NULL,
   vocalTract = NULL,
   formants_relative = NULL,
-  nForm = 8,
+  nFormants = 8,
   interceptZero = TRUE,
-  tube = c("closed-open", "open-open")[1],
+  tube = c("closed-open", "open-open", "open-closed", "closed-closed"),
   speedSound = 35400,
   plot = FALSE
 )
@@ -24,12 +24,11 @@ Hz}
 \item{formants_relative}{a numeric vector of target relative formant
 frequencies, \% deviation from schwa (see examples)}
 
-\item{nForm}{the number of formants to estimate (integer)}
+\item{nFormants}{the number of formants to estimate (integer)}
 
 \item{interceptZero}{if TRUE, forces the regression curve to pass through the
-origin. This reduces the influence of highly variable lower formants, but
-we have to commit to a particular model of the vocal tract: closed-open or
-open-open/closed-closed (method = "regression" only)}
+origin, reducing the influence of highly variable lower formants (method =
+"regression" only)}
 
 \item{tube}{the vocal tract is assumed to be a cylindrical tube that is
 either "closed-open" or "open-open" (same as closed-closed)}
@@ -40,11 +39,11 @@ phonetics", p. 138}
 \item{plot}{if TRUE, plots vowel quality in speaker-normalized F1-F2 space}
 }
 \value{
-Returns a list with the following components: \describe{
+A list with the following components: \describe{
   \item{vtl_measured}{VTL as provided by the user, cm}
-  \item{vocalTract_apparent}{VTL estimated based on formants frequencies
-  provided by the user, cm}
-  \item{formantDispersion}{average distance between formants, Hz}
+  \item{vtl_apparent}{VTL estimated based on formants frequencies provided by
+  the user, cm}
+  \item{dF}{average distance between formants, Hz}
   \item{ff_measured}{formant frequencies as
   provided by the user, Hz}
   \item{ff_schwa}{formant frequencies corresponding
@@ -82,28 +81,17 @@ the VTL as specified or as estimated from formant dispersion). Case 3: if we
 want to generate a sound with particular relative formant frequencies (e.g.
 high F1 and low F2 relative to the schwa for this vocal tract),
 \code{schwa()} calculates the corresponding formant frequencies in Hz. See
-examples below for an illustration of these three suggested uses.
-}
-\details{
-Algorithm: the expected formant dispersion is given by \eqn{(2 *
-formant_number - 1) * speedSound / (4 * formant_frequency)} for a closed-open
-tube (mouth open) and \eqn{formant_number * speedSound / (2 *
-formant_frequency)} for an open-open or closed-closed tube. F1 is schwa is
-expected at half the value of formant dispersion. See e.g. Stevens (2000)
-"Acoustic phonetics", p. 139. Basically, we estimate vocal tract length and
-see if each formant is higher or lower than expected for this vocal tract.
-For this to work, we have to know either the frequencies of enough formants
-(not just the first two) or the true length of the vocal tract. See also
-\code{\link{estimateVTL}} on the algorithm for estimating formant dispersion
-if VTL is not known (note that \code{schwa} calls \code{\link{estimateVTL}}
-with the option \code{method = 'regression'}).
+examples below for an illustration of these three suggested uses and
+\code{\link{estimateVTL}} for details on the algorithm for estimating formant
+dispersion if VTL is not known (note that \code{schwa} calls
+\code{\link{estimateVTL}} with the option \code{method = 'regression'}).
 }
 \examples{
 ## CASE 1: known VTL
 # If vocal tract length is known, we calculate expected formant frequencies
 schwa(vocalTract = 17.5)
-schwa(vocalTract = 13, nForm = 5)
-schwa(vocalTract = 13, nForm = 5, tube = 'open-open')
+schwa(vocalTract = 13, nFormants = 5)
+schwa(vocalTract = 13, nFormants = 5, tube = 'open-open')
 
 ## CASE 2: known (observed) formant frequencies
 # Let's take formant frequencies in four vocalizations, namely
@@ -114,8 +102,8 @@ s_a
 # We get an estimate of VTL (s_a$vtl_apparent),
 #   same as with estimateVTL(formants_a)
 # We also get theoretical schwa formants: s_a$ff_schwa
-# And we get the difference (\% and semitones) in observed vs expected
-#   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones')]
+# And we get the difference (\%, semitones, or dF units) in observed vs expected
+#   formant frequencies: s_a[c('ff_relative', 'ff_relative_semitones', 'ff_relative_dF')]
 # [a]: F1 much higher than expected, F2 slightly lower (see plot)
 
 formants_i = c(300, 2700, 3400, 4400, 5300, 6400)

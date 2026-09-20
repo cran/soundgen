@@ -12,14 +12,16 @@ samplingRate_mult, nFormants, minformant, maxbw, dynamicRange_lpc, zp_lpc,
 spec_ylim, dynamicRange, specContrast, specBrightness, blur_freq,
 blur_time, reass_cex, zp, spec_maxPoints, osc_maxPoints, spectrum_smooth,
 spectrum_xlim, spectrum_len, silence, windowLength_lpc, step_lpc,
-windowLength, step, spectrum_xlim, spec_ylim, spec_colorTheme, osc, wn,
-wn_lpc, vtl_method, speedSound, coeffs, interceptZero, tube}
+windowLength, step, spec_colorTheme, osc, wn, wn_lpc, vtl_method,
+speedSound, coeffs, interceptZero, tube, nColors, spec_cex, pitch,
+summaryFun, audioMethod, specType, fmtSpacePlot, spec_col, normalizeInput,
+adaptivePitch, spectrum_plotSynth}
 }
 \value{
 A list of the last used settings ($settings) plus a data.frame with
   the formant measurements. Every time a new annotation is added, the app
-  creates a backup csv file and creates or updates a global object called
-  "my_formants", which contains all the annotations.
+  creates a backup csv file in the session's temporary directory, and it
+  returns the final payload upon closing the app.
 }
 \description{
 Starts a shiny app for manually correcting formant measurements. For more
@@ -32,26 +34,29 @@ for example, a sustained vowel with clear and relatively steady formants.
 Double-click within the selection to create a new annotation (you may add a
 text label if needed). If you are satisfied with the automatically calculated
 formant frequencies, proceed to the next region of interest. If not, there
-are 4 ways to adjust them: (1) type in the correct number in one of the
-formant boxes in the top right corner; (2) click a spectrogram within
-selection (pick the formant number to adjust by clicking the formant boxes);
-(3) single-click the spectrum to use the cursor's position, or (4)
-double-click the spectrum to use the nearest spectral peak. When done with a
-file, move on to the next one in the queue. Use the orange button to download
-the results. To continue work, upload the output file from the previous
-session together with the audio files (you can rename it, but keep the .csv
-extension). Use hotkeys (eg spacebar to play/stop) and avoid working with
-very large files.
+are three ways to adjust them: (1) click the spectrogram within selection
+(pick the formant number to adjust by clicking the formant boxes); (2)
+single-click the spectrum to use the cursor's position, or (3) double-click
+the spectrum to use the nearest spectral peak. When done with a file, move on
+to the next one in the queue. Use the orange button to download the results.
+To continue work, upload the output file from the previous session together
+with the audio files (you can rename it, but keep the .csv extension). Use
+hotkeys (eg spacebar to play/stop) and avoid working with very large files.
+
+\bold{Recovering lost data}
+
+Every time you add an annotation or move in between files in the queue, the
+output you've got so far is saved in a temporary backup file. If the app
+crashes or is closed without saving the results, this backup file preserves
+your data. To recover it, restart formant_app() - a dialog box will pop up
+and ask whether you want to append the old data to the new one. Even so, save
+your data regularly to be on the safe side!
 }
 \examples{
 \dontrun{
 f = formant_app()  # runs in default browser such as Firefox or Chrome
 
 f1 = formant_app(specType = 'reassigned', windowLength = 5, step = 1)
-# full list of parameters that can be passed to formant_app():
-# paste0(c(names(input)[which(names(input) \%in\% rownames(def_form))],
-# 'spectrum_xlim', 'spec_ylim', 'spec_colorTheme', 'osc', 'wn', 'wn_lpc',
-# 'vtl_method', 'speedSound', 'coeffs', 'interceptZero', 'tube'), collapse = ', ')
 
 # run the app with previously used settings
 f2 = do.call(formant_app, f1$settings)
@@ -64,5 +69,5 @@ options('browser' = '/usr/bin/firefox')  # path to the executable on Linux
 }
 }
 \seealso{
-\code{\link{pitch_app}}
+\code{\link{pitch_app}} \code{\link{annotation_app}}
 }

@@ -10,22 +10,24 @@ phasegram(
   from = NULL,
   to = NULL,
   windowLength = 10,
-  step = windowLength/2,
+  step = NULL,
+  overlap = 50,
   timeLag = NULL,
   theilerWindow = NULL,
   nonlinStats = c("ed", "d2", "ml", "sur"),
-  pars_ed = list(max.embedding.dim = 15),
-  pars_d2 = list(min.embedding.dim = 2, min.radius = 0.001, n.points.radius = 20),
-  pars_ml = list(min.embedding.dim = 2, radius = 0.001),
-  pars_sur = list(FUN = nonlinearTseries::timeAsymmetry, K = 1),
+  ed_pars = list(max.embedding.dim = 15),
+  d2_pars = list(min.embedding.dim = 2, min.radius = 0.001, n.points.radius = 20),
+  ml_pars = list(min.embedding.dim = 2, radius = 0.001),
+  sur_pars = list(FUN = nonlinearTseries::timeAsymmetry, K = 20),
   bw = 0.01,
   bins = 5/bw,
   reportEvery = NULL,
   cores = 1,
   rasterize = FALSE,
   plot = TRUE,
-  savePlots = NULL,
-  colorTheme = c("bw", "seewave", "heat.colors", "...")[1],
+  savePlots = FALSE,
+  embed = FALSE,
+  colorTheme = "bw",
   col = NULL,
   xlab = "Time",
   ylab = "",
@@ -48,60 +50,84 @@ numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{windowLength}{the length of each frame analyzed separately (ms)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{step}{time step between consecutive frames (ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
+
+\item{overlap}{overlap between successive windows, \%}
 
 \item{timeLag}{time lag between the original and time-shifted version of each
 frame that together represent the phase portrait (ms). Defaults to the
 number of steps beyond which the mutual information function reaches its
 minimum or, if that fails, the steps until mutual information experiences
-the first exponential decay - see \code{\link[nonlinearTseries]{timeLag}}}
+the first exponential decay - see \code{\link[nonlinearTseries]{timeLag}}.
+If automatic estimation fails, defaults to 1 sample}
 
 \item{theilerWindow}{time lag between two points that are considered locally
 independent and can be treated as neighbors in the reconstructed phase
-space. defaults to the first minimum or, if unavailable, the first zero of
-the autocorrelation function (or, failing that, to \code{timeLag * 2})}
+space (ms). Converted internally to samples. Defaults to the first minimum
+or, if unavailable, the first zero of the autocorrelation function (or,
+failing that, to \code{timeLag * 2})}
 
 \item{nonlinStats}{nonlinear statistics to report: "ed" = the optimal number
 of embedding dimensions, "d2" = correlation dimension D2, "ml" = maximum
 Lyapunov exponent, "sur" = the results of surrogate data testing for
 stochasticity. These are calculated using the functionality of the package
-nonlinearTseries, which is seriously slow, so the default is just to get
-the phasegram itself}
+nonlinearTseries, which can be slow. Set to \code{NULL} or
+\code{character(0)} to calculate only the phasegram and basic descriptives.
+The default is to compute all available nonlinear statistics}
 
-\item{pars_ed}{a list of control parameters passed to
-\code{\link[nonlinearTseries]{estimateEmbeddingDim}}}
+\item{ed_pars}{a list of control parameters passed to
+\code{\link[nonlinearTseries]{estimateEmbeddingDim}}. If
+\code{ed_pars$time.lag} is \code{NULL}, it is set to the estimated time
+lag in samples}
 
-\item{pars_d2}{a list of control parameters passed to
-\code{\link[nonlinearTseries]{corrDim}}}
+\item{d2_pars}{a list of control parameters passed to
+\code{\link[nonlinearTseries]{corrDim}}. If \code{d2_pars$time.lag},
+\code{d2_pars$max.radius}, or \code{d2_pars$theiler.window} are
+\code{NULL}, they are filled in automatically}
 
-\item{pars_ml}{a list of control parameters passed to
-\code{\link[nonlinearTseries]{maxLyapunov}}}
+\item{ml_pars}{a list of control parameters passed to
+\code{\link[nonlinearTseries]{maxLyapunov}}. If
+\code{ml_pars$time.lag} or \code{ml_pars$theiler.window} are \code{NULL},
+they are filled in automatically}
 
-\item{pars_sur}{a list of control parameters passed to
+\item{sur_pars}{a list of control parameters passed to
 \code{\link[nonlinearTseries]{surrogateTest}}}
 
 \item{bw}{standard deviation of the smoothing kernel, as in
-\code{\link[stats]{density}}}
+\code{\link[stats]{density}}. Must be a single positive finite number}
 
 \item{bins}{the number of bins along the Y axis after rasterizing (has no
-effect if \code{rasterize = FALSE})}
+effect if \code{rasterize = FALSE}). Coerced to an integer of at least 2}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{rasterize}{if FALSE, only plots and returns Poincare sections on the
 original scale (most graphical parameters will then have no effect); if
 TRUE, rasterizes the phasegram matrix and plots it with more graphical
-parameters}
+parameters. The rasterized matrix is returned even if \code{plot = FALSE}}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{colorTheme}{black and white ('bw'), as in seewave package ('seewave'),
 matlab-type palette ('matlab'), or any palette from
@@ -115,25 +141,38 @@ soundgen:::filled.contour.mod (if \code{rasterize = TRUE}) or plot (if
 \code{rasterize = FALSE})}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{...}{other graphical parameters passed to soundgen:::filled.contour.mod
-(if \code{rasterize = TRUE})  or plot (if \code{rasterize = FALSE})}
+(if \code{rasterize = TRUE}) or plot (if \code{rasterize = FALSE})}
 }
 \value{
-Returns a list of three components: "orig" = the full phasegram;
-  "rasterized" = a rasterized version. For both, $time is the middle of each
-  frame (ms), $x is the coordinate along a Poincare section (since the audio
-  is normalized, the scale is \code{[-1, 1])}, and $y is the density of
-  intersections of system trajectories with the Poincare section. The third
-  component is $descriptives, which gives the result of nonlinear analysis
-  per frame. Currently implemented: shannon = Shannon entropy of Poincare
-  sections, nPeaks = log-number of peaks in the density distribution of
-  Poincare sections, ml = maximum Lyapunov exponent (positive values suggest
-  chaos), ed = optimal number of embedding dimensions (shows the complexity
-  of the reconstructed attractor), d2 = correlation dimension, sur =
-  probability of stochasticity according to surrogate data testing (0 =
-  deterministic, 1 = stochastic).
+For a single input, a list of three components:
+  \describe{
+    \item{orig}{the full phasegram as a data frame. \code{$time} is the
+      middle of each frame (ms), \code{$x} is the coordinate along the
+      Poincare section (approximately on the normalized audio scale), and
+      \code{$y} is the density of intersections of system trajectories with
+      the Poincare section, normalized by the global maximum across all
+      frames. Failed or flat frames are represented by NA rows}
+    \item{rasterized}{the rasterized phasegram as a numeric matrix, or
+      \code{NULL} if \code{rasterize = FALSE}. Rows correspond to time
+      frames and columns correspond to bins along the Poincare-section
+      coordinate. Values are row-normalized for display, so each non-empty
+      row has a maximum of 1. If no valid Poincare intersections are found,
+      a zero-valued matrix is returned}
+    \item{descriptives}{per-frame descriptives as a data frame. Always
+      included are \code{time} (ms), \code{shannon} = normalized Shannon
+      entropy of Poincare sections, and \code{nPeaks} = log-normalized
+      number of peaks in the density distribution of Poincare sections. If
+      requested via \code{nonlinStats}, also includes \code{ed} = optimal
+      number of embedding dimensions, \code{d2} = correlation dimension,
+      \code{ml} = maximum Lyapunov exponent (positive values suggest chaos),
+      and \code{sur} = stochasticity index from surrogate data testing,
+      rescaled to approximately 0 = deterministic and 1 = stochastic}
+  }
+
+  For multiple inputs, a list of such per-input results is returned.
 }
 \description{
 Produces a phasegram of a sound or another time series, which is a collection
@@ -150,12 +189,13 @@ obtained by time-shifting the frame by \code{timeLag} ms. A Poincare section
 is taken through the phase portrait (currently at a fixed angle, namely the
 default in \code{\link[nonlinearTseries]{poincareMap}}), giving the
 intersection points of trajectories with this bisecting line. The density of
-intersections is estimated with a smoothing kernel of bandwidth \code{bw} (as
-an alternative to using histogram bins). The density distributions per frame
-are stacked together into a phasegram (output: "orig"). The ranges of phase
-portraits depend on the amplitude of signal in each frame. The resulting
-phasegram can optionally be rasterized to smooth it for plotting (output:
-"rasterized").
+intersections is estimated with a smoothing kernel of bandwidth \code{bw}
+(as an alternative to using histogram bins). The density distributions per
+frame are stacked together into a phasegram (output: \code{orig}). The
+density values in \code{orig} are normalized by the global maximum across all
+frames. The resulting phasegram can optionally be rasterized to smooth it for
+plotting (output: \code{rasterized}); the rasterized matrix is additionally
+normalized row by row for display.
 }
 \examples{
 target = soundgen(sylLen = 300, pitch = c(350, 420, 420, 410, 340) * 3,
@@ -192,6 +232,7 @@ phasegram(s2, 16000, windowLength = 10, nonlinStats = NULL, bw = .02)
   \item Herbst, C. T., Herzel, H., Švec, J. G., Wyman, M. T., & Fitch, W.
   T. (2013). Visualization of system dynamics using phasegrams. Journal of
   the Royal Society Interface, 10(85), 20130288.
-  \item Huffaker, R., Huffaker, R. G., Bittelli, M., & Rosa, R. (2017). Nonlinear time series analysis with R. Oxford University Press.
+  \item Huffaker, R., Huffaker, R. G., Bittelli, M., & Rosa, R. (2017).
+  Nonlinear time series analysis with R. Oxford University Press.
 }
 }

@@ -6,7 +6,7 @@
 \usage{
 getEntropy(
   x,
-  type = c("wiener", "shannon")[1],
+  type = c("wiener", "shannon"),
   normalize = FALSE,
   convertNonPositive = 1e-10
 )
@@ -18,10 +18,13 @@ getEntropy(
 entropy}
 
 \item{normalize}{if TRUE, Shannon entropy is normalized by the length of
-input vector to range from 0 to 1. It has no affect on Wiener entropy}
+input vector to range from 0 to 1. It has no effect on Wiener entropy}
 
-\item{convertNonPositive}{all non-positive values are converted to
-\code{convertNonPositive}}
+\item{convertNonPositive}{occasional non-positive values are converted to
+\code{convertNonPositive} (if all inputs are non-positive, entropy = NA)}
+}
+\value{
+The entropy of input vector as a single number.
 }
 \description{
 Returns Wiener or Shannon entropy of an input vector such as the spectrum of
@@ -31,20 +34,20 @@ a sound. Non-positive input values are converted to a small positive number
 \examples{
 # Here are four simplified power spectra, each with 9 frequency bins:
 s = list(
-  c(rep(0, 4), 1, rep(0, 4)),       # a single peak in spectrum
-  c(0, 0, 1, 0, 0, .75, 0, 0, .5),  # perfectly periodic, with 3 harmonics
-  rep(0, 9),                        # a silent frame
-  rep(1, 9)                         # white noise
+  onePeak = c(rep(0, 4), 1, rep(0, 4)),         # a single peak in spectrum
+  harmonics = c(0, 0, 1, 0, 0, .75, 0, 0, .5),  # perfectly periodic, with 3 harmonics
+  silent = rep(0, 9),                           # a silent frame
+  noise = rep(1, 9)                             # white noise
 )
 
 # Wiener entropy is ~0 for periodic, NA for silent, 1 for white noise
-sapply(s, function(x) round(getEntropy(x), 2))
+lapply(s, function(x) round(getEntropy(x), 2))
 
 # Shannon entropy is ~0 for periodic with a single harmonic, moderate for
 # periodic with multiple harmonics, NA for silent, highest for white noise
-sapply(s, function(x) round(getEntropy(x, type = 'shannon'), 2))
+lapply(s, function(x) round(getEntropy(x, type = 'shannon'), 2))
 
 # Normalized Shannon entropy - same but forced to be 0 to 1
-sapply(s, function(x) round(getEntropy(x,
+lapply(s, function(x) round(getEntropy(x,
   type = 'shannon', normalize = TRUE), 2))
 }

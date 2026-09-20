@@ -8,7 +8,7 @@ morph(
   formula1,
   formula2,
   nMorphs,
-  playMorphs = TRUE,
+  play = FALSE,
   savePath = NA,
   samplingRate = 16000
 )
@@ -21,7 +21,8 @@ are also accepted (see examples)}
 
 \item{nMorphs}{the number of morphs to produce, including target sounds}
 
-\item{playMorphs}{if TRUE, the morphs will be played}
+\item{play}{if TRUE or a character referring to a valid player, the morphs
+will be played as they are produced}
 
 \item{savePath}{if it is the path to an existing directory, morphs will be
 saved there as individual .wav files (defaults to NA)}
@@ -30,16 +31,19 @@ saved there as individual .wav files (defaults to NA)}
 \code{formula1} and \code{formula2}}
 }
 \value{
-A list of two sublists (\code{$formulas} and \code{$sounds}), each
-  of length \code{nMorphs}. For ex., the formula for the second hybrid is
-  \code{m$formulas[[2]]}, and the waveform is \code{m$sounds[[2]]}
+A list containing two lists, (\code{$formulas} and \code{$sounds}),
+  each of length \code{nMorphs}. For ex., the formula for the second hybrid
+  is \code{m$formulas[[2]]}, and the waveform is \code{m$sounds[[2]]}
 }
 \description{
 Takes two formulas for synthesizing two target sounds with
 \code{\link{soundgen}} and produces a number of intermediate forms (morphs),
 attempting to go from one target sound to the other in a specified number of
 equal steps. Normally you will want to set \code{temperature} very low; the
-\code{tempEffects} argument is not supported.
+\code{tempEffects} argument is not supported. Undefined values are set to
+reasonably intelligent defaults, but it is safer to specify the same
+parameters in both formulas. For instance, if formula1 includes "noise" and
+"mouth", set these parameters explicitly in formula2 as well.
 }
 \examples{
 \dontrun{
@@ -49,7 +53,7 @@ playback = c(TRUE, FALSE)[1]
 m = morph(formula1 = list(repeatBout = 2),
           # equivalently: formula1 = 'soundgen(repeatBout = 2)',
           formula2 = presets$Misc$Dog_bark,
-          nMorphs = 5, playMorphs = playback)
+          nMorphs = 5, play = playback)
  # use $formulas to access formulas for each morph, $sounds for waveforms
  # m$formulas[[4]]
  # playme(m$sounds[[3]])
@@ -60,7 +64,7 @@ m = morph(
             formants = c(350, 2900, 3600, 4700))',
   'soundgen(pitch = c(300, 700, 500, 300),
             formants = c(800, 1250, 3100, 4500))',
-  nMorphs = 5, playMorphs = playback
+  nMorphs = 5, play = playback
 )
 
 # from a grunt of disgust to a moan of pleasure
@@ -68,13 +72,13 @@ m = morph(
   formula1 = 'soundgen(sylLen = 180, pitch = c(160, 160, 120), rolloff = -12,
     nonlinBalance = 70, subDep = 15, jitterDep = 2,
     formants = c(550, 1200, 2100, 4300, 4700, 6500, 7300),
-    noise = data.frame(time = c(0, 180, 270), value = c(-25, -25, -40)),
+    noise = data.frame(time = c(0, 180, 270), value = c(-20, -20, -30)),
     rolloffNoise = 0)',
   formula2 = 'soundgen(sylLen = 320, pitch = c(340, 330, 300),
     rolloff = c(-18, -16, -30), ampl = c(0, -10), formants = c(950, 1700, 3700),
-    noise = data.frame(time = c(0, 300, 440), value = c(-35, -25, -65)),
+    noise = data.frame(time = c(0, 300, 440), value = c(-25, -15, -35)),
     mouth = c(.4, .5), rolloffNoise = -5, attackLen = 30)',
-  nMorphs = 8, playMorphs = playback
+  nMorphs = 8, play = playback
 )
 
 # from scream_010 to moan_515b
@@ -99,9 +103,9 @@ m = morph(
       f3 = c(3600, 3500), f4 = c(4300, 4200)),
     mouth = c(.5, .3),
     noise = data.frame(time = c(0, 400, 660),
-    value = c(-20, -10, -60)),
+                       value = c(-40, -20, -70)),
     rolloffNoise = c(-5, -15))",
- nMorphs = 5, playMorphs = playback
+ nMorphs = 5, play = playback
 )
 }
 }

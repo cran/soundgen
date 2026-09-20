@@ -11,6 +11,7 @@ A list of length 4.
 presets
 }
 \description{
-A library of presets for easy generation of a few nice sounds.
+A library of presets for easy generation of a few representative sounds with
+\code{\link{soundgen}}.
 }
 \keyword{datasets}

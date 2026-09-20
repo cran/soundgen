@@ -7,24 +7,26 @@
 detectNLP(
   x,
   samplingRate = NULL,
-  predictors = c("d2", "subDep", "amEnvDep", "amMsPurity", "entropy", "HNR", "CPP",
-    "roughness"),
+  predictors = NULL,
   thresProb = 0.4,
-  voicelessdToNone = FALSE,
+  voicelessToNone = FALSE,
   train = soundgen::detectNLP_training_nonv,
   scale = NULL,
   from = NULL,
   to = NULL,
   pitchManual = NULL,
-  pars_analyze = list(windowLength = 50, roughness = list(windowLength = 15, step = 3)),
-  pars_phasegram = list(nonlinStats = "d2"),
-  pars_naiveBayes = list(prior = "static", wlClumper = 3),
+  analyze_pars = list(windowLength = 50, roughness = list(msType = "1D", specMethod =
+    "spectrum", specFun_pars = list(windowLength = 25, step = 2), amRes = NULL,
+    roughRange = NULL, roughMean = 100, roughSD = 8), amRange = c(20, 150)),
+  phasegram_pars = list(nonlinStats = "d2"),
+  naiveBayes_pars = list(prior = "static", wlClumper = 3),
   jumpThres = 14,
   jumpWindow = 100,
   reportEvery = NULL,
   cores = 1,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   main = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -44,16 +46,18 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{predictors}{variables to include in NLP classification. The default is
-to include all 7 variables in the training corpus. NA values are fine (they
-do not cause the entire frame to be dropped as long as at least one
-variable is measured).}
+\item{predictors}{variables to include in NLP classification. If NULL
+(default), uses the standard set of predictors if present in the training
+corpus: d2, subDep, amEnvDep, amMsPurity, entropyW, entropySh, HNR, CPP,
+roughness. If specified, uses all predictors as long as they are available
+in the training corpus. NA values are fine (they do not cause the entire
+frame to be dropped as long as at least one variable is measured).}
 
 \item{thresProb}{minimum probability of NLP for the frame to be classified as
 non-"none", which is good for reducing false alarms (<1/nClasses means just
 go for the highest probability)}
 
-\item{voicelessdToNone}{if TRUE, frames treated as voicelessd are set to "none"
+\item{voicelessToNone}{if TRUE, frames treated as voiceless are set to "none"
 (mostly makes sense with manual pitch tracking)}
 
 \item{train}{training corpus, namely the result of running
@@ -65,8 +69,8 @@ soundgen()-generated sounds with various NLP. To train your own, run
 classification of NLP per frame (normally this would be converted from NLP
 annotations), and run \code{\link{naiveBayes_train}}.}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
@@ -76,23 +80,22 @@ provide a numeric vector of any length. For multiple sounds, provide a
 dataframe with columns "file" and "pitch" (or path to a csv file) as
 returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
-file is also OK (eg as returned by pitch_app)}
+file is also accepted - e.g., as returned by \code{\link{pitch_app}}}
 
-\item{pars_analyze}{arguments passed to \code{\link{analyze}}. NB: drop
+\item{analyze_pars}{arguments passed to \code{\link{analyze}}. NB: drop
 everything unnecessary to speed up the process, e.g. nFormants = 0,
 loudness = NULL, etc. If you have manual pitch contours, pass them as
 \code{pitchManual = ...}. Make sure the "silence" threshold is appropriate,
 and ideally normalize the audio (silent frames are automatically assigned
 to "none")}
 
-\item{pars_phasegram}{arguments passed to \code{\link{phasegram}}. NB: only
-\code{d2} and \code{nPeaks} are used for NLP detection because they proved
-effective in the training corpus; other nonlinear statistics are not
-calculated to save time.}
+\item{phasegram_pars}{arguments passed to \code{\link{phasegram}}. NB: only
+phasegram descriptives requested here are used for NLP detection; other
+nonlinear statistics are not calculated to save time.}
 
-\item{pars_naiveBayes}{arguments passed to \code{\link{naiveBayes}}. It is
-strongly recommended to use some clumpering, with \code{wlClumper} given as
-frames (multiple by \code{step} to get the corresponding minumum duration
+\item{naiveBayes_pars}{arguments passed to \code{\link{naiveBayes}}. It is
+strongly recommended to use some clumping, with \code{wlClumper} given as
+frames (multiply by \code{step} to get the corresponding minimum duration
 of an NLP segment in ms), and/or dynamic priors.}
 
 \item{jumpThres}{frames in which pitch changes by \code{jumpThres} octaves/s
@@ -104,47 +107,51 @@ one frame to the next}
 the analyzed frame, ms}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, produces a spectrogram with annotated NLP regimes}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{main, xlab, ylab, ...}{graphical parameters passed to
 \code{\link{spectrogram}}}
 
-\item{ylim}{frequency range to plot, kHz (defaults to 0 to Nyquist
-frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
+\item{ylim}{frequency range to plot, kHz}
 
-\item{width, height, units, res}{parameters passed to
-\code{\link[grDevices]{png}} if the plot is saved}
+\item{width, height, units, res}{graphical parameters for saving plots passed to
+\code{png}}
 }
 \value{
-Returns a dataframe with frame-by-frame descriptives, posterior
-  probabilities of each NLP type per frame, and the tentative classification
-  (the NLP type with the highest posterior probability, possibly corrected by
-  clumpering). The time step is equal to the larger of the steps passed to
+A list of datasets, one per input file, with acoustic descriptives
+  per frame (returned by \code{analyze} and \code{phasegram}), probabilities
+  of each NLP type per frame, and the putative classification of NLP per
+  frame. The time step is equal to the larger of the steps passed to
   analyze() and phasegram().
-
-Returns a list of datasets, one per input file, with acoustic
-  descriptives per frame (returned by \code{analyze} and \code{phasegram}),
-  probabilities of each NLP type per frame, and the putative classification
-  of NLP per frame.
 }
 \description{
 (Experimental) A function for automatically detecting and annotating
 nonlinear vocal phenomena (NLP). Algorithm: analyze the audio using
 \code{\link{analyze}} and \code{\link{phasegram}}, then use the extracted
 frame-by-frame descriptives to classify each frame as having no NLP ("none"),
-subharmonics ("sh"), sibebands / amplitude modulation ("sb"), or
+subharmonics ("sh"), sidebands / amplitude modulation ("sb"), or
 deterministic chaos ("chaos"). The classification is performed by a
 \code{\link{naiveBayes}} algorithm adapted to autocorrelated time series and
 pretrained on a manually annotated corpus of vocalizations. Whenever
 possible, check and correct pitch tracks prior to running the algorithm. See
-\code{\link{naiveBayes}} for tips on using adaptive priors and "clumpering"
+\code{\link{naiveBayes}} for tips on using adaptive priors and clumping
 to account for the fact that NLP typically occur in continuous segments
 spanning multiple frames.
 }
@@ -161,19 +168,15 @@ target = soundgen(sylLen = 2000, addSilence = 0, temperature = 1e-2,
 # classifier trained on manually annotated recordings of human nonverbal
 # vocalizations
 nlp = detectNLP(target, 16000,
-  predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
   plot = TRUE, ylim = c(0, 4))
 
 # classifier trained on synthetic, soundgen()-generated sounds
 nlp = detectNLP(target, 16000,
   train = soundgen::detectNLP_training_synth,
-  predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
   plot = TRUE, ylim = c(0, 4))
 head(nlp[, c('time', 'pr')])
 table(nlp$pr)
 plot(nlp$amEnvDep, type = 'l')
-plot(nlp$subDep, type = 'l')
-plot(nlp$entropy, type = 'l')
 plot(nlp$none, type = 'l')
 points(nlp$sb, type = 'l', col = 'blue')
 points(nlp$sh, type = 'l', col = 'green')
@@ -184,13 +187,6 @@ s1 = soundgen(sylLen = 1200, temperature = .001, pitch = list(
   time = c(0, 350, 351, 890, 891, 1200),
   value = c(140, 230, 460, 330, 220, 200)))
 playme(s1, 16000)
-nlp1 = detectNLP(s1, 16000, plot = TRUE, ylim = c(0, 3),
-  predictors = c('subDep', 'amEnvDep', 'amMsPurity', 'HNR', 'CPP'),
-  train = soundgen::detectNLP_training_synth)
-
-# process all files in a folder
-nlp = detectNLP('/home/allgoodguys/Downloads/temp260/',
-  pitchManual = soundgen::pitchContour, cores = 4, plot = TRUE,
-  savePlots = '', ylim = c(0, 3))
+nlp1 = detectNLP(s1, 16000, plot = TRUE, ylim = c(0, 3))
 }
 }

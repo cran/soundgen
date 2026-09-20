@@ -9,55 +9,59 @@ transplantFormants(
   recipient,
   samplingRate = NULL,
   freqWindow = NULL,
-  blur = NULL,
+  specEnvMethod = c("cepstral", "gauss", "movavg", "peak"),
   dynamicRange = 80,
   windowLength = 50,
   step = NULL,
-  overlap = 90,
+  overlap = 75,
   wn = "gaussian",
-  zp = 0
+  normalize = c("orig", "max", "none")
 )
 }
 \arguments{
-\item{donor}{the sound that provides the formants (vector, Wave, or file) or
-the desired spectral filter (matrix) as returned by
-\code{\link{getSpectralEnvelope}}}
+\item{donor}{either the sound that provides the formants (vector, Wave, or
+file) or the desired spectral filter (matrix) as returned by
+\code{\link{getFormantFilter}} or \code{\link{spectrogram}} - linear
+amplitude, frequency in rows, time in columns}
 
 \item{recipient}{the sound that receives the formants (vector, Wave, or file)}
 
-\item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
-numeric vector)}
+\item{samplingRate}{sampling rate (Hz) of both \code{donor} and
+\code{recipient}, which must match}
 
-\item{freqWindow}{the width of smoothing window used to flatten the
-recipient's spectrum per frame. Defaults to median pitch of the donor (or
-of the recipient if donor is a filter matrix). If \code{blur} is NULL,
-\code{freqWindow} also controls the amount of smoothing applied to the
-donor's spectrogram}
+\item{freqWindow}{the width of spectral smoothing window, Hz: a single
+positive number, roughly the expected spacing between harmonics. Defaults
+to the median pitch of the donor (or of the recipient if donor is a filter
+matrix); if pitch detection fails, defaults to 400 Hz with a message}
 
-\item{blur}{the amount of Gaussian blur applied to the donor's spectrogram as
-a faster and more flexible alternative to smoothing it per bin with
-\code{freqWindow}. Provide two numbers: frequency (Hz, normally
-approximately equal to freqWindow), time (ms) (NA / NULL / 0 means no
-blurring in that dimension). See examples and \code{\link{spectrogram}}}
+\item{specEnvMethod}{the method of extracting a smoothed spectral envelope:
+"cepstral" = Gaussian liftering of the real cepstrum (default), "gauss" =
+Gaussian blur of the log spectrum, "movavg" = moving average of the log
+spectrum, "peak" = moving maximum (upper envelope). See
+\code{\link{getSpecEnv}} for details}
 
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
+\item{dynamicRange}{regions under \code{-dynamicRange} dB are treated as silent}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{overlap}{overlap between successive windows, \%}
 
-\item{wn}{window type accepted by \code{\link[seewave]{ftwindow}}, currently
-gaussian, hanning, hamming, bartlett, blackman, flattop, rectangle}
+\item{wn}{window type accepted by \code{\link{winFun}}: character string or
+function}
 
-\item{zp}{window length after zero padding, points}
+\item{normalize}{"orig" = same as donor / recipient (default), "max" = max
+possible amplitude of the donor given its scale (or of the recipient if
+donor is a filter matrix), "none" = no normalization}
+}
+\value{
+The filtered waveform as a numeric vector with the original sampling
+  rate, on a scale determined by the \code{normalize} argument and with the
+  same duration as \code{recipient}.
 }
 \description{
 Takes the general spectral envelope of one sound (\code{donor}) and
@@ -65,84 +69,74 @@ Takes the general spectral envelope of one sound (\code{donor}) and
 like speech or animal vocalizations, this has the effect of replacing the
 formants in the recipient sound while preserving the original intonation and
 (to some extent) voice quality. Note that the amount of spectral smoothing
-(specified with \code{freqWindow} or \code{blur}) is a crucial parameter: too
-little smoothing, and noise between harmonics will be amplified, creasing
-artifacts; too much, and formants may be missed. The default is to set
-\code{freqWindow} to the estimated median pitch, but this is time-consuming
-and error-prone, so set it to a reasonable value manually if possible. Also
-ensure that both sounds have the same sampling rate.
+(specified with \code{freqWindow}) is a crucial parameter: too little
+smoothing, and noise between harmonics will be amplified, creating artifacts;
+too much, and formants may be missed. The default is to set \code{freqWindow}
+to the estimated median pitch, but this is time-consuming and error-prone, so
+set it to a reasonable value manually if possible; if pitch detection fails,
+\code{freqWindow} defaults to 400 Hz. Also ensure that both sounds have the
+same sampling rate. You may want to \code{\link{fade}} the output a little (a
+very short linear fade-in/out is applied internally).
 }
 \details{
-Algorithm: makes spectrograms of both sounds, interpolates and smooths or
-blurs the donor spectrogram, flattens the recipient spectrogram, multiplies
-the spectrograms, and transforms back into time domain with inverse STFT.
+Algorithm: makes spectrograms of both sounds, flattens the recipient
+spectrogram by dividing out its smoothed spectral envelope (obtained with
+\code{\link{getSpecEnv}}), smooths the donor spectrogram (or interpolates the
+supplied filter matrix) with \code{\link{getSpecEnv}}, multiplies the
+spectrograms, and transforms back into time domain with inverse STFT. To
+avoid amplifying noise, spectral bins more than \code{dynamicRange} dB below
+the peak of their frame are left untouched, and the original amplitude of
+each recipient frame is preserved. Anything more than \code{dynamicRange} dB
+below the global maximum is then zeroed out.
 }
 \examples{
+rec = rnorm(5000)  # white noise
+donor = soundgen()  # voiced /a/
+whisper = transplantFormants(donor = donor, recipient = rec,
+  samplingRate = 16000, freqWindow = 300)  # whispered /a/
+# playme(whisper)
+meanSpectrum(whisper, 16000)
+
 \dontrun{
-# Objective: take formants from the bleating of a sheep and apply them to a
-# synthetic sound with any arbitrary duration, intonation, nonlinearities etc
-data(sheep, package = 'seewave')  # import a recording from seewave
-playme(sheep)
-spectrogram(sheep, osc = TRUE)
+# Objective: take formants from one sound and apply them to another
+s_orig = soundgen(pitch = 100, formants = 'ai')
 
 recipient = soundgen(
   sylLen = 1200,
   pitch = c(100, 300, 250, 200),
   vibratoFreq = 9, vibratoDep = 1,
+  formants = NULL,
   addSilence = 180,
-  samplingRate = sheep@samp.rate,  # same as donor
+  samplingRate = 16000,  # same as donor
   invalidArgAction = 'ignore')  # force to keep the low samplingRate
-playme(recipient, sheep@samp.rate)
-spectrogram(recipient, sheep@samp.rate, osc = TRUE)
+playme(recipient, 16000)
+spectrogram(recipient, 16000)
 
 s1 = transplantFormants(
-  donor = sheep,
+  donor = s_orig,
   recipient = recipient,
-  samplingRate = sheep@samp.rate)
-playme(s1, sheep@samp.rate)
-spectrogram(s1, sheep@samp.rate, osc = TRUE)
+  samplingRate = 16000)
+playme(s1, 16000)
+spectrogram(s1, 16000)
 
-# The spectral envelope of s1 will be similar to sheep's on a frequency scale
-# determined by freqWindow. Compare the spectra:
+# The spectral envelope of s1 will be similar to that of the original on a
+# frequency scale determined by freqWindow. Compare the spectra:
 par(mfrow = c(1, 2))
-seewave::meanspec(sheep, dB = 'max0', alim = c(-50, 20), main = 'Donor')
-seewave::meanspec(s1, f = sheep@samp.rate, dB = 'max0',
-                  alim = c(-50, 20), main = 'Processed recipient')
+meanSpectrum(s_orig, 16000, yScale = 'max0', ylim = c(-50, 0), main = 'Donor')
+meanSpectrum(s1, 16000, yScale = 'max0', ylim = c(-50, 0),
+             main = 'Processed recipient')
 par(mfrow = c(1, 1))
 
 # if needed, transplant amplitude envelopes as well:
-s2 = transplantEnv(donor = sheep, samplingRateD = sheep@samp.rate,
-                   recipient = s1, windowLength = 10)
-playme(s2, sheep@samp.rate)
-spectrogram(s2, sheep@samp.rate, osc = TRUE)
-
-# using "blur" to apply Gaussian blur to the donor's spectrogram instead of
-# smoothing per frame with "freqWindow" (~2.5 times faster)
-spectrogram(sheep, blur = c(150, 0))  # preview to select the amount of blur
-s1b = transplantFormants(
-  donor = sheep,
-  recipient = recipient,
-  samplingRate = sheep@samp.rate,
-  freqWindow = 150,
-  blur = c(150, 0))
-  # blur: 150 = SD of 150 Hz along the frequency axis,
-  #      0 = no smoothing along the time axis
-playme(s1b, sheep@samp.rate)
-spectrogram(s1b, sheep@samp.rate, osc = TRUE)
-
-# Now we use human formants on sheep source: the sheep asks "why?"
-s3 = transplantFormants(
-  donor = getSpectralEnvelope(
-            nr = 512, nc = 100,  # fairly arbitrary dimensions
-            formants = 'uaaai',
-            samplingRate = sheep@samp.rate),
-  recipient = sheep,
-  samplingRate = sheep@samp.rate)
-playme(s3, sheep@samp.rate)
-spectrogram(s3, sheep@samp.rate, osc = TRUE)
+s2 = transplantEnv(donor = s_orig, recipient = s1,
+                   samplingRateR = 16000, samplingRateD = 16000,
+                   windowLength = 10)
+playme(s2, 16000)
+spectrogram(s2, 16000)
 }
 }
 \seealso{
-\code{\link{transplantEnv}} \code{\link{getSpectralEnvelope}}
-  \code{\link{addFormants}} \code{\link{spectrogram}} \code{\link{soundgen}}
+\code{\link{transplantEnv}} \code{\link{getFormantFilter}}
+  \code{\link{addFormants}} \code{\link{getSpecEnv}}
+  \code{\link{shiftFormants}} \code{\link{shiftPitch}}
 }

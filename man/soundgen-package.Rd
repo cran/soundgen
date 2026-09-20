@@ -5,12 +5,15 @@
 \alias{soundgen-package}
 \title{The soundgen package}
 \description{
-Performs parametric synthesis of sounds with harmonic and noise components
-such as animal vocalizations or human voice. Also offers tools for audio
-manipulation and acoustic analysis, including pitch tracking, spectral
-analysis, audio segmentation, pitch and formant shifting, etc. Includes four
-interactive web apps for synthesizing and annotating audio, manually
-correcting pitch contours, and measuring formant frequencies.
+Parametric source-filter synthesis of harmonic-noise signals, such as animal
+vocalizations and human voice, with control over pitch, formants, noise,
+amplitude modulation, nonlinear phenomena, and morphing. General signal
+processing tools for audio analysis and manipulation: pitch tracking, formant
+and vocal tract length estimation, reassigned and auditory spectrograms,
+modulation spectra and psychoacoustic roughness, self-similarity and
+surprisal, audio segmentation, pitch and formant shifting, etc. Includes four
+interactive web apps for audio synthesis, annotation, formant analysis, and
+manually correcting pitch contours.
 }
 \details{
 Visualization \itemize{
@@ -31,13 +34,13 @@ Acoustic analysis \itemize{
   \item \link{estimateVTL}, \link{schwa} Formant analysis (see Anikin et al. 2024)
 }
 Interactive acoustic analysis \itemize{
-  \item \link{pitch_app} Manually corrected pitch tracking
+  \item \link{pitch_app} Manually corrected formant measurement
   \item \link{formant_app} Manually corrected pitch tracking
   \item \link{annotation_app} Audio annotation
 }
 Sound synthesis \itemize{
   \item \link{soundgen} The main function for sound and voice synthesis (see Anikin 2019)
-  \item \link{soundgen_app} Interaction version of the soundgen() function
+  \item \link{soundgen_app} Interactive version of the soundgen() function
   \item \link{morph} Morphing of two sounds based on their soundgen code
 }
 Sound modification \itemize{
@@ -68,8 +71,8 @@ Vignettes \itemize{
   \item Anikin, A. & Herbst, C.T. (2025) How to analyze and manipulate
   nonlinear phenomena in voice recordings. Philosophical Transactions B 380:
   20240003.
-  \item Anikin. A. (2026) Measuring surprisal in sound sequences.
-  https://cogsci.se/publications/pdf/anikin_2026_surprisal_preprint.pdf
+  \item Anikin. A. (2026) Measuring surprisal in sound sequences. Behavior
+  Research Methods.
 }
 }
 \seealso{
@@ -81,6 +84,11 @@ Useful links:
 }
 \author{
 \strong{Maintainer}: Andrey Anikin \email{andrey.anikin@cogsci.se}
+
+Authors:
+\itemize{
+  \item Andrey Anikin \email{andrey.anikin@cogsci.se}
+}
 
 }
 \keyword{internal}

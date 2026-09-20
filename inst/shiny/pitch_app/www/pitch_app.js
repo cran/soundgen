@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   var startX = 0, scrollBarLeft = 0, scrollBarLeft_new = 0;
   slider.style.left = '0%';
 
-  rmPcnt = function(x) {
+  function rmPcnt(x) {
     return(Number(x.slice(0, -1)));
   };
   // rmPcnt('200%');  // returns "200" as a number
@@ -75,9 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     if (delta < 0) {
-      dir = 'r';
+      var dir = 'r';
     } else {
-      dir = 'l';
+      var dir = 'l';
     }
     if (cntrlIsPressed) {
       // zoom
@@ -111,6 +111,5 @@ document.addEventListener('DOMContentLoaded', () => {
       event.preventDefault();
     }
   });
-
 
 });

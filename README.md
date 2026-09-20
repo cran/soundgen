@@ -4,27 +4,81 @@
 Version](http://www.r-pkg.org/badges/version/soundgen)](https://cran.r-project.org/package=soundgen)
 [![Downloads](http://cranlogs.r-pkg.org/badges/soundgen)](https://CRAN.R-project.org/package=soundgen)
 
-R package for sound synthesis and acoustic analysis.  
-Homepage with help, demos, etc: <http://cogsci.se/soundgen.html>
-
-Performs parametric synthesis of sounds with harmonic and noise
-components such as animal vocalizations or human voice. Also includes
-tools for spectral analysis, pitch tracking, audio segmentation,
-self-similarity matrices, morphing, etc.
+Parametric source-filter synthesis of harmonic-noise signals, such as
+animal vocalizations and human voice, with control over pitch, formants,
+noise, amplitude modulation, nonlinear phenomena, and morphing. General
+signal processing tools for audio analysis and manipulation: pitch
+tracking, formant and vocal tract length estimation, reassigned and
+auditory spectrograms, modulation spectra and psychoacoustic roughness,
+self-similarity and surprisal, audio segmentation, pitch and formant
+shifting, etc. Includes four interactive web apps for audio synthesis,
+annotation, formant analysis, and manually correcting pitch contours.
 
 # Key functions
 
--   Sound synthesis from R console: `soundgen()`
--   Shiny app for sound synthesis (opens in a browser): `soungen_app()`
--   Acoustic analysis of a wav/mp3 file: `analyze()`
--   Shiny app for editing intonation contours (opens in a browser):
-    `pitch_app()`
--   Measuring syllables, pauses, and bursts in a wav/mp3 file:
-    `segment()`
+## Visualization
 
-For more information, please see the vignettes on sound synthesis and
-acoustic analysis and other tips at
-<a href="https://cogsci.se/soundgen.html">https://cogsci.se/soundgen.html</a>
+- `spectrogram` Ordinary (STFT) spectrograms
+- `audSpectrogram` Auditory spectrograms
+- `modulationSpectrum` Modulation spectra and roughness (see Anikin
+  2025)
+- `ssm` Self-similarity matrices, acoustic novelty (see Anikin 2026)
+- `phasegram` Nonlinear analysis, phasegrams (see Anikin & Herbst 2025)
+
+## Acoustic analysis
+
+- `analyze` General-purpose acoustic analysis (extracts nearly
+  everything: spectral descriptives, pitch, formants, loudness,
+  roughness, …)
+- `segment` Audio segmentation, analysis of rhythm and temporal
+  structure of sequences
+- `getSurprisal` Shannon and autocorrelation-based surprisal, Bayesian
+  surprise (see Anikin 2026)
+- `estimateVTL`, `schwa` Formant analysis (see Anikin et al. 2024)
+
+## Interactive acoustic analysis
+
+- `pitch_app` Manually corrected formant measurement
+- `formant_app` Manually corrected pitch tracking
+- `annotation_app` Audio annotation
+
+## Sound synthesis
+
+- `soundgen` The main function for sound and voice synthesis (see Anikin
+  2019)
+- `soundgen_app` Interactive version of the `soundgen()` function
+- `morph` Morphing of two sounds based on their soundgen code
+
+## Sound modification
+
+- `normalizeFolder` Peak / RMS etc normalization of recordings
+- `timeStretch`, `shiftPitch`, `prosody`, `shiftFormants` Selective
+  modification of fundamental frequency, duration, and/or resonance
+  frequency
+- `noiseRemoval`, `compressor`, `addAM`, `resample`, etc: various audio
+  effects
+
+## Vignettes
+
+- <https://cogsci.se/soundgen/spectrograms.html>
+- <https://cogsci.se/soundgen/sound_generation.html>
+- <https://cogsci.se/soundgen/acoustic_analysis.html>
+- <https://cogsci.se/soundgen/matching/matching.html>
+
+## References
+
+- Anikin, A. (2019). Soundgen: an open-source tool for synthesizing
+  nonverbal vocalizations. Behavior Research Methods, 51(2), 778-792.
+- Anikin, A., Barreda, S. & Reby, D. (2024) A practical guide to
+  calculating vocal tract length and scale-invariant formant patterns.
+  Behavior Research Methods 56, 5588–5604.
+- Anikin, A. (2025) Acoustic estimation of voice roughness. Attention,
+  Perception, & Psychophysics 87: 1771–1787.
+- Anikin, A. & Herbst, C.T. (2025) How to analyze and manipulate
+  nonlinear phenomena in voice recordings. Philosophical Transactions B
+  380: 20240003.
+- Anikin, A. (2026) Measuring surprisal in sound sequences. Behavior
+  Research Methods.
 
 # Example of sound synthesis
 
@@ -40,14 +94,14 @@ Use the `soundgen()` function to create a breathy moan:
                    2600, 3600, 4200, 4500),
       noise = data.frame(
         time = c(-50, 120, 700),  # time of noise anchors
-        value = c(-35, -25, -50)   # noise amplitude, dB
+        value = c(-25, -15, -40)   # noise amplitude, dB
       ),
       rolloffNoise = 0,           # flat noise spectrum before adding formants
       addSilence = 0, samplingRate = 44100, pitchSamplingRate = 44100,
-      play = TRUE, plot = TRUE, osc = TRUE, ylim = c(0, 6)
+      plot = TRUE, osc = TRUE, ylim = c(0, 6)
     )
 
-<img src="man/figures/README-synthsesis-1.png" width="80%" style="display: block; margin: auto;" />
+<img src="man/figures/README-synthsesis-1.png" alt="" width="80%" style="display: block; margin: auto;" />
 
 <p>
 <audio controls style = "display: block">
@@ -61,44 +115,31 @@ Use the `analyze()` function to detect pitch and obtain other spectral
 descriptives of the sound we have just synthesized:
 
     a = analyze(s, 44100, plot = TRUE, ylim = c(0, 6))
+    #> The sound is too short to be analyzed with amRes = 1 Hz. Actual amRes ~=  1.31
 
-<img src="man/figures/README-analysis-1.png" width="80%" style="display: block; margin: auto;" />
+<img src="man/figures/README-analysis-1.png" alt="" width="80%" style="display: block; margin: auto;" />
 
-    a$detailed[1:5, c('pitch', 'peakFreq', 'harmHeight', 'HNR', 'ampl', 'loudness')]
-    #>      pitch peakFreq harmHeight      HNR       ampl  loudness
-    #> 1       NA       NA         NA       NA 0.02203151  2.971372
-    #> 2 303.0399 300.1361   1063.385 12.61768 0.23630756 10.772501
-    #> 3 302.0111 300.1361   1052.351 21.29106 0.48501199 17.973918
-    #> 4 299.5857 300.1361   1049.926 21.05983 0.57804421 20.946816
-    #> 5 296.4350 300.1361   1036.771 19.61540 0.50244285 19.852580
+    a$detailed[1:5, c('time', 'pitch', 'HNR', 'ampl', 'loudness')]
+    #>        time    pitch       HNR       ampl  loudness
+    #> 1  25.00000       NA        NA 0.03313867  6.039053
+    #> 2  49.98866 298.2525  5.656488 0.18586389 14.131545
+    #> 3  74.97732 304.5555 15.080634 0.41149933 23.273527
+    #> 4  99.96599 300.9743 17.070995 0.53578982 27.618641
+    #> 5 124.95465 296.9162 14.551249 0.49568060 26.568438
     colnames(a$detailed)
     #>  [1] "duration"           "duration_noSilence" "time"               "amEnvDep"          
-    #>  [5] "amEnvDepVoiced"     "amEnvFreq"          "amEnvFreqVoiced"    "amMsFreq"          
-    #>  [9] "amMsFreqVoiced"     "amMsPurity"         "amMsPurityVoiced"   "ampl"              
-    #> [13] "ampl_noSilence"     "amplVoiced"         "CPP"                "dom"               
-    #> [17] "domVoiced"          "entropy"            "entropySh"          "entropyShVoiced"   
-    #> [21] "entropyVoiced"      "epoch"              "f1_freq"            "f1_width"          
-    #> [25] "f2_freq"            "f2_width"           "f3_freq"            "f3_width"          
-    #> [29] "flux"               "fmDep"              "fmFreq"             "fmPurity"          
-    #> [33] "harmEnergy"         "harmHeight"         "HNR"                "HNRVoiced"         
-    #> [37] "loudness"           "loudnessVoiced"     "novelty"            "noveltyVoiced"     
-    #> [41] "peakFreq"           "peakFreqVoiced"     "pitch"              "quartile25"        
-    #> [45] "quartile25Voiced"   "quartile50"         "quartile50Voiced"   "quartile75"        
-    #> [49] "quartile75Voiced"   "roughness"          "roughnessVoiced"    "specCentroid"      
-    #> [53] "specCentroidVoiced" "specSlope"          "specSlopeVoiced"    "subDep"            
-    #> [57] "subRatio"           "voiced"
-
-# Installation
-
-To install the current release from CRAN: `install.packages("soundgen")`
-
-NB: Make sure all dependencies have been installed correctly! On Macs,
-you may need to do the following:
-
--   First install brew according to the instructions here:
-    <https://brew.sh/>
--   Then run the following from the terminal  
-    `brew install libsndfile`  
-    `brew install fftw`
--   Finally, install soundgen in R:  
-    `install.packages("soundgen")`
+    #>  [5] "amEnvDepVoiced"     "amEnvFreq"          "amEnvFreqVoiced"    "amEnvPurity"       
+    #>  [9] "amEnvPurityVoiced"  "amMsFreq"           "amMsFreqVoiced"     "amMsPurity"        
+    #> [13] "amMsPurityVoiced"   "ampl"               "ampl_noSilence"     "amplVoiced"        
+    #> [17] "CPP"                "dom"                "domVoiced"          "entropySh"         
+    #> [21] "entropyShVoiced"    "entropyW"           "entropyWVoiced"     "epoch"             
+    #> [25] "f1_freq"            "f1_width"           "f2_freq"            "f2_width"          
+    #> [29] "f3_freq"            "f3_width"           "fluctuation"        "fluctuationVoiced" 
+    #> [33] "flux"               "fmDep"              "fmFreq"             "fmPurity"          
+    #> [37] "harmEnergy"         "harmHeight"         "HNR"                "HNRVoiced"         
+    #> [41] "loudness"           "loudnessVoiced"     "novelty"            "noveltyVoiced"     
+    #> [45] "peakFreq"           "peakFreqVoiced"     "pitch"              "quartile25"        
+    #> [49] "quartile25Voiced"   "quartile50"         "quartile50Voiced"   "quartile75"        
+    #> [53] "quartile75Voiced"   "roughness"          "roughnessVoiced"    "sharpness"         
+    #> [57] "sharpnessVoiced"    "specCentroid"       "specCentroidVoiced" "specSlope"         
+    #> [61] "specSlopeVoiced"    "subDep"             "subRatio"           "voiced"

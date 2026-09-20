@@ -5,30 +5,30 @@
 \title{Spectrogram to modulation spectrum 1D}
 \usage{
 specToMS_1D(
-  fb,
+  spec,
   samplingRate,
   windowLength = 250,
   step = windowLength/2,
-  method = c("spec", "meanspec")[2]
+  specMethod = c("meanSpectrum", "spectrum")
 )
 }
 \arguments{
-\item{fb}{input spectrogram (numeric matrix with frequency in rows and time
+\item{spec}{input spectrogram (numeric matrix with frequency in rows and time
 in columns)}
 
 \item{samplingRate}{for auditory spectrogram, the sampling rate of input
 audio; for STFT spectrograms, the number of STFT frames per second}
 
 \item{windowLength, step}{determine the resolution of modulation spectra (both
-in ms)}
+in ms); this only has an effect if \code{specMethod = "meanSpectrum"}}
 
-\item{method}{calls either \code{\link[seewave]{meanspec}} or
-\code{\link[seewave]{spec}}}
+\item{specMethod}{calls either \code{\link{meanSpectrum}} (faster) or
+\code{\link{spectrum}} (higher resolution)}
 }
 \value{
-Returns a modulation spectrum - a matrix of real values, with center
-  frequencies of original filters in rows and modulation frequencies in
-  columns.
+A modulation spectrum - a matrix of real values, with center
+  frequencies of original filters in rows (kHz) and modulation frequencies in
+  columns (Hz).
 }
 \description{
 Takes a spectrogram and returns the spectrum of each channel. The input can
@@ -39,23 +39,24 @@ of the spectrogram, here the spectra are calculated independently for each
 frequency bin.
 }
 \examples{
-data(sheep, package = 'seewave')
+data(speechEx, package = 'soundgen')
 
 # auditory spectrogram
-as = audSpectrogram(sheep, filterType = 'butterworth',
-  nFilters = 24, plot = FALSE)
-fb = t(do.call(cbind, as$filterbank_env))
-rownames(fb) = names(as$filterbank_env)
-ms = soundgen:::specToMS_1D(fb, sheep@samp.rate)
-plotMS(log(ms+.01), logWarpX = c(10, 2), quantile = NULL, ylab = 'kHz')
+as = audSpectrogram(speechEx, from = 0, to = 1,
+  envelope = 'hil', nFilters = 24, step = NULL, plot = FALSE)
+ms = specToMS_1D(as$filterbank_env, samplingRate = speechEx@samp.rate)
+plotMS(log(ms+.01), logWarpX = c(10, 2), quantiles = NULL, ylab = 'kHz')
 
 # ordinary STFT spectrogram
-sp = spectrogram(sheep, windowLength = 15, step = 0.5,
+sp = spectrogram(speechEx, from = 0, to = 1, windowLength = 15, step = 0.5,
   output = 'original', plot = FALSE)
-ms2 = soundgen:::specToMS_1D(sp, 1000 / 0.5)  # 1000/0.5 frames per s
-plotMS(log(ms2+.01), quantile = NULL, ylab = 'kHz')
+ms2 = specToMS_1D(sp, 1000 / 0.5)  # 1000/0.5 frames per s
+plotMS(log(ms2+.01), quantiles = NULL, ylab = 'kHz')
+
 \dontrun{
-ms_spec = soundgen:::specToMS_1D(fb, sheep@samp.rate, method = 'spec')
+# full resolution
+ms_spec = specToMS_1D(as$filterbank_env, samplingRate = speechEx@samp.rate,
+  specMethod = 'spectrum')
 plotMS(log(ms_spec+.01), logWarpX = c(10, 2), quantile = NULL, ylab = 'kHz')
 }
 }

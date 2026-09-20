@@ -4,7 +4,10 @@
 #' \code{\link{soundgen}} and produces a number of intermediate forms (morphs),
 #' attempting to go from one target sound to the other in a specified number of
 #' equal steps. Normally you will want to set \code{temperature} very low; the
-#' \code{tempEffects} argument is not supported.
+#' \code{tempEffects} argument is not supported. Undefined values are set to
+#' reasonably intelligent defaults, but it is safer to specify the same
+#' parameters in both formulas. For instance, if formula1 includes "noise" and
+#' "mouth", set these parameters explicitly in formula2 as well.
 #'
 #' @seealso \code{\link{soundgen}}
 #'
@@ -13,14 +16,15 @@
 #'   morphing will occur. Character strings containing the full call to soundgen
 #'   are also accepted (see examples)
 #' @param nMorphs the number of morphs to produce, including target sounds
-#' @param playMorphs if TRUE, the morphs will be played
+#' @param play if TRUE or a character referring to a valid player, the morphs
+#'   will be played as they are produced
 #' @param savePath if it is the path to an existing directory, morphs will be
 #'   saved there as individual .wav files (defaults to NA)
 #' @param samplingRate sampling rate of output, Hz. NB: overrides the values in
 #'   \code{formula1} and \code{formula2}
-#' @return A list of two sublists (\code{$formulas} and \code{$sounds}), each
-#'   of length \code{nMorphs}. For ex., the formula for the second hybrid is
-#'   \code{m$formulas[[2]]}, and the waveform is \code{m$sounds[[2]]}
+#' @return A list containing two lists, (\code{$formulas} and \code{$sounds}),
+#'   each of length \code{nMorphs}. For ex., the formula for the second hybrid
+#'   is \code{m$formulas[[2]]}, and the waveform is \code{m$sounds[[2]]}
 #' @export
 #' @examples
 #' \dontrun{
@@ -30,7 +34,7 @@
 #' m = morph(formula1 = list(repeatBout = 2),
 #'           # equivalently: formula1 = 'soundgen(repeatBout = 2)',
 #'           formula2 = presets$Misc$Dog_bark,
-#'           nMorphs = 5, playMorphs = playback)
+#'           nMorphs = 5, play = playback)
 #'  # use $formulas to access formulas for each morph, $sounds for waveforms
 #'  # m$formulas[[4]]
 #'  # playme(m$sounds[[3]])
@@ -41,7 +45,7 @@
 #'             formants = c(350, 2900, 3600, 4700))',
 #'   'soundgen(pitch = c(300, 700, 500, 300),
 #'             formants = c(800, 1250, 3100, 4500))',
-#'   nMorphs = 5, playMorphs = playback
+#'   nMorphs = 5, play = playback
 #' )
 #'
 #' # from a grunt of disgust to a moan of pleasure
@@ -49,13 +53,13 @@
 #'   formula1 = 'soundgen(sylLen = 180, pitch = c(160, 160, 120), rolloff = -12,
 #'     nonlinBalance = 70, subDep = 15, jitterDep = 2,
 #'     formants = c(550, 1200, 2100, 4300, 4700, 6500, 7300),
-#'     noise = data.frame(time = c(0, 180, 270), value = c(-25, -25, -40)),
+#'     noise = data.frame(time = c(0, 180, 270), value = c(-20, -20, -30)),
 #'     rolloffNoise = 0)',
 #'   formula2 = 'soundgen(sylLen = 320, pitch = c(340, 330, 300),
 #'     rolloff = c(-18, -16, -30), ampl = c(0, -10), formants = c(950, 1700, 3700),
-#'     noise = data.frame(time = c(0, 300, 440), value = c(-35, -25, -65)),
+#'     noise = data.frame(time = c(0, 300, 440), value = c(-25, -15, -35)),
 #'     mouth = c(.4, .5), rolloffNoise = -5, attackLen = 30)',
-#'   nMorphs = 8, playMorphs = playback
+#'   nMorphs = 8, play = playback
 #' )
 #'
 #' # from scream_010 to moan_515b
@@ -80,17 +84,24 @@
 #'       f3 = c(3600, 3500), f4 = c(4300, 4200)),
 #'     mouth = c(.5, .3),
 #'     noise = data.frame(time = c(0, 400, 660),
-#'     value = c(-20, -10, -60)),
+#'                        value = c(-40, -20, -70)),
 #'     rolloffNoise = c(-5, -15))",
-#'  nMorphs = 5, playMorphs = playback
+#'  nMorphs = 5, play = playback
 #' )
 #' }
 morph = function(formula1,
                  formula2,
                  nMorphs,
-                 playMorphs = TRUE,
+                 play = FALSE,
                  savePath = NA,
                  samplingRate = 16000) {
+  # which pars are different from the defaults of soundgen()?
+  arg_sng = as.list(args(soundgen))
+  # exclude booleans / non-morphable args
+  arg_sng = arg_sng[which(!names(arg_sng) %in% c('', '...', 'plot', 'play',
+                                                 'savePath', 'invalidArgAction'))]
+  defaults = lapply(arg_sng, eval, envir = environment(soundgen))
+
   # convert formulas to lists
   if (is.character(formula1)) {
     formula1 = paste0('list', substr(formula1, 9, nchar(formula1)))
@@ -98,7 +109,7 @@ morph = function(formula1,
   }
   if (!is.list(formula1)) {
     stop('Formula1 must be either a list of pars like "list(sylLen = 500)"
-         or a character string like "soundgen(sylLen = 500"')
+         or a character string like "soundgen(sylLen = 500)"')
   }
 
   if (is.character(formula2)) {
@@ -107,7 +118,7 @@ morph = function(formula1,
   }
   if (!is.list(formula2)) {
     stop('Formula2 must be either a list of pars like "list(sylLen = 500)"
-         or a character string like "soundgen(sylLen = 500"')
+         or a character string like "soundgen(sylLen = 500)"')
   }
 
   # expand all abbreviations to full format
@@ -125,15 +136,6 @@ morph = function(formula1,
     formula2$formantsNoise = reformatFormants(formula2$formantsNoise)
   }
 
-  for (anchor in c('pitch', 'pitchGlobal', 'glottis',
-                   'ampl', 'amplGlobal', 'mouth')) {
-    if(!is.null(formula1[[anchor]])) {
-      formula1[[anchor]] = reformatAnchors(formula1[[anchor]])
-    }
-    if(!is.null(formula2[[anchor]])) {
-      formula2[[anchor]] = reformatAnchors(formula2[[anchor]])
-    }
-  }
   if (is.numeric(formula1$noise)) {
     if (length(formula1$noise) > 0) {
       formula1$noise = data.frame(
@@ -157,9 +159,17 @@ morph = function(formula1,
     }
   }
 
+  # expand attackLen
+  if (length(formula1$attackLen) == 2 && length(formula2$attackLen) < 2) {
+    formula2$attackLen = rep(formula2$attackLen, 2)
+  }
+  if (length(formula2$attackLen) == 2 && length(formula1$attackLen) < 2) {
+    formula1$attackLen = rep(formula1$attackLen, 2)
+  }
+
   # set pitchSamplingRate to the higher value
   formula1$samplingRate = formula2$samplingRate = samplingRate
-  if (is.numeric(formula1$pitchSamplingRate) |
+  if (is.numeric(formula1$pitchSamplingRate) ||
       is.numeric(formula2$pitchSamplingRate)) {
     mps = max(formula1$pitchSamplingRate, formula2$pitchSamplingRate)
     formula1$pitchSamplingRate = formula2$pitchSamplingRate = mps
@@ -170,25 +180,12 @@ morph = function(formula1,
     stop('Nothing to morph!')
   }
 
-  # which pars are different from the defaults of soundgen()?
-  defaults = as.character(call('print', args(soundgen)))[2]
-  defaults = substr(defaults, 11, (nchar(defaults) - 12))
-  defaults = paste0('list(', defaults, ')')
-  defaults = eval(parse(text = defaults))
-  # NB: defaults = as.list(args(soundgen)) produces list elements of type "call" :((
-  # exclude booleans
-  defaults = defaults[!names(defaults) %in% c('plot', 'play', 'savePath', 'invalidArgAction')]
-
-  notDefaultIdx_formula1 = notDefaultIdx_formula2 = NA
+  notDefaultIdx_formula1 = notDefaultIdx_formula2 = integer(0)
   if (length(formula1) > 0) {
-    notDefaultIdx_formula1 = which(apply(matrix(seq_along(formula1)), 1, function(x) {
-      identical(formula1[[x]], defaults[[names(formula1)[x]]]) == FALSE
-    }))
+    notDefaultIdx_formula1 = which(!mapply(identical, formula1, defaults[names(formula1)]))
   }
   if (length(formula2) > 0) {
-    notDefaultIdx_formula2 = which(apply(matrix(seq_along(formula2)), 1, function(x) {
-      identical(formula2[[x]], defaults[[names(formula2)[x]]]) == FALSE
-    }))
+    notDefaultIdx_formula2 = which(!mapply(identical, formula2, defaults[names(formula2)]))
   }
 
   # these pars have to be morphed:
@@ -237,29 +234,92 @@ morph = function(formula1,
     }
   })
 
-  # NULL noise means these anchors should be set to the default -dynamicRange
-  if ('noise' %in% notDefaultNames) {
-    if (!is.numeric(f1$noise)) {
-      f1$noise = reformatAnchors(-defaults$dynamicRange)
+
+  # Standardize all anchor parameters to dataframes
+  # This matches the exact list of arguments processed by reformatAnchors() inside soundgen()
+  anchor_pars = c('pitch', 'pitchGlobal', 'glottis',
+                  'ampl', 'amplGlobal', 'noise', 'rolloffNoise', 'rolloffNoiseExp',
+                  'mouth', 'vocalTract', 'formantLocking', 'glottis',
+                  'vibratoFreq', 'vibratoDep',
+                  'subRatio', 'subDep', 'jitterLen', 'jitterDep', 'shimmerLen', 'shimmerDep',
+                  'vibratoFreq', 'vibratoDep', 'subDep',
+                  'rolloff', 'rolloffOct', 'rolloffKHz',
+                  'amDep', 'amFreq', 'amShape')
+
+  for (anchor in anchor_pars) {
+    if (anchor %in% names(f1)) {
+      if (is.numeric(f1[[anchor]]) || is.list(f1[[anchor]])) {
+        f1[[anchor]] = reformatAnchors(f1[[anchor]], normalizeTime = (anchor != 'noise'))
+      }
     }
-    if (!is.numeric(f2$noise)) {
-      f2$noise = reformatAnchors(-defaults$dynamicRange)
+    if (anchor %in% names(f2)) {
+      if (is.numeric(f2[[anchor]]) || is.list(f2[[anchor]])) {
+        f2[[anchor]] = reformatAnchors(f2[[anchor]], normalizeTime = (anchor != 'noise'))
+      }
     }
   }
 
+  # Intelligently fill missing / NA values for specific parameters
+  # to ensure morphing produces acoustically meaningful results rather than zeros.
+  is_missing = function(x) {
+    if (is.null(x)) return(TRUE)
+    tryCatch({
+      return(all(is.na(unlist(x))))
+    }, error = function(e) return(FALSE))
+  }
+
+  # 1. ampl, amplGlobal, pitchGlobal: NA or NULL --> 0 (as anchors)
+  for (par in c('ampl', 'amplGlobal', 'pitchGlobal')) {
+    if (par %in% names(f1) && is_missing(f1[[par]])) f1[[par]] = reformatAnchors(0)
+    if (par %in% names(f2) && is_missing(f2[[par]])) f2[[par]] = reformatAnchors(0)
+  }
+
+  # 2. noise: NA or NULL --> -dynamicRange
+  dr1 = if (!is.null(f1$dynamicRange)) f1$dynamicRange else defaults$dynamicRange
+  dr2 = if (!is.null(f2$dynamicRange)) f2$dynamicRange else defaults$dynamicRange
+  if ('noise' %in% names(f1) && is_missing(f1$noise)) f1$noise = reformatAnchors(-dr1)
+  if ('noise' %in% names(f2) && is_missing(f2$noise)) f2$noise = reformatAnchors(-dr2)
+
+  # 3. vocalTract: NA or NULL --> estimateVTL(formants)
+  if ('vocalTract' %in% names(f1) && is_missing(f1$vocalTract)) {
+    vtl_est = if (!is_missing(f1$formants)) estimateVTL(f1$formants) else
+      16.5 # 16.5 cm is a safe human default
+    f1$vocalTract = reformatAnchors(vtl_est)
+  }
+  if ('vocalTract' %in% names(f2) && is_missing(f2$vocalTract)) {
+    vtl_est = if (!is_missing(f2$formants)) estimateVTL(f2$formants) else 16.5
+    f2$vocalTract = reformatAnchors(vtl_est)
+  }
+
+  # 4. mouth: NA or NULL --> 0.5 (neutral)
+  if ('mouth' %in% names(f1) && is_missing(f1$mouth)) f1$mouth = reformatAnchors(0.5)
+  if ('mouth' %in% names(f2) && is_missing(f2$mouth)) f2$mouth = reformatAnchors(0.5)
+
+  # Guard against any remaining undefined parameters that cannot be intelligently defaulted
+  for (p in seq_along(f1)) {
+    if (is_missing(f1[[p]]) || is_missing(f2[[p]])) {
+      # Format values safely for the error message to avoid crashing on lists/dataframes
+      val1 = if (is.atomic(f1[[p]])) paste(f1[[p]], collapse = ',') else class(f1[[p]])[1]
+      val2 = if (is.atomic(f2[[p]])) paste(f2[[p]], collapse = ',') else class(f2[[p]])[1]
+      stop(paste0('Failed to morph ', names(f1)[p], ': "', val1, '" into "', val2,
+                  '". Both values must be defined for morphing.'))
+    }
+  }
+
+
   # log-transform pitch and formant frequencies before morphing
   if ('pitch' %in% names(f1)) {
-    if (is.numeric(f1$pitch$value)) f1$pitch$value = log(f1$pitch$value)
-    if (is.numeric(f2$pitch$value)) f2$pitch$value = log(f2$pitch$value)
+    if (is.data.frame(f1$pitch) && is.numeric(f1$pitch$value)) f1$pitch$value = log(f1$pitch$value)
+    if (is.data.frame(f2$pitch) && is.numeric(f2$pitch$value)) f2$pitch$value = log(f2$pitch$value)
   }
   if ('formants' %in% names(f1)) {
     for (l in seq_along(f1$formants)) {
-      if (is.numeric(f1$formants[[l]]$freq)) {
+      if (is.data.frame(f1$formants[[l]]) && is.numeric(f1$formants[[l]]$freq)) {
         f1$formants[[l]]$freq = log(f1$formants[[l]]$freq)
       }
     }
     for (l in seq_along(f2$formants)) {
-      if (is.numeric(f2$formants[[l]]$freq)) {
+      if (is.data.frame(f2$formants[[l]]) && is.numeric(f2$formants[[l]]$freq)) {
         f2$formants[[l]]$freq = log(f2$formants[[l]]$freq)
       }
     }
@@ -267,35 +327,16 @@ morph = function(formula1,
 
   if ('formantsNoise' %in% names(f1)) {
     for (l in seq_along(f1$formantsNoise)) {
-      if (is.numeric(f1$formantsNoise[[l]]$freq)) {
+      if (is.data.frame(f1$formantsNoise[[l]]) && is.numeric(f1$formantsNoise[[l]]$freq)) {
         f1$formantsNoise[[l]]$freq = log(f1$formantsNoise[[l]]$freq)
       }
     }
     for (l in seq_along(f2$formantsNoise)) {
-      if (is.numeric(f2$formantsNoise[[l]]$freq)) {
+      if (is.data.frame(f2$formantsNoise[[l]]) && is.numeric(f2$formantsNoise[[l]]$freq)) {
         f2$formantsNoise[[l]]$freq = log(f2$formantsNoise[[l]]$freq)
       }
     }
   }
-
-  # expand attackLen
-  if (length(formula1$attackLen) == 2 & length(formula2$attackLen) < 2) {
-    formula2$attackLen = rep(formula2$attackLen, 2)
-  }
-  if (length(formula2$attackLen) == 2 & length(formula1$attackLen) < 2) {
-    formula1$attackLen = rep(formula1$attackLen, 2)
-  }
-
-  # expand vectorized pars, if any, to anchors
-  for (i in seq_along(f1)) {
-    if (is.numeric(f1[[i]]) & is.numeric(f2[[i]])) {
-      if (length(f1[[i]]) > 1 | length(f2[[i]]) > 1) {
-        f1[[i]] = reformatAnchors(f1[[i]])
-        f2[[i]] = reformatAnchors(f2[[i]])
-      }
-    }
-  }
-
   # f1 and f2 are now fully prepared: two target formulas,
   # both of the same length, including the same pars, in the same order
 
@@ -305,17 +346,30 @@ morph = function(formula1,
   sounds = list()
   for (p in seq_along(f1)) {
     # morph each element of the formula list according to its type
-    if (is.numeric(f1[[p]])) {
-      m[[p]] = seq(f1[[p]], f2[[p]], length.out = nMorphs)
+    if (is.numeric(f1[[p]]) && is.numeric(f2[[p]])) {
+      if (length(f1[[p]]) == 1 && length(f2[[p]]) == 1) {
+        m[[p]] = seq(f1[[p]], f2[[p]], length.out = nMorphs)
+      } else {
+        len = max(length(f1[[p]]), length(f2[[p]]))
+        v1 = rep_len(f1[[p]], len)
+        v2 = rep_len(f2[[p]], len)
+        m[[p]] = lapply(1:nMorphs, function(i) {
+          v1 + (i - 1) / max(1, nMorphs - 1) * (v2 - v1)
+        })
+      }
     } else if (names(f1[p]) %in% c('formants', 'formantsNoise')) {
       m[[p]] = morphList(f1[[p]], f2[[p]], nMorphs = nMorphs)
-    } else {
+    } else if (is.data.frame(f1[[p]]) || is.data.frame(f2[[p]])) {
       m[[p]] = morphDF(f1[[p]], f2[[p]], nMorphs = nMorphs)
+    } else {
+      # For non-numeric, non-anchor parameters (e.g., character strings, lists like tempEffects),
+      # we cannot smoothly morph them. Just replicate f1's value for all morphs.
+      m[[p]] = rep(list(f1[[p]]), nMorphs)
     }
-    # a convoluted way of saving the output of morphFormants() in appropriate
-    # slots in the output list
+
+    # save the output in appropriate slots in the output list
     for (h in 1:nMorphs) {
-      formulas[[h]] [[p]] = m[[p]] [[h]]
+      formulas[[h]][[p]] = m[[p]][[h]]
     }
   }
   # END OF MORPHING THE FORMULAS
@@ -323,7 +377,7 @@ morph = function(formula1,
   # exponentiate pitch and formant frequencies after morphing
   if ('pitch' %in% names(f1)) {
     for (h in 1:nMorphs) {
-      if (is.numeric(formulas[[h]]$pitch$value)) {
+      if (is.data.frame(formulas[[h]]$pitch) && is.numeric(formulas[[h]]$pitch$value)) {
         formulas[[h]]$pitch$value = exp(formulas[[h]]$pitch$value)
       }
     }
@@ -331,9 +385,8 @@ morph = function(formula1,
   if ('formants' %in% names(f1)) {
     for (h in 1:nMorphs) {
       for (l in seq_along(f1$formants)) {
-        if (is.numeric(formulas[[h]]$formants[[l]]$freq)) {
-          formulas[[h]]$formants[[l]]$freq =
-            exp(formulas[[h]]$formants[[l]]$freq)
+        if (is.data.frame(formulas[[h]]$formants[[l]]) && is.numeric(formulas[[h]]$formants[[l]]$freq)) {
+          formulas[[h]]$formants[[l]]$freq = exp(formulas[[h]]$formants[[l]]$freq)
         }
       }
     }
@@ -341,9 +394,8 @@ morph = function(formula1,
   if ('formantsNoise' %in% names(f1)) {
     for (h in 1:nMorphs) {
       for (l in seq_along(f1$formantsNoise)) {
-        if (is.numeric(formulas[[h]]$formantsNoise[[l]]$freq)) {
-          formulas[[h]]$formantsNoise[[l]]$freq =
-            exp(formulas[[h]]$formantsNoise[[l]]$freq)
+        if (is.data.frame(formulas[[h]]$formantsNoise[[l]]) && is.numeric(formulas[[h]]$formantsNoise[[l]]$freq)) {
+          formulas[[h]]$formantsNoise[[l]]$freq = exp(formulas[[h]]$formantsNoise[[l]]$freq)
         }
       }
     }
@@ -352,10 +404,18 @@ morph = function(formula1,
   # generate the morphs based on the formulas
   for (h in 1:nMorphs) {
     sounds[[h]] = do.call(soundgen, formulas[[h]])
-    if (playMorphs) playme(sounds[[h]], samplingRate = samplingRate)
+    if (isTRUE(play)) {
+      playme(sounds[[h]], samplingRate)
+    } else if (is.character(play)) {
+      playme(sounds[[h]], samplingRate, player = play)
+    }
+
     if (!is.na(savePath)){
-      filename = paste0(savePath, 'morph_', h, '.wav')
-      seewave::savewav(sounds[[h]], f = samplingRate, filename = filename)
+      filename = file.path(savePath, paste0('morph_', h, '.wav'))
+      writeAudio(sounds[[h]],
+                 audio = readAudio(sounds[[h]], samplingRate = samplingRate),
+                 filename = filename,
+                 scale_used = max(abs(sounds[[h]])))
     }
   }
   return(list(formulas = formulas, sounds = sounds))

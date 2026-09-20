@@ -9,24 +9,22 @@ ssm(
   samplingRate = NULL,
   from = NULL,
   to = NULL,
-  sparse = FALSE,
-  input = c("melspec", "mfcc", "spec", "audSpec")[1],
-  melfcc_pars = list(windowLength = 125, step = 25, nbands = 50),
-  MFCC = 2:13,
-  audSpec_pars = list(nFilters = 16, step = 10),
-  takeLog = FALSE,
-  norm = FALSE,
-  simil = c("cosine", "cor")[1],
+  specFun = "melspec",
+  specFun_pars = list(),
+  logSpec = FALSE,
+  normalize = FALSE,
+  simil = c("cosine", "cor"),
   kernelLen = 1000,
   kernelSD = 0.5,
   padWith = 0,
-  ssmWin = NULL,
+  ssmWin = 1,
   summaryFun = c("mean", "sd"),
-  output = c("ssm", "novelty", "summary"),
+  output = c("ssm", "novelty"),
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   main = NULL,
   heights = c(2, 1),
   width = 900,
@@ -34,10 +32,10 @@ ssm(
   units = "px",
   res = NA,
   specPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
-    "Time, s"),
-  ssmPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab =
-    "Time, s", ylab = "Time, s"),
-  noveltyPars = list(type = "b", pch = 16, col = "black", lwd = 3)
+    "Time"),
+  ssmPars = list(colorTheme = c("bw", "seewave", "heat.colors", "...")[2], xlab = "Time",
+    ylab = "Time"),
+  noveltyPars = list(type = "l", col = "black", lwd = 1)
 )
 }
 \arguments{
@@ -51,29 +49,61 @@ numeric vector)}
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{sparse}{if TRUE, the entire SSM is not calculated, but only the central
-region needed to extract the novelty contour (speeds up the processing)}
+\item{specFun}{the function used to extract a spectrogram-like feature matrix.
+  Can be a string or a custom function that takes audio (numeric vector) as the
+  first argument and returns a spectrogram-like matrix with time in columns
+  and features in rows (see examples). A precomputed matrix is also accepted
+  (features in rows, time [ms] in columns, numeric rownames for plotting).
+  Supported strings:
+  \describe{
+    \item{\code{\link{stft_simple}}}{
+      \code{'stft'} / \code{STFT} / \code{'stft_simple'} (amplitude spectrogram)
+      Parameters in \code{specFun_pars}: \code{samplingRate} (optional if
+      frequency and time labels are not needed), \code{wl} (samples),
+      \code{step} (samples), \code{wn}, \code{zp}, \code{padWithSilence}.
+    }
+    \item{\code{\link{spectrogram}}}{
+      \code{'spectrogram'} (amplitude spectrogram - a wrapper around
+      stft_simple with more options).
+      Parameters in \code{specFun_pars}: see \code{\link{spectrogram}}.
+    }
+    \item{\code{\link[tuneR:powspec]{powspec}}}{
+      \code{'powerspec'} (power spectrogram with tuneR).
+      Parameters in \code{specFun_pars}: \code{wintime} (s) or
+      \code{windowLength} (ms), \code{steptime} (s) or \code{step} (ms),
+      \code{dither}.
+    }
+    \item{\code{\link[tuneR:melfcc]{melfcc}}}{
+      \code{'melspec'} (mel-spectrogram), \code{'mfcc'} / \code{'melfcc'} (MFCCs).
+      Parameters in \code{specFun_pars}: \code{windowLength} (ms), \code{step} (ms),
+      \code{nbands}, \code{maxfreq} (Hz), \code{MFCC} (integer vector).
+    }
+    \item{\code{\link{audSpectrogram}}}{
+      \code{'audSpectrogram'} / \code{'audSpec'} (auditory spectrogram).
+      Parameters in \code{specFun_pars}: see \code{\link{audSpectrogram}}.
+    }
+    \item{\code{\link{getRMS}}}{
+      \code{'getRMS'} / \code{'rms'} (RMS amplitude envelope).
+      Parameters in \code{specFun_pars}: see \code{\link{getRMS}}.
+    }
+    \item{\code{\link{getEnv}}}{
+      \code{'getEnv'} / \code{'env'} ("various smoothed envelopes: RMS,
+      analytical, peak, etc.). Parameters in \code{specFun_pars}: see
+      \code{\link{getEnv}}.
+    }
+}}
 
-\item{input}{the spectral representation used to calculate the SSM: "audSpec"
-= auditory spectrogram returned by \code{\link{audSpectrogram}}, "mfcc" =
-Mel-Frequency Cepstral coefficients, "melspec" = Mel-transformed STFT
-spectrogram, "spec" = STFT power spectrogram (all three returned by
-\code{\link[tuneR]{melfcc}}). Any custom spectrogram-like matrix of
-features (time in columns labeled in s, features in rows) is also accepted
-(see examples)}
+\item{specFun_pars}{a list of parameters passed to \code{specFun}. Defaults
+for \code{specFun = "melspec": list(windowLength = 125, step = 25, nbands =
+50)}; defaults for \code{specFun = "audSpec": list(nFilters = 16, step =
+10)}}
 
-\item{melfcc_pars}{a list of parameters passed to \code{\link[tuneR]{melfcc}}}
-
-\item{MFCC}{which mel-frequency cepstral coefficients to use; defaults to
-\code{2:13}}
-
-\item{audSpec_pars}{a list of parameters passed to
-\code{\link{audSpectrogram}} (if input = 'audSpec')}
-
-\item{takeLog}{if TRUE, the input is log-transformed prior to calculating
+\item{logSpec}{if TRUE, the input is log-transformed prior to calculating
 self-similarity}
 
-\item{norm}{if TRUE, the spectrum of each STFT frame is normalized}
+\item{normalize}{if TRUE, the spectrum of each STFT frame (or each column of
+feature matrix) is normalized to the same range prior to calculating
+self-similarity}
 
 \item{simil}{method for comparing frames: "cosine" = cosine similarity, "cor"
 = Pearson's correlation}
@@ -81,38 +111,49 @@ self-similarity}
 \item{kernelLen}{length of checkerboard kernel for calculating novelty, ms
 (larger values favor global, slow vs. local, fast novelty)}
 
-\item{kernelSD}{SD of checkerboard kernel for calculating novelty}
+\item{kernelSD}{SD of checkerboard kernel evaluated over [-1, 1]: for
+ex., if kernelSD = 0.5, the kernel spans approximately ±2 SDs}
 
-\item{padWith}{how to treat edges when calculating novelty: NA = treat sound
-before and after the recording as unknown, 0 = treat it as silence}
+\item{padWith}{how to treat edges when calculating novelty: NA = pad with NA
+(ignores edges in correlation), 0 = pad with zeros}
 
 \item{ssmWin}{window for averaging SSM, frames (has a smoothing effect and
 speeds up the processing)}
 
-\item{summaryFun}{functions used to summarize each acoustic characteristic,
-eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
-are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
-take care of NAs yourself}
+\item{summaryFun}{functions used to summarize novelty, eg \code{c('mean',
+'sd')}; user-defined functions are fine (see examples); NAs are omitted
+automatically for mean/median/sd/min/max/range/sum, otherwise take care of
+NAs yourself}
 
-\item{output}{what to return (drop "ssm" to save memory when analyzing a lot
-of files)}
+\item{output}{what to include in \code{$detailed} (drop "ssm" to save memory
+when analyzing a lot of files); options: 'ssm', 'novelty', 'all'}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
 \item{plot}{if TRUE, plots the SSM}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{main}{plot title}
 
 \item{heights}{relative sizes of the SSM and spectrogram/novelty plot}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{specPars}{graphical parameters passed to \code{filled.contour.mod} and
 affecting the \code{\link{spectrogram}}}
@@ -124,12 +165,24 @@ affecting the plot of SSM}
 \code{\link[graphics]{lines}} and affecting the novelty contour}
 }
 \value{
-Returns a list of two components: $ssm contains the self-similarity
-  matrix, and $novelty contains the novelty vector.
+A list with two top-level elements: \code{$detailed} and
+  \code{$summary}.
+
+  \code{$detailed} contains per-file results selected with the \code{output}
+  argument. If multiple sounds are analyzed, \code{$detailed} is a named list
+  of per-sound lists. If a single sound is analyzed, it is simplified to a
+  single list. Each list may contain:
+  \describe{
+    \item{ssm}{self-similarity matrix}
+    \item{novelty}{novelty vector}
+  }
+
+  \code{$summary} is a dataframe with summaries of novelty per sound (one
+  row per file), or \code{NULL} if \code{summaryFun = NULL}.
 }
 \description{
 Calculates the self-similarity matrix and novelty vector of a sound. The
-self-similarity matrix is produced by cross-correlating different segments of
+self-similarity matrix is produced by comparing all pairs of frames in
 the input sound. Novelty is calculated by convolving the self-similarity
 matrix with a tapered checkerboard kernel. The positive lobes of the kernel
 represent coherence (self-similarity within the regions on either side of the
@@ -144,16 +197,15 @@ sound = c(soundgen(),
           formants = NA, pitch = c(500, 330)))
 # playme(sound)
 # detailed, local features (captures each syllable)
-s1 = ssm(sound, samplingRate = 16000, kernelLen = 100,
-         sparse = TRUE)  # much faster with 'sparse'
+s1 = ssm(sound, samplingRate = 16000, kernelLen = 100)
 # more global features (captures the transition b/w the two sounds)
-s2 = ssm(sound, samplingRate = 16000, kernelLen = 400, sparse = TRUE)
+s2 = ssm(sound, samplingRate = 16000, kernelLen = 400)
 
 s2$summary
-s2$novelty  # novelty contour
+s2$detailed$novelty  # novelty contour
 \dontrun{
 ssm(sound, samplingRate = 16000,
-    input = 'mfcc', simil = 'cor', norm = TRUE,
+    specFun = 'mfcc', simil = 'cor', normalize = TRUE,
     ssmWin = 10,  # speed up the processing
     kernelLen = 300,  # global features
     specPars = list(colorTheme = 'seewave'),
@@ -163,18 +215,17 @@ ssm(sound, samplingRate = 16000,
 # Custom input: produce a nice spectrogram first, then feed it into ssm()
 sp = spectrogram(sound, 16000, windowLength = c(5, 40), contrast = .3,
   output = 'processed')  # return the modified spectrogram
-colnames(sp) = as.numeric(colnames(sp)) / 1000  # convert ms to s
-ssm(sound, 16000, kernelLen = 400, input = sp)
+ssm(sound, 16000, kernelLen = 400, specFun = sp)
 
 # Custom input: use acoustic features returned by analyze()
 an = analyze(sound, 16000, windowLength = 20, novelty = NULL)
-input_an = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
-input_an = t(apply(input_an, 1, scale))  # z-transform all variables
-input_an[is.na(input_an)] = 0  # get rid of NAs
-colnames(input_an) = an$detailed$time / 1000  # time stamps in s
-rownames(input_an) = 1:nrow(input_an)
-image(t(input_an))  # not a spectrogram, just a feature matrix
-ssm(sound, 16000, kernelLen = 500, input = input_an, takeLog = FALSE,
+feature_mat = t(an$detailed[, 4:ncol(an$detailed)]) # or select pitch, HNR, ...
+feature_mat = t(apply(feature_mat, 1, scale))  # z-transform all variables
+feature_mat[is.na(feature_mat)] = 0  # get rid of NAs
+colnames(feature_mat) = an$detailed$time  # time stamps in ms
+rownames(feature_mat) = 1:nrow(feature_mat)
+image(t(feature_mat))  # not a spectrogram, just a feature matrix
+ssm(sound, 16000, kernelLen = 500, specFun = feature_mat, logSpec = FALSE,
   specPars = list(ylab = 'Feature'))
 }
 }

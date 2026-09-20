@@ -11,17 +11,17 @@ prosody(
   analyze_pars = list(),
   shiftPitch_pars = list(),
   pitchManual = NULL,
-  play = FALSE,
-  saveAudio = NULL,
   reportEvery = NULL,
   cores = 1,
+  play = FALSE,
+  saveAudio = FALSE,
   plot = FALSE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   width = 900,
   height = 500,
   units = "px",
-  res = NA,
-  ...
+  res = NA
 )
 }
 \arguments{
@@ -34,7 +34,8 @@ numeric vector)}
 
 \item{multProsody}{multiplier of pitch excursion from median (on a
 logarithmic or musical scale): >1 = exaggerate intonation, 1 = no change, <1
-= flatten, 0 = completely flat at the original median pitch}
+= flatten, 0 = completely flat at the original median pitch; numeric vector
+or anchor format \code{list(time = ..., value = ...)}}
 
 \item{analyze_pars}{a list of parameters to pass to \code{\link{analyze}}
 (only needed if \code{pitchManual} is NULL - that is, if we attempt to
@@ -48,27 +49,39 @@ provide a numeric vector of any length. For multiple sounds, provide a
 dataframe with columns "file" and "pitch" (or path to a csv file) as
 returned by \code{\link{pitch_app}}, ideally with the same windowLength and
 step as in current call to analyze. A named list with pitch vectors per
-file is also OK (eg as returned by pitch_app)}
-
-\item{play}{if TRUE, plays the processed audio}
-
-\item{saveAudio}{full (!) path to folder for saving the processed audio; NULL
-= don't save, '' = same as input folder (NB: overwrites the originals!)}
+file is also accepted - e.g., as returned by \code{\link{pitch_app}}}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{play}{if TRUE, plays the output audio using the default player on your
+system. If a character string, it is passed to \code{\link{playme}} as the
+name of the player to use (e.g. 'aplay', 'play', 'vlc'). In case of errors,
+try setting another default player for \code{\link{playme}}}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{saveAudio}{if TRUE, saves the processed audio in a subdirectory named
+after the function and created in the input directory (if input is a file
+or folder) or in the working directory}
+
+\item{plot}{if TRUE, produces a plot of the results}
+
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
-
-\item{...}{other graphical parameters}
+\code{png}}
 }
 \value{
 If the input is a single audio (file, Wave, or numeric vector),
@@ -83,7 +96,10 @@ formants. This is a particular case of pitch shifting, which is performed
 with \code{\link{shiftPitch}}. The result is likely to be improved if
 manually corrected pitch contours are provided. Depending on the nature of
 audio, the settings that control pitch shifting may also need to be
-fine-tuned with the \code{shiftPitch_pars} argument.
+fine-tuned with the \code{shiftPitch_pars} argument. Any NAs in pitch contour
+are treated as voiceless fragments, and their pitch is not modified. If the
+NAs are not actual silences / voiceless frames, they should be interpolated
+before passing the pitch contour to prosody().
 }
 \examples{
 s = soundgen(sylLen = 200, pitch = c(150, 220), addSilence = 50,
@@ -97,31 +113,23 @@ s1 = prosody(s, 16000, multProsody = 2,
 # spectrogram(s1, 16000, yScale = 'log')
 
 \dontrun{
-# Flat intonation - remove all frequency modulation
-s2 = prosody(s, 16000, multProsody = 0,
-  analyze_pars = list(windowLength = 30, step = 15),
-  shiftPitch_pars = list(windowLength = 20, step = 1, freqWindow = 500),
-  plot = TRUE)
-playme(s2)
-spectrogram(s2, 16000, yScale = 'log')
+data('speechEx', package = 'soundgen')
+samplingRate = speechEx@samp.rate
+spectrogram(speechEx, yScale = 'log', ylim = c(.05, 4))
+# playme(speechEx)
 
-# Download an example - a bit of speech (sampled at 16000 Hz)
-download.file('http://cogsci.se/soundgen/audio/speechEx.wav',
-              destfile = '~/Downloads/temp1/speechEx.wav')
-target = '~/Downloads/temp1/speechEx.wav'
-samplingRate = tuneR::readWave(target)@samp.rate
-spectrogram(target, yScale = 'log')
-playme(target)
-
-s3 = prosody(target, multProsody = 1.5,
-  analyze_pars = list(windowLength = 30, step = 15),
-  shiftPitch_pars = list(freqWindow = 400, propagation = 'adaptive'))
-spectrogram(s3, tuneR::readWave(target)@samp.rate, yScale = 'log')
-playme(s3)
+# start with exaggerated prosody, then flat towards the end
+speech1 = prosody(speechEx,
+  multProsody = list(time = c(0, 1), value = c(1.5, 0.1)),
+  analyze_pars = list(windowLength = 40, step = 10,
+  pitchMethods = c('dom', 'autocor', 'cep', 'spec')),
+  shiftPitch_pars = list(freqWindow = 400))
+spectrogram(speech1, samplingRate, yScale = 'log')
+# playme(speech1, samplingRate)
 
 # process all audio files in a folder
-s4 = prosody('~/Downloads/temp', multProsody = 2, savePlots = '',
-             saveAudio = '~/Downloads/temp/prosody')
+s4 = prosody('~/Downloads/temp', multProsody = 2,
+  savePlots = TRUE, saveAudio = TRUE)
 str(s4)  # returns a list with audio (+ saves it to disk)
 }
 }

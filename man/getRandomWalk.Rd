@@ -36,7 +36,7 @@ with an upward and a downward curve. Larger absolute values of trend
 produce less and less random behavior}
 }
 \value{
-Returns a numeric vector of length len and range from 0 to rw_range.
+A numeric vector of length len and range from 0 to rw_range.
 }
 \description{
 Generates a random walk with flexible control over its range, trend, and
@@ -45,13 +45,14 @@ cumulative sum of the generated values. Smoothness is controlled by initially
 generating a shorter random walk and upsampling.
 }
 \examples{
-plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 0))
-plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .2))
-plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .95))
-plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .99))
-plot(getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 1))
-plot(getRandomWalk(len = 1000, rw_range = 15,
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 0))
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .2))
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .95))
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = .99))
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 5, rw_smoothing = 1))
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 15,
   rw_smoothing = .2, trend = c(.1, -.1)))
-plot(getRandomWalk(len = 1000, rw_range = 15,
+plot(soundgen:::getRandomWalk(len = 1000, rw_range = 15,
   rw_smoothing = .2, trend = c(15, -1)))
 }
+\keyword{internal}

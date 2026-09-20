@@ -4,7 +4,7 @@
 \alias{playme}
 \title{Play audio}
 \usage{
-playme(x, samplingRate = 16000, player = NULL, from = NULL, to = NULL)
+playme(x, samplingRate = NULL, player = NULL, from = NULL, to = NULL)
 }
 \arguments{
 \item{x}{path to a folder, one or more wav or mp3 files c('file1.wav',
@@ -15,21 +15,26 @@ numeric vectors}
 numeric vector)}
 
 \item{player}{the name of player to use, eg "aplay", "play", "vlc", etc.
-Defaults to "play" on Linux, "afplay" on MacOS, and tuneR default on
-Windows. In case of errors, try setting another default player for
-\code{\link[tuneR]{play}}}
+Defaults to options()$soundgen.player --> tuneR::getWavPlayer() -->
+OS-specific defaults: "play" on Linux, "afplay" on MacOS, and VLC -->
+FFmpeg --> PowerShell on Windows. In case of errors, try setting another
+default player (see examples).}
 
 \item{from, to}{play a selected time range (s)}
 }
+\value{
+Does not return anything, only plays the audio.
+}
 \description{
 Plays one or more sounds: wav/mp3 file(s), Wave objects, or numeric vectors.
-This is a simple wrapper for the functionality provided by
-\code{\link[tuneR]{play}}. Recommended players on Linux: "play" from the
-"vox" library (default), "aplay".
+Recommended players on Linux: "play" from the "SoX" library (default),
+"aplay" (ALSA).
 }
 \examples{
 \dontrun{
 # Play an audio file:
+data('speechEx', package = 'soundgen')
+playme(speechEx, from = 1, to = 2)
 playme('pathToMyAudio/audio.wav')
 
 # Create and play a numeric vector:
@@ -38,12 +43,17 @@ sound = sin(2 * pi * f0_Hz * (1:16000) / 16000)
 playme(sound, 16000)
 playme(sound, 16000, from = .1, to = .5)  # play from 100 to 500 ms
 
-# In case of errors, look into tuneR::play(). For ex., you might need to
-# specify which player to use:
-playme(sound, 16000, player = 'aplay')
+# Set default player for the current R session
+# "play" (SoX library, default on Linux)
+options(soundgen.player = 'play')
+# "afplay" (ALSA, default on MacOS)
+options(soundgen.player = 'afplay')
+# VLC path (default on Windows)
+options(soundgen.player = "C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe")
+# view currently set player
+options()$soundgen.player
 
-# To avoid doing it all the time, set the default player:
-tuneR::setWavPlayer('aplay')
-playme(sound, 16000)  # should now work without specifying the player
+# Or specify player per call
+playme(sound, player = "C:\\\\Program Files\\\\VideoLAN\\\\VLC\\\\vlc.exe")
 }
 }

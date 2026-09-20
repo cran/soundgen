@@ -4,7 +4,13 @@
 \alias{pitchSmoothPraat}
 \title{Pitch smoothing as in Praat}
 \usage{
-pitchSmoothPraat(pitch, bandwidth, samplingRate, plot = FALSE)
+pitchSmoothPraat(
+  pitch,
+  bandwidth,
+  samplingRate,
+  plot = FALSE,
+  preprocess = TRUE
+)
 }
 \arguments{
 \item{pitch}{numeric vector of pitch values (NA = voiceless)}
@@ -15,14 +21,21 @@ close to zero = more smoothing)}
 \item{samplingRate}{the number of pitch values per second}
 
 \item{plot}{if TRUE, plots the original and smoothed pitch contours}
+
+\item{preprocess}{if TRUE, makes input non-negative and handles NA; if FALSE,
+expects a non-negative vector without any missing values (faster)}
+}
+\value{
+Numeric vector of the same length as input.
 }
 \description{
-Smoothes an intonation (pitch) contour with a low-pass filter, as in Praat
+Smooths an intonation (pitch) contour with a low-pass filter, as in Praat
 (http://www.fon.hum.uva.nl/praat/). Algorithm: interpolates missing values
 (voiceless frames), performs FFT to obtain the spectrum, multiplies by a
 Gaussian filter, performs an inverse FFT, and fills the missing values back
-in. The \code{bandwidth} parameter is about half the cutoff frequency (ie
-some frequencies will still be present up to ~2 * bandwidth)
+in. The \code{bandwidth} parameter controls the width of the low‑pass filter;
+larger values retain more high‑frequency detail. Similar to a special case of
+low-pass filtering with \code{\link{bandpass}}, but faster and can handle NAs.
 }
 \examples{
 pitch = c(NA, NA, 405, 441, 459, 459, 460, 462, 462, 458, 458, 445, 458, 451,

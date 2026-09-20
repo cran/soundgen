@@ -10,17 +10,19 @@ getLoudness(
   scale = NULL,
   from = NULL,
   to = NULL,
+  input = c("spec", "audSpec"),
   windowLength = 50,
   step = NULL,
   overlap = 50,
   SPL_measured = 70,
-  Pref = 2e-05,
-  spreadSpectrum = TRUE,
+  spreadSpectrum = FALSE,
+  sharpnessMethod = c("aures", "DIN45692", "bismarck"),
   summaryFun = c("mean", "median", "sd"),
   reportEvery = NULL,
   cores = 1,
-  plot = FALSE,
-  savePlots = NULL,
+  plot = TRUE,
+  savePlots = FALSE,
+  embed = FALSE,
   main = NULL,
   ylim = NULL,
   width = 900,
@@ -39,44 +41,60 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{windowLength}{length of FFT window, ms (multiple values in a vector
-produce a multi-resolution spectrogram)}
+\item{input}{"spec" = power spectrogram warped to bark scale with
+\code{\link[tuneR]{audspec}}, "audSpec" = auditory spectrogram produced by
+convolving the signal with a bank of gammatone filters using
+\code{\link{audSpectrogram}} (much slower, but more physiologically
+accurate)}
 
-\item{step}{you can override \code{overlap} by specifying FFT step, ms - a
-vector of the same length as windowLength (NB: because digital audio is
-sampled at discrete time intervals of 1/samplingRate, the actual step and
-thus the time stamps of STFT frames may be slightly different, eg 24.98866
-instead of 25.0 ms)}
+\item{windowLength}{length of the analysis window, ms}
 
-\item{overlap}{overlap between successive FFT frames, \%}
+\item{step}{step between successive windows, ms; if provided, overrides
+\code{overlap}; because digital audio is sampled at discrete time intervals
+of 1/samplingRate, the actual step and thus the time stamps of STFT frames
+may be slightly different - e.g., 24.98866 instead of 25.0 ms}
 
-\item{SPL_measured}{sound pressure level at which the sound is presented, dB}
+\item{overlap}{overlap between successive windows, \%}
 
-\item{Pref}{reference pressure, Pa (currently has no effect on the estimate)}
+\item{SPL_measured}{sound pressure level at which the sound is presented
+relative to some reference (the conventional threshold is 2e-5 Pa), dB}
 
 \item{spreadSpectrum}{if TRUE, applies a spreading function to account for
 frequency masking}
 
+\item{sharpnessMethod}{the method of calculating sharpness (mostly differ in
+weighting functions; only "aures" depends on SPL)}
+
 \item{summaryFun}{functions used to summarize each acoustic characteristic,
-eg "c('mean', 'sd')"; user-defined functions are fine (see examples); NAs
-are omitted automatically for mean/median/sd/min/max/range/sum, otherwise
-take care of NAs yourself}
+eg \code{c('mean', 'sd')}; user-defined functions are fine (see examples);
+NAs are omitted automatically for mean/median/sd/min/max/range/sum,
+otherwise take care of NAs yourself}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{should a spectrogram be plotted? TRUE / FALSE}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{main}{plot title}
 
@@ -84,98 +102,112 @@ don't save, '' = same folder as audio)}
 frequency). NB: still in kHz, even if yScale = bark, mel, or ERB}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
 \item{mar}{margins of the spectrogram}
 
 \item{...}{other plotting parameters passed to \code{\link{spectrogram}}}
 }
 \value{
-Returns a list: \describe{ \item{specSone}{spectrum in bark-sone (one
-  per file): a matrix of loudness values in sone, with frequency on the bark
-  scale in rows and time (STFT frames) in columns} \item{loudness}{a vector
-  of loudness in sone per STFT frame (one per file)} \item{summary}{a
-  dataframe of summary loudness measures (one row per file)} }
+A list with two top-level elements: \code{$detailed} and
+  \code{$summary}.
+
+  \code{$detailed} contains per-file results. If multiple sounds are
+  analyzed, \code{$detailed} is a list of per-sound lists. If a single
+  sound is analyzed, it is simplified to a single list. Each list contains:
+  \describe{
+    \item{loudness}{a vector of loudness in sone units per STFT frame}
+    \item{specSone}{spectrum in bark-sone: a matrix of loudness values in
+      sone, with frequency on the bark scale in rows and time (STFT frames)
+      in columns}
+    \item{loudnessPhon, specPhon}{same in phon instead of sone units}
+    \item{sharpness}{a vector of sharpness in acum units per STFT frame}
+    \item{audSpec}{auditory spectrogram used to calculate loudness and
+      sharpness}
+  }
+
+  \code{$summary} is a dataframe of summary loudness measures (one row per
+  file). If \code{summaryFun} is \code{NULL}, \code{$summary} is \code{NULL}.
 }
 \description{
-Estimates subjective loudness per frame, in sone. Based on EMBSD speech
-quality measure, particularly the matlab code in Yang (1999) and Timoney et
+Estimates subjective loudness and sharpness of audio. Based on EMBSD speech
+quality measure, particularly the MATLAB code in Yang (1999) and Timoney et
 al. (2004). Note that there are many ways to estimate loudness and many other
 factors, ignored by this model, that could influence subjectively experienced
 loudness. Please treat the output with a healthy dose of skepticism! Also
 note that the absolute value of calculated loudness critically depends on the
 chosen "measured" sound pressure level (SPL). \code{getLoudness} estimates
 how loud a sound will be experienced if it is played back at an SPL of
-\code{SPL_measured} dB. The most meaningful way to use the output is to
-compare the loudness of several sounds analyzed with identical settings or of
-different segments within the same recording.
+SPL_measured dB. The most meaningful way to use the output is to compare the
+loudness of several sounds analyzed with identical settings or of different
+segments within the same recording.
 }
 \details{
 Algorithm: calibrates the sound to the desired SPL (Timoney et al., 2004),
-extracts a spectrogram with \code{\link[tuneR]{powspec}}, converts to bark
-scale with (\code{\link[tuneR]{audspec}}), spreads the spectrum to account
-for frequency masking across the critical bands (Yang, 1999), converts dB to
-phon by using standard equal loudness curves (ISO 226), converts phon to sone
-(Timoney et al., 2004), sums across all critical bands, and applies a
-correction coefficient to standardize output. Calibrated so as to return a
-loudness of 1 sone for a 1 kHz pure tone with SPL of 40 dB.
+extracts a spectrogram with frequencies on the bark scale, optionally spreads
+the spectrum to account for frequency masking across the critical bands
+(Yang, 1999), converts dB to phon by using standard equal loudness curves
+(ISO 226), converts phon to sone (Timoney et al., 2004), sums across all
+critical bands, and applies a correction coefficient to standardize output.
+Calibrated so as to return a loudness of 1 sone for a 1 kHz pure tone with
+SPL of 40 dB and \code{spreadSpectrum = FALSE}. Sharpness is calculated as
+the weighted first moment of specific loudness on the Bark scale.
 }
 \examples{
 sounds = list(
-  white_noise = runif(8000, -1, 1),
-  white_noise2 = runif(8000, -1, 1) / 2,  # ~6 dB quieter
-  pure_tone_1KHz = sin(2*pi*1000/16000*(1:8000))  # pure tone at 1 kHz
+  noise_1KHz = soundgen:::zeroOne(bandpass(rnorm(8000), 16000,
+    lwr = 900, upr = 1100)) * 2 -1, # narrow-band noise at 1 KHz
+  white_noise = runif(8000, -1, 1),  # white noise
+  white_noise2 = runif(8000, -1/2, 1/2),  # ~6 dB quieter
+  pure_tone_1KHz = sin(2*pi*1000/16000*(1:8000)),  # pure tone at 1 kHz
+  pure_tone_100Hz = sin(2*pi*100/16000*(1:8000))  # pure tone at 100 Hz
 )
+# playme(sounds)
 l = getLoudness(
     x = sounds, samplingRate = 16000, scale = 1,
-    windowLength = 20, step = NULL,
-    overlap = 50, SPL_measured = 40,
-    Pref = 2e-5, plot = FALSE)
+    windowLength = 40, step = NULL, input = c('spec', 'audSpec')[1],
+    overlap = 50, SPL_measured = 60,
+    plot = FALSE)
 l$summary
-# white noise (sound 1) is twice as loud as pure tone at 1 KHz (sound 3),
-# and note that the same white noise with lower amplitude has lower loudness
-# (provided that "scale" is specified)
-# compare: lapply(sounds, range)
+# loudness depends on amplitude if "scale" is provided (cf. sounds 2 and 3)
+# narrowband noise / tone at 1 kHz, 60 dB: sharpness ~=1 acum, loudness ~=4 sone
 
-\dontrun{
-s = soundgen()
-# playme(s)
+# a steady glissando from 125 to 8000 Hz (constant on a musical scale)
+pitch = exp(seq(log(125), log(8000), length.out = 16000))
+s = sinpi(2 * cumsum(pitch) / 16000)
 l1 = getLoudness(s, samplingRate = 16000, SPL_measured = 70)
-l1$summary
-# The estimated loudness in sone depends on target SPL
-l2 = getLoudness(s, samplingRate = 16000, SPL_measured = 40)
-l2$summary
+# steady SPL, but variable loudness
+
+# The estimated loudness and sharpness depend on target SPL
+l2 = getLoudness(s, samplingRate = 16000, SPL_measured = 40, plot = FALSE)
+l1$summary$loudness_mean
+l2$summary$loudness_mean
 
 # ...but not (much) on windowLength and samplingRate
-l3 = getLoudness(s, samplingRate = 16000, SPL_measured = 40, windowLength = 50)
-l3$summary
+l3 = getLoudness(s, samplingRate = 16000, SPL_measured = 40,
+  windowLength = 50, plot = FALSE)
+l3$summary$loudness_mean
 
-# input can be an audio file...
-getLoudness('~/Downloads/temp/032_ut_anger_30-m-roar-curse.wav')
+\dontrun{
+# Using auditory spectrogram as input instead of STFT (slower)
+l4 = getLoudness(s, samplingRate = 16000, SPL_measured = 40, input = 'audSpec')
+l4$summary$loudness_mean
 
-...or a folder with multiple audio files
-getLoudness('~/Downloads/temp2', plot = FALSE)$summary
-# Compare:
-analyze('~/Downloads/temp2', pitchMethods = NULL,
-        plot = FALSE, silence = 0)$summary$loudness_mean
-# (per STFT frame; should be similar if silence = 0, because
-# otherwise analyze() discards frames considered silent)
-
-# custom summaryFun
-ran = function(x) diff(range(x))
-getLoudness('~/Downloads/temp2', plot = FALSE,
-            summaryFun = c('mean', 'ran'))$summary
+# Process all audio files in a folder
+l5 = getLoudness('~/Downloads/temp', savePlots = TRUE)
+l5$summary
 }
 }
 \references{
 \itemize{
   \item ISO 226 as implemented by Jeff Tackett (2005) on
   https://www.mathworks.com/matlabcentral/fileexchange/
-  7028-iso-226-equal-loudness-level-contour-signal \item Timoney, J.,
-  Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004). Implementing
-  loudness models in matlab. \item Yang, W. (1999). Enhanced Modified Bark
-  Spectral Distortion (EMBSD): An Objective Speech Quality Measure Based on
-  Audible Distortion and Cognitive Model. Temple University. }
+  7028-iso-226-equal-loudness-level-contour-signal
+  \item Timoney, J., Lysaght, T., Schoenwiesner, M., & MacManus, L. (2004).
+  Implementing loudness models in matlab.
+  \item Yang, W. (1999). Enhanced Modified Bark Spectral Distortion (EMBSD):
+  An Objective Speech Quality Measure Based on Audible Distortion and
+  Cognitive Model. Temple University. }
 }
 \seealso{
 \code{\link{getRMS}} \code{\link{analyze}}

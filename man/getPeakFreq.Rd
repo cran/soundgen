@@ -4,20 +4,72 @@
 \alias{getPeakFreq}
 \title{Get peak frequency}
 \usage{
-getPeakFreq(x, samplingRate, freqRange = NULL, parab = TRUE, plot = FALSE)
+getPeakFreq(
+  x,
+  samplingRate,
+  freqRange = NULL,
+  overlap = 75,
+  parab = TRUE,
+  plot = FALSE
+)
+}
+\arguments{
+\item{x}{numeric vector (amplitude envelope, pitch contour, etc.)}
+
+\item{samplingRate}{sampling rate of \code{x}, Hz}
+
+\item{freqRange}{a vector of length 2: the frequency range (Hz) in which
+to search for the peak. The DC component (0 Hz) is always extracted
+from the full spectrum, regardless of \code{freqRange}.}
+
+\item{overlap}{overlap between consecutive STFT frames, \%
+(default 75, i.e. step = window length / 4)}
+
+\item{parab}{if TRUE, refines the peak location by parabolic interpolation
+on a log10 scale. Purity is based on the raw peak bin, not on the
+interpolated amplitude.}
+
+\item{plot}{if TRUE, produces a simple plot}
+}
+\value{
+A dataframe with one row per STFT frame: \describe{
+  \item{time}{time stamp, ms}
+  \item{freq}{peak frequency, Hz (NA for frames with no usable energy
+    in the target frequency range)}
+  \item{purity}{peak magnitude as a proportion of the frame's total
+    spectral magnitude. Normally approximately 0 to 1, but not clamped;
+    values outside this range are preserved as diagnostic information.}
+  \item{dep}{approximate modulation depth, on a 0 to 100 scale for an
+    ideal sinusoidal envelope. Not clamped; values outside 0-100 can occur
+    for non-sinusoidal or otherwise uncalibrated inputs. NA if the DC
+    component is zero or non-finite.}
+}
 }
 \description{
-Internal soundgen function for finding frequency modulation in pitch
-contours. Called by analyze().
+Performs STFT and finds the dominant frequency within a target range for each
+frame, together with its spectral purity (proportion of normalized spectral
+magnitude at the peak) and, when a meaningful DC component is present, the
+modulation depth derived from the AC/DC ratio. Used by "getAM_env" for
+measuring amplitude modulation and by \code{\link{analyze}} for measuring
+frequency modulation.
+}
+\details{
+For a sinusoidal modulator with depth \code{m = amDep / 100}, the
+one-sided (un-doubled) envelope spectrum satisfies
+\code{|X(f_am)| / |X(0)| = m / (4 - 2m)}, giving
+\code{amDep = 400 * purity / (dc + 2 * purity)}.
+The sum-to-one normalization cancels in this ratio, so the formula
+is unaffected by spectral leakage.
 }
 \examples{
-\dontrun{
-s = soundgen(sylLen = 1000, pitch = 500,
-  vibratoFreq = c(6, 12), vibratoDep = 2,
-  temperature = .001, addSilence = 5)
-an = analyze(s, 16000, step = 5, windowLength = 25,
-  plot = TRUE, yScale = 'bark')
-plot(an$detailed$fmFreq, type = 'l')
+{
+# White noise with sinusoidal AM
+amFreq = 10; amDep = 60
+am = .5 + .5 * cospi(pi * amFreq * (1:1000) / 4000)
+env = rnorm(4000) * (1 - am * amDep / 100)
+plot(env, type = 'l')
+
+soundgen:::getPeakFreq(env, samplingRate = 4000, freqRange = c(5, 50))
 }
 }
 \keyword{internal}

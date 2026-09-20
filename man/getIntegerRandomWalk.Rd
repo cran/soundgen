@@ -28,7 +28,7 @@ regime 1 to 2 (q2). See noiseThresholdsDict for defaults}
 \item{plot}{if TRUE, plots the random walk underlying nonlinear regimes}
 }
 \value{
-Returns a vector of integers (0/1/2) of the same length as rw.
+A vector of integers (0/1/2) of the same length as rw.
 }
 \description{
 Takes a continuous random walk and converts it to continuous epochs of
@@ -37,10 +37,11 @@ to different noise regimes: 0 = no noise, 1 = subharmonics, 2 = subharmonics
 and jitter/shimmer.
 }
 \examples{
-rw = getRandomWalk(len = 100, rw_range = 100, rw_smoothing = .2)
-r = getIntegerRandomWalk(rw, nonlinBalance = 75,
+rw = soundgen:::getRandomWalk(len = 100, rw_range = 100, rw_smoothing = .2)
+r = soundgen:::getIntegerRandomWalk(rw, nonlinBalance = 75,
                          minLength = 10, plot = TRUE)
-r = getIntegerRandomWalk(rw, nonlinBalance = 15,
+r = soundgen:::getIntegerRandomWalk(rw, nonlinBalance = 15,
                          q1 = 30, q2 = 70,
                          minLength = 10, plot = TRUE)
 }
+\keyword{internal}

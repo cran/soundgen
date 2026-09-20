@@ -16,7 +16,8 @@ osc(
   reportEvery = NULL,
   cores = 1,
   plot = TRUE,
-  savePlots = NULL,
+  savePlots = FALSE,
+  embed = FALSE,
   main = NULL,
   xlab = NULL,
   ylab = NULL,
@@ -39,28 +40,37 @@ numeric vectors}
 \item{samplingRate}{sampling rate of \code{x} (only needed if \code{x} is a
 numeric vector)}
 
-\item{scale}{maximum possible amplitude of input used for normalization of
-input vector (only needed if \code{x} is a numeric vector)}
+\item{scale}{maximum possible amplitude of input, used to normalize the input
+vector (only needed if \code{x} is a numeric vector)}
 
 \item{from, to}{if NULL (default), analyzes the whole sound, otherwise
 from...to (s)}
 
-\item{dynamicRange}{dynamic range, dB. All values more than one dynamicRange
-under maximum are treated as zero}
+\item{dynamicRange}{regions under \code{-dynamicRange} dB are treated as silent}
 
 \item{dB}{if TRUE, plots on a dB instead of linear scale}
 
 \item{returnWave}{if TRUE, returns a log-transformed waveform as a numeric vector}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 
-\item{plot}{if TRUE, plots the oscillogram}
+\item{plot}{if TRUE, produces a plot of the results}
 
-\item{savePlots}{full path to the folder in which to save the plots (NULL =
-don't save, '' = same folder as audio)}
+\item{savePlots}{if TRUE, creates a subdirectory in the input directory (if
+input is a file or folder) or in the working directory (if input is a
+vector etc), named after the function (eg "spectrogram/"). All plots and
+audio files (if any) are saved in this new directory. If there are multiple
+inputs, an html notebook is also created for easy viewing and listening}
+
+\item{embed}{if TRUE and savePlots is set and there are multiple inputs, all
+saved images and audio (if any) are embedded in the exported html notebook
+for easy sharing; if FALSE, the html file links to separate images and audio
+files (but separate files are still saved). NB: for this to work, package
+"base64enc" must be installed}
 
 \item{main}{plot title}
 
@@ -68,33 +78,31 @@ don't save, '' = same folder as audio)}
 
 \item{ylim}{override default amplitude scale for non-centered sounds}
 
-\item{bty}{box type (see `?par`)}
+\item{bty}{box type (see \code{?par})}
 
 \item{midline}{if TRUE, draws a line at 0 dB}
 
 \item{maxPoints}{the maximum number of points to plot (speeds up the plotting
-of long audio files, but beware of antialiasing)}
+of long audio files, but beware of aliasing artifacts)}
 
 \item{width, height, units, res}{graphical parameters for saving plots passed to
-\code{\link[grDevices]{png}}}
+\code{png}}
 
-\item{...}{Other graphical parameters passed on to `plot()`}
+\item{...}{Other graphical parameters passed on to \code{plot()}}
 }
 \value{
-If \code{returnWave = TRUE}, returns the input waveform on the
-  original or dB scale: a vector with range from `-dynamicRange` to
-  `dynamicRange`.
+If \code{returnWave = TRUE}, returns the waveform as a numeric
+  vector on the original or dB scale; otherwise, does not return anything.
 }
 \description{
 Plots the oscillogram (waveform) of a sound on a linear or logarithmic scale
 (in dB). To get a dB scale, centers and normalizes the sound, then takes a
 logarithm of the positive part and a flipped negative part, which is
 analogous to "Waveform (dB)" view in Audacity. For more plotting options,
-check \code{\link[seewave]{oscillo}}.
+check the "oscillo" function in the seewave package.
 }
 \examples{
-sound = sin(1:2000/10) *
-        getSmoothContour(anchors = c(1, .01, .5), len = 2000)
+sound = sin(1:2000/10) * approx(c(1, .01, .5), n = 2000)$y
 
 # Oscillogram on a linear scale without bells and whistles, just base R
 plot(sound, type = 'l')
@@ -112,23 +120,16 @@ o = osc(sound, samplingRate = 1000, dB = TRUE, midline = FALSE,
 abline(h = -80, col = 'orange', lty = 3)
 o[1:10]  # the waveform in dB
 
-\dontrun{
 # Wave object
-data(sheep, package = 'seewave')
-osc(sheep, dB = TRUE)
-
-# Plot a section
-osc(sheep, from = .5, to = 1.2)
+data(speechEx, package = 'soundgen')
+osc(speechEx, from = 2, to = 2.5, dB = TRUE)
 
 # for long files, reduce the resolution to plot quickly (careful: if the
 # resolution is too low, antialiasing may cause artifacts)
-osc(sheep, dB = TRUE, maxPoints = 2500)
-osc(sheep, samplingRate = 5000, maxPoints = 100)
+osc(speechEx, dB = TRUE, maxPoints = 2500)
 
-# files several minutes long can be plotted in under a second
-osc('~/Downloads/speechEx.wav', maxPoints = 20000)
-
+\dontrun{
 # saves oscillograms of all audio files in a folder
-osc('~/Downloads/temp2', savePlots = '')
+osc('~/Downloads/temp', savePlots = TRUE)
 }
 }

@@ -8,7 +8,7 @@ getDuration(
   x,
   samplingRate = NULL,
   silence = 0.01,
-  rms = list(windowLength = 20, step = 5),
+  rms_pars = list(windowLength = 20, step = 5),
   reportEvery = NULL,
   cores = 1
 )
@@ -26,16 +26,21 @@ maximum RMS amplitude are removed when calculating
 \code{duration_noSilence} (NULL = don't calculate \code{duration_noSilence}
 to save time)}
 
-\item{rms}{a list of control parameters passed to \code{\link{getRMS}}}
+\item{rms_pars}{a list of control parameters passed to \code{\link{getRMS}}}
 
 \item{reportEvery}{when processing multiple inputs, report estimated time
-left every ... iterations (NULL = default, NA = don't report)}
+left every \code{reportEvery} iterations (NULL = default, NA = don't
+report); see \code{\link{reportTime}}}
 
 \item{cores}{number of cores for parallel processing}
 }
 \value{
-Returns \code{duration} (s) and \code{duration_noSilence} (duration
-  without leading and trailing silences).
+For a single file, a one-row data frame with columns $duration and
+  $duration_noSilence. For multiple files, a data frame with one row per
+  file, including a $file column. If \code{silence = NULL},
+  \code{duration_noSilence} (duration without leading and trailing silence)
+  is NA. If no RMS frame exceeds the threshold, \code{duration_noSilence} is
+  0.
 }
 \description{
 Returns the duration of one or more audio files (mostly useful for running on
@@ -45,7 +50,7 @@ relatively loud central fragments of each sound. Silences are located based
 on the amplitude of root mean square (RMS) amplitude with
 \code{\link{getRMS}}. Note that the threshold is set relative to the observed
 maximum RMS, just as in \code{\link{analyze}}. This means that even very
-quiet sounds are not treated as nothing but silence.
+quiet sounds are not treated as pure silence.
 }
 \examples{
 s = c(rep(0, 550), runif(400, -1, 1), rep(0, 50))
@@ -53,10 +58,11 @@ osc(s, samplingRate = 1000)
 # true duration_noSilence is 400 ms
 getDuration(s, samplingRate = 1000, silence = .01)
 getDuration(s, samplingRate = 1000, silence = .1,
-            rms = list(windowLength = 5, step = 1))
+            rms_pars = list(windowLength = 5, step = 1))
 
 \dontrun{
 d = getDuration('~/Downloads/temp')
+d
 hist(d$duration - d$duration_noSilence)
 }
 }

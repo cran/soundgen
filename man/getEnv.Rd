@@ -5,36 +5,55 @@
 \title{Get amplitude envelope}
 \usage{
 getEnv(
-  sound,
-  windowLength_points,
-  method = c("rms", "hil", "peak", "raw", "mean")[1]
+  x,
+  method = c("rms", "hil", "peak", "mean"),
+  wl = 200,
+  overlap = 0,
+  step = NULL,
+  upsample = TRUE
 )
 }
 \arguments{
-\item{sound}{numeric vector}
+\item{x}{numeric vector at least \code{wl} long}
 
-\item{windowLength_points}{the length of smoothing window, in points}
+\item{method}{"peak" for peak amplitude per window, "rms" for root mean
+square amplitude, "mean" for mean (for DC offset removal), "hil" for
+Hilbert envelope}
 
-\item{method}{'peak' for peak amplitude per window, 'rms' for root mean
-square amplitude, 'mean' for mean (for DC offset removal), 'hil' for
-Hilbert, 'raw' for low-pass filtering the actual sound}
+\item{wl}{the length of smoothing window (samples)}
+
+\item{overlap}{overlap between successive windows, 0 to 100\%}
+
+\item{step}{step between successive windows (samples); overrides overlap}
+
+\item{upsample}{if TRUE, upsamples the envelope to the length of the original
+sound; if FALSE, returns one sample per window}
+}
+\value{
+The envelope as a numeric vector on the original scale. If
+  \code{upsample = TRUE}, it has the same length as the input, regardless of
+  the amount of smoothing.
 }
 \description{
-Returns the smoothed amplitude envelope of a waveform on the original scale.
-Unlike seewave::env, this function always returns an envelope of the same
-length as the original sound, regardless of the amount of smoothing.
+Calculates a smoothed envelope of a waveform based on peaks, running average,
+root mean square (intensity), or envelope of the analytic signal with Hilbert
+transform. Algorithm: calculates one envelope value per frame of length
+\code{wl}, then upsamples to the original sampling rate with
+\code{\link[stats]{spline}}.
 }
 \examples{
 a = rnorm(500) * seq(1, 0, length.out = 500)
-windowLength_points = 50
+wl = 50
 scale = max(abs(a))
 plot(a, type = 'l', ylim = c(-scale, scale))
-points(soundgen:::getEnv(a, windowLength_points, 'rms'),
-       type = 'l', col = 'red')
-points(soundgen:::getEnv(a, windowLength_points, 'peak'),
-       type = 'l', col = 'green')
-points(soundgen:::getEnv(a, windowLength_points, 'hil'),
-       type = 'l', col = 'blue')
-points(soundgen:::getEnv(a, windowLength_points, 'mean'),
-       type = 'l', lty = 3, lwd = 3)
+lines(getEnv(a, 'rms', wl), col = 'red')
+lines(getEnv(a, 'peak', wl), col = 'green')
+lines(getEnv(a, 'hil', wl), col = 'blue')
+lines(getEnv(a, 'mean', wl), lty = 3, lwd = 3)
+
+# No upsampling (short output)
+getEnv(1:16, 'mean', wl = 5, upsample = FALSE)
+env_short = getEnv(a, 'rms', wl = wl, overlap = 50, upsample = FALSE)
+plot(a, type = 'l')
+lines(seq(1, length(a), length.out = length(env_short)), env_short, col = 'red')
 }

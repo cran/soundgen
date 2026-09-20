@@ -4,32 +4,49 @@
 \alias{findPeaks}
 \title{Find peaks}
 \usage{
-findPeaks(x, wl = 3, thres = NULL)
+findPeaks(
+  x,
+  wl = 3,
+  thres = NULL,
+  thresRel = NULL,
+  dropFirstLast = FALSE,
+  plot = FALSE
+)
 }
 \arguments{
 \item{x}{numeric vector}
 
 \item{wl}{rolling window over which we look for maxima: central value ±
-floor(wl/2), eg ±1 if wl=3}
+floor(wl/2), eg ±1 if wl=3; forced to be at least 3}
 
 \item{thres}{required absolute value of each peak}
+
+\item{thresRel}{required absolute excess over the window mean excluding the
+focal point}
+
+\item{dropFirstLast}{if TRUE, the first and last value cannot be peaks (only
+two-sided maxima accepted)}
+
+\item{plot}{if TRUE, plots the input vector with peaks marked.}
 }
 \value{
-Returns a vector with indices of local maxima
+A vector of indices of local maxima.
 }
 \description{
 A bare-bones, very fast function to find local maxima (peaks) in a numeric
-vector.
+vector. NAs are set to the minimum value of input and effectively ignored.
+The first and last values can also be peaks. Plateaus are NOT treated as
+peaks.
 }
 \examples{
-x = rnorm(100)
-findPeaks(x, wl = 3)
-findPeaks(x, wl = 3, thres = 1)
-findPeaks(x, wl = 5)
-idx = findPeaks(x, wl = 5, thres = 1)
-plot(x, type = 'b'); abline(h = 1, lty = 3)
-points(idx, x[idx], col = 'blue', pch = 8)
-}
-\seealso{
-\code{\link{findInflections}}
+x = c(5, 2, 3, 3, 2, 7, 3, 2, 5, 5, 1, 0, 2, NA)
+findPeaks(x, wl = 3, plot = TRUE)
+findPeaks(x, wl = 3, thres = 2, plot = TRUE)
+findPeaks(x, wl = 3, thres = 100, plot = TRUE)
+findPeaks(x, wl = 4, plot = TRUE)
+findPeaks(x, wl = 6, plot = TRUE)
+findPeaks(x, wl = 3, thresRel = 2, plot = TRUE)
+findPeaks(x, wl = 3, thresRel = 4, plot = TRUE)
+findPeaks(x, wl = 3, thres = 6, thresRel = 2, plot = TRUE)
+findPeaks(x, dropFirstLast = TRUE)
 }

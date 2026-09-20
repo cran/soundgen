@@ -15,7 +15,7 @@
   display: grid;
   padding: 3px;
   grid-gap: 0;
-  grid-template-columns: min-content 1fr;
+  grid-template-columns: min-content 300 px 1fr;
   grid-template-areas: 'left right';
 }
 
@@ -165,6 +165,41 @@
 }
 
 
+/* Formant buttons read-only display and NA button */
+.fVal {
+  font-weight: bold;
+  font-size: 1.2em;
+  margin-bottom: 2px;
+  color: #333;
+}
+.fNA {
+  font-size: 0.7em;
+  padding: 0px 4px;
+  margin-top: -5px;
+  line-height: 1;
+}
+.fLabel {
+  font-size: 0.8em;
+  color: #666;
+  margin-bottom: -2px;
+  font-weight: normal;
+}
+.fBoxBtn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 2px 5px;
+  width: 100%;
+  text-align: center;
+  border-radius: 3px;
+}
+.fBoxBtn:hover {
+  border-color: #aaa;
+}
+.fBoxBtn.selected {
+  background-color: #72ea9b;
+}
+
+
 /* misc */
 input {
   font-size: 1em
@@ -207,8 +242,8 @@ label {
   font-weight: bold;
 }
 
-#fileList.item {
-  font-size: .75em;  /* not working */
+#fileList {
+  font-size: .75em;
 }
 
 #ann_table {

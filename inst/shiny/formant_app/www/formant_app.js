@@ -13,8 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
   var mouseDown = false;
   var startX = 0, scrollBarLeft = 0, scrollBarLeft_new = 0;
   slider.style.left = '0%';
-
-  rmPcnt = function(x) {
+  var cntrlIsPressed = false;
+  var spec = document.getElementById('plotRow');  // ideally the whole row instead of spec
+  function rmPcnt(x) {
     return(Number(x.slice(0, -1)));
   };
   // rmPcnt('200%');  // returns "200" as a number
@@ -71,14 +72,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // mouse wheel events
-  var spec = document.getElementById('plotRow');  // ideally the whole row instead of spec
   spec.addEventListener("wheel", event => {
     event.preventDefault();
     const delta = Math.sign(event.deltaY);
     if (delta < 0) {
-      dir = 'r';
+      var dir = 'r';
     } else {
-      dir = 'l';
+      var dir = 'l';
     }
     if (cntrlIsPressed) {
       // zoom
@@ -91,45 +91,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   // Event listeners for hotkeys
-  var cntrlIsPressed = false;
   $(document).on("keydown", function (e) {
-    Shiny.onInputChange("userPressedSmth", e.key +
-      Math.random().toString(36).substr(2, 8));  // key + 8 random characters
-    // w/o Math.random() only the first of a series of identical
-    // keydown events is sent to server()
-    if(event.key == "Control")
-        cntrlIsPressed = true;
+    let isInput = $(e.target).is('input, textarea, select, [contenteditable]');
+
+  // Handle Modal Enter/Esc keys globally
+  if ($('.modal-dialog').length > 0) {
+     if (e.key === 'Enter') {
+        // Force Shiny to sync the textInput value before clicking OK
+        var activeEl = document.activeElement;
+        if (activeEl && activeEl.tagName === 'INPUT') {
+          $(activeEl).trigger('change');
+        }
+        // Small delay to ensure the textInput value reaches the server before the button click
+        setTimeout(function() {
+          if ($('#ok_new').length) $('#ok_new').click();
+          if ($('#ok_edit').length) $('#ok_edit').click();
+        }, 50);
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        $('.modal').modal('hide');
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Send hotkeys to Shiny (only if not typing in an input)
+    if (!isInput) {
+        Shiny.onInputChange("userPressedSmth", e.key + Math.random().toString(36).substr(2, 8));
+        // w/o Math.random() only the first of a series of identical
+        // keydown events is sent to server()
+    }
+
+    if (e.key == "Control") cntrlIsPressed = true;
   });
 
-  $(document).keyup(function(){
+
+  $(document).keyup(function() {
     cntrlIsPressed = false;
-  });
-
-  // prevent spacebar from activating the last pressed button
-  // see https://stackoverflow.com/questions/22280139/prevent-space-button-from-triggering-any-other-button-click-in-jquery
-  $(document).keyup(function(event) {
+    // prevent spacebar from activating the last pressed button
     if(event.key == " ") {
       event.preventDefault();
     }
   });
-
-
-
-  // Working with the annotation table
-  // Highlight the row with currentAnn
-  // https://stackoverflow.com/questions/4524661/how-to-tell-which-row-number-is-clicked-in-a-table/37331546
-  function highlightRow(r) {
-    var annTbl_rows = document.querySelectorAll('#ann_table table tbody tr');
-    for (var i = 0; i < annTbl_rows.length; i++) {
-      if (i == (r-1)) {
-        // highlight the active annotation
-        annTbl_rows[r-1].classList.add('selected');
-      } else {
-        // reset all other rows to default color
-        annTbl_rows[i].classList.remove('selected');
-      }
-    }
-  }
 
   document.querySelector('#ann_table').onclick = function(ev) {
     // ev.target <== td element
@@ -142,15 +148,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (r > 0) {
         // not the header: send word to R
     		Shiny.setInputValue('tableRow', r);
-        highlightRow(r);  // done from R anyway b/c currentAnn can change in different ways
       }
     }
   };
 
-  Shiny.addCustomMessageHandler('highlightRow', function(message) {
-    highlightRow(Number(message));
+  // Notify R whenever any modal is hidden
+  $(document).on('hidden.bs.modal', '.modal', function() {
+    Shiny.setInputValue('modal_hidden', Math.random());
   });
 
-
 });
-
